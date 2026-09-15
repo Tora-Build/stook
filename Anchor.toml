@@ -1,0 +1,12 @@
+[toolchain]
+anchor_version = "0.30.1"
+
+[programs.localnet]
+stook = "LEDKe6vWgQeZQQsxNUXhK3UMxmZLcb2ZDxLuTGE3pw1"
+
+[provider]
+cluster = "devnet"
+wallet = "~/.config/solana/id.json"
+
+[scripts]
+test = "echo no ts tests yet"
