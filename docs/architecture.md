@@ -1,126 +1,98 @@
 # Architecture
 
-## The decision this document exists to record
+## The reversal this document records
 
-Stook is a **parimutuel** market. It is not the Sooth engine with a different
-front end — there is no LMSR, no `b` subsidy, no LP token, no graduation and no
-order book. That is a deliberate reversal, and the reasoning matters more than
-the result.
+The first commit in this repository built a **parimutuel**: no curve, no LP,
+everyone stakes and the winning band splits the pot. This commit replaces it
+with an **AMM**. Recording why, because the reasoning is the useful part and a
+silent rewrite would lose it.
 
-The Sooth/Fan engine prices a market with a logarithmic market scoring rule,
-which is the correct way to run a continuous two-sided venue. It also requires
-someone to fund the curve before the first trade, and it discretises a
-continuous question into outcomes you must define up front. Stook's question is
-"where will this land", asked of an audience that has not arrived yet. For that
-question, on a four-week clock, a pot beats a curve.
+The parimutuel case was: it is a fifth of the code, it has no cold-start
+problem, and it is the mechanic behind a project that won its hackathon
+category. The first two are still true. The third was the error — that project
+won **Consumer Apps**, and Stook is entering **DeFi**, where the judging asks
+different questions.
 
-What is given up, stated once so nobody rediscovers it as a bug:
+A parimutuel has no liquidity provision, no TVL, no yield, and no outcome share
+that another protocol can hold, lend against or build on. It is also
+trivially cloneable. Every one of those is a direct answer to a DeFi criterion,
+and the answer is "none". Checked against 5,428 past submissions, no
+pool-based prediction project has ever placed; the only prize nearby went to
+one pitching *"decentralized liquidity and multi-outcome architecture"*.
 
-- **No early exit.** Stake is committed until settlement. An AMM lets you sell
-  your view back; a pot does not.
-- **Late money dilutes early money.** Someone staking a minute before close
-  faces the same odds as someone who staked a week earlier and carried the risk
-  longer. A time weight on payouts fixes it and is deliberately not in v1.
-- **No LP business.** Revenue is a rake on the pot, not a fee split across
-  curve, LPs, adjudicator and treasury.
+So: an AMM, with the liquidity story as a feature rather than an absence.
 
-## Continuous UI, bucketed state
+## One market, N bands, one subsidy
 
-A participant draws a line at any price. The program does not store that line.
-
-Storing an exact prediction per participant would mean iterating every
-prediction at settlement to compute the payout denominator, and that does not
-fit in a transaction. So the market carries a fixed array of price buckets, and
-a prediction is filed into the bucket containing it. Settlement is then O(N)
-over the buckets rather than O(participants).
-
-The UI stays continuous: the line is drawn anywhere, and the bucket it lands in
-is shown as the band it commits to. The honesty requirement is that the band is
-visible before the stake is confirmed — a participant must never believe they
-committed to a finer price than the program recorded.
+The question is "where will this land", so the outcome is a price band and a
+market has as many outcomes as it has bands. The scoring rule generalises
+directly:
 
 ```
-band:   <170   170-180  180-190  190-200   >200
-pool:    4%      18%      47%      27%      4%
-                          ^ your line, 186.40
+C(q) = b · ln( Σ exp(qᵢ/b) )
+pᵢ   = exp(qᵢ/b) / Σ exp(qⱼ/b)          Σ pᵢ = 1
 ```
 
-## State
+`math/lmsr_n.rs` implements this and `math/lmsr.rs` remains the two-outcome
+case. A test asserts the two agree, because a generalisation that merely
+resembles the original is a second implementation of the same thing, and one of
+them will be wrong.
 
-**Market** — one per (asset, settlement time).
+The alternative — a strip of independent binary markets, one per strike —
+fragments the same liquidity into N thin pools and lets its prices sum to
+anything at all. One shared `b` across the grid is what keeps the bands a
+distribution rather than a collection.
 
-| Field | Purpose |
-| --- | --- |
-| `asset` | What is being predicted. Identifies the oracle feed. |
-| `quote_mint` | What is staked. USDC on mainnet. |
-| `vault` | Holds the pot. PDA-owned token account. |
-| `lo`, `hi`, `bucket_count` | The price band and its subdivision. |
-| `bucket_stake[N]` | Staked per bucket. The crowd's distribution, live. |
-| `pot` | Total staked. Equals the sum of `bucket_stake`. |
-| `rake_bps` | Protocol's cut, taken at settlement, never from a loser's stake. |
-| `opens_at`, `closes_at`, `settles_at` | Predictions accepted in `[opens_at, closes_at)`. |
-| `status` | Open, Closed, Settled, Void. |
-| `settled_bucket` | Written once, at settlement. |
-| `winning_stake` | `bucket_stake[settled_bucket]`, cached so claims are O(1). |
+The bound that matters: an LMSR's worst-case loss to traders is `b · ln(N)`, so
+the subsidy funds the whole grid regardless of which band wins. That is pinned
+by a test rather than a comment.
 
-**Prediction** — one per (market, participant). Seeds `[b"prediction", market,
-owner]`.
+## Continuous UI over banded state
 
-| Field | Purpose |
-| --- | --- |
-| `market`, `owner` | Identity. |
-| `bucket` | Which band was committed to. |
-| `stake` | Quote-token base units staked. |
-| `claimed` | Guards against double payout. |
+A line is drawn at any price; it buys the band containing it. The band must be
+visible before the trade is confirmed — someone must never believe they
+committed to a finer price than the market recorded.
 
-A second prediction from the same wallet adds to the existing account rather
-than creating another, so one participant occupies one account per market
-regardless of how many times they stake. Changing bands is a separate
-instruction, not an implicit consequence of staking again — moving someone's
-existing money because they added to it is a surprise nobody wants.
+Bands are capped at 64. `q` lives in a fixed-length account and every
+instruction that loads it pays for the largest case; 64 puts a 1% band on a
+±30% move, finer than a hand-drawn line.
 
-## Payout
+## What Stook changed in the inherited engine
 
-v1 is exact-bucket parimutuel:
+**The AMM's mint is per-market.** Sooth pinned `AMM_TOKEN_MINT` as a
+compile-time constant, so a deployment served one token pair. Stook stores the
+mint on the market, and with it the decimals — because the WAD conversion was
+hard-coded to USDC's 6 and a tokenized equity with 8 run through a 6-decimal
+scalar misprices by 100x, silently, in the protocol's favour. The scalar now
+travels with the market.
 
-```
-payout = stake × (pot − rake) / winning_stake
-```
+**No graduation.** Sooth ran the venues in sequence: bond on the curve, unlock
+the book at a fee threshold. Stook opens both when the curve is funded. The
+curve exists so a market is tradeable at its first trade; the book exists for
+anyone wanting a limit order. Neither is a phase the other leaves.
 
-If `winning_stake` is zero — nobody predicted the settled band — the market is
-void and every stake is refundable in full. The rake is not taken from a void.
-
-The accuracy variant, deliberately deferred: score each bucket by its distance
-from the settled one under a kernel, and split by `stake × score` rather than
-by membership. It is the better product (near-misses pay something, which is
-what makes a prediction game feel fair) and it is one function plus an O(N) sum
-at settlement. It is not in v1 because exact-bucket is the version whose
-correctness is obvious on inspection.
-
-## Settlement
-
-The settled price comes from an oracle read at `settles_at`, mapped to a
-bucket. Stook does not resolve by vote, committee or dispute: the question is
-always "what was this number", and a number has a source.
-
-Two failure modes have to be handled rather than assumed away:
-
-- **The oracle is stale or absent at `settles_at`.** The market voids and
-  refunds. It does not settle on a stale price, and it does not wait
-  indefinitely holding everyone's money.
-- **The settled price is outside `[lo, hi]`.** The outer buckets are unbounded
-  by construction — the first is `< lo` and the last is `≥ hi` — so this cannot
-  happen. The band chosen at creation affects resolution granularity, never
-  whether the market can resolve.
+**No adjudicator.** Sooth carries manual, zkTLS and bonded-optimistic
+resolution plus committees, because "did this happen" can be contested. "What
+was this number" cannot, so settlement is an oracle read and the resolution
+stack is unused weight here.
 
 ## Token-2022
 
-The quote mint must be held by the vault, and the assets worth predicting on
-Solana — xStocks, and the stock-paired tokens launched against them — are
-Token-2022, not classic SPL. So the vault paths use `token_interface` from the
-start rather than being migrated later.
+The assets worth predicting on Solana — xStocks, and the stock-paired tokens
+launched against them — are Token-2022, not classic SPL, and carry 8 decimals.
+The inherited program uses `anchor_spl::token` throughout and cannot custody
+them. Migrating the vault paths to `token_interface` is required before any of
+these can be a market's quote asset, and is the largest single piece of work
+outstanding.
 
-Mints carrying the transfer-fee extension are **refused at creation**. A pot
-whose deposits silently arrive 3% short is a pot that cannot pay out what it
-believes it holds, and supporting that correctly means fee-aware accounting on
-every path. Refusing is the honest position until it is built.
+Mints carrying the transfer-fee extension must be refused at creation. A vault
+whose deposits arrive 3% short cannot pay what the curve believes it holds, and
+supporting it properly means fee-aware accounting on every path.
+
+## Open
+
+- The instruction layer still trades the binary form; `trade_positions` and the
+  AMM state need the N-band `q`.
+- Token-2022 migration.
+- LP subsidy top-ups by anyone, not only the creator.
+- Oracle wiring for settlement.

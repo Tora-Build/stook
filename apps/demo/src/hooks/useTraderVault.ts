@@ -1,0 +1,234 @@
+import { useCallback, useMemo } from "react";
+import { useAccount, useChainId, useReadContracts, useWriteContract } from "@/lib/chain-shim";
+import toast from "react-hot-toast";
+import { SOOTHBOOK_ABI } from "../config/abis";
+import { useTokenBalances } from "./useTokenBalances";
+import { useDeployments } from "./useDeployments";
+import { useBaseTokenDecimals } from "./useBaseTokenDecimals";
+import { demoConfig } from "../lib/config";
+
+const ZERO_ADDRESS = "0x0000000000000000000000000000000000000000" as const;
+
+export function useTraderVault() {
+  const { address } = useAccount();
+  const chainId = useChainId();
+  const { contracts } = useDeployments();
+  const { writeContractAsync, isPending } = useWriteContract();
+  const decimals = useBaseTokenDecimals();
+
+  const tokenAddress = contracts.MockUSDC as `0x${string}` | undefined;
+  const soothBookAddress = contracts.SoothBook as `0x${string}` | undefined;
+
+  const { balances, isLoading: balancesLoading, refetch: refetchBalances } = useTokenBalances(
+    useMemo(() => (tokenAddress ? [tokenAddress] : []), [tokenAddress])
+  );
+
+  // Book seat: collateral locked behind resting orders, plus the credit a
+  // cancel or a fill has already returned but which has not been withdrawn.
+  //
+  // `reservedBalance` must report that locked collateral: a resting order is
+  // the normal state on this book, and a zero here would show a trader their
+  // wallet balance dropping with nothing on the page accounting for it.
+  //
+  // A seat is per-market but the Trading Account is global, so this sums over
+  // every market the demo knows about. There is no on-chain market registry —
+  // `demoConfig` IS the list — so a market missing from it is also missing
+  // from this total.
+  const marketRefs = useMemo(
+    () =>
+      [demoConfig.marketRef, ...demoConfig.extraMarketRefs].filter(
+        (r): r is string => !!r,
+      ),
+    [],
+  );
+
+  const bookAccountContracts = useMemo(() => {
+    if (!address) return [];
+    return marketRefs.map((marketRef) => ({
+      address: (soothBookAddress ?? ZERO_ADDRESS) as `0x${string}`,
+      abi: SOOTHBOOK_ABI,
+      functionName: "getBookAccount" as const,
+      args: [marketRef, address] as const,
+      chainId,
+    }));
+  }, [address, marketRefs, soothBookAddress, chainId]);
+
+  const {
+    data: bookAccountData,
+    refetch: refetchBookAccount,
+  } = useReadContracts({
+    contracts: bookAccountContracts,
+    query: {
+      enabled: bookAccountContracts.length > 0,
+      // Matches the book cache's own window — polling faster just re-reads the
+      // same cached snapshot.
+      staleTime: 5_000,
+      refetchInterval: 10_000,
+    },
+  });
+
+  let bookCredit = 0n;
+  let bookEscrow = 0n;
+  for (const leg of bookAccountData ?? []) {
+    const r = leg?.result as
+      | readonly [bigint, bigint, bigint, bigint]
+      | undefined;
+    if (!r) continue; // a market with no book yet — contributes nothing
+    bookCredit += r[0];
+    bookEscrow += r[1];
+  }
+
+  const userUsdcBalance = balances[0] ?? 0n;
+  // Spendable right now: the wallet, and ONLY the wallet.
+  //
+  // Seat credit is the trader's money but `book_place` never draws on it —
+  // collateral is pulled from the wallet — so counting it here would show
+  // funds that cannot actually fund an order. It is surfaced separately as
+  // claimable, with a withdraw that moves it into the wallet first.
+  const availableBalance = userUsdcBalance;
+  // Committed to resting orders. Not spendable, but still the trader's.
+  const reservedBalance = bookEscrow;
+  // Everything the trader owns across wallet, book escrow and seat credit.
+  const totalBalance = userUsdcBalance + bookEscrow + bookCredit;
+
+  /**
+   * Move seat credit back into the wallet.
+   *
+   * Cancelling an order does NOT return USDC to the wallet — the refund lands
+   * in the trader's seat inside the book, and `book_withdraw` is the single
+   * place credit becomes tokens again. That split is what keeps a fill free of
+   * token movement, but it means a trader who cancels sees their money vanish
+   * from the wallet with no way to get it back: nothing in the UI called
+   * `bookWithdraw` at all.
+   *
+   * Withdraws across every known market, since credit is per-market and the
+   * Trading Account is global.
+   */
+  const withdrawBookCredit = useCallback(async () => {
+    if (!address || bookCredit <= 0n) return false;
+    let ok = false;
+    for (const marketRef of marketRefs) {
+      try {
+        await writeContractAsync({
+          address: (soothBookAddress ?? ZERO_ADDRESS) as `0x${string}`,
+          abi: SOOTHBOOK_ABI,
+          functionName: "bookWithdraw",
+          args: [marketRef],
+          chainId,
+        } as never);
+        ok = true;
+      } catch (err) {
+        // A market where the trader holds no credit reverts; that is not a
+        // failure of the operation, only of that leg.
+        void err;
+      }
+    }
+    if (ok) {
+      toast.success("Withdrew cancelled-order refunds to your wallet");
+      await Promise.all([refetchBalances(), refetchBookAccount()]);
+    } else {
+      toast.error("Nothing to withdraw");
+    }
+    return ok;
+  }, [
+    address,
+    bookCredit,
+    marketRefs,
+    soothBookAddress,
+    chainId,
+    writeContractAsync,
+    refetchBalances,
+    refetchBookAccount,
+  ]);
+
+  /**
+   * Post-settlement claims, per market.
+   *
+   * Three separate on-chain paths, and none of them is `bookWithdraw`:
+   *
+   *   - `redeemBookSeat` turns a seat's signed net into USDC against the
+   *     resolved outcome. Without it a winning book position is unspendable —
+   *     the book could trade but never pay out.
+   *   - `redeemAmmPosition` does the same for the AMM ledger. A trader who
+   *     used both venues has to claim from both; neither call can see the
+   *     other's balance, so calling one is not a substitute for the other.
+   *   - `reclaimSubsidy` returns the creator's unspent LMSR subsidy. It fails
+   *     for anyone else: the program binds `lp_position` to the signer.
+   *
+   * Tried across every known market and reported per market, because a failure
+   * usually just means "nothing owed here" and should not abort the others.
+   *
+   * `positions` sweeps BOTH ledgers rather than exposing them as two buttons.
+   * Which venue a fill came from is an implementation detail the trader never
+   * chose — the book and the AMM are one order ticket in the UI — so making
+   * them press the right one of two identical-looking buttons is a way to
+   * leave money unclaimed.
+   */
+  const claimSettled = useCallback(
+    async (kind: "positions" | "reclaimSubsidy") => {
+      if (!address) return false;
+      const fns =
+        kind === "positions"
+          ? (["redeemBookSeat", "redeemAmmPosition"] as const)
+          : ([kind] as const);
+
+      let ok = 0;
+      for (const marketRef of marketRefs) {
+        for (const functionName of fns) {
+          try {
+            await writeContractAsync({
+              address: (soothBookAddress ?? ZERO_ADDRESS) as `0x${string}`,
+              abi: SOOTHBOOK_ABI,
+              functionName,
+              args: [marketRef],
+              chainId,
+            } as never);
+            ok += 1;
+          } catch (err) {
+            void err; // nothing owed on this ledger, or not the creator
+          }
+        }
+      }
+      if (ok > 0) {
+        toast.success(
+          kind === "positions"
+            ? `Redeemed settled positions (${ok} claim(s))`
+            : `Reclaimed subsidy on ${ok} market(s)`,
+        );
+        await Promise.all([refetchBalances(), refetchBookAccount()]);
+      } else {
+        toast.error("Nothing to claim — the market may not be settled yet");
+      }
+      return ok > 0;
+    },
+    [
+      address,
+      marketRefs,
+      soothBookAddress,
+      chainId,
+      writeContractAsync,
+      refetchBalances,
+      refetchBookAccount,
+    ],
+  );
+
+  const refetch = useCallback(async () => {
+    await Promise.all([refetchBalances(), refetchBookAccount()]);
+  }, [refetchBalances, refetchBookAccount]);
+
+  return {
+    availableBalance,
+    reservedBalance,
+    totalBalance,
+    userUsdcBalance,
+    /** Cancelled-order refunds sitting in the book, withdrawable to the wallet. */
+    claimableBalance: bookCredit,
+    withdrawBookCredit,
+    claimSettled,
+    isPending,
+    isLoading: !address || balancesLoading,
+    refetch,
+    decimals,
+    vaultAddress: soothBookAddress ?? ZERO_ADDRESS,
+  };
+}

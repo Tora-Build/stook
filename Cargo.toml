@@ -1,8 +1,22 @@
 [workspace]
-members = ["programs/*"]
 resolver = "2"
+members = [
+    "packages/programs-core/programs/sooth-core",
+]
+exclude = [
+    "vendor/anchor-syn-0.30.1-fork",
+]
+
+[workspace.package]
+version = "0.0.0"
+edition = "2021"
+license = "Apache-2.0"
+repository = "https://github.com/Tora-Build/sooth-solana"
 
 [profile.release]
 overflow-checks = true
 lto = "fat"
 codegen-units = 1
+
+[patch.crates-io]
+anchor-syn = { path = "vendor/anchor-syn-0.30.1-fork" }

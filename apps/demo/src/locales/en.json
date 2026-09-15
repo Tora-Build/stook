@@ -1,0 +1,714 @@
+{
+  "nav": {
+    "amm": "AMM",
+    "orderbook": "ORDERBOOK",
+    "portfolio": "PORTFOLIO",
+    "more": "MORE",
+    "faucet": "Faucet",
+    "markets": "MARKETS"
+  },
+  "common": {
+    "connect": "Connect",
+    "connectWallet": "Connect Wallet",
+    "buy": "BUY",
+    "sell": "SELL",
+    "yes": "YES",
+    "no": "NO",
+    "loading": "Loading...",
+    "close": "Close",
+    "shares": "SHARES",
+    "search": "Search markets...",
+    "live": "Live"
+  },
+  "amm": {
+    "title": "Trading on LMSR AMM",
+    "buyingPower": "Buying power",
+    "yesProb": "YES Prob",
+    "discoveringMarkets": "Discovering markets...",
+    "noMarketsFound": "No markets found"
+  },
+  "bonding": {
+    "feesAccrued": "Fees Accrued",
+    "title": "Bonding Curve Progress",
+    "toGraduation": "To Graduation",
+    "target": "target",
+    "graduateMarket": "Graduate Market",
+    "graduating": "Graduating..."
+  },
+  "orderbook": {
+    "orderBook": "Order Book",
+    "orders": "Orders",
+    "spread": "Spread",
+    "bid": "Bid",
+    "ask": "Ask",
+    "mid": "Mid",
+    "size": "Size",
+    "price": "Price",
+    "shares": "Shares",
+    "cost": "Cost",
+    "tokensBurned": "Tokens burned",
+    "payoutIfCorrect": "Payout if correct",
+    "return": "Return",
+    "notOnSoothBook": "Market not yet on SooBook",
+    "bondingPhase": "This market has graduated from Launchpad bonding, but SooBook trading is not available for it yet. For now, trade via the AMM page.",
+    "goToAmm": "Go to AMM"
+  },
+  "portfolio": {
+    "tradingAccount": "Trading Account",
+    "walletCollateral": "Wallet Collateral",
+    "approved": "Approved",
+    "readyToTrade": "Ready to Trade",
+    "refreshBalance": "Refresh Balance",
+    "walletUsdcBalance": "Wallet USDC Balance",
+    "depositInstruction": "Deposit USDC to place limit orders on the SooBook orderbook.",
+    "reservedTooltip": "On-chain reserved collateral for open orders or short positions. May differ from visible orders if orders were placed in a previous session.",
+    "liquid": "Liquid",
+    "reserved": "Reserved",
+    "positions": "Positions",
+    "title": "Portfolio Overview",
+    "subtitle": "Combined wallet position value and LP exposure.",
+    "totalValue": "Total Value",
+    "activePositionValue": "Active Position Value",
+    "openMarkets": "Open Markets",
+    "activePositions": "Active Positions",
+    "noPositions": "No active AMM positions yet.",
+    "lpPositions": "LP Positions",
+    "yesShares": "YES Shares",
+    "noShares": "NO Shares",
+    "estimatedValue": "Estimated Value",
+    "connectDescription": "Connect your wallet to view your AMM and LP portfolio positions.",
+    "loadingPositions": "Loading active wallet positions...",
+    "loadingLpPositions": "Loading LP positions...",
+    "noLpPositions": "No LP positions yet.",
+    "shareOfPool": "Share of Pool",
+    "lpBalance": "LP Balance",
+    "floorValue": "Floor Value",
+    "ceilingValue": "Ceiling Value",
+    "liveLpPosition": "Live LP position",
+    "preLiveLpPosition": "Pre-live LP position",
+    "markets": "markets",
+    "open": "open",
+    "claimableNow": "Claimable now",
+    "awaitingDistribution": "Awaiting distribution",
+    "lpClaimableValue": "LP claimable"
+  },
+  "create": {
+    "title": "Create Market",
+    "subtitle": "Deploy a prediction market in 60 seconds"
+  },
+  "operator": {
+    "title": "Operator Console"
+  },
+  "liquidityPage": {
+    "expired": "Expired",
+    "depth": "Depth",
+    "seed": "Seed",
+    "growth": "Growth",
+    "empty": "No markets match the filters.",
+    "selectPrompt": "Select a market on the left to see liquidity details.",
+    "filters": {
+      "all": "All",
+      "expired": "Expired"
+    },
+    "sort": {
+      "depth": "Depth (high to low)",
+      "growth": "Liquidity growth",
+      "recent": "Recently created",
+      "deadline": "Soonest deadline",
+      "soonest": "Soonest expiry"
+    },
+    "trial": "trial",
+    "time": {
+      "yearShort": "{{count}}y",
+      "monthShort": "{{count}}mo",
+      "dayShort": "{{count}}d",
+      "hourShort": "{{count}}h",
+      "dayHour": "{{days}}d {{hours}}h",
+      "hourMinute": "{{hours}}h {{minutes}}m",
+      "minuteShort": "{{count}}m"
+    }
+  },
+  "marketsPage": {
+    "all": "All",
+    "noExpiry": "No expiry",
+    "stageLabel": "Stage",
+    "sortLabel": "Sort",
+    "noMarketsOnChain": "No markets available on this chain yet.",
+    "noMatch": "No markets match \"{{search}}\".",
+    "outcomesCount": "{{count}} outcomes",
+    "moreOutcome": "+ {{count}} more outcome",
+    "moreOutcomes": "+ {{count}} more outcomes",
+    "categories": {
+      "sports": "Sports",
+      "tech": "Tech",
+      "culture": "Culture",
+      "crypto": "Crypto",
+      "politics": "Politics",
+      "weather": "Weather",
+      "other": "Other"
+    },
+    "stage": {
+      "expired": "Expired",
+      "resolved": "Resolved",
+      "ended": "Ended"
+    },
+    "sort": {
+      "trending": "Trending",
+      "newest": "Newest",
+      "ending": "Ending Soon",
+      "depth": "Most Liquid"
+    }
+  },
+  "faucet": {
+    "title": "Protocol Faucet",
+    "subtitle": "Get test tokens to interact with the Soo Protocol",
+    "yourBalance": "Your Balance"
+  },
+  "geek": {
+    "title": "Geek Mode",
+    "subtitle": "Direct protocol interaction via CLI",
+    "history": "history"
+  },
+  "stage": {
+    "dismissed": "Dismissed",
+    "settled": "Settled",
+    "finalized": "Finalized",
+    "graduated": "Graduated",
+    "bonding": "Bonding",
+    "expired": "Expired",
+    "live": "Live",
+    "graduation": "Graduation",
+    "allStages": "ALL STAGES",
+    "orderbook": "Orderbook"
+  },
+  "stageBadge": {
+    "bonding": {
+      "tip": "Bonding phase — trade to help graduate and earn LP tokens"
+    },
+    "expired": {
+      "tip": "Trial period ended without graduation. Trading still allowed via the AMM — a late rush of fees can still graduate the market."
+    },
+    "live": {
+      "tip": "Graduated — active trading with 1% fees"
+    },
+    "settled": {
+      "tip": "Outcome decided — awaiting finalization"
+    },
+    "finalized": {
+      "tip": "Settled — redeem winning shares for USDC"
+    },
+    "dismissed": {
+      "tip": "Dismissed — refunds available"
+    }
+  },
+  "navbar": {
+    "navigation": "Navigation"
+  },
+  "eventChart": {
+    "ammPriceHistory": "AMM Price History",
+    "total": "total"
+  },
+  "marketDetails": {
+    "feeLabel": "{{fee}} Fee",
+    "addressCopied": "Address copied",
+    "copyMarketAddress": "Copy market address",
+    "viewCreator": "View creator",
+    "viewAdjudicator": "View adjudicator"
+  },
+  "liquidityDetail": {
+    "lpTokenRedemption": "LP Token Redemption",
+    "redeemPrompt": "You have {{amount}} LP tokens to redeem.",
+    "redeeming": "Redeeming...",
+    "redeemLpTokens": "Redeem LP Tokens",
+    "redeemedSuccess": "LP tokens redeemed successfully",
+    "redeemFailed": "Redemption failed: {{message}}",
+    "unknownError": "Unknown error"
+  },
+  "settlement": {
+    "yourPosition": "Your Position"
+  },
+  "lp": {
+    "leaderboard": "LP Leaderboard",
+    "holderShare": "LP Holder / Share",
+    "creator": "Creator",
+    "you": "You",
+    "yieldPool": "LP Yield Pool",
+    "accruersPostGrad": "Accrues post-grad",
+    "noYieldYet": "No yield accrued yet — yield accumulates from post-graduation trading fees.",
+    "yieldEmptyBonding": "Yield pool is empty during bonding. LP yield accrues only after graduation.",
+    "yourShare": "Your share",
+    "floor": "Floor",
+    "ceiling": "Ceiling",
+    "finalized": "Finalized",
+    "total": "Total:",
+    "totalAccounted": "100% Accounted",
+    "backersTitle": "Liquidity backers",
+    "backersSubtitle": "Who backs this market, and what their LP is worth",
+    "backersCta": "View",
+    "backersExplainer": "LP is never deposited here — it is minted to traders as a fee rebate, plus the creator's seed.",
+    "backersLearnMore": "How it works →",
+    "claimablePool": "Claimable pool",
+    "collateralBacking": "Market collateral, after the outcome is paid",
+    "distributeCta": "Distribute fees — makes this claimable",
+    "distributing": "Distributing…",
+    "distributed": "Fees distributed — the LP share is claimable now",
+    "ofPool": "of pool",
+    "ofSupply": "of supply",
+    "perLp": "per LP",
+    "redeemTitle": "Your Liquidity",
+    "redeemSubtitle": "LP you earned by trading or seeding. Redeeming burns it and pays your share of the market's fee pool.",
+    "redeemCta": "Redeem",
+    "redeemed": "LP redeemed — USDC is in your wallet",
+    "redeemableNow": "Redeemable now",
+    "yieldAfterGraduation": "Yield accrues after graduation",
+    "yieldClaimable": "claimable now",
+    "yieldNoneYet": "No yield yet",
+    "yieldPending": "Pending distribution"
+  },
+  "trading": {
+    "currentPrice": "Current Price",
+    "poolShares": "Pool Shares",
+    "shares": "Shares",
+    "liquidityDepth": "Liquidity Depth (b)",
+    "priceImpact": "Price Impact",
+    "prob": "Prob",
+    "youPay": "You Pay",
+    "youReceive": "You Receive",
+    "usingUpTo": "Using up to",
+    "fromSpendableProceeds": "from spendable proceeds.",
+    "walletUsdc": "Wallet balance: ",
+    "needTestUsdc": "Need test tokens? Get from faucet →",
+    "highImpact": "High Impact!",
+    "highImpactDesc": "Consider trading in smaller sizes.",
+    "significantImpact": "Significant price impact. Check execution price.",
+    "position": "Position",
+    "proceedsNote": "Proceeds are instantly spendable but locked for withdrawal for 24h.",
+    "notInitialized": "Not initialized"
+  },
+  "launchpad": {
+    "categories": {
+      "all": "All",
+      "sports": "Sports",
+      "tech": "Tech",
+      "cultures": "Culture",
+      "crypto": "Crypto",
+      "politics": "Politics",
+      "weather": "Weather",
+      "others": "Other"
+    },
+    "questionLabel": "Question",
+    "categoryLabel": "Category",
+    "expirationLabel": "Expiration",
+    "openUntilResolved": "Open until resolved",
+    "dateLabel": "Date",
+    "timeLabel": "Time (local)",
+    "pageTitle": "Create Market",
+    "pageSubtitle": "Deploy a prediction market in 60 seconds",
+    "launchMarket": "Launch Market",
+    "launching": "Launching...",
+    "completeFormToContinue": "Complete Form to Continue",
+    "walletUsdc": "Wallet balance: ",
+    "needTestUsdc": "Need test tokens? Get from faucet →",
+    "liquidityB": "Liquidity (b)",
+    "lmsrDesc": "Max loss = Deposit. Max win = Deposit + Flywheel. Fee Yield is always yours.",
+    "periodLabels": {
+      "7d": "7D",
+      "30d": "30D"
+    },
+    "zk": {
+      "sectionLabel": "Resolution",
+      "manualTitle": "Adjudicated",
+      "manualDesc": "A scored human rules — you, or a ranked adjudicator.",
+      "autoTitle": "Automatic (zkTLS)",
+      "autoDesc": "Resolved from a data source, proven by Primus, verified on-chain.",
+      "presets": {
+        "btc": "BTC/USD",
+        "eth": "ETH/USD",
+        "custom": "Custom"
+      },
+      "resolvesYesWhen": "YES when value is",
+      "thresholdPlaceholder": "threshold",
+      "previewLabel": "Reads right now",
+      "previewLoading": "Reading the source...",
+      "previewIdle": "Enter a source URL and a JSON path to preview the value.",
+      "previewError": "Could not read the source: {{error}}",
+      "previewVerdict": "With today's reading this rule resolves {{verdict}}.",
+      "yes": "YES",
+      "no": "NO",
+      "scaleLabel": "Decimals",
+      "scaleHint": "Registered once. Readings with more decimals than this are rejected on-chain, so leave headroom.",
+      "precisionWarning": "The source just returned {{decimals}} decimals, more than the {{scale}} registered. Raise the decimals or this market cannot resolve.",
+      "registering": "Registering zk adjudicator...",
+      "registerFailed": "Market launched, but registering the zk adjudicator failed — it resolves manually for now.",
+      "gate": {
+        "loading": "Checking whether this deployment allows automatic resolution...",
+        "noConfig": "Automatic resolution is unavailable: this deployment has no protocol config yet.",
+        "readFailed": "Could not reach the chain to check whether automatic resolution is allowed here. Reload to try again.",
+        "noWallet": "Connect a wallet to see whether you may create automatically-resolved markets.",
+        "notAuthority": "Automatic resolution is permissioned on this deployment. Only the protocol authority ({{authority}}) may register a zk adjudicator; your wallet is not it."
+      },
+      "errors": {
+        "url": "Automatic resolution needs a source URL.",
+        "urlScheme": "The source URL must start with http:// or https://.",
+        "path": "The JSON path must start with $ — for example $.data.amount.",
+        "threshold": "Automatic resolution needs a threshold to compare against.",
+        "thresholdPrecision": "The threshold carries more decimals than the registered scale."
+      },
+      "assist": {
+        "draftButton": "1 · Draft with AI",
+        "proveButton": "2 · Prove with Primus",
+        "proving": "Attesting...",
+        "needQuestion": "Write the question first.",
+        "noDrafter": "Drafting is unavailable: VITE_AI_DRAFTER_URL is not set. Fill the source in by hand below.",
+        "noResolver": "Proving is unavailable: VITE_RESOLVER_URL is not set, so this rule cannot be tested against Primus before it is committed.",
+        "draftFailed": "Drafting failed ({{error}}). Set a source under Advanced.",
+        "candidatesHint": "Pick one. Nothing is committed until you launch.",
+        "reads": "reads {{reading}} now",
+        "provenLabel": "Proven — Primus attested this source",
+        "attestor": "signed by {{address}} — Primus' global attestor, the one this market registers",
+        "provenDetail": "{{decimals}} decimals, attested in {{seconds}}s. This exact URL and path can be resolved automatically.",
+        "proveFailed": "Could not reach the proving service ({{error}}). The rule stays unproven.",
+        "reasons": {
+          "fetch": "Not proven: the endpoint did not answer with usable JSON, so Primus was never asked.",
+          "response": "Not proven: the endpoint answered, but that path does not name a single value in it.",
+          "proxy": "Not proven: Primus could not complete an attested TLS session with this endpoint — auth, response size, cipher or proxy behaviour.",
+          "quota": "Not proven: Primus refused the request — credentials, or the attestation quota is spent.",
+          "attestor": "Not proven: the signature did not come from Primus' global attestor, so the chain would reject it.",
+          "rate_limited": "Not proven yet: proving is rate-limited because each attempt spends Primus quota. Try again shortly.",
+          "bad_request": "Not proven: the proving service rejected this URL or path.",
+          "unauthorized": "Not proven: the proving service needs a token this app was not given.",
+          "unknown": "Not proven: the attestation failed."
+        },
+        "unprovenWarning": "Not proven yet. The rule is committed permanently, so if Primus cannot attest it the market can only be settled by hand.",
+        "unprovenAtLaunch": "Launching with an UNPROVEN rule — this market may never auto-resolve.",
+        "drafting": "Drafting… {{seconds}}s",
+        "draftingDetail": "Finding sources and checking each one returns the value.",
+        "cancel": "Cancel",
+        "timedOut": "Drafting gave up after {{seconds}}s. Try again, or fill the source in by hand below.",
+        "noneValidated": "No source survived checking. Try rewording, or set one under Advanced.",
+        "polishKeep": "Keep mine",
+        "needRule": "No rule yet — draft one above, or set one under Advanced.",
+        "pickOne": "{{count}} sources found. Pick one.",
+        "picked": "Using this source. Pick another to swap.",
+        "orOwn": "Want a different source? Set it under Advanced.",
+        "needsAdjudicator": "No public data feed can settle this question.",
+        "needsAdjudicatorDetail": "You can still launch it — it will be settled by a human adjudicator instead of automatically. Switch the resolver under Advanced.",
+        "polishApplied": "Question rephrased by the drafter",
+        "polishDismiss": "OK"
+      }
+    },
+    "questionHint": "Ask about a public number with a threshold — a price, rate, index, or count.",
+    "advancedLabel": "Advanced",
+    "advancedSummary": "Category: {{category}}",
+    "resolvesEarly": "Automatic markets resolve the moment the rule is verifiably met — a satisfied zkTLS attestation locks and attests YES on its own, any time. If it is never met, the deadline reading decides. You can also resolve early by hand from the Locker.",
+    "liquidityLabel": "Starting liquidity",
+    "youDeposit": "you deposit {{symbol}}"
+  },
+  "stats": {
+    "title": "Market Stats",
+    "pureAmmAccounting": "Pure AMM Accounting",
+    "cashBasis": "Cash Basis Formula",
+    "cashBasisHint": "MaxLoss + Yield + P&L = Cash",
+    "equityFloor": "Equity Floor Formula",
+    "equityFloorHint": "Cash - Liability = Floor",
+    "valuation": "Valuation (ExRate)",
+    "valuationHint": "Equity / Supply = Rate",
+    "tvl": "TVL Formula",
+    "tvlHint": "Cash + Locked = TVL",
+    "liquidityAnchor": "Liquidity Anchor Formula",
+    "liquidityAnchorHint": "b × ln(2) ≈ Supply"
+  },
+  "uc": {
+    "lp": {
+      "showHint": "Show hint",
+      "graduatedHint": "Graduated: LP is redeemable now, and post-graduation book fees accrue to the LP yield pool.",
+      "bondingHint": "Bonding: each trade mints the trader LP equal to their fee. Redemption unlocks at graduation, settlement, or dismissal."
+    },
+    "pro": {
+      "visuals": {
+        "liquidityMap": "Liquidity Map"
+      }
+    }
+  },
+  "risk": {
+    "title": "Risk Disclosure",
+    "subtitle": "Understand before you launch",
+    "lowVolume": {
+      "title": "Low Volume Risk",
+      "description": "Your market may not attract sufficient traders.",
+      "mitigation": "Choose trending topics and promote your market actively."
+    },
+    "settlement": {
+      "title": "Settlement Imbalance",
+      "description": "LP value depends on the distribution of YES/NO positions at settlement.",
+      "mitigation": "LP floor formula guarantees a minimum redemption value."
+    },
+    "smartContract": {
+      "title": "Smart Contract Risk",
+      "description": "All DeFi protocols carry inherent smart contract risk.",
+      "mitigation": "Soo Protocol has been audited. Only deposit what you can afford to lose."
+    },
+    "likelihood": {
+      "low": "low",
+      "medium": "medium",
+      "high": "high"
+    },
+    "impact": "impact",
+    "mitigationLabel": "Mitigation:",
+    "floorProtection": "LP Floor Protection",
+    "floorDescription": "Your LP tokens have a guaranteed minimum value based on the floor formula:",
+    "floorWorstCase": "Even in the worst-case scenario (all winners redeem), LPs are guaranteed at least the floor value.",
+    "acknowledge": "By launching a market, you acknowledge:",
+    "ack1": "LP tokens are not guaranteed to profit",
+    "ack2": "Your deposit seeds liquidity for traders",
+    "ack3": "Smart contract risks exist despite audits"
+  },
+  "eastboard": {
+    "nav": {
+      "chain": "Option chain",
+      "positions": "Positions",
+      "faucet": "Faucet",
+      "markets": "Markets",
+      "launch": "Launch",
+      "portfolio": "Portfolio"
+    },
+    "header": {
+      "tagline": "Close-price options",
+      "fixtureBalance": "Fixture {{amount}} MUSDC",
+      "primaryNavigation": "Primary navigation",
+      "mobileNavigation": "Mobile navigation",
+      "changeLanguage": "Change language"
+    },
+    "shell": {
+      "testnetBanner": "Devnet — funds have no value",
+      "networkFooter": "Solana Devnet · Soo Core"
+    },
+    "hero": {
+      "eyebrow": "Daily close / binary settlement",
+      "title": "A clear board for Asia’s closing bell",
+      "body": "Pick a strike. Buy YES or NO. Settles at the official close."
+    },
+    "metrics": {
+      "cells": "Template cells",
+      "live": "Live markets",
+      "close": "Session close"
+    },
+    "chain": {
+      "underlying": "Underlying",
+      "displayedOutcome": "Displayed outcome",
+      "filterMarkets": "Filter markets",
+      "outcome": "OUTCOME",
+      "outcomeCallRule": "Close >= strike",
+      "outcomePutRule": "Close < strike",
+      "outcomeCallAria": "Show CALL prices: official close greater than or equal to strike",
+      "outcomePutAria": "Show PUT prices: official close below strike",
+      "payoff": {
+        "eyebrow": "Binary payoff contract",
+        "body": "Prices are in cents; a share pays 100¢ when right, 0¢ when wrong.",
+        "correct": "If correct",
+        "wrong": "If wrong",
+        "invalid": "If INVALID",
+        "perShare": "per share",
+        "eitherSide": "either side"
+      },
+      "active": "Active",
+      "all": "All",
+      "fixtureNotice": "Local fixture mode is on. Filled cells exercise UI states only; canonical chain matching remains fail-closed.",
+      "indexerUnavailable": "Indexer unavailable. No live markets are being inferred.",
+      "verificationUnavailable": "Chain verification unavailable. No live markets are being inferred.",
+      "priceUnavailable": "Live price refresh unavailable. Displayed grid prices may be out of date.",
+      "retry": "Retry",
+      "emptyTitle": "No templates available",
+      "emptyBody": "The session calendar produced no eligible expiries.",
+      "optionsAria": "Options chain",
+      "loadingAria": "Loading option chain",
+      "strike": "Strike",
+      "today": "Today",
+      "nextSession": "Next session",
+      "status": {
+        "available": "Activate",
+        "activating": "Activate",
+        "closed": "Closed",
+        "live": "Trade",
+        "settled": "Settled"
+      },
+      "meta": {
+        "available": "new",
+        "fixture": "fixture",
+        "activating": "resume",
+        "live": "reference",
+        "settled": "chain"
+      },
+      "rules": {
+        "outcome": "YES settles when the official close is greater than or equal to the strike. NO settles when the official close is below the strike. Full-session suspensions, qualifying corporate actions, missing closes, or fewer than two agreeing evidence sources resolve INVALID.",
+        "timingPrefix": "Trading freezes at the exchange close.",
+        "fixtureTiming": "Explicit fixtures settle locally and immediately.",
+        "canonicalTiming": "Canonical testnet markets collect close evidence on the session pass, then wait through the deployed ManualAdjudicator’s 60-minute veto period.",
+        "invalidation": "Every clone’s invalidation deadline is read live."
+      },
+      "hiddenMarkets": "{{count}} market(s) hidden — metadata did not match a template"
+    },
+    "activation": {
+      "liquidity": "Liquidity (b)",
+      "title": "Activate market",
+      "strike": "Strike",
+      "expiry": "Expiry",
+      "close": "Session close",
+      "cancel": "Cancel",
+      "trade": "Trade",
+      "pending": "Signing…",
+      "activate": "Activate",
+      "activateFixture": "Activate (simulation)"
+    },
+    "trade": {
+      "drawer": {
+        "fixtureBook": "Fixture order book",
+        "canonicalBook": "Canonical order book",
+        "stateFixture": "Fixture",
+        "stateLive": "Live CLOB",
+        "stateClosed": "Trading frozen",
+        "stateSettled": "Settled"
+      },
+      "depth": {
+        "title": "CLOB depth",
+        "spread": "spread {{spread}}",
+        "instruction": "Select an ask to buy YES. Select a bid to sell YES.",
+        "bids": "YES bids · buyers",
+        "asks": "YES asks · sellers",
+        "sizePrice": "Size · Price",
+        "priceSize": "Price · Size",
+        "empty": "Empty",
+        "tradeBidAria": "Trade against bid at {{price}}",
+        "tradeAskAria": "Trade against ask at {{price}}"
+      },
+      "fixture": {
+        "notice": "Simulated attestation mode · verified=false. Quotes and fills are local fixtures; no wallet signature or transaction can be produced here.",
+        "midpoint": "Midpoint",
+        "impliedYes": "YES reference · {{value}}",
+        "buyYes": "Buy YES",
+        "sellYes": "Sell YES",
+        "simBalance": "Sim balance {{amount}} MUSDC",
+        "yesLimitPrice": "YES limit price (¢)",
+        "sellHelper": "Equivalent NO price: {{noPrice}}¢ · collateralized below exposure",
+        "shares": "Shares",
+        "risk": "You risk",
+        "pays": "Pays if right",
+        "invalidPayout": "INVALID pays 50¢ per share · {{amount}} MUSDC",
+        "submit": "Submit simulated order",
+        "invalidInput": "Enter a whole-cent price from 1 to 99 and shares within the simulated balance.",
+        "filled": "Simulated {{action}} filled for {{amount}} test MUSDC.",
+        "appendixBody": "The template stops trading at {{close}}. Local settlement is immediate; a future mined ManualAdjudicator simulation must also wait through its deployed 60-minute veto period. INVALID follows the market deadline plus the clone’s live invalidation buffer."
+      },
+      "appendix": {
+        "title": "Rules, fees, custody & settlement",
+        "view": "View details"
+      },
+      "real": {
+        "connect": "Connect a wallet first",
+        "cost": "Est. cost",
+        "proceeds": "Est. proceeds",
+        "paysIfYes": "Pays if YES",
+        "closed": "Closed {{shares}} {{side}}",
+        "closeCta": "Close {{shares}} {{side}}",
+        "paysIfNo": "Pays if NO"
+      }
+    },
+    "portfolio": {
+      "eyebrow": "Local positions and redemption",
+      "title": "Portfolio",
+      "simulatedBalance": "Simulated balance",
+      "notice": "Simulated attestation · verified=false. These positions, outcomes, and redemptions exist only in local memory and never touch MegaETH.",
+      "emptyEyebrow": "No local positions",
+      "emptyTitle": "Place a simulated order first",
+      "emptyBody": "Open a live fixture from the options grid and submit a local order.",
+      "status": {
+        "live": "live",
+        "settled": "settled",
+        "redeemed": "redeemed"
+      },
+      "summary": "{{expiry}} · YES {{yes}} · NO {{no}} · cost {{cost}}",
+      "evidence": "Simulated evidence: {{value}} · {{reason}}",
+      "redeemed": "Redeemed {{amount}} test MUSDC",
+      "runResolver": "Run simulated resolver",
+      "redeem": "Redeem locally",
+      "complete": "Complete",
+      "fixtureOnly": "Fixture-only route",
+      "disabledBodyBefore": "Local simulated positions are disabled in the default chain UI. Add the explicit",
+      "disabledBodyAfter": "flag only when testing non-broadcasting fixture flows."
+    }
+  },
+  "arena": {
+    "stats": {
+      "streakLabel": "Day streak",
+      "streakHelp": "Consecutive days with at least one play — multiplies XP up to 1.5×",
+      "ticketsLabel": "Tickets",
+      "ticketsHelp": "Play tickets — earned from daily drops, spent to score trades in the arena",
+      "playsLabel": "Plays",
+      "playsHelp": "Trades you've made this season"
+    },
+    "handle": {
+      "label": "Player handle",
+      "edit": "Edit",
+      "save": "Save",
+      "saving": "Saving",
+      "saved": "Player handle saved",
+      "saveFailed": "Could not save handle"
+    },
+    "ranks": {
+      "threshold": "LV {{level}} · {{xp}} XP",
+      "toNext": "{{xp}} XP to {{rank}}",
+      "topRank": "Top rank reached",
+      "prestige": "Ranks are season prestige — rewards land at season close."
+    }
+  },
+  "veto": {
+    "attestedPrefix": "{{outcome}} ·",
+    "settleReady": "SETTLE READY",
+    "tipOpen": "{{outcome}} has been attested but not settled. This window is the chance to dispute a wrong outcome; when it ends anyone may settle the market.",
+    "tipElapsed": "The dispute window on {{outcome}} has closed. Settlement is unlocked — anyone can crank it, and holders redeem once it lands.",
+    "countdownLabel": "DISPUTE WINDOW"
+  },
+  "createdMarkets": {
+    "title": "Markets You Created",
+    "empty": "No markets from this wallet yet. Markets are discovered without an index, so only ones this build knows about can appear here.",
+    "loading": "Scanning known markets…",
+    "forgeCta": "Forge a market",
+    "lockIt": "Lock it",
+    "becomeAdjudicator": "Become the adjudicator",
+    "settle": "Settle",
+    "redeem": "Redeem",
+    "locked": "Market locked",
+    "registered": "You are now the adjudicator",
+    "settled": "Market settled",
+    "attested": "Outcome attested — the dispute window has started",
+    "openUntil": "Trading until {{date}} — nothing to do yet.",
+    "pastDeadline": "Deadline passed {{date}}. Locking is permissionless now and is the step before resolving.",
+    "mayRegister": "No adjudicator registered. As creator you may name yourself and then attest the outcome.",
+    "cannotRegister": "No adjudicator registered, and this wallet may not register one — permissionless registration is off on this deployment.",
+    "mayAttest": "Locked and awaiting an outcome. You hold the attesting key — pick YES, NO or INVALID.",
+    "notAdjudicator": "Locked and awaiting the registered adjudicator, which is not this wallet. Nothing to do here.",
+    "orphaned": "The adjudicator entry names no key, so nobody may attest. It resolves INVALID through the abandonment hatch.",
+    "inVeto": "{{outcome}} attested. Dispute window open — {{time}} until anyone may settle.",
+    "holdsDispute": "You hold the dispute veto for this market; disputing is a CLI-only call in this build.",
+    "disputed": "This outcome has been disputed.",
+    "settleable": "{{outcome}} attested and the dispute window has closed. Settlement is permissionless — anyone can crank it.",
+    "settledLine": "Settled {{outcome}} — holders can redeem.",
+    "dismissedLine": "Dismissed — deposits refund at cost.",
+    "initializing": "Not activated yet — no curve has been funded.",
+    "openNoAdjudicator": "Trading until {{date}}. No adjudicator is registered yet — naming one now is the only step you can take early."
+  },
+  "committee": {
+    "addLabel": "Add member",
+    "browse": "Browse records",
+    "addPlaceholder": "Paste an attestor address",
+    "full": "Five members is the maximum.",
+    "thresholdLabel": "Votes needed to rule",
+    "setThreshold": "Set",
+    "ofMembers": "of {{count}} members",
+    "needMembers": "Add at least one member first.",
+    "yourBallot": "Your ballot",
+    "hint": "Members vote in public. The vote that reaches the threshold writes the ruling — you can still rule alone.",
+    "toggle": "Committee ({{threshold}}-of-{{count}})",
+    "create": "Convene a committee"
+  }
+}

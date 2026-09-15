@@ -1,0 +1,714 @@
+{
+  "nav": {
+    "amm": "AMM",
+    "orderbook": "订单簿",
+    "portfolio": "投资组合",
+    "more": "更多",
+    "faucet": "水龙头",
+    "markets": "市场"
+  },
+  "common": {
+    "connect": "连接",
+    "connectWallet": "连接钱包",
+    "buy": "买入",
+    "sell": "卖出",
+    "yes": "是",
+    "no": "否",
+    "loading": "加载中...",
+    "close": "关闭",
+    "shares": "份额",
+    "search": "搜索市场...",
+    "live": "进行中"
+  },
+  "amm": {
+    "title": "LMSR AMM 交易",
+    "buyingPower": "购买力",
+    "yesProb": "YES 概率",
+    "discoveringMarkets": "正在发现市场...",
+    "noMarketsFound": "未找到市场"
+  },
+  "bonding": {
+    "feesAccrued": "已计手续费",
+    "title": "绑定曲线进度",
+    "toGraduation": "距毕业",
+    "target": "目标",
+    "graduateMarket": "市场毕业",
+    "graduating": "毕业中..."
+  },
+  "orderbook": {
+    "orderBook": "订单簿",
+    "orders": "订单",
+    "spread": "价差",
+    "bid": "买价",
+    "ask": "卖价",
+    "mid": "中间价",
+    "size": "数量",
+    "price": "价格",
+    "shares": "份额",
+    "cost": "成本",
+    "tokensBurned": "销毁代币",
+    "payoutIfCorrect": "正确时收益",
+    "return": "回报",
+    "notOnSoothBook": "市场尚未进入 SooBook",
+    "bondingPhase": "该市场已从 Launchpad 绑定期毕业，但暂时仍未开放 SooBook 订单簿交易。目前请通过 AMM 页面交易。",
+    "goToAmm": "前往 AMM"
+  },
+  "portfolio": {
+    "tradingAccount": "交易账户",
+    "walletCollateral": "钱包抵押品",
+    "approved": "已授权",
+    "readyToTrade": "准备交易",
+    "refreshBalance": "刷新余额",
+    "walletUsdcBalance": "钱包 USDC 余额",
+    "depositInstruction": "存入 USDC 即可在 SooBook 订单簿上挂限价单。",
+    "reservedTooltip": "用于未成交订单或空头仓位的链上预留抵押品。如果订单是在之前的会话中下达，可能与可见订单不同。",
+    "liquid": "可用",
+    "reserved": "已锁定",
+    "positions": "持仓",
+    "title": "投资组合概览",
+    "subtitle": "综合钱包持仓价值与 LP 敞口。",
+    "totalValue": "总价值",
+    "activePositionValue": "活跃持仓价值",
+    "openMarkets": "参与市场",
+    "activePositions": "活跃持仓",
+    "noPositions": "暂无 AMM 持仓。",
+    "lpPositions": "LP 持仓",
+    "yesShares": "YES 份额",
+    "noShares": "NO 份额",
+    "estimatedValue": "估计价值",
+    "connectDescription": "连接钱包以查看您的 AMM 和 LP 投资组合。",
+    "loadingPositions": "加载钱包持仓中...",
+    "loadingLpPositions": "加载 LP 持仓中...",
+    "noLpPositions": "暂无 LP 持仓。",
+    "shareOfPool": "池占比",
+    "lpBalance": "LP 余额",
+    "floorValue": "底价",
+    "ceilingValue": "天花板价",
+    "liveLpPosition": "活跃 LP 持仓",
+    "preLiveLpPosition": "预上线 LP 持仓",
+    "markets": "个市场",
+    "open": "个挂单",
+    "claimableNow": "当前可领取",
+    "awaitingDistribution": "待分配",
+    "lpClaimableValue": "LP 可领取"
+  },
+  "create": {
+    "title": "创建市场",
+    "subtitle": "60 秒部署一个预测市场"
+  },
+  "operator": {
+    "title": "运营控制台"
+  },
+  "liquidityPage": {
+    "expired": "已过期",
+    "depth": "深度",
+    "seed": "初始",
+    "growth": "增长",
+    "empty": "没有市场符合当前筛选条件。",
+    "selectPrompt": "在左侧选择一个市场以查看流动性详情。",
+    "filters": {
+      "all": "全部",
+      "expired": "已过期"
+    },
+    "sort": {
+      "depth": "深度（高到低）",
+      "growth": "流动性增长",
+      "recent": "最近创建",
+      "deadline": "最早到期",
+      "soonest": "最早到期"
+    },
+    "trial": "试用期",
+    "time": {
+      "yearShort": "{{count}}年",
+      "monthShort": "{{count}}个月",
+      "dayShort": "{{count}}天",
+      "hourShort": "{{count}}小时",
+      "dayHour": "{{days}}天 {{hours}}小时",
+      "hourMinute": "{{hours}}小时 {{minutes}}分钟",
+      "minuteShort": "{{count}}分钟"
+    }
+  },
+  "marketsPage": {
+    "all": "全部",
+    "noExpiry": "无到期日",
+    "stageLabel": "阶段",
+    "sortLabel": "排序",
+    "noMarketsOnChain": "该链上暂时还没有可用市场。",
+    "noMatch": "没有市场匹配“{{search}}”。",
+    "outcomesCount": "{{count}} 个结果",
+    "moreOutcome": "+ 还有 {{count}} 个结果",
+    "moreOutcomes": "+ 还有 {{count}} 个结果",
+    "categories": {
+      "sports": "体育",
+      "tech": "科技",
+      "culture": "文化",
+      "crypto": "加密",
+      "politics": "政治",
+      "weather": "天气",
+      "other": "其他"
+    },
+    "stage": {
+      "expired": "已过期",
+      "resolved": "已裁决",
+      "ended": "已截止"
+    },
+    "sort": {
+      "trending": "热门",
+      "newest": "最新",
+      "ending": "即将结束",
+      "depth": "流动性最高"
+    }
+  },
+  "faucet": {
+    "title": "协议水龙头",
+    "subtitle": "获取测试代币以体验 Soo 协议",
+    "yourBalance": "您的余额"
+  },
+  "geek": {
+    "title": "极客模式",
+    "subtitle": "通过命令行直接交互协议",
+    "history": "历史"
+  },
+  "stage": {
+    "dismissed": "已撤销",
+    "settled": "已结算",
+    "finalized": "已完成",
+    "graduated": "已毕业",
+    "bonding": "绑定期",
+    "expired": "已过期",
+    "live": "可交易",
+    "graduation": "毕业",
+    "allStages": "全部阶段",
+    "orderbook": "订单簿"
+  },
+  "stageBadge": {
+    "bonding": {
+      "tip": "绑定期，交易可帮助市场毕业并赚取 LP 代币"
+    },
+    "expired": {
+      "tip": "试用期结束但尚未毕业。仍可通过 AMM 交易，后续手续费增长仍可能让市场毕业。"
+    },
+    "live": {
+      "tip": "已毕业，当前以 1% 手续费进行交易"
+    },
+    "settled": {
+      "tip": "结果已确定，等待最终完成"
+    },
+    "finalized": {
+      "tip": "已结算，可赎回获胜份额为 USDC"
+    },
+    "dismissed": {
+      "tip": "已撤销，可领取退款"
+    }
+  },
+  "navbar": {
+    "navigation": "导航"
+  },
+  "eventChart": {
+    "ammPriceHistory": "AMM 价格历史",
+    "total": "总计"
+  },
+  "marketDetails": {
+    "feeLabel": "{{fee}} 手续费",
+    "addressCopied": "地址已复制",
+    "copyMarketAddress": "复制市场地址",
+    "viewCreator": "查看创建者",
+    "viewAdjudicator": "查看裁判"
+  },
+  "liquidityDetail": {
+    "lpTokenRedemption": "LP 代币赎回",
+    "redeemPrompt": "你有 {{amount}} 个 LP 代币可赎回。",
+    "redeeming": "赎回中...",
+    "redeemLpTokens": "赎回 LP 代币",
+    "redeemedSuccess": "LP 代币赎回成功",
+    "redeemFailed": "赎回失败：{{message}}",
+    "unknownError": "未知错误"
+  },
+  "settlement": {
+    "yourPosition": "您的持仓"
+  },
+  "lp": {
+    "leaderboard": "LP 排行榜",
+    "holderShare": "LP 持有者 / 份额",
+    "creator": "创建者",
+    "you": "您",
+    "yieldPool": "LP 收益池",
+    "accruersPostGrad": "毕业后累计",
+    "noYieldYet": "尚无收益累计——收益来自毕业后的交易手续费。",
+    "yieldEmptyBonding": "收益池在绑定期内为空。LP 收益仅在毕业后累计。",
+    "yourShare": "您的份额",
+    "floor": "底价",
+    "ceiling": "天花板",
+    "finalized": "已完成",
+    "total": "合计：",
+    "totalAccounted": "100% 已核算",
+    "backersTitle": "流动性支持者",
+    "backersSubtitle": "谁在支持这个市场，他们的 LP 值多少",
+    "backersCta": "查看",
+    "backersExplainer": "这里的 LP 无需存入——它作为手续费返还铸造给交易者，另加创建者的初始份额。",
+    "backersLearnMore": "运作方式 →",
+    "claimablePool": "可领取资金池",
+    "collateralBacking": "结果结算后的市场抵押品",
+    "distributeCta": "分配手续费——使其可领取",
+    "distributing": "分配中…",
+    "distributed": "手续费已分配——LP 份额现在可以领取",
+    "ofPool": "占资金池",
+    "ofSupply": "占总供应量",
+    "perLp": "每 LP",
+    "redeemTitle": "你的流动性",
+    "redeemSubtitle": "你通过交易或初始注入获得的 LP。赎回会销毁它，并支付你在该市场手续费池中的份额。",
+    "redeemCta": "赎回",
+    "redeemed": "LP 已赎回——USDC 已到账",
+    "redeemableNow": "当前可赎回",
+    "yieldAfterGraduation": "收益在毕业后开始累积",
+    "yieldClaimable": "当前可领取",
+    "yieldNoneYet": "暂无收益",
+    "yieldPending": "待分配"
+  },
+  "trading": {
+    "currentPrice": "当前价格",
+    "poolShares": "池份额",
+    "shares": "份额",
+    "liquidityDepth": "流动性深度 (b)",
+    "priceImpact": "价格影响",
+    "prob": "概率",
+    "youPay": "支付",
+    "youReceive": "收到",
+    "usingUpTo": "最多使用",
+    "fromSpendableProceeds": "来自可用收益。",
+    "walletUsdc": "钱包余额: ",
+    "needTestUsdc": "需要测试代币？去水龙头领取 →",
+    "highImpact": "高影响！",
+    "highImpactDesc": "请考虑减小交易规模。",
+    "significantImpact": "价格影响显著，请检查执行价格。",
+    "position": "持仓",
+    "proceedsNote": "收益可立即使用但提现需锁定 24 小时。",
+    "notInitialized": "未初始化"
+  },
+  "launchpad": {
+    "categories": {
+      "all": "全部",
+      "sports": "体育",
+      "tech": "科技",
+      "cultures": "文化",
+      "crypto": "加密货币",
+      "politics": "政治",
+      "weather": "天气",
+      "others": "其他"
+    },
+    "questionLabel": "问题",
+    "categoryLabel": "分类",
+    "expirationLabel": "到期时间",
+    "openUntilResolved": "开放至结算",
+    "dateLabel": "日期",
+    "timeLabel": "时间（本地）",
+    "pageTitle": "创建市场",
+    "pageSubtitle": "60 秒部署一个预测市场",
+    "launchMarket": "发射市场",
+    "launching": "发射中...",
+    "completeFormToContinue": "请完善表单后继续",
+    "walletUsdc": "钱包余额: ",
+    "needTestUsdc": "需要测试代币？去水龙头领取 →",
+    "liquidityB": "流动性 (b)",
+    "lmsrDesc": "最大亏损 = 存款。最大收益 = 存款 + 飞轮效应。手续费收益始终归您所有。",
+    "periodLabels": {
+      "7d": "7天",
+      "30d": "30天"
+    },
+    "zk": {
+      "sectionLabel": "结算方式",
+      "manualTitle": "仲裁",
+      "manualDesc": "由有信誉评分的仲裁人裁决——你自己，或榜上的仲裁人。",
+      "autoTitle": "自动 (zkTLS)",
+      "autoDesc": "从数据源读取，由 Primus 出证，链上验证。",
+      "presets": {
+        "btc": "BTC/USD",
+        "eth": "ETH/USD",
+        "custom": "自定义"
+      },
+      "resolvesYesWhen": "当数值",
+      "thresholdPlaceholder": "阈值",
+      "previewLabel": "当前读数",
+      "previewLoading": "正在读取数据源...",
+      "previewIdle": "填写数据源 URL 与 JSON 路径以预览读数。",
+      "previewError": "无法读取数据源：{{error}}",
+      "previewVerdict": "按当前读数，该规则结算为 {{verdict}}。",
+      "yes": "YES",
+      "no": "NO",
+      "scaleLabel": "小数位",
+      "scaleHint": "只写入一次。读数小数位超过此值会被链上拒绝，请留出余量。",
+      "precisionWarning": "数据源刚返回了 {{decimals}} 位小数，超过已设置的 {{scale}} 位。请调高小数位，否则该市场无法结算。",
+      "registering": "正在注册 zk 裁决者...",
+      "registerFailed": "市场已创建，但 zk 裁决者注册失败——目前仍为手动结算。",
+      "gate": {
+        "loading": "正在检查该部署是否允许自动结算...",
+        "noConfig": "无法自动结算：该部署尚未初始化协议配置。",
+        "readFailed": "无法连接链上以检查该部署是否允许自动结算。请刷新重试。",
+        "noWallet": "请先连接钱包，以查看你是否可以创建自动结算的市场。",
+        "notAuthority": "该部署的自动结算为许可制。只有协议管理员 ({{authority}}) 可以注册 zk 裁决者，你的钱包不是。"
+      },
+      "errors": {
+        "url": "自动结算需要一个数据源 URL。",
+        "urlScheme": "数据源 URL 必须以 http:// 或 https:// 开头。",
+        "path": "JSON 路径必须以 $ 开头，例如 $.data.amount。",
+        "threshold": "自动结算需要一个用于比较的阈值。",
+        "thresholdPrecision": "阈值的小数位超过了已设置的精度。"
+      },
+      "assist": {
+        "draftButton": "1 · AI 起草",
+        "proveButton": "2 · 用 Primus 验证",
+        "proving": "出证中...",
+        "needQuestion": "请先写下问题。",
+        "noDrafter": "AI 起草不可用：未设置 VITE_AI_DRAFTER_URL。请在下方手动填写数据源。",
+        "noResolver": "验证不可用：未设置 VITE_RESOLVER_URL，因此在写入链上之前无法用 Primus 测试该规则。",
+        "draftFailed": "起草失败（{{error}}）。请在「高级」中设置数据源。",
+        "candidatesHint": "选择一条。在你点击创建之前不会写入任何内容。",
+        "reads": "当前读数 {{reading}}",
+        "provenLabel": "已验证 —— Primus 为该数据源出证",
+        "attestor": "由 {{address}} 签名 —— Primus 全局出证者，也是该市场将注册的地址",
+        "provenDetail": "{{decimals}} 位小数，用时 {{seconds}} 秒。该 URL 与路径可以自动结算。",
+        "proveFailed": "无法连接验证服务（{{error}}）。该规则仍未经验证。",
+        "reasons": {
+          "fetch": "未通过验证：该接口没有返回可用的 JSON，因此并未请求 Primus。",
+          "response": "未通过验证：接口有响应，但该路径未能指向其中唯一的一个数值。",
+          "proxy": "未通过验证：Primus 无法与该接口完成受证的 TLS 会话——可能是鉴权、响应体积、加密套件或代理行为。",
+          "quota": "未通过验证：Primus 拒绝了该请求——凭据有误，或出证额度已用尽。",
+          "attestor": "未通过验证：签名并非来自 Primus 全局出证者，链上会拒绝它。",
+          "rate_limited": "暂未验证：每次验证都会消耗 Primus 额度，因此有频率限制。请稍后再试。",
+          "bad_request": "未通过验证：验证服务拒绝了该 URL 或路径。",
+          "unauthorized": "未通过验证：验证服务需要一个本应用未持有的令牌。",
+          "unknown": "未通过验证：出证失败。"
+        },
+        "unprovenWarning": "尚未验证。规则一经提交即永久生效，若 Primus 无法出证，该市场只能人工结算。",
+        "unprovenAtLaunch": "正在以未验证的规则创建——该市场可能永远无法自动结算。",
+        "drafting": "起草中… {{seconds}} 秒",
+        "draftingDetail": "正在寻找数据源并逐个核对数值。",
+        "cancel": "取消",
+        "timedOut": "起草在 {{seconds}} 秒后放弃。请重试，或在下方手动填写数据源。",
+        "noneValidated": "没有数据源通过核对。请改写问题，或在「高级」中手动设置。",
+        "polishKeep": "保留原文",
+        "needRule": "尚无规则——请在上方起草，或在「高级」中设置。",
+        "pickOne": "找到 {{count}} 个数据源，请选择其一。",
+        "picked": "已采用该数据源。点击其他可切换。",
+        "orOwn": "想用其他数据源？请在「高级」中设置。",
+        "needsAdjudicator": "没有公开数据源可以结算这个问题。",
+        "needsAdjudicatorDetail": "你仍然可以创建——它将由人工裁定而非自动结算。请在「高级」中切换结算方式。",
+        "polishApplied": "提问已由起草器改写",
+        "polishDismiss": "好"
+      }
+    },
+    "questionHint": "请提问一个带阈值的公开数值——价格、汇率、指数或计数。",
+    "advancedLabel": "高级",
+    "advancedSummary": "分类：{{category}}",
+    "resolvesEarly": "自动市场在规则被可验证满足的那一刻即结算——一份满足条件的 zkTLS 出证会自行锁定并出证 YES，随时生效。若始终未满足，则以截止时间的读数为准。你也可以在 Locker 中手动提前结算。",
+    "liquidityLabel": "初始流动性",
+    "youDeposit": "你需存入 {{symbol}}"
+  },
+  "stats": {
+    "title": "市场统计",
+    "pureAmmAccounting": "纯 AMM 会计",
+    "cashBasis": "现金基础公式",
+    "cashBasisHint": "最大亏损 + 收益 + 盈亏 = 现金",
+    "equityFloor": "权益底价公式",
+    "equityFloorHint": "现金 - 负债 = 底价",
+    "valuation": "估值 (ExRate)",
+    "valuationHint": "权益 / 供应量 = 比率",
+    "tvl": "TVL 公式",
+    "tvlHint": "现金 + 锁定 = TVL",
+    "liquidityAnchor": "流动性锚定公式",
+    "liquidityAnchorHint": "b × ln(2) ≈ 供应量"
+  },
+  "uc": {
+    "lp": {
+      "showHint": "显示说明",
+      "graduatedHint": "已毕业：LP 现在可赎回，毕业后订单簿手续费计入 LP 收益池。",
+      "bondingHint": "曲线阶段：每笔交易按所付手续费向交易者铸造 LP。毕业、结算或撤销后可赎回。"
+    },
+    "pro": {
+      "visuals": {
+        "liquidityMap": "流动性图谱"
+      }
+    }
+  },
+  "risk": {
+    "title": "风险披露",
+    "subtitle": "发射前请充分了解",
+    "lowVolume": {
+      "title": "低交易量风险",
+      "description": "您的市场可能无法吸引足够的交易者。",
+      "mitigation": "选择热门话题并积极推广您的市场。"
+    },
+    "settlement": {
+      "title": "结算失衡",
+      "description": "LP 价值取决于结算时 YES/NO 持仓的分布。",
+      "mitigation": "LP 底价公式保证最低赎回价值。"
+    },
+    "smartContract": {
+      "title": "智能合约风险",
+      "description": "所有 DeFi 协议都存在固有的智能合约风险。",
+      "mitigation": "Soo 协议已经过审计。请只投入您能承受损失的金额。"
+    },
+    "likelihood": {
+      "low": "低",
+      "medium": "中",
+      "high": "高"
+    },
+    "impact": "影响",
+    "mitigationLabel": "缓解措施：",
+    "floorProtection": "LP 底价保护",
+    "floorDescription": "您的 LP 代币基于底价公式具有最低保证价值：",
+    "floorWorstCase": "即使在最坏情况下（所有赢家赎回），LP 也能保证获得至少底价价值。",
+    "acknowledge": "发射市场即表示您确认：",
+    "ack1": "LP 代币不保证盈利",
+    "ack2": "您的存款为交易者提供流动性",
+    "ack3": "尽管经过审计，智能合约风险仍然存在"
+  },
+  "eastboard": {
+    "nav": {
+      "chain": "期权链",
+      "positions": "持仓",
+      "faucet": "测试币",
+      "markets": "市场",
+      "launch": "发行",
+      "portfolio": "持仓"
+    },
+    "header": {
+      "tagline": "收盘价期权",
+      "fixtureBalance": "模拟余额 {{amount}} MUSDC",
+      "primaryNavigation": "主导航",
+      "mobileNavigation": "移动端导航",
+      "changeLanguage": "切换语言"
+    },
+    "shell": {
+      "testnetBanner": "Devnet 测试网——资金无实际价值",
+      "networkFooter": "Solana Devnet · Soo Core"
+    },
+    "hero": {
+      "eyebrow": "每日收盘 / 二元结算",
+      "title": "聚焦亚洲收盘价的期权盘面",
+      "body": "选择行权价，买入 YES 或 NO，按官方收盘价结算。"
+    },
+    "metrics": {
+      "cells": "期权合约",
+      "live": "可交易市场",
+      "close": "收盘时间"
+    },
+    "chain": {
+      "underlying": "标的",
+      "displayedOutcome": "显示的结算方向",
+      "filterMarkets": "筛选市场",
+      "outcome": "结算方向",
+      "outcomeCallRule": "收盘价 >= 行权价",
+      "outcomePutRule": "收盘价 < 行权价",
+      "outcomeCallAria": "显示 CALL 价格：官方收盘价大于或等于行权价",
+      "outcomePutAria": "显示 PUT 价格：官方收盘价低于行权价",
+      "payoff": {
+        "eyebrow": "二元收益合约",
+        "body": "价格以美分计；判断正确每份兑付 100¢,错误为 0¢。",
+        "correct": "判断正确",
+        "wrong": "判断错误",
+        "invalid": "结果为 INVALID",
+        "perShare": "每份合约",
+        "eitherSide": "任一方向"
+      },
+      "active": "已上线",
+      "all": "全部",
+      "fixtureNotice": "本地模拟模式已开启。已填充的合约格仅用于测试界面状态；正式链上匹配仍保持严格验证。",
+      "indexerUnavailable": "索引服务不可用，当前不会推断任何可交易市场。",
+      "verificationUnavailable": "链上验证不可用，当前不会推断任何可交易市场。",
+      "priceUnavailable": "实时价格刷新不可用，盘面中显示的价格可能已过期。",
+      "retry": "重试",
+      "emptyTitle": "暂无可用合约",
+      "emptyBody": "交易日历没有生成符合条件的到期日。",
+      "optionsAria": "期权链",
+      "loadingAria": "正在加载期权链",
+      "strike": "行权价",
+      "today": "今日",
+      "nextSession": "下一交易日",
+      "status": {
+        "available": "启动",
+        "activating": "继续启动",
+        "closed": "已收盘",
+        "live": "交易",
+        "settled": "已结算"
+      },
+      "meta": {
+        "available": "新合约",
+        "fixture": "模拟",
+        "activating": "继续",
+        "live": "参考价",
+        "settled": "链上"
+      },
+      "rules": {
+        "outcome": "官方收盘价大于或等于行权价时，YES 结算胜出。官方收盘价低于行权价时，NO 结算胜出。全天停牌、符合条件的公司行动、缺少收盘价，或不足两个独立数据源达成一致时，结果为 INVALID。",
+        "timingPrefix": "交易在交易所收盘时停止。",
+        "fixtureTiming": "明确启用的模拟合约会立即在本地结算。",
+        "canonicalTiming": "正式测试网市场会在当日取证批次中收集收盘数据，随后等待已部署 ManualAdjudicator 的 60 分钟异议期。",
+        "invalidation": "每个市场的失效截止时间均从链上实时读取。"
+      },
+      "hiddenMarkets": "{{count}} 个市场已隐藏——元数据与模板不匹配"
+    },
+    "activation": {
+      "liquidity": "流动性 (b)",
+      "title": "激活市场",
+      "strike": "行权价",
+      "expiry": "到期日",
+      "close": "收盘时间",
+      "cancel": "取消",
+      "trade": "交易",
+      "pending": "签名中…",
+      "activate": "激活",
+      "activateFixture": "激活(模拟)"
+    },
+    "trade": {
+      "drawer": {
+        "fixtureBook": "模拟订单簿",
+        "canonicalBook": "标准订单簿",
+        "stateFixture": "模拟",
+        "stateLive": "CLOB 交易中",
+        "stateClosed": "交易已停止",
+        "stateSettled": "已结算"
+      },
+      "depth": {
+        "title": "CLOB 深度",
+        "spread": "价差 {{spread}}",
+        "instruction": "选择卖价买入 YES；选择买价卖出 YES。",
+        "bids": "YES 买盘 · 买方",
+        "asks": "YES 卖盘 · 卖方",
+        "sizePrice": "数量 · 价格",
+        "priceSize": "价格 · 数量",
+        "empty": "暂无挂单",
+        "tradeBidAria": "按买价 {{price}} 交易",
+        "tradeAskAria": "按卖价 {{price}} 交易"
+      },
+      "fixture": {
+        "notice": "模拟证明模式 · verified=false。报价和成交均为本地模拟；这里不会生成钱包签名或链上交易。",
+        "midpoint": "中间价",
+        "impliedYes": "YES 参考价 · {{value}}",
+        "buyYes": "买入 YES",
+        "sellYes": "卖出 YES",
+        "simBalance": "模拟余额 {{amount}} MUSDC",
+        "yesLimitPrice": "YES 限价（分）",
+        "sellHelper": "等价 NO 价格：{{noPrice}}分 · 抵押式看跌敞口",
+        "shares": "份额",
+        "risk": "最多承担",
+        "pays": "判断正确时兑付",
+        "invalidPayout": "INVALID 每份兑付 50¢ · 共 {{amount}} MUSDC",
+        "submit": "提交模拟订单",
+        "invalidInput": "请输入 1 至 99 的整数分价格和有效份额，且金额不能超过模拟余额。",
+        "filled": "模拟{{action}}已成交，使用 {{amount}} 测试 MUSDC。",
+        "appendixBody": "此模板在 {{close}} 停止交易。本地模拟会立即结算；未来的链上 ManualAdjudicator 模拟还必须等待已部署的 60 分钟异议期。INVALID 路径遵循市场截止时间与市场实例的实时失效缓冲。"
+      },
+      "appendix": {
+        "title": "规则、手续费、托管与结算",
+        "view": "查看详情"
+      },
+      "real": {
+        "connect": "请先连接钱包",
+        "cost": "预计成本",
+        "proceeds": "预计所得",
+        "paysIfYes": "YES 兑付",
+        "closed": "已平仓 {{shares}} {{side}}",
+        "closeCta": "平仓 {{shares}} {{side}}",
+        "paysIfNo": "NO 兑付"
+      }
+    },
+    "portfolio": {
+      "eyebrow": "本地持仓与赎回",
+      "title": "持仓",
+      "simulatedBalance": "模拟余额",
+      "notice": "模拟证明 · verified=false。这些持仓、结果和赎回仅存在于本地内存，不会写入 MegaETH。",
+      "emptyEyebrow": "暂无本地持仓",
+      "emptyTitle": "请先提交一笔模拟订单",
+      "emptyBody": "从期权盘面打开一个可交易的模拟合约并提交本地订单。",
+      "status": {
+        "live": "交易中",
+        "settled": "已结算",
+        "redeemed": "已赎回"
+      },
+      "summary": "{{expiry}} · YES {{yes}} · NO {{no}} · 成本 {{cost}}",
+      "evidence": "模拟证据：{{value}} · {{reason}}",
+      "redeemed": "已赎回 {{amount}} 测试 MUSDC",
+      "runResolver": "运行模拟结算",
+      "redeem": "在本地赎回",
+      "complete": "已完成",
+      "fixtureOnly": "仅限模拟模式",
+      "disabledBodyBefore": "默认链上界面已禁用本地模拟持仓。只有测试不广播的模拟流程时，才可添加明确的",
+      "disabledBodyAfter": "参数。"
+    }
+  },
+  "arena": {
+    "stats": {
+      "streakLabel": "连续天数",
+      "streakHelp": "连续每天至少完成一次游玩——XP 加成最高 1.5×",
+      "ticketsLabel": "门票",
+      "ticketsHelp": "游玩门票——每日掉落获得，在竞技场记分交易时消耗",
+      "playsLabel": "游玩",
+      "playsHelp": "你本赛季完成的交易次数"
+    },
+    "handle": {
+      "label": "玩家昵称",
+      "edit": "编辑",
+      "save": "保存",
+      "saving": "保存中",
+      "saved": "玩家昵称已保存",
+      "saveFailed": "昵称保存失败"
+    },
+    "ranks": {
+      "threshold": "LV {{level}} · {{xp}} XP",
+      "toNext": "距 {{rank}} 还差 {{xp}} XP",
+      "topRank": "已达最高段位",
+      "prestige": "段位是赛季荣誉——奖励在赛季结束时发放。"
+    }
+  },
+  "veto": {
+    "attestedPrefix": "{{outcome}} ·",
+    "settleReady": "可结算",
+    "tipOpen": "已裁定 {{outcome}}，但尚未结算。这个窗口是纠正错误结果的机会；窗口结束后任何人都可以结算该市场。",
+    "tipElapsed": "{{outcome}} 的争议窗口已关闭。结算已解锁——任何人都可以触发，落链后持有者即可赎回。",
+    "countdownLabel": "争议窗口"
+  },
+  "createdMarkets": {
+    "title": "你创建的市场",
+    "empty": "该钱包还没有市场。市场发现没有索引，因此只有本次构建已知的市场才会出现在这里。",
+    "loading": "正在扫描已知市场…",
+    "forgeCta": "创建一个市场",
+    "lockIt": "锁定",
+    "becomeAdjudicator": "成为裁定者",
+    "settle": "结算",
+    "redeem": "赎回",
+    "locked": "市场已锁定",
+    "registered": "你现在是裁定者",
+    "settled": "市场已结算",
+    "attested": "结果已裁定——争议窗口已开始",
+    "openUntil": "交易至 {{date}}——暂无操作。",
+    "pastDeadline": "截止时间已过（{{date}}）。锁定现在无需许可，是解决前的一步。",
+    "mayRegister": "尚未注册裁定者。作为创建者，你可以指定自己，然后裁定结果。",
+    "cannotRegister": "尚未注册裁定者，且该钱包无法注册——本部署未开启无许可注册。",
+    "mayAttest": "已锁定，等待结果。你持有裁定密钥——选择 YES、NO 或 INVALID。",
+    "notAdjudicator": "已锁定，等待已注册的裁定者，但不是这个钱包。此处无可操作项。",
+    "orphaned": "裁定条目未指定任何密钥，因此无人可裁定。它将通过弃置救援通道判为 INVALID。",
+    "inVeto": "已裁定 {{outcome}}。争议窗口开启——{{time}} 后任何人都可结算。",
+    "holdsDispute": "你持有该市场的争议否决权；本版本中提出争议仅能通过 CLI 调用。",
+    "disputed": "该结果已被提出争议。",
+    "settleable": "已裁定 {{outcome}}，争议窗口已关闭。结算无需许可——任何人都可以触发。",
+    "settledLine": "已结算 {{outcome}}——持有者可赎回。",
+    "dismissedLine": "已撤销——按成本退款。",
+    "initializing": "尚未激活——曲线尚未注资。",
+    "openNoAdjudicator": "交易至 {{date}}。尚未注册裁定者——现在指定裁定者是你唯一可以提前完成的步骤。"
+  },
+  "committee": {
+    "addLabel": "添加成员",
+    "browse": "查看记录",
+    "addPlaceholder": "粘贴见证人地址",
+    "full": "最多五名成员。",
+    "thresholdLabel": "裁定所需票数",
+    "setThreshold": "设置",
+    "ofMembers": "／共 {{count}} 名成员",
+    "needMembers": "请先添加至少一名成员。",
+    "yourBallot": "你的投票",
+    "hint": "成员公开投票。达到门槛的那一票即写入裁定——你仍可独自裁定。",
+    "toggle": "委员会（{{threshold}}／{{count}}）",
+    "create": "召集委员会"
+  }
+}

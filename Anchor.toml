@@ -1,12 +1,27 @@
 [toolchain]
 anchor_version = "0.30.1"
 
+[features]
+resolution = true
+skip-lint = false
+
+[programs.devnet]
+sooth_core = "EwiENXxrU3PEdmzCttJp9viCR6JZaFnFs3aW9n9a3EWw"
+
 [programs.localnet]
-stook = "LEDKe6vWgQeZQQsxNUXhK3UMxmZLcb2ZDxLuTGE3pw1"
+sooth_core = "EwiENXxrU3PEdmzCttJp9viCR6JZaFnFs3aW9n9a3EWw"
+
+[registry]
+url = "https://api.apr.dev"
 
 [provider]
-cluster = "devnet"
+cluster = "Devnet"
 wallet = "~/.config/solana/id.json"
 
+[workspace]
+members = [
+    "packages/programs-core/programs/sooth-core",
+]
+
 [scripts]
-test = "echo no ts tests yet"
+test = "pnpm -r test"

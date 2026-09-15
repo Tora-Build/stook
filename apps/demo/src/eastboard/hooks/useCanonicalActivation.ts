@@ -1,0 +1,115 @@
+// Activating a cell = creating its market, through the demo's proven path.
+//
+// Activation is ONE transaction — `create_market` composes the vaults, AMM
+// state and lifecycle in a single instruction, and the question text rides in
+// it, verified against its hash by the program. So this hook is deliberately
+// small: the same `writeContractAsync({ functionName: "createMarket" })` call
+// the Launchpad page makes, prefilled from the option template.
+//
+// The step model the wizard renders is two steps: sign, confirm.
+
+import { useCallback, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
+
+import { useAccount, useWriteContract } from "@/lib/chain-shim";
+import { useDemo } from "../../lib/DemoContext";
+import { ABIS } from "../../config/abis";
+import { useDeployments } from "../../hooks/useDeployments";
+import type { OptionTemplate } from "../core";
+
+export type ActivationStepState = "idle" | "pending" | "done" | "error";
+
+export interface CanonicalActivation {
+  connected: boolean;
+  pending: boolean;
+  message: string | null;
+  marketAddress: `0x${string}` | null;
+  stepState: ActivationStepState;
+  activate: () => Promise<void>;
+}
+
+export function useCanonicalActivation(
+  template: OptionTemplate,
+  existingMarketAddress?: `0x${string}`,
+): CanonicalActivation {
+  const { address, isConnected } = useAccount();
+  const demo = useDemo();
+  const { writeContractAsync } = useWriteContract();
+  const { contracts } = useDeployments();
+  const queryClient = useQueryClient();
+
+  const [pending, setPending] = useState(false);
+  const [message, setMessage] = useState<string | null>(null);
+  const [stepState, setStepState] = useState<ActivationStepState>("idle");
+  const [marketAddress, setMarketAddress] = useState<`0x${string}` | null>(
+    existingMarketAddress ?? null,
+  );
+
+  const activate = useCallback(async () => {
+    if (!address) {
+      setMessage("Connect a wallet first.");
+      return;
+    }
+    setPending(true);
+    setStepState("pending");
+    setMessage(null);
+    try {
+      // Identical shape to Launchpad.tsx's deploy call: the shim's
+      // `dispatchCreateMarket` reads [question, startTime, deadline,
+      // adjudicator, bWad, probabilityWad, config] and builds the Solana
+      // create_market from it. The template's deadline is the exchange close
+      // plus the attestation window.
+      const startTime = BigInt(Math.floor(Date.now() / 1000));
+      await writeContractAsync({
+        address: contracts.LaunchpadEngine as `0x${string}`,
+        abi: ABIS.LaunchpadEngine,
+        functionName: "createMarket",
+        args: [
+          template.question,
+          startTime,
+          BigInt(template.cfgDeadline),
+          address,
+          template.bBaseWad,
+          template.probabilityWad,
+          "0x",
+        ],
+      });
+
+      // The shim stashes the new market PDA on the same side channel the
+      // Launchpad reads.
+      const pda = (
+        globalThis as unknown as { __lastCreatedMarketPda?: string }
+      ).__lastCreatedMarketPda;
+      if (pda) setMarketAddress(`0x${pda}` as `0x${string}`);
+
+      // Second signature: fund the curve. Without seed_lp the market LOOKS
+      // alive but cannot trade — trade_positions mints LP to every buyer and
+      // only seed_lp creates that mint. Every wizard-created market before
+      // this was an untradeable orphan.
+      if (pda && demo?.adapter && demo.signer && demo.userRef) {
+        const seedReq = await demo.adapter.buildSeedLp(`sol:${pda}`, {
+          creator: demo.userRef,
+        });
+        await demo.adapter.submit(seedReq, demo.signer as never);
+      }
+      setStepState("done");
+      setMessage(null);
+      // The grid re-derives cell status from the market list.
+      await queryClient.invalidateQueries();
+    } catch (err) {
+      setStepState("error");
+      setMessage(err instanceof Error ? err.message : String(err));
+    } finally {
+      setPending(false);
+    }
+  }, [address, contracts, template, writeContractAsync, queryClient]);
+
+  return {
+    connected: isConnected,
+    pending,
+    message,
+    marketAddress,
+    stepState,
+    activate,
+  };
+}

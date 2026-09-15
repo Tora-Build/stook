@@ -1,0 +1,43 @@
+[package]
+name = "sooth_core"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[lib]
+crate-type = ["cdylib", "lib"]
+name = "sooth_core"
+
+[features]
+no-entrypoint = []
+no-idl = []
+no-log-ix-name = []
+cpi = ["no-entrypoint"]
+# Suppresses solana_program's default 32 KB BumpAllocator so sooth_core can
+# install a 256 KB heap (see lib.rs). Measured: `book_place` costs ~2.5 KB
+# fixed + ~516 B per fill, so the default 32 KB heap runs out at ~57 fills —
+# well inside the 203 fills the event-size limit otherwise allows.
+#
+# ON BY DEFAULT so the artifact under test is the artifact deployed. Callers
+# MUST send request_heap_frame(256 * 1024) — the SDK adapter does this.
+custom-heap = []
+default = ["custom-heap"]
+mainnet = []
+idl-build = ["anchor-lang/idl-build", "anchor-spl/idl-build"]
+
+[dependencies]
+# `event-cpi` gives `#[event_cpi]` + `emit_cpi!`, which self-invoke the program
+# so an event lands in an INNER INSTRUCTION rather than a program log. That is
+# exactly what `sooth_log` was built to provide — the belief that a program
+# cannot CPI into itself is wrong; Solana permits direct self recursion.
+anchor-lang = { version = "0.30.1", features = ["init-if-needed", "event-cpi"] }
+# Required by `#[zero_copy]` in `src/book/` — the redesigned orderbook arena is
+# a Pod array cast in place, never deserialized.
+bytemuck = { version = "1.16", features = ["derive", "min_const_generics"] }
+anchor-spl = { version = "0.30.1", features = ["token", "associated_token"] }
+
+[dev-dependencies]
+# Host-side secp256k1 signing for the zkTLS attestation tests. Already in the
+# lockfile — solana-program uses it for its own non-BPF `secp256k1_recover`
+# fallback — so this pulls in no new dependency, only a new edge.
+libsecp256k1 = "0.6"
