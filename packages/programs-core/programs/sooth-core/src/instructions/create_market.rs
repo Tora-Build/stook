@@ -100,6 +100,14 @@ pub struct CreateMarket<'info> {
     )]
     pub amm_mint: Box<Account<'info, Mint>>,
 
+    /// CHECK: the same account as `amm_mint`, untyped, so the handler can read
+    /// the Token-2022 extension region that lives past the base state — the
+    /// typed wrapper above deserializes only the base and would report a mint
+    /// with a 3% transfer fee as perfectly ordinary. Constrained to be that
+    /// same key, so this cannot be pointed at a different, well-behaved mint.
+    #[account(constraint = amm_mint_raw.key() == amm_mint.key())]
+    pub amm_mint_raw: UncheckedAccount<'info>,
+
     /// CHECK: book-token ATA owned by `vault_authority`; init'd in handler.
     #[account(mut)]
     pub vault_book: UncheckedAccount<'info>,
@@ -141,6 +149,15 @@ pub struct CreateMarket<'info> {
 }
 
 pub fn handler(ctx: Context<CreateMarket>, args: CreateMarketArgs) -> Result<()> {
+    // Before anything is written: can this protocol hold the quote token at
+    // all? A transfer fee, a permanent delegate or a transfer hook each break
+    // an assumption the curve makes on every trade, and the cheapest place to
+    // find out is here — a market created around an uncustodiable mint is a
+    // market that fails at its first deposit, after someone paid rent for it.
+    crate::token_guard::assert_mint_is_custodiable(
+        &ctx.accounts.amm_mint_raw.to_account_info(),
+    )?;
+
     require!(
         args.deadline > args.start_time,
         SoothCoreError::InvalidDeadline

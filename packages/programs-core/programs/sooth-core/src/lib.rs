@@ -127,6 +127,7 @@ pub mod math;
 pub mod merkle;
 pub mod pda;
 pub mod state;
+pub mod token_guard;
 pub mod zk;
 
 pub use instructions::*;

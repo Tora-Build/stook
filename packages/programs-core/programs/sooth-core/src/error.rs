@@ -60,6 +60,13 @@ pub enum SoothCoreError {
     #[msg("AMM mint decimals must be between 2 and 18")]
     UnsupportedMintDecimals,
 
+    /// The mint carries a Token-2022 extension this protocol cannot custody
+    /// honestly — a transfer fee, a permanent delegate, a transfer hook, or
+    /// anything else that breaks "a transfer of n delivers n, and only the
+    /// owner moves it". See `token_guard`.
+    #[msg("Mint carries a Token-2022 extension that cannot be custodied")]
+    UnsupportedMintExtension,
+
     // ── AMM ──────────────────────────────────────────────────────────────────
     #[msg("Slippage: cost exceeded max_cost_wad")]
     SlippageExceeded,
