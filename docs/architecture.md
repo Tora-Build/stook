@@ -22,7 +22,7 @@ one pitching *"decentralized liquidity and multi-outcome architecture"*.
 
 So: an AMM, with the liquidity story as a feature rather than an absence.
 
-## One market, N bands, one subsidy
+## One market, N bands, one subsidy — and why the subsidy is global
 
 The question is "where will this land", so the outcome is a price band and a
 market has as many outcomes as it has bands. The scoring rule generalises
@@ -34,18 +34,25 @@ pᵢ   = exp(qᵢ/b) / Σ exp(qⱼ/b)          Σ pᵢ = 1
 ```
 
 `math/lmsr_n.rs` implements this and `math/lmsr.rs` remains the two-outcome
-case. A test asserts the two agree, because a generalisation that merely
-resembles the original is a second implementation of the same thing, and one of
-them will be wrong.
+case. A test asserts the two agree.
 
-The alternative — a strip of independent binary markets, one per strike —
-fragments the same liquidity into N thin pools and lets its prices sum to
-anything at all. One shared `b` across the grid is what keeps the bands a
-distribution rather than a collection.
+The design first proposed a per-band depth `bᵢ`, so that LPs could make some
+bands harder to move than others — concentrated liquidity along the outcome
+axis. **That was measured and rejected**: with unequal `bᵢ` the price field is
+not conservative (`∂pᵢ/∂qⱼ ≠ ∂pⱼ/∂qᵢ`), so the cost of a position depends on the
+order it was built in, and a round trip extracts money from the LPs forever.
+`docs/feasibility.md` §2 has the numbers.
 
-The bound that matters: an LMSR's worst-case loss to traders is `b · ln(N)`, so
-the subsidy funds the whole grid regardless of which band wins. That is pinned
-by a test rather than a comment.
+So `b` is one number for the whole grid. What an LP chooses is not depth but
+**attribution**: which bands' fees they earn and which bands' settlement loss
+they bear, capped at their stake, with the creator's seed as the residual
+backstop. The economics are stated plainly in the feasibility doc — ranges are
+risk selection plus fee share, and a range containing the outcome pays out.
+
+A trade does not reprice every band. The market keeps `Σ exp(qᵢ/b − m)` cached,
+so a buy recomputes one exponential and costs the same at 32 bands as at 8.
+Bands are capped at 32, which keeps the occasional full recompute inside a
+transaction.
 
 ## Continuous UI over banded state
 
@@ -53,9 +60,7 @@ A line is drawn at any price; it buys the band containing it. The band must be
 visible before the trade is confirmed — someone must never believe they
 committed to a finer price than the market recorded.
 
-Bands are capped at 64. `q` lives in a fixed-length account and every
-instruction that loads it pays for the largest case; 64 puts a 1% band on a
-±30% move, finer than a hand-drawn line.
+Bands are capped at 32 — see the compute measurements in `docs/feasibility.md`.
 
 ## What Stook changed in the inherited engine
 
@@ -73,8 +78,9 @@ anyone wanting a limit order. Neither is a phase the other leaves.
 
 **No adjudicator.** Sooth carries manual, zkTLS and bonded-optimistic
 resolution plus committees, because "did this happen" can be contested. "What
-was this number" cannot, so settlement is an oracle read and the resolution
-stack is unused weight here.
+was this number" cannot, so settlement is a Pyth read — the 24/7
+`Equity.Index.*` feeds, consumed by a vendored `PriceUpdateV2` layout with no
+Pyth crate — and the resolution stack is unused weight here.
 
 ## Token-2022
 
