@@ -212,6 +212,43 @@ pub fn quote(w: &[i128; BINS], sum: i128, shape: Shape) -> Result<i128, MathErro
     wad_div(weighted, sum)
 }
 
+/// The bin a settled price falls in.
+///
+/// ```text
+///   bin = clamp( 32 + floor( ln(price / p0) / step ), 0, 63 )
+/// ```
+///
+/// Bins are equal steps in LOG price, because prices move in percentages: a
+/// linear grid over ±40% gives 4.4%-wide bins at the bottom and 1.9% at the
+/// top. Bin 32 starts exactly at `p0`, so bins 0..=31 are below the opening
+/// price and 32..=63 at or above it. The end bins are open tails.
+///
+/// `price` and `p0` are raw oracle integers at the SAME exponent; only their
+/// ratio is used, so the price scale — 1e-8 or 1e5 — never enters.
+///
+/// A front end must draw its grid from this exact rule: bin `i` covers
+/// `[p0·e^((i−32)·step), p0·e^((i−31)·step))`.
+pub fn bin_for(price: i64, p0: i64, step_bps: u16) -> Result<u8, MathError> {
+    if price <= 0 || p0 <= 0 || step_bps == 0 {
+        return Err(MathError::Overflow);
+    }
+    let last = BINS as i128 - 1;
+    // A ratio beyond ln's domain is far past either tail; place it there
+    // rather than failing a settlement over a number we do not need.
+    let tail = if price < p0 { 0u8 } else { last as u8 };
+    let Ok(ratio) = wad_div(price as i128, p0 as i128) else { return Ok(tail) };
+    if ratio <= 0 {
+        return Ok(0);
+    }
+    let Ok(ln) = ln_wad(ratio) else { return Ok(tail) };
+
+    let step_wad = step_bps as i128 * (WAD / 10_000);
+    // div_euclid floors toward −∞; plain `/` truncates toward zero and would
+    // put a price just below p0 into bin 32 instead of 31.
+    let idx = (BINS as i128 / 2) + ln.div_euclid(step_wad);
+    Ok(idx.clamp(0, last) as u8)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -421,6 +458,50 @@ mod tests {
         assert!(apply_trade(&mut w, &mut sum, b, Shape::band(10, 20), 200 * WAD).is_err());
         assert_eq!(w, w0, "a failed trade rewrote weights");
         assert_eq!(sum, s0);
+    }
+
+    #[test]
+    fn the_opening_price_starts_bin_32_and_a_hair_below_is_bin_31() {
+        let p0 = 22_019_000; // $220.19 at exponent −5
+        assert_eq!(bin_for(p0, p0, 100).unwrap(), 32);
+        assert_eq!(bin_for(p0 - 1, p0, 100).unwrap(), 31, "floor, not truncate");
+        assert_eq!(bin_for(p0 + 1, p0, 100).unwrap(), 32);
+    }
+
+    #[test]
+    fn bins_are_equal_steps_in_log_price() {
+        let p0 = 100_000_000i64;
+        // e^0.01 = 1.010050…, e^0.02 = 1.020201…, e^-0.01 = 0.990049…
+        assert_eq!(bin_for(101_004_000, p0, 100).unwrap(), 32, "just under one step up");
+        assert_eq!(bin_for(101_006_000, p0, 100).unwrap(), 33, "just over one step up");
+        assert_eq!(bin_for(102_021_000, p0, 100).unwrap(), 34);
+        assert_eq!(bin_for(99_006_000, p0, 100).unwrap(), 31, "just inside one step down");
+        assert_eq!(bin_for(99_004_000, p0, 100).unwrap(), 30, "just past one step down");
+        // the same move is more bins on a finer grid
+        assert_eq!(bin_for(102_021_000, p0, 25).unwrap(), 40);
+    }
+
+    #[test]
+    fn every_price_lands_somewhere_and_the_tails_are_open() {
+        let p0 = 22_019_000i64;
+        assert_eq!(bin_for(1, p0, 100).unwrap(), 0);
+        assert_eq!(bin_for(i64::MAX, p0, 100).unwrap(), 63);
+        assert_eq!(bin_for(p0 * 3, p0, 100).unwrap(), 63, "+200% on a 1% grid is the top tail");
+        assert_eq!(bin_for(p0 / 3, p0, 100).unwrap(), 0);
+        // …and the reason tiers exist: on an 8% grid a +60% move is an interior bin.
+        let b = bin_for(p0 / 10 * 16, p0, 800).unwrap();
+        assert!(b > 32 && b < 63, "bin {b}");
+        assert!(bin_for(0, p0, 100).is_err());
+        assert!(bin_for(p0, 0, 100).is_err());
+    }
+
+    #[test]
+    fn the_price_scale_never_matters() {
+        // Same +2.5% move at three exponents.
+        for p0 in [12_340i64, 22_019_000, 9_876_543_210_000] {
+            let up = p0 + p0 / 40;
+            assert_eq!(bin_for(up, p0, 100).unwrap(), 34, "p0 {p0}");
+        }
     }
 
     #[test]

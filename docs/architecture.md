@@ -97,8 +97,14 @@ supporting it properly means fee-aware accounting on every path.
 
 ## Open
 
-- The instruction layer still trades the binary form; `trade_positions` and the
-  AMM state need the N-band `q`.
-- Token-2022 migration.
-- LP subsidy top-ups by anyone, not only the creator.
-- Oracle wiring for settlement.
+- Token-2022 on the ladder paths is built (`token_interface` throughout) but the
+  end-to-end test runs on a classic SPL mint; an xStock-shaped Token-2022 mint
+  has not been exercised yet.
+- SDK builders and a bit-exact quote function. The end-to-end test hand-rolls
+  its instructions.
+- The settle crank: fetch the one qualifying update from Hermes (API key
+  required since 2026-08-26), post it through the Pyth receiver, call
+  `ladder_settle`.
+- The inherited binary engine, order book and adjudication stack are still in
+  the program. Stook uses none of them; removing them shrinks the audit surface.
+- LP withdrawal during Seeding; fee ramp toward lock; fee-only LP zones.

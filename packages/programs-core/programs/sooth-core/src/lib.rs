@@ -483,4 +483,35 @@ pub mod sooth_core {
     pub fn ladder_trade(ctx: Context<LadderTrade>, args: LadderTradeArgs) -> Result<()> {
         ladder::trade_handler(ctx, args)
     }
+
+    /// Add to a ladder's subsidy. Seeding phase only.
+    pub fn ladder_seed(ctx: Context<LadderSeed>, amount: u64) -> Result<()> {
+        ladder::seed_handler(ctx, amount)
+    }
+
+    /// Settle from the one Pyth update that is the price at `settles_at`.
+    /// Permissionless: the rule picks the update, not the caller.
+    pub fn ladder_settle(ctx: Context<LadderSettle>) -> Result<()> {
+        ladder::settle_handler(ctx)
+    }
+
+    /// Void a ladder that never opened, or whose settlement price never came.
+    pub fn ladder_void(ctx: Context<LadderVoid>) -> Result<()> {
+        ladder::void_handler(ctx)
+    }
+
+    /// Collect a position: its payout if settled, its cost basis if void.
+    pub fn ladder_redeem(ctx: Context<LadderRedeem>) -> Result<()> {
+        ladder::redeem_handler(ctx)
+    }
+
+    /// Collect an LP stake's share of what the market left.
+    pub fn ladder_claim_lp(ctx: Context<LadderClaimLp>) -> Result<()> {
+        ladder::claim_lp_handler(ctx)
+    }
+
+    /// Send accrued creator and protocol fees to their fixed destinations.
+    pub fn ladder_collect_fees(ctx: Context<LadderCollectFees>) -> Result<()> {
+        ladder::collect_fees_handler(ctx)
+    }
 }

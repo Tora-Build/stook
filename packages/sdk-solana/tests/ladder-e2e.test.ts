@@ -1,14 +1,16 @@
-// The ladder, end to end on LiteSVM, against the real program binary:
-// create → open from a REAL Pyth account → buy a tent → buy a band → sell.
+// The ladder, end to end on LiteSVM against the real program binary.
+//
+//   settle path: seed (two LPs) → open from a REAL Pyth account → trade →
+//                settle → winners redeem → LPs claim → fees → vault empty
+//   void path:   trade → settlement price never arrives → void →
+//                trader refunded exactly what they paid, LP made whole
 //
 // Hand-rolled instructions on purpose. The SDK builders do not exist yet, and a
-// test that goes through them would be testing two new things at once.
+// test that went through them would be testing two new things at once.
 import { describe, expect, it } from "vitest";
 import { createHash } from "node:crypto";
 import { resolve } from "node:path";
-import {
-  ComputeBudgetProgram, Keypair, PublicKey, SystemProgram, Transaction, TransactionInstruction,
-} from "@solana/web3.js";
+import { ComputeBudgetProgram, Keypair, PublicKey, SystemProgram, Transaction, TransactionInstruction } from "@solana/web3.js";
 import { ACCOUNT_SIZE, AccountLayout, MINT_SIZE, MintLayout, TOKEN_PROGRAM_ID } from "@solana/spl-token";
 import { LiteSVM } from "litesvm";
 import { SvmContext } from "./fixtures/svm";
@@ -22,6 +24,16 @@ const SO = process.env.STOOK_SO ?? resolve(__dirname, "../../../target/deploy/so
 const NVDA_FEED = Buffer.from("b1073854ed24cbc755dc527418f52b7d271f6cc967bbf8d8129112b18860a593", "hex");
 const NVDA_UPDATE = Buffer.from("22f123639d7ef4cdcdb3d4c2acc447184398ad317cede5f7846a07336c7d228ebe664729eb8ae2f20005b1073854ed24cbc755dc527418f52b7d271f6cc967bbf8d8129112b18860a593b8fb4f0100000000384a000000000000fbfffffff4c5216a00000000f4c5216a0000000018384e0100000000b13f0000000000001e2dd81b00000000", "hex");
 const PUBLISH_TIME = 1_780_598_260n;
+const P0 = 22_019_000n;
+
+/** The real update's bytes with price and times replaced. SYNTHETIC: LiteSVM
+ *  lets a test write any account, so this exercises the program's settlement
+ *  rule, not Pyth's signatures. Offsets are for the Partial (2-byte) variant. */
+const updateAt = (price: bigint, publish: bigint, prev: bigint) => {
+  const b = Buffer.from(NVDA_UPDATE);
+  b.writeBigInt64LE(price, 74); b.writeBigInt64LE(publish, 94); b.writeBigInt64LE(prev, 102);
+  return b;
+};
 
 const disc = (ns: string, name: string) => createHash("sha256").update(`${ns}:${name}`).digest().subarray(0, 8);
 const i64 = (v: bigint) => { const b = Buffer.alloc(8); b.writeBigInt64LE(v); return b; };
@@ -29,24 +41,27 @@ const u64 = (v: bigint) => { const b = Buffer.alloc(8); b.writeBigUInt64LE(v); r
 const i16 = (v: number) => { const b = Buffer.alloc(2); b.writeInt16LE(v); return b; };
 const u16 = (v: number) => { const b = Buffer.alloc(2); b.writeUInt16LE(v); return b; };
 const pda = (seeds: (Buffer | Uint8Array)[]) => PublicKey.findProgramAddressSync(seeds, PROGRAM)[0];
+const ro = (pubkey: PublicKey) => ({ pubkey, isSigner: false, isWritable: false });
+const rw = (pubkey: PublicKey) => ({ pubkey, isSigner: false, isWritable: true });
+const signer = (pubkey: PublicKey, isWritable = true) => ({ pubkey, isSigner: true, isWritable });
+
+const TIER = 2; // 1% steps
 
 function boot() {
   const svm = new LiteSVM();
   svm.addProgramFromFile(PROGRAM.toBase58() as any, SO);
   const ctx = new SvmContext(svm);
-  const put = (key: PublicKey, owner: PublicKey, data: Buffer, lamports = 10_000_000n) =>
-    ctx.setAccount(key, { executable: false, owner, lamports, data: new Uint8Array(data) });
+  const put = (key: PublicKey, owner: PublicKey, data: Buffer) =>
+    ctx.setAccount(key, { executable: false, owner, lamports: 10_000_000n, data: new Uint8Array(data) });
 
-  // ProtocolConfig — written directly; this test is about the ladder, not protocol init.
   const [config, configBump] = PublicKey.findProgramAddressSync([Buffer.from("protocol_config")], PROGRAM);
-  const admin = Keypair.generate();
+  const treasury = Keypair.generate();
   put(config, PROGRAM, Buffer.concat([
-    disc("account", "ProtocolConfig"), admin.publicKey.toBuffer(), admin.publicKey.toBuffer(),
+    disc("account", "ProtocolConfig"), treasury.publicKey.toBuffer(), treasury.publicKey.toBuffer(),
     u16(500), u16(100), u16(0), u16(5000), u16(3000), u16(1000), u16(1000),
     i64(0n), Buffer.from([configBump, 0, 0]), i64(0n), Buffer.alloc(32), Buffer.alloc(28),
   ]));
 
-  // A 6-decimal classic SPL mint, and funded token accounts.
   const mint = Keypair.generate().publicKey;
   const mintData = Buffer.alloc(MINT_SIZE);
   MintLayout.encode({ mintAuthorityOption: 0, mintAuthority: PublicKey.default, supply: 10n ** 15n, decimals: 6, isInitialized: true, freezeAuthorityOption: 0, freezeAuthority: PublicKey.default }, mintData);
@@ -56,128 +71,176 @@ function boot() {
     AccountLayout.encode({ mint, owner, amount, delegateOption: 0, delegate: PublicKey.default, state: 1, isNativeOption: 0, isNative: 0n, delegatedAmount: 0n, closeAuthorityOption: 0, closeAuthority: PublicKey.default }, d);
     put(key, TOKEN_PROGRAM_ID, d); return key;
   };
-  const creator = Keypair.generate(), trader = Keypair.generate();
-  for (const k of [creator, trader]) svm.airdrop(k.publicKey.toBase58() as any, 10_000_000_000n);
-  const creatorToken = fund(creator.publicKey, 10_000_000_000n);
-  const traderToken = fund(trader.publicKey, 10_000_000_000n);
+  const who = (start: bigint) => { const kp = Keypair.generate(); svm.airdrop(kp.publicKey.toBase58() as any, 10_000_000_000n); return { kp, token: fund(kp.publicKey, start), start }; };
+  const START = 10_000_000_000n;
+  const creator = who(START), lp2 = who(START), trader = who(START);
+  const treasuryToken = fund(treasury.publicKey, 0n);
+  const priceAccount = (data: Buffer) => { const k = Keypair.generate().publicKey; put(k, PYTH_RECEIVER, data); return k; };
 
-  // The real Pyth update, owned by the real receiver program id.
-  const priceUpdate = Keypair.generate().publicKey;
-  put(priceUpdate, PYTH_RECEIVER, NVDA_UPDATE);
-
-  return { svm, ctx, config, mint, creator, trader, creatorToken, traderToken, priceUpdate };
+  return { svm, ctx, config, mint, creator, lp2, trader, treasuryToken, priceAccount };
 }
+type Env = ReturnType<typeof boot>;
 
-async function send(ctx: SvmContext, svm: LiteSVM, ixs: TransactionInstruction[], signer: Keypair) {
-  const tx = new Transaction().add(
-    ComputeBudgetProgram.requestHeapFrame({ bytes: 262144 }),
-    ComputeBudgetProgram.setComputeUnitLimit({ units: 1_400_000 }), ...ixs);
-  tx.recentBlockhash = svm.latestBlockhash() as any; tx.feePayer = signer.publicKey; tx.sign(signer);
-  const r = await ctx.banksClient.tryProcessTransaction(tx);
-  return { err: r.result, cu: Number(r.meta?.computeUnitsConsumed ?? 0n), logs: r.meta?.logMessages ?? [] };
+async function send(e: Env, ixs: TransactionInstruction[], by: Keypair) {
+  const tx = new Transaction().add(ComputeBudgetProgram.requestHeapFrame({ bytes: 262144 }), ComputeBudgetProgram.setComputeUnitLimit({ units: 1_400_000 }), ...ixs);
+  tx.recentBlockhash = e.svm.latestBlockhash() as any; tx.feePayer = by.publicKey; tx.sign(by);
+  const r = await e.ctx.banksClient.tryProcessTransaction(tx);
+  return { err: r.result, cu: Number(r.meta?.computeUnitsConsumed ?? 0n), logs: (r.meta?.logMessages ?? []).join("\n") };
 }
+const ok = async (e: Env, ix: TransactionInstruction, by: Keypair) => { const r = await send(e, [ix], by); expect(r.err, r.logs).toBeNull(); return r; };
+const refused = async (e: Env, ix: TransactionInstruction, by: Keypair) => { const r = await send(e, [ix], by); expect(r.err).not.toBeNull(); return r; };
 
-const TIER = 2; // 1% steps
-const SEED = 5_000_000_000n; // 5,000 tokens
+const balance = (e: Env, key: PublicKey) => AccountLayout.decode(Buffer.from((e.svm.getAccount(key.toBase58() as any) as any).data)).amount;
+const exists = (e: Env, key: PublicKey) => { const a: any = e.svm.getAccount(key.toBase58() as any); return !!a && (a.exists ?? true) && BigInt(a.lamports ?? 0) > 0n; };
 
-function keys(e: ReturnType<typeof boot>, settlesAt: bigint) {
+function market(e: Env, settlesAt: bigint) {
   const ladder = pda([Buffer.from("ladder"), NVDA_FEED, i64(settlesAt), e.mint.toBuffer(), Buffer.from([TIER])]);
-  return { ladder, authority: pda([Buffer.from("ladder_auth"), ladder.toBuffer()]), vault: pda([Buffer.from("ladder_vault"), ladder.toBuffer()]) };
+  const authority = pda([Buffer.from("ladder_auth"), ladder.toBuffer()]);
+  const vault = pda([Buffer.from("ladder_vault"), ladder.toBuffer()]);
+  const stakeOf = (o: PublicKey) => pda([Buffer.from("ladder_stake"), ladder.toBuffer(), o.toBuffer()]);
+  const posOf = (o: PublicKey, lo: number, hi: number, h: number) => pda([Buffer.from("ladder_pos"), ladder.toBuffer(), o.toBuffer(), i16(lo), i16(hi), Buffer.from([h])]);
+  const ix = (name: string, data: Buffer[], keys: any[]) => new TransactionInstruction({ programId: PROGRAM, data: Buffer.concat([disc("global", name), ...data]), keys });
+  const tokenTail = [ro(TOKEN_PROGRAM_ID), ro(SystemProgram.programId)];
+  return {
+    ladder, vault, stakeOf, posOf,
+    create: (seed: bigint, opens: bigint, locks: bigint) => ix("ladder_create",
+      [NVDA_FEED, Buffer.from([TIER]), i64(opens), i64(locks), i64(settlesAt), u64(seed), u16(100), Buffer.alloc(32)],
+      [signer(e.creator.kp.publicKey), ro(e.config), rw(ladder), ro(authority), ro(e.mint), rw(vault), rw(e.creator.token), rw(stakeOf(e.creator.kp.publicKey)), ...tokenTail]),
+    seed: (w: Env["lp2"], amount: bigint) => ix("ladder_seed", [u64(amount)],
+      [signer(w.kp.publicKey), rw(ladder), ro(e.mint), rw(vault), rw(w.token), rw(stakeOf(w.kp.publicKey)), ...tokenTail]),
+    open: (price: PublicKey) => ix("ladder_open", [], [signer(e.trader.kp.publicKey, false), rw(ladder), ro(price)]),
+    trade: (lo: number, hi: number, h: number, shares: bigint, limit: bigint) => ix("ladder_trade",
+      [i16(lo), i16(hi), Buffer.from([h]), i64(shares), u64(limit)],
+      [signer(e.trader.kp.publicKey), ro(e.config), rw(ladder), ro(authority), ro(e.mint), rw(vault), rw(e.trader.token), rw(posOf(e.trader.kp.publicKey, lo, hi, h)), ...tokenTail]),
+    settle: (price: PublicKey) => ix("ladder_settle", [], [signer(e.trader.kp.publicKey, false), rw(ladder), ro(price)]),
+    voidIt: () => ix("ladder_void", [], [signer(e.trader.kp.publicKey, false), rw(ladder)]),
+    redeem: (lo: number, hi: number, h: number) => ix("ladder_redeem", [],
+      [signer(e.trader.kp.publicKey), rw(ladder), ro(authority), ro(e.mint), rw(vault), rw(e.trader.token), rw(posOf(e.trader.kp.publicKey, lo, hi, h)), ro(TOKEN_PROGRAM_ID)]),
+    claimLp: (w: Env["lp2"]) => ix("ladder_claim_lp", [],
+      [signer(w.kp.publicKey), ro(ladder), ro(authority), ro(e.mint), rw(vault), rw(w.token), rw(stakeOf(w.kp.publicKey)), ro(TOKEN_PROGRAM_ID)]),
+    collectFees: () => ix("ladder_collect_fees", [],
+      [signer(e.trader.kp.publicKey, false), ro(e.config), rw(ladder), ro(authority), ro(e.mint), rw(vault), rw(e.creator.token), rw(e.treasuryToken), ro(TOKEN_PROGRAM_ID)]),
+  };
 }
 
-const tradeIx = (e: ReturnType<typeof boot>, k: ReturnType<typeof keys>, lo: number, hi: number, h: number, shares: bigint, limit: bigint) => {
-  const position = pda([Buffer.from("ladder_pos"), k.ladder.toBuffer(), e.trader.publicKey.toBuffer(), i16(lo), i16(hi), Buffer.from([h])]);
-  return { position, ix: new TransactionInstruction({ programId: PROGRAM, data: Buffer.concat([disc("global", "ladder_trade"), i16(lo), i16(hi), Buffer.from([h]), i64(shares), u64(limit)]), keys: [
-    { pubkey: e.trader.publicKey, isSigner: true, isWritable: true }, { pubkey: e.config, isSigner: false, isWritable: false },
-    { pubkey: k.ladder, isSigner: false, isWritable: true }, { pubkey: k.authority, isSigner: false, isWritable: false },
-    { pubkey: e.mint, isSigner: false, isWritable: false }, { pubkey: k.vault, isSigner: false, isWritable: true },
-    { pubkey: e.traderToken, isSigner: false, isWritable: true }, { pubkey: position, isSigner: false, isWritable: true },
-    { pubkey: TOKEN_PROGRAM_ID, isSigner: false, isWritable: false }, { pubkey: SystemProgram.programId, isSigner: false, isWritable: false },
-  ] }) };
-};
-
-const tokenBalance = (svm: LiteSVM, key: PublicKey) => AccountLayout.decode(Buffer.from((svm.getAccount(key.toBase58() as any) as any).data)).amount;
+const BIG = 10n ** 12n;
 
 describe("ladder end to end", () => {
-  it("creates, opens from a real Pyth update, and trades a tent, a band and a sell", async () => {
-    const e = boot(); const { svm, ctx } = e;
+  it("seeds, opens from a real Pyth update, trades, settles, and pays everyone until the vault is empty", async () => {
+    const e = boot();
     const opensAt = PUBLISH_TIME, locksAt = PUBLISH_TIME + 3600n, settlesAt = PUBLISH_TIME + 3700n;
-    const k = keys(e, settlesAt);
+    const m = market(e, settlesAt);
 
-    warpClockTo(ctx, PUBLISH_TIME - 1000n);
-    const create = await send(ctx, svm, [new TransactionInstruction({ programId: PROGRAM,
-      data: Buffer.concat([disc("global", "ladder_create"), NVDA_FEED, Buffer.from([TIER]), i64(opensAt), i64(locksAt), i64(settlesAt), u64(SEED), u16(100), Buffer.alloc(32)]),
-      keys: [
-        { pubkey: e.creator.publicKey, isSigner: true, isWritable: true }, { pubkey: e.config, isSigner: false, isWritable: false },
-        { pubkey: k.ladder, isSigner: false, isWritable: true }, { pubkey: k.authority, isSigner: false, isWritable: false },
-        { pubkey: e.mint, isSigner: false, isWritable: false }, { pubkey: k.vault, isSigner: false, isWritable: true },
-        { pubkey: e.creatorToken, isSigner: false, isWritable: true }, { pubkey: TOKEN_PROGRAM_ID, isSigner: false, isWritable: false },
-        { pubkey: SystemProgram.programId, isSigner: false, isWritable: false },
-      ] })], e.creator);
-    expect(create.err, create.logs.join("\n")).toBeNull();
-    expect(tokenBalance(svm, k.vault)).toBe(SEED);
+    // ── Seeding: the creator, then a second LP ─────────────────────────────
+    warpClockTo(e.ctx, PUBLISH_TIME - 1000n);
+    const create = await ok(e, m.create(5_000_000_000n, opensAt, locksAt), e.creator.kp);
+    await ok(e, m.seed(e.lp2, 2_500_000_000n), e.lp2.kp);
+    expect(balance(e, m.vault)).toBe(7_500_000_000n);
 
-    // Trading before open is refused.
-    warpClockTo(ctx, PUBLISH_TIME + 10n);
-    const early = await send(ctx, svm, [tradeIx(e, k, 31, 31, 1, 1_000_000n, 10n ** 12n).ix], e.trader);
-    expect(early.err).not.toBeNull();
+    // ── Open, from the real update ──────────────────────────────────────────
+    warpClockTo(e.ctx, PUBLISH_TIME + 10n);
+    await refused(e, m.trade(31, 31, 1, 1_000_000n, BIG), e.trader.kp);           // not open yet
+    const open = await ok(e, m.open(e.priceAccount(NVDA_UPDATE)), e.trader.kp);
+    await refused(e, m.seed(e.lp2, 1_000_000n), e.lp2.kp);                          // liquidity is closed after open
 
-    const open = await send(ctx, svm, [new TransactionInstruction({ programId: PROGRAM, data: disc("global", "ladder_open"), keys: [
-      { pubkey: e.trader.publicKey, isSigner: true, isWritable: false }, { pubkey: k.ladder, isSigner: false, isWritable: true },
-      { pubkey: e.priceUpdate, isSigner: false, isWritable: false } ] })], e.trader);
-    expect(open.err, open.logs.join("\n")).toBeNull();
+    // ── Trading ─────────────────────────────────────────────────────────────
+    const tent = await ok(e, m.trade(29, 35, 4, 100_000_000n, BIG), e.trader.kp);   // a line at bin 32
+    const band = await ok(e, m.trade(20, 44, 1, 200_000_000n, BIG), e.trader.kp);   // a wide band
+    await refused(e, m.trade(29, 35, 4, 100_000_000n, 1n), e.trader.kp);            // slippage limit
+    const sell = await ok(e, m.trade(29, 35, 4, -100_000_000n, 0n), e.trader.kp);   // exit the first line
+    await refused(e, m.trade(29, 35, 4, -1n, 0n), e.trader.kp);                     // nothing left to sell
 
-    const before = tokenBalance(svm, e.traderToken);
-    // A tent of height 4 centred on bin 32 — "draw a line".
-    const tent = await send(ctx, svm, [tradeIx(e, k, 29, 35, 4, 100_000_000n, 10n ** 12n).ix], e.trader);
-    expect(tent.err, tent.logs.join("\n")).toBeNull();
-    const afterTent = tokenBalance(svm, e.traderToken);
-    // 16 bin-levels of 100 shares at ~1/64 each ≈ 25 tokens, plus impact and 1% fee.
-    const paidTent = before - afterTent;
-    expect(paidTent).toBeGreaterThan(25_000_000n);
-    expect(paidTent).toBeLessThan(30_000_000n);
+    // a clean round trip never pays
+    const rt0 = balance(e, e.trader.token);
+    await ok(e, m.trade(50, 52, 2, 50_000_000n, BIG), e.trader.kp);
+    await ok(e, m.trade(50, 52, 2, -50_000_000n, 0n), e.trader.kp);
+    expect(balance(e, e.trader.token) - rt0).toBeLessThan(0n);
 
-    // A wide flat band.
-    const band = await send(ctx, svm, [tradeIx(e, k, 20, 44, 1, 200_000_000n, 10n ** 12n).ix], e.trader);
-    expect(band.err, band.logs.join("\n")).toBeNull();
+    // the line that will win: a tent centred on bin 33
+    await ok(e, m.trade(30, 36, 4, 100_000_000n, BIG), e.trader.kp);
 
-    // Slippage limit is enforced.
-    const tight = await send(ctx, svm, [tradeIx(e, k, 29, 35, 4, 100_000_000n, 1n).ix], e.trader);
-    expect(tight.err).not.toBeNull();
+    // ── Settlement ──────────────────────────────────────────────────────────
+    await refused(e, m.settle(e.priceAccount(updateAt(22_460_000n, settlesAt, settlesAt - 1n))), e.trader.kp); // too early
+    warpClockTo(e.ctx, locksAt + 1n);
+    await refused(e, m.trade(30, 36, 4, 1_000_000n, BIG), e.trader.kp);             // locked
+    warpClockTo(e.ctx, settlesAt + 5n);
 
-    // Sell the whole tent back: strictly less than was paid for it.
-    const preSell = tokenBalance(svm, e.traderToken);
-    const sell = await send(ctx, svm, [tradeIx(e, k, 29, 35, 4, -100_000_000n, 0n).ix], e.trader);
-    expect(sell.err, sell.logs.join("\n")).toBeNull();
-    const got = tokenBalance(svm, e.traderToken) - preSell;
-    expect(got).toBeGreaterThan(0n);
+    // $224.60 → ln(224.60/220.19)/0.01 = 1.98 → bin 33
+    const price = 22_460_000n;
+    await refused(e, m.settle(e.priceAccount(updateAt(price, settlesAt, settlesAt))), e.trader.kp);        // a LATER update in second T
+    await refused(e, m.settle(e.priceAccount(updateAt(price, settlesAt - 1n, settlesAt - 2n))), e.trader.kp); // from before T
+    await refused(e, m.settle(e.priceAccount(updateAt(price, settlesAt + 31n, settlesAt - 1n))), e.trader.kp); // feed silent across T
+    const settle = await ok(e, m.settle(e.priceAccount(updateAt(price, settlesAt, settlesAt - 1n))), e.trader.kp);
+    await refused(e, m.settle(e.priceAccount(updateAt(price, settlesAt, settlesAt - 1n))), e.trader.kp);   // only once
+    await refused(e, m.voidIt(), e.trader.kp);                                                             // settled markets do not void
 
-    // The tent sold for MORE than it cost — correctly: the band bought in
-    // between overlaps its bins and raised their price. The claim that matters
-    // is the clean one: buy and immediately sell, nothing in between, and the
-    // trader must come out behind by the fees and the rounding.
-    const rtBefore = tokenBalance(svm, e.traderToken);
-    const rtBuy = await send(ctx, svm, [tradeIx(e, k, 50, 52, 2, 50_000_000n, 10n ** 12n).ix], e.trader);
-    expect(rtBuy.err, rtBuy.logs.join("\n")).toBeNull();
-    const rtSell = await send(ctx, svm, [tradeIx(e, k, 50, 52, 2, -50_000_000n, 0n).ix], e.trader);
-    expect(rtSell.err, rtSell.logs.join("\n")).toBeNull();
-    const roundTrip = tokenBalance(svm, e.traderToken) - rtBefore;
-    expect(roundTrip).toBeLessThan(0n);
+    // ── Everyone collects ───────────────────────────────────────────────────
+    const pre = balance(e, e.trader.token);
+    const redeem = await ok(e, m.redeem(30, 36, 4), e.trader.kp);
+    expect(balance(e, e.trader.token) - pre).toBe(400_000_000n);      // centre bin: 4 × 100
+    const pre2 = balance(e, e.trader.token);
+    await ok(e, m.redeem(20, 44, 1), e.trader.kp);
+    expect(balance(e, e.trader.token) - pre2).toBe(200_000_000n);     // flat band: 1 × 200
+    await ok(e, m.redeem(29, 35, 4), e.trader.kp);                    // sold out: pays 0, returns rent
+    await ok(e, m.redeem(50, 52, 2), e.trader.kp);
+    expect(exists(e, m.posOf(e.trader.kp.publicKey, 30, 36, 4))).toBe(false);
+    await refused(e, m.redeem(30, 36, 4), e.trader.kp);               // and cannot be redeemed twice
 
-    // The books balance: what the vault holds is exactly pool cash plus fees.
-    const raw = Buffer.from((svm.getAccount(k.ladder.toBase58() as any) as any).data);
-    const at = (o: number) => raw.readBigUInt64LE(8 + o);
-    const [p0, cash, fLp, fCr, fPr] = [raw.readBigInt64LE(8 + 24), at(32), at(48), at(56), at(64)];
-    expect(p0).toBe(22_019_000n); // the grid centred on the real NVDA print, $220.19
-    expect(tokenBalance(svm, k.vault)).toBe(cash + fLp + fCr + fPr);
-    console.log(`  clean round trip P&L ${roundTrip} base units (must be negative); vault = cash ${cash} + fees ${fLp + fCr + fPr}`);
+    const c0 = balance(e, e.creator.token), l0 = balance(e, e.lp2.token);
+    await ok(e, m.claimLp(e.creator), e.creator.kp);
+    await ok(e, m.claimLp(e.lp2), e.lp2.kp);
+    const creatorGot = balance(e, e.creator.token) - c0, lp2Got = balance(e, e.lp2.token) - l0;
+    // 5,000 : 2,500 stake → 2 : 1 payout, to within a base unit of flooring
+    expect(creatorGot - 2n * lp2Got).toBeGreaterThanOrEqual(-2n);
+    expect(creatorGot - 2n * lp2Got).toBeLessThanOrEqual(2n);
+    await refused(e, m.claimLp(e.lp2), e.lp2.kp);
 
-    // Selling what is not held is refused.
-    const over = await send(ctx, svm, [tradeIx(e, k, 29, 35, 4, -1n, 0n).ix], e.trader);
-    expect(over.err).not.toBeNull();
+    await ok(e, m.collectFees(), e.trader.kp);
+    expect(balance(e, e.treasuryToken)).toBeGreaterThan(0n);
 
-    console.log(`\nCOMPUTE UNITS (whole tx, real program on LiteSVM)\n  create ${create.cu}\n  open   ${open.cu}\n  buy tent h=4 (7 bins, inits position) ${tent.cu}\n  buy band (25 bins, inits position)    ${band.cu}\n  sell tent                              ${sell.cu}\n  tent cost ${paidTent} base units; sold back for ${got}\n`);
-    expect(tent.cu).toBeLessThan(200_000);
-    expect(band.cu).toBeLessThan(200_000);
+    // ── Conservation: nothing minted, nothing stranded beyond flooring dust ──
+    const dust = balance(e, m.vault);
+    expect(dust).toBeLessThan(10n);
+    const total = balance(e, e.creator.token) + balance(e, e.lp2.token) + balance(e, e.trader.token) + balance(e, e.treasuryToken) + dust;
+    expect(total).toBe(30_000_000_000n);
+
+    const lpPnl = (creatorGot + lp2Got) - 7_500_000_000n;
+    console.log(`\nSETTLE PATH  NVDA opened $220.19 → settled $224.60 (bin 33)
+  compute units: create ${create.cu} · open ${open.cu} · tent ${tent.cu} · 25-bin band ${band.cu} · sell ${sell.cu} · settle ${settle.cu} · redeem ${redeem.cu}
+  LPs put in 7,500.000000 and took out ${(Number(creatorGot + lp2Got) / 1e6).toFixed(6)}  (P&L ${(Number(lpPnl) / 1e6).toFixed(6)})
+  vault dust left: ${dust} base units; total supply conserved\n`);
+    for (const cu of [tent.cu, band.cu, sell.cu, settle.cu, redeem.cu]) expect(cu).toBeLessThan(200_000);
+  });
+
+  it("voids when the settlement price never arrives: the trader gets back what they paid, the LP is made whole", async () => {
+    const e = boot();
+    const opensAt = PUBLISH_TIME, locksAt = PUBLISH_TIME + 3600n, settlesAt = PUBLISH_TIME + 3700n;
+    const m = market(e, settlesAt);
+
+    warpClockTo(e.ctx, PUBLISH_TIME - 1000n);
+    await ok(e, m.create(5_000_000_000n, opensAt, locksAt), e.creator.kp);
+    warpClockTo(e.ctx, PUBLISH_TIME + 10n);
+    await ok(e, m.open(e.priceAccount(NVDA_UPDATE)), e.trader.kp);
+
+    // Pump one bin hard — the position that a mark-to-last-price refund would overpay.
+    await ok(e, m.trade(40, 40, 1, 800_000_000n, BIG), e.trader.kp);
+    await ok(e, m.trade(28, 34, 4, 60_000_000n, BIG), e.trader.kp);
+    const paid = e.trader.start - balance(e, e.trader.token);
+
+    await refused(e, m.voidIt(), e.trader.kp);                         // it can still settle
+    warpClockTo(e.ctx, settlesAt + 24n * 3600n - 1n);
+    await refused(e, m.voidIt(), e.trader.kp);                         // grace not over
+    warpClockTo(e.ctx, settlesAt + 24n * 3600n);
+    await ok(e, m.voidIt(), e.trader.kp);
+    await refused(e, m.settle(e.priceAccount(updateAt(P0, settlesAt, settlesAt - 1n))), e.trader.kp); // void is final
+
+    await ok(e, m.redeem(40, 40, 1), e.trader.kp);
+    await ok(e, m.redeem(28, 34, 4), e.trader.kp);
+    expect(balance(e, e.trader.token)).toBe(e.trader.start);           // every unit back, fees included
+
+    await ok(e, m.claimLp(e.creator), e.creator.kp);
+    expect(balance(e, e.creator.token)).toBe(e.creator.start);         // LP exactly whole
+    expect(balance(e, m.vault)).toBe(0n);
+    console.log(`\nVOID PATH  trader had paid ${(Number(paid) / 1e6).toFixed(6)}; refunded in full. LP made exactly whole. Vault 0.\n`);
   });
 });

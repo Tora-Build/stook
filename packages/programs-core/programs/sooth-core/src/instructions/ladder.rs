@@ -11,9 +11,9 @@ use anchor_spl::token_interface::{
 };
 
 use crate::error::SoothCoreError;
-use crate::math::ladder::{apply_trade, fresh, Shape, BINS};
+use crate::math::ladder::{apply_trade, bin_for, fresh, Shape, BINS};
 use crate::math::{scalar_for, wad_div, wad_to_amount_ceil, wad_to_amount_floor, LN2_WAD};
-use crate::oracle::{read_settlement_price, OraclePolicy};
+use crate::oracle::{check_settlement_instant, read_price_update, read_settlement_price, OraclePolicy};
 use crate::state::ladder::*;
 use crate::state::{require_not_paused, ProtocolConfig, PROTOCOL_CONFIG_SEED};
 
@@ -143,6 +143,16 @@ pub struct LadderCreate<'info> {
     )]
     pub creator_token: Box<InterfaceAccount<'info, TokenAccount>>,
 
+    /// The creator is the first LP, recorded the same way as any other.
+    #[account(
+        init,
+        payer = creator,
+        space = LadderStake::SPACE,
+        seeds = [LADDER_STAKE_SEED, ladder.key().as_ref(), creator.key().as_ref()],
+        bump,
+    )]
+    pub stake: Box<Account<'info, LadderStake>>,
+
     pub token_program: Interface<'info, TokenInterface>,
     pub system_program: Program<'info, System>,
 }
@@ -184,6 +194,12 @@ pub fn create_handler(ctx: Context<LadderCreate>, args: LadderCreateArgs) -> Res
         args.seed,
         decimals,
     )?;
+
+    let stake = &mut ctx.accounts.stake;
+    stake.ladder = ctx.accounts.ladder.key();
+    stake.owner = ctx.accounts.creator.key();
+    stake.amount = args.seed;
+    stake.bump = ctx.bumps.stake;
 
     let mut l = ctx.accounts.ladder.load_init()?;
     l.opens_at = args.opens_at;
@@ -455,6 +471,8 @@ pub fn trade_handler(ctx: Context<LadderTrade>, args: LadderTradeArgs) -> Result
         )?;
         pos.shares = pos.shares.checked_add(size).ok_or(SoothCoreError::MathOverflow)?;
         pos.net_paid = pos.net_paid.checked_add(total).ok_or(SoothCoreError::MathOverflow)?;
+        let mut l = ctx.accounts.ladder.load_mut()?;
+        l.basis_total = l.basis_total.checked_add(total).ok_or(SoothCoreError::MathOverflow)?;
     } else {
         let out = amount - fee; // fee_on never exceeds amount
         require!(out >= args.limit, SoothCoreError::SlippageExceeded);
@@ -462,6 +480,10 @@ pub fn trade_handler(ctx: Context<LadderTrade>, args: LadderTradeArgs) -> Result
         let released = basis_released(pos.net_paid, size, pos.shares);
         pos.net_paid -= released;
         pos.shares -= size;
+        {
+            let mut l = ctx.accounts.ladder.load_mut()?;
+            l.basis_total = l.basis_total.checked_sub(released).ok_or(SoothCoreError::MathOverflow)?;
+        }
 
         if out > 0 {
             let seeds: &[&[&[u8]]] =
@@ -493,6 +515,465 @@ pub fn trade_handler(ctx: Context<LadderTrade>, args: LadderTradeArgs) -> Result
         amount,
         fee,
     });
+    Ok(())
+}
+
+// ── seed ─────────────────────────────────────────────────────────────────────
+
+#[derive(Accounts)]
+pub struct LadderSeed<'info> {
+    #[account(mut)]
+    pub lp: Signer<'info>,
+
+    #[account(mut)]
+    pub ladder: AccountLoader<'info, Ladder>,
+
+    #[account(address = ladder.load()?.quote_mint)]
+    pub quote_mint: Box<InterfaceAccount<'info, Mint>>,
+
+    #[account(mut, address = ladder.load()?.vault)]
+    pub vault: Box<InterfaceAccount<'info, TokenAccount>>,
+
+    #[account(
+        mut,
+        token::mint = quote_mint,
+        token::authority = lp,
+        token::token_program = token_program,
+    )]
+    pub lp_token: Box<InterfaceAccount<'info, TokenAccount>>,
+
+    #[account(
+        init_if_needed,
+        payer = lp,
+        space = LadderStake::SPACE,
+        seeds = [LADDER_STAKE_SEED, ladder.key().as_ref(), lp.key().as_ref()],
+        bump,
+    )]
+    pub stake: Box<Account<'info, LadderStake>>,
+
+    pub token_program: Interface<'info, TokenInterface>,
+    pub system_program: Program<'info, System>,
+}
+
+/// Add to a market's subsidy. Only while it is Seeding and before `opens_at`:
+/// once `b` is fixed, a deposit would have to be priced, and every reviewed
+/// design that priced one was sandwiched.
+pub fn seed_handler(ctx: Context<LadderSeed>, amount: u64) -> Result<()> {
+    require!(amount > 0, SoothCoreError::LadderZeroTrade);
+    let now = Clock::get()?.unix_timestamp;
+    let decimals = {
+        let mut l = ctx.accounts.ladder.load_mut()?;
+        require!(l.status == STATUS_SEEDING && now < l.opens_at, SoothCoreError::LadderNotSeeding);
+        l.seed_total = l.seed_total.checked_add(amount).ok_or(SoothCoreError::MathOverflow)?;
+        l.cash = l.cash.checked_add(amount).ok_or(SoothCoreError::MathOverflow)?;
+        l.quote_decimals
+    };
+
+    token_interface::transfer_checked(
+        CpiContext::new(
+            ctx.accounts.token_program.to_account_info(),
+            TransferChecked {
+                from: ctx.accounts.lp_token.to_account_info(),
+                mint: ctx.accounts.quote_mint.to_account_info(),
+                to: ctx.accounts.vault.to_account_info(),
+                authority: ctx.accounts.lp.to_account_info(),
+            },
+        ),
+        amount,
+        decimals,
+    )?;
+
+    let stake = &mut ctx.accounts.stake;
+    if stake.owner == Pubkey::default() {
+        stake.ladder = ctx.accounts.ladder.key();
+        stake.owner = ctx.accounts.lp.key();
+        stake.bump = ctx.bumps.stake;
+    }
+    stake.amount = stake.amount.checked_add(amount).ok_or(SoothCoreError::MathOverflow)?;
+    Ok(())
+}
+
+// ── settle ───────────────────────────────────────────────────────────────────
+
+#[derive(Accounts)]
+pub struct LadderSettle<'info> {
+    /// Anyone. Which update settles a market is fixed by the rule in
+    /// `oracle::check_settlement_instant`, not by who posts it.
+    pub cranker: Signer<'info>,
+
+    #[account(mut)]
+    pub ladder: AccountLoader<'info, Ladder>,
+
+    /// CHECK: a Pyth `PriceUpdateV2`; verified in `oracle`.
+    pub price_update: UncheckedAccount<'info>,
+}
+
+#[event]
+pub struct LadderSettled {
+    pub ladder: Pubkey,
+    pub price: i64,
+    pub exponent: i32,
+    pub bin: u8,
+    pub owed_to_winners: u64,
+    pub lp_pool: u64,
+}
+
+pub fn settle_handler(ctx: Context<LadderSettle>) -> Result<()> {
+    let now = Clock::get()?.unix_timestamp;
+    let mut l = ctx.accounts.ladder.load_mut()?;
+    require!(
+        l.status == STATUS_OPEN && now >= l.settles_at,
+        SoothCoreError::LadderNotSettleable
+    );
+
+    let p = read_price_update(&ctx.accounts.price_update.to_account_info())?;
+    check_settlement_instant(
+        &p,
+        &l.feed_id,
+        ORACLE_MIN_SIGNATURES,
+        l.settles_at,
+        SETTLE_MAX_GAP_SECS,
+        l.step_bps,
+    )?;
+    // The grid is a ratio to p0, so both must be on the same scale.
+    require!(p.exponent == l.p0_expo, SoothCoreError::OracleExponentChanged);
+
+    let bin = math(bin_for(p.price, l.p0, l.step_bps))?;
+    let owed = l.payout[bin as usize];
+    // Solvency was enforced on every trade; this is the same comparison at the
+    // moment it becomes a debt.
+    require!(l.cash >= owed, SoothCoreError::LadderInsolvent);
+
+    // Winners' money stays reserved in `cash`. Everything else, plus the LP
+    // share of fees, is what LPs divide — fixed now, so the order of claims
+    // cannot change anyone's share.
+    l.lp_pool = (l.cash - owed)
+        .checked_add(l.fees_lp)
+        .ok_or(SoothCoreError::MathOverflow)?;
+    l.cash = owed;
+    l.fees_lp = 0;
+    l.settled_bin = bin;
+    l.status = STATUS_SETTLED;
+
+    emit!(LadderSettled {
+        ladder: ctx.accounts.ladder.key(),
+        price: p.price,
+        exponent: p.exponent,
+        bin,
+        owed_to_winners: owed,
+        lp_pool: l.lp_pool,
+    });
+    Ok(())
+}
+
+// ── void ─────────────────────────────────────────────────────────────────────
+
+#[derive(Accounts)]
+pub struct LadderVoid<'info> {
+    pub cranker: Signer<'info>,
+    #[account(mut)]
+    pub ladder: AccountLoader<'info, Ladder>,
+}
+
+/// Give up on a market that cannot finish: one that never opened before its
+/// lock, or one whose settlement price never arrived within the grace period.
+/// Not a judgement call and not a privilege — both conditions are clock reads.
+pub fn void_handler(ctx: Context<LadderVoid>) -> Result<()> {
+    let now = Clock::get()?.unix_timestamp;
+    let mut l = ctx.accounts.ladder.load_mut()?;
+
+    let never_opened = l.status == STATUS_SEEDING && now >= l.locks_at;
+    let never_settled = l.status == STATUS_OPEN && now >= l.settles_at + VOID_GRACE_SECS;
+    require!(never_opened || never_settled, SoothCoreError::LadderNotVoidable);
+
+    // Fees go back into the pot: a void refunds what people PAID, fee included,
+    // so nobody keeps a fee for a market that did not happen.
+    let vault = l
+        .cash
+        .checked_add(l.fees_lp)
+        .and_then(|v| v.checked_add(l.fees_creator))
+        .and_then(|v| v.checked_add(l.fees_protocol))
+        .ok_or(SoothCoreError::MathOverflow)?;
+    l.void_vault = vault;
+    l.void_basis = l.basis_total;
+    l.fees_lp = 0;
+    l.fees_creator = 0;
+    l.fees_protocol = 0;
+    l.status = STATUS_VOID;
+    Ok(())
+}
+
+// ── redeem ───────────────────────────────────────────────────────────────────
+
+/// What a position is owed once its market is final.
+///
+/// Settled: `shares × level(settled_bin)` — the tent's taper, read at one bin.
+/// Void: cost basis, scaled by `min(1, vault/basis)` so a shortfall — which the
+/// accounting should make impossible — would be shared rather than raced for.
+pub fn redemption(
+    status: u8,
+    settled_bin: u8,
+    shape: Shape,
+    shares: u64,
+    net_paid: u64,
+    void_vault: u64,
+    void_basis: u64,
+) -> Option<u64> {
+    match status {
+        STATUS_SETTLED => shares.checked_mul(shape.level(settled_bin as usize) as u64),
+        STATUS_VOID => {
+            if void_basis == 0 {
+                return Some(0);
+            }
+            let covered = void_vault.min(void_basis) as u128;
+            Some((net_paid as u128 * covered / void_basis as u128) as u64)
+        }
+        _ => None,
+    }
+}
+
+#[derive(Accounts)]
+pub struct LadderRedeem<'info> {
+    #[account(mut)]
+    pub owner: Signer<'info>,
+
+    #[account(mut)]
+    pub ladder: AccountLoader<'info, Ladder>,
+
+    /// CHECK: PDA vault authority.
+    #[account(
+        seeds = [LADDER_AUTHORITY_SEED, ladder.key().as_ref()],
+        bump = ladder.load()?.authority_bump,
+    )]
+    pub authority: UncheckedAccount<'info>,
+
+    #[account(address = ladder.load()?.quote_mint)]
+    pub quote_mint: Box<InterfaceAccount<'info, Mint>>,
+
+    #[account(mut, address = ladder.load()?.vault)]
+    pub vault: Box<InterfaceAccount<'info, TokenAccount>>,
+
+    #[account(
+        mut,
+        token::mint = quote_mint,
+        token::authority = owner,
+        token::token_program = token_program,
+    )]
+    pub owner_token: Box<InterfaceAccount<'info, TokenAccount>>,
+
+    /// Closed on redemption whether it pays or not, so a losing position still
+    /// returns its rent.
+    #[account(
+        mut,
+        close = owner,
+        constraint = position.owner == owner.key() @ SoothCoreError::LadderWrongAccount,
+        constraint = position.ladder == ladder.key() @ SoothCoreError::LadderWrongAccount,
+    )]
+    pub position: Box<Account<'info, LadderPosition>>,
+
+    pub token_program: Interface<'info, TokenInterface>,
+}
+
+pub fn redeem_handler(ctx: Context<LadderRedeem>) -> Result<()> {
+    let ladder_key = ctx.accounts.ladder.key();
+    let pos = &ctx.accounts.position;
+    let shape = Shape { lo: pos.lo, hi: pos.hi, h: pos.h };
+
+    let (owed, decimals, authority_bump) = {
+        let mut l = ctx.accounts.ladder.load_mut()?;
+        let owed = redemption(
+            l.status, l.settled_bin, shape, pos.shares, pos.net_paid, l.void_vault, l.void_basis,
+        )
+        .ok_or(SoothCoreError::LadderNotFinal)?;
+
+        if l.status == STATUS_SETTLED {
+            let bin = l.settled_bin as usize;
+            l.payout[bin] = l.payout[bin].checked_sub(owed).ok_or(SoothCoreError::MathOverflow)?;
+            l.cash = l.cash.checked_sub(owed).ok_or(SoothCoreError::MathOverflow)?;
+        }
+        (owed, l.quote_decimals, l.authority_bump)
+    };
+
+    if owed > 0 {
+        let seeds: &[&[&[u8]]] = &[&[LADDER_AUTHORITY_SEED, ladder_key.as_ref(), &[authority_bump]]];
+        token_interface::transfer_checked(
+            CpiContext::new_with_signer(
+                ctx.accounts.token_program.to_account_info(),
+                TransferChecked {
+                    from: ctx.accounts.vault.to_account_info(),
+                    mint: ctx.accounts.quote_mint.to_account_info(),
+                    to: ctx.accounts.owner_token.to_account_info(),
+                    authority: ctx.accounts.authority.to_account_info(),
+                },
+                seeds,
+            ),
+            owed,
+            decimals,
+        )?;
+    }
+    Ok(())
+}
+
+// ── LP claim ─────────────────────────────────────────────────────────────────
+
+/// An LP's share of what is left, pro rata to stake. Floors, so the dust stays
+/// in the vault rather than the last LP finding it a unit short.
+pub fn lp_share(pool: u64, stake: u64, seed_total: u64) -> u64 {
+    if seed_total == 0 {
+        return 0;
+    }
+    (pool as u128 * stake as u128 / seed_total as u128) as u64
+}
+
+#[derive(Accounts)]
+pub struct LadderClaimLp<'info> {
+    #[account(mut)]
+    pub owner: Signer<'info>,
+
+    pub ladder: AccountLoader<'info, Ladder>,
+
+    /// CHECK: PDA vault authority.
+    #[account(
+        seeds = [LADDER_AUTHORITY_SEED, ladder.key().as_ref()],
+        bump = ladder.load()?.authority_bump,
+    )]
+    pub authority: UncheckedAccount<'info>,
+
+    #[account(address = ladder.load()?.quote_mint)]
+    pub quote_mint: Box<InterfaceAccount<'info, Mint>>,
+
+    #[account(mut, address = ladder.load()?.vault)]
+    pub vault: Box<InterfaceAccount<'info, TokenAccount>>,
+
+    #[account(
+        mut,
+        token::mint = quote_mint,
+        token::authority = owner,
+        token::token_program = token_program,
+    )]
+    pub owner_token: Box<InterfaceAccount<'info, TokenAccount>>,
+
+    #[account(
+        mut,
+        close = owner,
+        constraint = stake.owner == owner.key() @ SoothCoreError::LadderWrongAccount,
+        constraint = stake.ladder == ladder.key() @ SoothCoreError::LadderWrongAccount,
+    )]
+    pub stake: Box<Account<'info, LadderStake>>,
+
+    pub token_program: Interface<'info, TokenInterface>,
+}
+
+pub fn claim_lp_handler(ctx: Context<LadderClaimLp>) -> Result<()> {
+    let ladder_key = ctx.accounts.ladder.key();
+    let (owed, decimals, authority_bump) = {
+        let l = ctx.accounts.ladder.load()?;
+        let pool = match l.status {
+            STATUS_SETTLED => l.lp_pool,
+            // In a void, LPs take what is left once every trader is made whole.
+            STATUS_VOID => l.void_vault.saturating_sub(l.void_basis),
+            _ => return err!(SoothCoreError::LadderNotFinal),
+        };
+        (lp_share(pool, ctx.accounts.stake.amount, l.seed_total), l.quote_decimals, l.authority_bump)
+    };
+
+    if owed > 0 {
+        let seeds: &[&[&[u8]]] = &[&[LADDER_AUTHORITY_SEED, ladder_key.as_ref(), &[authority_bump]]];
+        token_interface::transfer_checked(
+            CpiContext::new_with_signer(
+                ctx.accounts.token_program.to_account_info(),
+                TransferChecked {
+                    from: ctx.accounts.vault.to_account_info(),
+                    mint: ctx.accounts.quote_mint.to_account_info(),
+                    to: ctx.accounts.owner_token.to_account_info(),
+                    authority: ctx.accounts.authority.to_account_info(),
+                },
+                seeds,
+            ),
+            owed,
+            decimals,
+        )?;
+    }
+    Ok(())
+}
+
+// ── fees ─────────────────────────────────────────────────────────────────────
+
+#[derive(Accounts)]
+pub struct LadderCollectFees<'info> {
+    /// Anyone: the destinations are fixed by the market and the protocol.
+    pub cranker: Signer<'info>,
+
+    #[account(seeds = [PROTOCOL_CONFIG_SEED], bump = config.bump)]
+    pub config: Box<Account<'info, ProtocolConfig>>,
+
+    #[account(mut)]
+    pub ladder: AccountLoader<'info, Ladder>,
+
+    /// CHECK: PDA vault authority.
+    #[account(
+        seeds = [LADDER_AUTHORITY_SEED, ladder.key().as_ref()],
+        bump = ladder.load()?.authority_bump,
+    )]
+    pub authority: UncheckedAccount<'info>,
+
+    #[account(address = ladder.load()?.quote_mint)]
+    pub quote_mint: Box<InterfaceAccount<'info, Mint>>,
+
+    #[account(mut, address = ladder.load()?.vault)]
+    pub vault: Box<InterfaceAccount<'info, TokenAccount>>,
+
+    #[account(
+        mut,
+        token::mint = quote_mint,
+        token::authority = ladder.load()?.creator,
+        token::token_program = token_program,
+    )]
+    pub creator_token: Box<InterfaceAccount<'info, TokenAccount>>,
+
+    #[account(
+        mut,
+        token::mint = quote_mint,
+        token::authority = config.treasury,
+        token::token_program = token_program,
+    )]
+    pub treasury_token: Box<InterfaceAccount<'info, TokenAccount>>,
+
+    pub token_program: Interface<'info, TokenInterface>,
+}
+
+pub fn collect_fees_handler(ctx: Context<LadderCollectFees>) -> Result<()> {
+    let ladder_key = ctx.accounts.ladder.key();
+    let (to_creator, to_protocol, decimals, authority_bump) = {
+        let mut l = ctx.accounts.ladder.load_mut()?;
+        let out = (l.fees_creator, l.fees_protocol, l.quote_decimals, l.authority_bump);
+        l.fees_creator = 0;
+        l.fees_protocol = 0;
+        out
+    };
+    let seeds: &[&[&[u8]]] = &[&[LADDER_AUTHORITY_SEED, ladder_key.as_ref(), &[authority_bump]]];
+    for (amount, to) in [
+        (to_creator, ctx.accounts.creator_token.to_account_info()),
+        (to_protocol, ctx.accounts.treasury_token.to_account_info()),
+    ] {
+        if amount == 0 {
+            continue;
+        }
+        token_interface::transfer_checked(
+            CpiContext::new_with_signer(
+                ctx.accounts.token_program.to_account_info(),
+                TransferChecked {
+                    from: ctx.accounts.vault.to_account_info(),
+                    mint: ctx.accounts.quote_mint.to_account_info(),
+                    to,
+                    authority: ctx.accounts.authority.to_account_info(),
+                },
+                seeds,
+            ),
+            amount,
+            decimals,
+        )?;
+    }
     Ok(())
 }
 
@@ -533,6 +1014,44 @@ mod tests {
             held -= 1;
         }
         assert_eq!(basis, 0);
+    }
+
+    #[test]
+    fn a_settled_tent_pays_by_distance_and_a_miss_pays_nothing() {
+        let tent = Shape::tent(33, 4);
+        let pay = |bin: u8| redemption(STATUS_SETTLED, bin, tent, 100, 999, 0, 0).unwrap();
+        assert_eq!(pay(33), 400);
+        assert_eq!(pay(32), 300);
+        assert_eq!(pay(35), 200);
+        assert_eq!(pay(36), 100);
+        assert_eq!(pay(37), 0);
+        assert_eq!(redemption(STATUS_SETTLED, 40, Shape::band(20, 44), 200, 0, 0, 0), Some(200));
+    }
+
+    #[test]
+    fn a_void_refunds_what_was_paid_not_what_it_was_marked_at() {
+        let any = Shape::tent(10, 2);
+        // fully covered: exactly the cost basis, whatever the shares were "worth"
+        assert_eq!(redemption(STATUS_VOID, NO_BIN, any, 1_000_000, 28_076_652, 9_000_000_000, 500_000_000), Some(28_076_652));
+        // a shortfall is shared, not raced for
+        assert_eq!(redemption(STATUS_VOID, NO_BIN, any, 5, 1_000, 750, 1_000), Some(750));
+        assert_eq!(redemption(STATUS_VOID, NO_BIN, any, 5, 0, 0, 0), Some(0));
+    }
+
+    #[test]
+    fn nothing_is_redeemable_before_the_market_is_final() {
+        let s = Shape::band(1, 2);
+        assert_eq!(redemption(STATUS_SEEDING, 0, s, 1, 1, 1, 1), None);
+        assert_eq!(redemption(STATUS_OPEN, 0, s, 1, 1, 1, 1), None);
+    }
+
+    #[test]
+    fn lps_share_pro_rata_and_never_more_than_the_pool() {
+        assert_eq!(lp_share(1_000, 250, 1_000), 250);
+        assert_eq!(lp_share(1_000, 1, 3), 333, "floors");
+        let parts: u64 = [1u64, 1, 1].iter().map(|s| lp_share(1_000, *s, 3)).sum();
+        assert!(parts <= 1_000);
+        assert_eq!(lp_share(1_000, 5, 0), 0);
     }
 
     #[test]

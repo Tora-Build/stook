@@ -53,6 +53,9 @@ pub struct OraclePrice {
     pub conf: u64,
     pub exponent: i32,
     pub publish_time: i64,
+    /// Publish time of the update before this one. Settlement uses it to pick
+    /// exactly one update out of the several Pyth emits each second.
+    pub prev_publish_time: i64,
     pub verification: Verification,
 }
 
@@ -97,8 +100,8 @@ pub fn parse_price_update(data: &[u8]) -> Result<OraclePrice> {
         _ => return Err(bad()),
     };
 
-    // feed_id + price + conf + exponent + publish_time
-    if data.len() < o + 32 + 8 + 8 + 4 + 8 {
+    // feed_id + price + conf + exponent + publish_time + prev_publish_time
+    if data.len() < o + 32 + 8 + 8 + 4 + 8 + 8 {
         return Err(bad());
     }
     let mut feed_id = [0u8; 32];
@@ -112,8 +115,10 @@ pub fn parse_price_update(data: &[u8]) -> Result<OraclePrice> {
     let exponent = i32::from_le_bytes(data[o..o + 4].try_into().map_err(|_| bad())?);
     o += 4;
     let publish_time = i64::from_le_bytes(data[o..o + 8].try_into().map_err(|_| bad())?);
+    o += 8;
+    let prev_publish_time = i64::from_le_bytes(data[o..o + 8].try_into().map_err(|_| bad())?);
 
-    Ok(OraclePrice { feed_id, price, conf, exponent, publish_time, verification })
+    Ok(OraclePrice { feed_id, price, conf, exponent, publish_time, prev_publish_time, verification })
 }
 
 /// The rules a price must pass before it can settle a market.
@@ -150,6 +155,57 @@ pub fn read_settlement_price(
     let p = parse_price_update(&data)?;
     check_policy(&p, policy, now)?;
     Ok(p)
+}
+
+/// Read a receiver-owned `PriceUpdateV2` without applying any policy.
+pub fn read_price_update(account: &AccountInfo) -> Result<OraclePrice> {
+    require_keys_eq!(*account.owner, PYTH_RECEIVER, SoothCoreError::OracleWrongOwner);
+    let data = account.try_borrow_data()?;
+    parse_price_update(&data)
+}
+
+/// Is `p` THE price for the instant `t`?
+///
+/// Settlement cannot use "any update within a minute of `t`". Pyth emits
+/// several updates a second and whoever cranks the settle chooses which one to
+/// post, so a window is a menu: near a bin boundary the cranker picks the
+/// print that pays them. The rule has to admit exactly one update:
+///
+/// ```text
+///   prev_publish_time < t <= publish_time
+/// ```
+///
+/// `publish_time` has one-second granularity, so several updates share the
+/// second `t` — but only the first of them has a predecessor from before `t`.
+/// Every later one has `prev_publish_time == t` and fails the strict `<`.
+///
+/// `max_gap_secs` bounds how late that first update may be. If the feed was
+/// silent across `t`, the first update after the gap is not a price for `t`,
+/// and the market should void rather than settle on it.
+///
+/// The confidence ceiling is half a bin: wider than that and Pyth itself
+/// cannot say which of two bins the price was in.
+pub fn check_settlement_instant(
+    p: &OraclePrice,
+    feed_id: &[u8; 32],
+    min_signatures: u8,
+    t: i64,
+    max_gap_secs: i64,
+    step_bps: u16,
+) -> Result<()> {
+    require!(&p.feed_id == feed_id, SoothCoreError::OracleWrongFeed);
+    require!(p.verification.meets(min_signatures), SoothCoreError::OracleUnderVerified);
+    require!(
+        p.prev_publish_time < t && t <= p.publish_time && p.publish_time - t <= max_gap_secs,
+        SoothCoreError::OracleNotTheSettlementInstant
+    );
+    require!(p.price > 0, SoothCoreError::OracleNonPositive);
+
+    // conf / price <= (step / 2)  ⇔  conf · 20_000 <= price · step_bps
+    let lhs = (p.conf as u128).saturating_mul(20_000);
+    let rhs = (p.price as u128).saturating_mul(step_bps as u128);
+    require!(lhs <= rhs, SoothCoreError::OracleTooUncertain);
+    Ok(())
 }
 
 /// The policy checks, split out so they are testable without an `AccountInfo`.
@@ -206,6 +262,7 @@ mod tests {
         assert_eq!(p.conf, 19_000); // ±$0.19
         assert_eq!(p.verification, Verification::Partial { signatures: 5 });
         assert_eq!(p.publish_time, 1_780_598_260);
+        assert_eq!(p.prev_publish_time, 1_780_598_260, "a later update within its second");
     }
 
     #[test]
@@ -245,6 +302,34 @@ mod tests {
         check_policy(&p, &policy(), p.publish_time).unwrap(); // 19_000/22_019_000 ≈ 8.6 bps
         p.conf = 200_000; // ≈ 91 bps, over the 50 bps ceiling
         assert!(check_policy(&p, &policy(), p.publish_time).is_err());
+    }
+
+    #[test]
+    fn exactly_one_update_is_the_price_for_an_instant() {
+        let base = parse_price_update(&unhex(NVDA_DEVNET)).unwrap();
+        let feed = feed(NVDA_FEED);
+        let t = 1_000_000i64;
+        let at = |publish, prev| OraclePrice { publish_time: publish, prev_publish_time: prev, ..base };
+        let ok = |p: &OraclePrice| check_settlement_instant(p, &feed, 5, t, 30, 100).is_ok();
+
+        assert!(ok(&at(t, t - 1)), "the first update of second t");
+        assert!(!ok(&at(t, t)), "a later update in the same second: its predecessor is not before t");
+        assert!(!ok(&at(t - 1, t - 2)), "an update from before t");
+        assert!(ok(&at(t + 3, t - 1)), "the feed skipped a few seconds; first update after t");
+        assert!(!ok(&at(t + 31, t - 1)), "the feed was silent across t for too long");
+        assert!(!ok(&at(t + 1, t)), "t already had its update; this is the next second's");
+    }
+
+    #[test]
+    fn a_settlement_price_pyth_cannot_place_in_one_bin_is_refused() {
+        let base = parse_price_update(&unhex(NVDA_DEVNET)).unwrap();
+        let feed = feed(NVDA_FEED);
+        let p = OraclePrice { publish_time: 500, prev_publish_time: 499, ..base };
+        // conf 19_000 on 22_019_000 ≈ 8.6 bps. Half of a 25 bps step is 12.5 — fine.
+        check_settlement_instant(&p, &feed, 5, 500, 30, 25).unwrap();
+        let wide = OraclePrice { conf: 40_000, ..p }; // ≈ 18 bps > 12.5
+        assert!(check_settlement_instant(&wide, &feed, 5, 500, 30, 25).is_err());
+        check_settlement_instant(&wide, &feed, 5, 500, 30, 100).unwrap(); // but fine on a 1% grid
     }
 
     #[test]

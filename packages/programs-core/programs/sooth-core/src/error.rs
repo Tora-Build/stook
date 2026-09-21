@@ -84,6 +84,10 @@ pub enum SoothCoreError {
     OracleNonPositive,
     #[msg("Oracle confidence interval is wider than the market allows")]
     OracleTooUncertain,
+    #[msg("Oracle update is not the first one at the settlement instant")]
+    OracleNotTheSettlementInstant,
+    #[msg("Oracle price exponent differs from the one the grid was centred on")]
+    OracleExponentChanged,
 
     // ── Ladder markets ───────────────────────────────────────────────────────
     #[msg("Unknown step tier")]
@@ -104,6 +108,14 @@ pub enum SoothCoreError {
     LadderInsufficientShares,
     #[msg("Pool cash would not cover its largest payout")]
     LadderInsolvent,
+    #[msg("Ladder cannot be settled yet, or already was")]
+    LadderNotSettleable,
+    #[msg("Ladder cannot be voided: it can still open or settle")]
+    LadderNotVoidable,
+    #[msg("Ladder is neither settled nor void")]
+    LadderNotFinal,
+    #[msg("Account does not belong to this ladder or owner")]
+    LadderWrongAccount,
 
     // ── AMM ──────────────────────────────────────────────────────────────────
     #[msg("Slippage: cost exceeded max_cost_wad")]

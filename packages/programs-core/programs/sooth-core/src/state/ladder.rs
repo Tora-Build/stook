@@ -26,6 +26,15 @@ pub const LADDER_SEED: &[u8] = b"ladder";
 pub const LADDER_AUTHORITY_SEED: &[u8] = b"ladder_auth";
 pub const LADDER_VAULT_SEED: &[u8] = b"ladder_vault";
 pub const LADDER_POSITION_SEED: &[u8] = b"ladder_pos";
+pub const LADDER_STAKE_SEED: &[u8] = b"ladder_stake";
+
+/// How long after `settles_at` a market may wait for its settlement price
+/// before anyone can void it. Long enough for a crank outage; short enough
+/// that money is not held hostage to a feed that never printed.
+pub const VOID_GRACE_SECS: i64 = 24 * 60 * 60;
+
+/// The latest the settlement update may be published after `settles_at`.
+pub const SETTLE_MAX_GAP_SECS: i64 = 30;
 
 /// Log-price step per bin, in basis points, by tier.
 ///
@@ -78,6 +87,18 @@ pub struct Ladder {
     pub fees_creator: u64,
     pub fees_protocol: u64,
 
+    /// Sum of every position's `net_paid`. What a void would have to refund.
+    pub basis_total: u64,
+    /// Fixed at settlement: what LPs share — pool cash left after the winning
+    /// bin's payouts are reserved, plus the LP share of fees.
+    pub lp_pool: u64,
+    /// Fixed at void: everything the vault held, and everything owed back.
+    /// Refunds pay `net_paid × min(1, void_vault / void_basis)`, so if the
+    /// vault were ever short every holder is short by the same fraction rather
+    /// than the last to claim finding it empty.
+    pub void_vault: u64,
+    pub void_basis: u64,
+
     /// `payout[i]`: quote base units owed in total if bin `i` settles. Kept so
     /// solvency is a comparison, not a belief about the scoring rule.
     pub payout: [u64; BINS],
@@ -112,7 +133,7 @@ pub struct Ladder {
     pub vault_bump: u8,
     pub _pad: u8,
 
-    pub _reserved: [u8; 64],
+    pub _reserved: [u8; 32],
 }
 
 impl Ladder {
@@ -178,6 +199,21 @@ pub struct LadderPosition {
 
 impl LadderPosition {
     pub const SPACE: usize = 8 + 32 + 32 + 2 + 2 + 1 + 8 + 8 + 1 + 16;
+}
+
+/// One LP's share of a market's subsidy. Deposited during Seeding only.
+#[account]
+#[derive(Debug)]
+pub struct LadderStake {
+    pub ladder: Pubkey,
+    pub owner: Pubkey,
+    pub amount: u64,
+    pub bump: u8,
+    pub _reserved: [u8; 16],
+}
+
+impl LadderStake {
+    pub const SPACE: usize = 8 + 32 + 32 + 8 + 1 + 16;
 }
 
 #[cfg(test)]
