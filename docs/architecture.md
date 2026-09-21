@@ -186,9 +186,9 @@ mint carrying the same extensions is still owed.
 - The inherited SDK adapter was never updated for `create_market`'s
   `amm_mint_raw` account, so the inherited engine's SDK tests (adjudicator,
   zk, order book) fail at market creation. The ladder shares none of that path.
-- The settle crank: fetch the one qualifying update from Hermes (API key
-  required since 2026-08-26), post it through the Pyth receiver, call
-  `ladder_settle`.
+- The keeper (`infra/ladder-crank`): its decisions are in the SDK and tested;
+  its I/O has never run, for want of a Hermes API key (required since
+  2026-08-26) and a devnet deployment.
 - The inherited binary engine, order book and adjudication stack are still in
   the program. Stook uses none of them; removing them shrinks the audit surface.
 - Rounding dust (a few base units per market) stays in the vault after all

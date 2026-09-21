@@ -72,4 +72,47 @@ describe("ladder sdk", () => {
     const moved = L.applyTrade(L.fresh(), 1_200n * WAD, L.band(40, 40), 800n * WAD).curve;
     expect(L.liquidityForDeposit(moved, 2_500_000_000n, 6)).toBeLessThan(at0);
   });
+
+  it("tells a keeper which instruction a market is waiting for", () => {
+    const m = { opensAt: 100n, locksAt: 200n, settlesAt: 300n };
+    const at = (status: L.LadderStatus, now: bigint) => L.nextStep({ ...m, status }, now);
+    expect(at("seeding", 99n)).toBe(null);
+    expect(at("seeding", 100n)).toBe("open");
+    expect(at("seeding", 200n)).toBe("void");       // never opened before its lock
+    expect(at("open", 299n)).toBe(null);
+    expect(at("open", 300n)).toBe("settle");
+    expect(at("open", 300n + 86_400n)).toBe("void"); // the price never came
+    expect(at("settled", 10n ** 9n)).toBe(null);
+    expect(at("void", 10n ** 9n)).toBe(null);
+  });
+
+  it("accepts exactly one update as a market's settlement price", () => {
+    const feedId = Uint8Array.from(Buffer.from("b1073854ed24cbc755dc527418f52b7d271f6cc967bbf8d8129112b18860a593", "hex"));
+    const l = { feedId, settlesAt: 1_000n, stepBps: 100, p0Expo: -5 };
+    const u = (publish: number, prev: number | undefined, conf = "5000", expo = -5, id = "0xB1073854ed24cbc755dc527418f52b7d271f6cc967bbf8d8129112b18860a593"): L.HermesPrice =>
+      ({ id, price: { price: "22460000", conf, expo, publish_time: publish }, metadata: prev === undefined ? {} : { prev_publish_time: prev } });
+    expect(L.settlementProblem(u(1_000, 999), l)).toBe(null);
+    expect(L.settlementProblem(u(1_001, 999), l)).toBe(null);                  // the feed skipped second T
+    expect(L.settlementProblem(u(1_000, 1_000), l)).toMatch(/first update/);   // a LATER update inside second T
+    expect(L.settlementProblem(u(999, 998), l)).toMatch(/first update/);       // from before T
+    expect(L.settlementProblem(u(1_002, 1_001), l)).toMatch(/first update/);   // the one after the right one
+    expect(L.settlementProblem(u(1_031, 999), l)).toMatch(/silent/);
+    expect(L.settlementProblem(u(1_000, undefined), l)).toMatch(/prev_publish_time/);
+    expect(L.settlementProblem(u(1_000, 999, "112301"), l)).toMatch(/half a bin/); // 0.5% of price, +1
+    expect(L.settlementProblem(u(1_000, 999, "112300"), l)).toBe(null);
+    expect(L.settlementProblem(u(1_000, 999, "5000", -8), l)).toMatch(/exponent/);
+    expect(L.settlementProblem(u(1_000, 999, "5000", -5, "00".repeat(32)), l)).toBe("wrong feed");
+
+    expect(L.openProblem(u(1_000, 999), l, 1_060n)).toBe(null);
+    expect(L.openProblem(u(1_000, 999), l, 1_061n)).toMatch(/old/);
+    expect(L.openProblem(u(1_000, 999), l, 999n)).toMatch(/old/);               // from the future: a clock disagreement
+    expect(L.openProblem(u(1_000, 999, "224601"), l, 1_010n)).toMatch(/1%/);
+  });
+
+  it("filters program accounts down to ladders in one state", () => {
+    const f = L.ladderFilters("open");
+    expect(f).toHaveLength(2);
+    expect((f[1] as any).memcmp).toEqual({ offset: 1872, bytes: "2" });        // base58 of the single byte 0x01
+    expect(L.ladderFilters()).toHaveLength(1);
+  });
 });
