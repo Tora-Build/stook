@@ -54,6 +54,46 @@ so a buy recomputes one exponential and costs the same at 32 bands as at 8.
 Bands are capped at 32, which keeps the occasional full recompute inside a
 transaction.
 
+## Liquidity joins at any time, as tranches
+
+A market that only takes liquidity before it opens cannot grow with its own
+volume, so anyone may add liquidity until lock. The difficulty is pricing a
+deposit into a curve that has already moved, and the blind design review
+measured what goes wrong when that is done naively: +2,802 extracted from a
+2,500 deposit by a sandwich.
+
+Each deposit is a **tranche** — its own LMSR layer under the shared prices.
+
+- It buys `b = 0.9999 · deposit / ln(1/p_min)` at the prices of the moment it
+  joins: the most depth whose worst case that deposit covers alone. A late
+  tranche never leans on earlier LPs' money.
+- Market depth is `B = Σ bⱼ`. A trade is priced once against `B`; no tranche is
+  touched.
+- The tranche stores the 64 weights it joined at. At settlement in bin `k` its
+  result is `bⱼ · ln(pₖ(join) / pₖ(final))`, computed from that snapshot and the
+  final curve. A unit test checks that for every possible outcome the tranches'
+  results sum to the pool's.
+- LP fees accrue per unit of `b`, so a tranche earns only on volume it was
+  present for.
+- There is no withdrawal before the market is final, so liquidity cannot arrive
+  for one trade's fee and leave.
+
+**The sandwich.** A join names the `curve_seq` (a per-trade counter) the LP
+read. It lands at exactly those prices or fails. A trade placed in front of a
+join costs the LP a retry and the attacker a fee; the end-to-end test sends
+push → join → unwind as one transaction and asserts it is refused. What is left
+is an attacker holding a distortion long enough for an LP to *read* it as the
+price, which means holding it against every arbitrageur — and the UI shows the
+Pyth price beside the curve's.
+
+An escrow-then-activate design was considered and dropped: if anyone may
+activate, the attacker wraps the activation atomically; if only the owner may,
+the delay adds nothing over a guarded join.
+
+An LP's expected trading result is `−b · KL(final ‖ join)`: never positive. LPs
+are paid by fees, or are sponsors paying for a market to exist. That is the
+honest shape of an LMSR and the pitch does not hide it.
+
 ## Continuous UI over banded state
 
 A line is drawn at any price; it buys the band containing it. The band must be
@@ -107,4 +147,8 @@ supporting it properly means fee-aware accounting on every path.
   `ladder_settle`.
 - The inherited binary engine, order book and adjudication stack are still in
   the program. Stook uses none of them; removing them shrinks the audit surface.
-- LP withdrawal during Seeding; fee ramp toward lock; fee-only LP zones.
+- Rounding dust (a few base units per market) stays in the vault after all
+  claims; nothing sweeps it.
+- On a market busy enough to trade every slot, a sequence-guarded join has to
+  retry. A tolerance band would fix that and is not built.
+- Fee ramp toward lock; fee-only LP zones.

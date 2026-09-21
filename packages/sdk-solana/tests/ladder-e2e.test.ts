@@ -1,6 +1,6 @@
 // The ladder, end to end on LiteSVM against the real program binary.
 //
-//   settle path: seed (two LPs) → open from a REAL Pyth account → trade →
+//   settle path: seed (two LPs, a third joins mid-market) → open from a REAL Pyth account → trade →
 //                settle → winners redeem → LPs claim → fees → vault empty
 //   void path:   trade → settlement price never arrives → void →
 //                trader refunded exactly what they paid, LP made whole
@@ -73,11 +73,11 @@ function boot() {
   };
   const who = (start: bigint) => { const kp = Keypair.generate(); svm.airdrop(kp.publicKey.toBase58() as any, 10_000_000_000n); return { kp, token: fund(kp.publicKey, start), start }; };
   const START = 10_000_000_000n;
-  const creator = who(START), lp2 = who(START), trader = who(START);
+  const creator = who(START), lp2 = who(START), lp3 = who(START), trader = who(START);
   const treasuryToken = fund(treasury.publicKey, 0n);
   const priceAccount = (data: Buffer) => { const k = Keypair.generate().publicKey; put(k, PYTH_RECEIVER, data); return k; };
 
-  return { svm, ctx, config, mint, creator, lp2, trader, treasuryToken, priceAccount };
+  return { svm, ctx, config, mint, creator, lp2, lp3, trader, treasuryToken, priceAccount };
 }
 type Env = ReturnType<typeof boot>;
 
@@ -97,17 +97,24 @@ function market(e: Env, settlesAt: bigint) {
   const ladder = pda([Buffer.from("ladder"), NVDA_FEED, i64(settlesAt), e.mint.toBuffer(), Buffer.from([TIER])]);
   const authority = pda([Buffer.from("ladder_auth"), ladder.toBuffer()]);
   const vault = pda([Buffer.from("ladder_vault"), ladder.toBuffer()]);
-  const stakeOf = (o: PublicKey) => pda([Buffer.from("ladder_stake"), ladder.toBuffer(), o.toBuffer()]);
+  const trancheOf = (o: PublicKey, index = 0) => pda([Buffer.from("ladder_tranche"), ladder.toBuffer(), o.toBuffer(), Buffer.from([index])]);
+  const raw = (k: PublicKey) => Buffer.from((e.svm.getAccount(k.toBase58() as any) as any).data);
+  const i128 = (b: Buffer, at: number) => b.readBigUInt64LE(at) | (b.readBigInt64LE(at + 8) << 64n);
   const posOf = (o: PublicKey, lo: number, hi: number, h: number) => pda([Buffer.from("ladder_pos"), ladder.toBuffer(), o.toBuffer(), i16(lo), i16(hi), Buffer.from([h])]);
   const ix = (name: string, data: Buffer[], keys: any[]) => new TransactionInstruction({ programId: PROGRAM, data: Buffer.concat([disc("global", name), ...data]), keys });
   const tokenTail = [ro(TOKEN_PROGRAM_ID), ro(SystemProgram.programId)];
   return {
-    ladder, vault, stakeOf, posOf,
+    ladder, vault, trancheOf, posOf,
+    curveSeq: () => raw(ladder).readBigUInt64LE(8 + 6 * 8),
+    depthOf: (o: PublicKey, index = 0) => i128(raw(trancheOf(o, index)), 8 + 8 + 32 + 32),
     create: (seed: bigint, opens: bigint, locks: bigint) => ix("ladder_create",
       [NVDA_FEED, Buffer.from([TIER]), i64(opens), i64(locks), i64(settlesAt), u64(seed), u16(100), Buffer.alloc(32)],
-      [signer(e.creator.kp.publicKey), ro(e.config), rw(ladder), ro(authority), ro(e.mint), rw(vault), rw(e.creator.token), rw(stakeOf(e.creator.kp.publicKey)), ...tokenTail]),
-    seed: (w: Env["lp2"], amount: bigint) => ix("ladder_seed", [u64(amount)],
-      [signer(w.kp.publicKey), rw(ladder), ro(e.mint), rw(vault), rw(w.token), rw(stakeOf(w.kp.publicKey)), ...tokenTail]),
+      [signer(e.creator.kp.publicKey), ro(e.config), rw(ladder), ro(authority), ro(e.mint), rw(vault), rw(e.creator.token), rw(trancheOf(e.creator.kp.publicKey)), ...tokenTail]),
+    join: (w: Env["lp2"], amount: bigint, seq: bigint, index = 0) => ix("ladder_lp_join", [Buffer.from([index]), u64(amount), u64(seq)],
+      [signer(w.kp.publicKey), ro(e.config), rw(ladder), ro(e.mint), rw(vault), rw(w.token), rw(trancheOf(w.kp.publicKey, index)), ...tokenTail]),
+    tradeAs: (w: Env["lp2"], lo: number, hi: number, h: number, shares: bigint, limit: bigint) => ix("ladder_trade",
+      [i16(lo), i16(hi), Buffer.from([h]), i64(shares), u64(limit)],
+      [signer(w.kp.publicKey), ro(e.config), rw(ladder), ro(authority), ro(e.mint), rw(vault), rw(w.token), rw(posOf(w.kp.publicKey, lo, hi, h)), ...tokenTail]),
     open: (price: PublicKey) => ix("ladder_open", [], [signer(e.trader.kp.publicKey, false), rw(ladder), ro(price)]),
     trade: (lo: number, hi: number, h: number, shares: bigint, limit: bigint) => ix("ladder_trade",
       [i16(lo), i16(hi), Buffer.from([h]), i64(shares), u64(limit)],
@@ -116,8 +123,8 @@ function market(e: Env, settlesAt: bigint) {
     voidIt: () => ix("ladder_void", [], [signer(e.trader.kp.publicKey, false), rw(ladder)]),
     redeem: (lo: number, hi: number, h: number) => ix("ladder_redeem", [],
       [signer(e.trader.kp.publicKey), rw(ladder), ro(authority), ro(e.mint), rw(vault), rw(e.trader.token), rw(posOf(e.trader.kp.publicKey, lo, hi, h)), ro(TOKEN_PROGRAM_ID)]),
-    claimLp: (w: Env["lp2"]) => ix("ladder_claim_lp", [],
-      [signer(w.kp.publicKey), ro(ladder), ro(authority), ro(e.mint), rw(vault), rw(w.token), rw(stakeOf(w.kp.publicKey)), ro(TOKEN_PROGRAM_ID)]),
+    claimLp: (w: Env["lp2"], index = 0) => ix("ladder_claim_lp", [],
+      [signer(w.kp.publicKey), rw(ladder), ro(authority), ro(e.mint), rw(vault), rw(w.token), rw(trancheOf(w.kp.publicKey, index)), ro(TOKEN_PROGRAM_ID)]),
     collectFees: () => ix("ladder_collect_fees", [],
       [signer(e.trader.kp.publicKey, false), ro(e.config), rw(ladder), ro(authority), ro(e.mint), rw(vault), rw(e.creator.token), rw(e.treasuryToken), ro(TOKEN_PROGRAM_ID)]),
   };
@@ -134,14 +141,13 @@ describe("ladder end to end", () => {
     // ── Seeding: the creator, then a second LP ─────────────────────────────
     warpClockTo(e.ctx, PUBLISH_TIME - 1000n);
     const create = await ok(e, m.create(5_000_000_000n, opensAt, locksAt), e.creator.kp);
-    await ok(e, m.seed(e.lp2, 2_500_000_000n), e.lp2.kp);
+    await ok(e, m.join(e.lp2, 2_500_000_000n, 0n), e.lp2.kp);
     expect(balance(e, m.vault)).toBe(7_500_000_000n);
 
     // ── Open, from the real update ──────────────────────────────────────────
     warpClockTo(e.ctx, PUBLISH_TIME + 10n);
     await refused(e, m.trade(31, 31, 1, 1_000_000n, BIG), e.trader.kp);           // not open yet
     const open = await ok(e, m.open(e.priceAccount(NVDA_UPDATE)), e.trader.kp);
-    await refused(e, m.seed(e.lp2, 1_000_000n), e.lp2.kp);                          // liquidity is closed after open
 
     // ── Trading ─────────────────────────────────────────────────────────────
     const tent = await ok(e, m.trade(29, 35, 4, 100_000_000n, BIG), e.trader.kp);   // a line at bin 32
@@ -149,6 +155,28 @@ describe("ladder end to end", () => {
     await refused(e, m.trade(29, 35, 4, 100_000_000n, 1n), e.trader.kp);            // slippage limit
     const sell = await ok(e, m.trade(29, 35, 4, -100_000_000n, 0n), e.trader.kp);   // exit the first line
     await refused(e, m.trade(29, 35, 4, -1n, 0n), e.trader.kp);                     // nothing left to sell
+
+    // ── A third LP joins a market that is already trading ───────────────────
+    const seq = m.curveSeq();
+    expect(seq).toBe(3n);
+    await refused(e, m.join(e.lp3, 2_500_000_000n, seq - 1n), e.lp3.kp);            // priced against a curve that has moved on
+    // The sandwich, as one atomic transaction: push a bin, land the LP's join
+    // at the pushed prices, trade back. lp3 plays both parts so one signature
+    // covers it; what is refused is the join, and with it the whole attempt.
+    const sandwich = await send(e, [
+      m.tradeAs(e.lp3, 33, 33, 1, 900_000_000n, BIG),
+      m.join(e.lp3, 2_500_000_000n, seq),
+      m.tradeAs(e.lp3, 33, 33, 1, -900_000_000n, 0n),
+    ], e.lp3.kp);
+    expect(sandwich.err).not.toBeNull();
+    expect(sandwich.logs).toContain("LadderCurveMoved");
+    expect(balance(e, e.lp3.token)).toBe(e.lp3.start);                              // and nothing moved
+    const join = await ok(e, m.join(e.lp3, 2_500_000_000n, seq), e.lp3.kp);
+    await refused(e, m.join(e.lp3, 2_500_000_000n, seq), e.lp3.kp);                 // a tranche index is used once
+    // Same deposit as lp2, less depth: the longest shot is longer than 1/64 now,
+    // and a tranche must cover its own worst case.
+    expect(m.depthOf(e.lp3.kp.publicKey)).toBeLessThan(m.depthOf(e.lp2.kp.publicKey));
+    expect(m.depthOf(e.creator.kp.publicKey)).toBe(2n * m.depthOf(e.lp2.kp.publicKey));
 
     // a clean round trip never pays
     const rt0 = balance(e, e.trader.token);
@@ -186,13 +214,17 @@ describe("ladder end to end", () => {
     expect(exists(e, m.posOf(e.trader.kp.publicKey, 30, 36, 4))).toBe(false);
     await refused(e, m.redeem(30, 36, 4), e.trader.kp);               // and cannot be redeemed twice
 
-    const c0 = balance(e, e.creator.token), l0 = balance(e, e.lp2.token);
-    await ok(e, m.claimLp(e.creator), e.creator.kp);
+    const m0 = m.depthOf(e.lp2.kp.publicKey), m1 = m.depthOf(e.lp3.kp.publicKey);
+    const c0 = balance(e, e.creator.token), l0 = balance(e, e.lp2.token), t0 = balance(e, e.lp3.token);
+    await ok(e, m.claimLp(e.lp3), e.lp3.kp);                          // claim order is free: the late LP goes first
+    const claim = await ok(e, m.claimLp(e.creator), e.creator.kp);
     await ok(e, m.claimLp(e.lp2), e.lp2.kp);
-    const creatorGot = balance(e, e.creator.token) - c0, lp2Got = balance(e, e.lp2.token) - l0;
-    // 5,000 : 2,500 stake → 2 : 1 payout, to within a base unit of flooring
-    expect(creatorGot - 2n * lp2Got).toBeGreaterThanOrEqual(-2n);
-    expect(creatorGot - 2n * lp2Got).toBeLessThanOrEqual(2n);
+    const creatorGot = balance(e, e.creator.token) - c0, lp2Got = balance(e, e.lp2.token) - l0, lp3Got = balance(e, e.lp3.token) - t0;
+    // Same prices at joining, 5,000 : 2,500 → 2 : 1, to within a base unit of flooring
+    expect(creatorGot - 2n * lp2Got).toBeGreaterThanOrEqual(-3n);
+    expect(creatorGot - 2n * lp2Got).toBeLessThanOrEqual(3n);
+    // The late tranche answers only for flow after it joined, and for less depth.
+    expect(lp3Got).toBeGreaterThan(0n);
     await refused(e, m.claimLp(e.lp2), e.lp2.kp);
 
     await ok(e, m.collectFees(), e.trader.kp);
@@ -200,16 +232,21 @@ describe("ladder end to end", () => {
 
     // ── Conservation: nothing minted, nothing stranded beyond flooring dust ──
     const dust = balance(e, m.vault);
-    expect(dust).toBeLessThan(10n);
-    const total = balance(e, e.creator.token) + balance(e, e.lp2.token) + balance(e, e.trader.token) + balance(e, e.treasuryToken) + dust;
-    expect(total).toBe(30_000_000_000n);
+    expect(dust).toBeLessThan(40n);
+    const total = balance(e, e.creator.token) + balance(e, e.lp2.token) + balance(e, e.lp3.token) + balance(e, e.trader.token) + balance(e, e.treasuryToken) + dust;
+    expect(total).toBe(40_000_000_000n);
 
-    const lpPnl = (creatorGot + lp2Got) - 7_500_000_000n;
+    const lpPnl = (creatorGot + lp2Got + lp3Got) - 10_000_000_000n;
+    const pct = (got: bigint, put: bigint) => `${(Number(got - put) / 1e6).toFixed(6)} (${(Number(got - put) / Number(put) * 100).toFixed(3)}%)`;
     console.log(`\nSETTLE PATH  NVDA opened $220.19 → settled $224.60 (bin 33)
-  compute units: create ${create.cu} · open ${open.cu} · tent ${tent.cu} · 25-bin band ${band.cu} · sell ${sell.cu} · settle ${settle.cu} · redeem ${redeem.cu}
-  LPs put in 7,500.000000 and took out ${(Number(creatorGot + lp2Got) / 1e6).toFixed(6)}  (P&L ${(Number(lpPnl) / 1e6).toFixed(6)})
+  compute units: create ${create.cu} · open ${open.cu} · tent ${tent.cu} · 25-bin band ${band.cu} · sell ${sell.cu} · late LP join ${join.cu} · settle ${settle.cu} · redeem ${redeem.cu} · LP claim ${claim.cu}
+  depth bought per 2,500: at seeding ${(Number(m0) / 1e18).toFixed(3)} · mid-market ${(Number(m1) / 1e18).toFixed(3)}
+  creator (5,000 at seeding)  P&L ${pct(creatorGot, 5_000_000_000n)}
+  lp2     (2,500 at seeding)  P&L ${pct(lp2Got, 2_500_000_000n)}
+  lp3     (2,500 mid-market)  P&L ${pct(lp3Got, 2_500_000_000n)}
+  all LPs P&L ${(Number(lpPnl) / 1e6).toFixed(6)}
   vault dust left: ${dust} base units; total supply conserved\n`);
-    for (const cu of [tent.cu, band.cu, sell.cu, settle.cu, redeem.cu]) expect(cu).toBeLessThan(200_000);
+    for (const cu of [tent.cu, band.cu, sell.cu, join.cu, settle.cu, redeem.cu, claim.cu]) expect(cu).toBeLessThan(200_000);
   });
 
   it("voids when the settlement price never arrives: the trader gets back what they paid, the LP is made whole", async () => {
@@ -224,6 +261,7 @@ describe("ladder end to end", () => {
 
     // Pump one bin hard — the position that a mark-to-last-price refund would overpay.
     await ok(e, m.trade(40, 40, 1, 800_000_000n, BIG), e.trader.kp);
+    await ok(e, m.join(e.lp2, 2_500_000_000n, m.curveSeq()), e.lp2.kp);  // liquidity arrives mid-market
     await ok(e, m.trade(28, 34, 4, 60_000_000n, BIG), e.trader.kp);
     const paid = e.trader.start - balance(e, e.trader.token);
 
@@ -238,9 +276,11 @@ describe("ladder end to end", () => {
     await ok(e, m.redeem(28, 34, 4), e.trader.kp);
     expect(balance(e, e.trader.token)).toBe(e.trader.start);           // every unit back, fees included
 
+    await ok(e, m.claimLp(e.lp2), e.lp2.kp);
     await ok(e, m.claimLp(e.creator), e.creator.kp);
-    expect(balance(e, e.creator.token)).toBe(e.creator.start);         // LP exactly whole
+    expect(balance(e, e.creator.token)).toBe(e.creator.start);         // both LPs exactly whole,
+    expect(balance(e, e.lp2.token)).toBe(e.lp2.start);                 // whenever they joined
     expect(balance(e, m.vault)).toBe(0n);
-    console.log(`\nVOID PATH  trader had paid ${(Number(paid) / 1e6).toFixed(6)}; refunded in full. LP made exactly whole. Vault 0.\n`);
+    console.log(`\nVOID PATH  trader had paid ${(Number(paid) / 1e6).toFixed(6)}; refunded in full. Both LPs made exactly whole. Vault 0.\n`);
   });
 });

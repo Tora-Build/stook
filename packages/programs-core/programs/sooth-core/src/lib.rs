@@ -484,9 +484,10 @@ pub mod sooth_core {
         ladder::trade_handler(ctx, args)
     }
 
-    /// Add to a ladder's subsidy. Seeding phase only.
-    pub fn ladder_seed(ctx: Context<LadderSeed>, amount: u64) -> Result<()> {
-        ladder::seed_handler(ctx, amount)
+    /// Add liquidity as a new tranche, any time before lock, at the prices
+    /// the LP named.
+    pub fn ladder_lp_join(ctx: Context<LadderLpJoin>, args: LadderLpJoinArgs) -> Result<()> {
+        ladder::lp_join_handler(ctx, args)
     }
 
     /// Settle from the one Pyth update that is the price at `settles_at`.

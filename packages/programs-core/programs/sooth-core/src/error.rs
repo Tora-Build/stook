@@ -116,6 +116,10 @@ pub enum SoothCoreError {
     LadderNotFinal,
     #[msg("Account does not belong to this ladder or owner")]
     LadderWrongAccount,
+    #[msg("Ladder takes liquidity only while seeding or open, before lock")]
+    LadderNotJoinable,
+    #[msg("A trade landed since this join was priced; read the curve again")]
+    LadderCurveMoved,
 
     // ── AMM ──────────────────────────────────────────────────────────────────
     #[msg("Slippage: cost exceeded max_cost_wad")]

@@ -11,8 +11,8 @@ use anchor_spl::token_interface::{
 };
 
 use crate::error::SoothCoreError;
-use crate::math::ladder::{apply_trade, bin_for, fresh, Shape, BINS};
-use crate::math::{scalar_for, wad_div, wad_to_amount_ceil, wad_to_amount_floor, LN2_WAD};
+use crate::math::ladder::{apply_trade, bin_for, fresh, liquidity_for_deposit, tranche_pnl, Shape};
+use crate::math::{scalar_for, wad_to_amount_ceil, wad_to_amount_floor};
 use crate::oracle::{check_settlement_instant, read_price_update, read_settlement_price, OraclePolicy};
 use crate::state::ladder::*;
 use crate::state::{require_not_paused, ProtocolConfig, PROTOCOL_CONFIG_SEED};
@@ -36,11 +36,6 @@ pub const OPEN_MAX_CONF_BPS: u16 = 100;
 pub const ORACLE_MIN_SIGNATURES: u8 = 255;
 #[cfg(not(feature = "mainnet"))]
 pub const ORACLE_MIN_SIGNATURES: u8 = 3;
-
-/// Share of the subsidy actually committed to `b`. The sliver held back absorbs
-/// base-unit rounding so the LMSR bound holds in integers, not just in reals.
-const B_HAIRCUT_NUM: i128 = 9_999;
-const B_HAIRCUT_DEN: i128 = 10_000;
 
 // ── pure helpers, tested below ───────────────────────────────────────────────
 
@@ -74,6 +69,31 @@ pub fn basis_released(net_paid: u64, sold: u64, held: u64) -> u64 {
 
 fn math<T>(r: core::result::Result<T, crate::math::MathError>) -> Result<T> {
     r.map_err(|_| error!(SoothCoreError::MathOverflow))
+}
+
+/// The least a tranche may deposit: one whole quote token. Below that `b`
+/// rounds toward nothing and the deposit buys no depth worth accounting for.
+fn one_token(decimals: u8) -> Result<u64> {
+    10u64.checked_pow(decimals as u32).ok_or_else(|| error!(SoothCoreError::MathOverflow))
+}
+
+/// Price a deposit against the curve as it stands, and book it: the tranche
+/// records what it joined at, the market gains its cash and its depth.
+fn join(l: &mut Ladder, t: &mut LadderTranche, deposit: u64) -> Result<()> {
+    let deposit_wad = (deposit as i128)
+        .checked_mul(scalar_for(l.quote_decimals) as i128)
+        .ok_or(SoothCoreError::MathOverflow)?;
+    let (w, sum) = l.load_curve();
+    let b = math(liquidity_for_deposit(&w, sum, deposit_wad))?;
+    require!(b > 0, SoothCoreError::LadderSeedTooSmall);
+
+    t.deposit = deposit;
+    t.record_join(b, &w, sum, l.acc_fee());
+
+    l.set_b_wad(l.b_wad().checked_add(b).ok_or(SoothCoreError::MathOverflow)?);
+    l.cash = l.cash.checked_add(deposit).ok_or(SoothCoreError::MathOverflow)?;
+    l.deposit_total = l.deposit_total.checked_add(deposit).ok_or(SoothCoreError::MathOverflow)?;
+    Ok(())
 }
 
 // ── create ───────────────────────────────────────────────────────────────────
@@ -147,11 +167,11 @@ pub struct LadderCreate<'info> {
     #[account(
         init,
         payer = creator,
-        space = LadderStake::SPACE,
-        seeds = [LADDER_STAKE_SEED, ladder.key().as_ref(), creator.key().as_ref()],
+        space = LadderTranche::SPACE,
+        seeds = [LADDER_TRANCHE_SEED, ladder.key().as_ref(), creator.key().as_ref(), &[0u8]],
         bump,
     )]
-    pub stake: Box<Account<'info, LadderStake>>,
+    pub tranche: AccountLoader<'info, LadderTranche>,
 
     pub token_program: Interface<'info, TokenInterface>,
     pub system_program: Program<'info, System>,
@@ -178,8 +198,7 @@ pub fn create_handler(ctx: Context<LadderCreate>, args: LadderCreateArgs) -> Res
     // At least one whole quote token. Below that `b` rounds to nothing and a
     // single small trade moves a bin from 2% to 80%.
     let decimals = ctx.accounts.quote_mint.decimals;
-    let one_token = 10u64.checked_pow(decimals as u32).ok_or(SoothCoreError::MathOverflow)?;
-    require!(args.seed >= one_token, SoothCoreError::LadderSeedTooSmall);
+    require!(args.seed >= one_token(decimals)?, SoothCoreError::LadderSeedTooSmall);
 
     token_interface::transfer_checked(
         CpiContext::new(
@@ -195,18 +214,10 @@ pub fn create_handler(ctx: Context<LadderCreate>, args: LadderCreateArgs) -> Res
         decimals,
     )?;
 
-    let stake = &mut ctx.accounts.stake;
-    stake.ladder = ctx.accounts.ladder.key();
-    stake.owner = ctx.accounts.creator.key();
-    stake.amount = args.seed;
-    stake.bump = ctx.bumps.stake;
-
     let mut l = ctx.accounts.ladder.load_init()?;
     l.opens_at = args.opens_at;
     l.locks_at = args.locks_at;
     l.settles_at = args.settles_at;
-    l.cash = args.seed;
-    l.seed_total = args.seed;
     l.step_bps = STEP_BPS[args.tier as usize];
     l.fee_bps = args.fee_bps;
     l.feed_id = args.feed_id;
@@ -227,7 +238,13 @@ pub fn create_handler(ctx: Context<LadderCreate>, args: LadderCreateArgs) -> Res
     l.bump = ctx.bumps.ladder;
     l.authority_bump = ctx.bumps.authority;
     l.vault_bump = ctx.bumps.vault;
-    Ok(())
+
+    let mut t = ctx.accounts.tranche.load_init()?;
+    t.ladder = ctx.accounts.ladder.key();
+    t.owner = ctx.accounts.creator.key();
+    t.index = 0;
+    t.bump = ctx.bumps.tranche;
+    join(&mut l, &mut t, args.seed)
 }
 
 // ── open ─────────────────────────────────────────────────────────────────────
@@ -268,18 +285,9 @@ pub fn open_handler(ctx: Context<LadderOpen>) -> Result<()> {
     l.p0 = price.price;
     l.p0_expo = price.exponent;
 
-    // b = 0.9999 · seed / ln(64). An LMSR over N outcomes can lose at most
-    // b·ln N, so this is the largest b the seed fully covers.
-    let seed_wad = (l.seed_total as i128)
-        .checked_mul(scalar_for(l.quote_decimals) as i128)
-        .and_then(|v| v.checked_mul(B_HAIRCUT_NUM))
-        .map(|v| v / B_HAIRCUT_DEN)
-        .ok_or(SoothCoreError::MathOverflow)?;
-    let ln_bins = LN2_WAD * 6; // ln 64
-    debug_assert_eq!(BINS, 64);
-    let b = math(wad_div(seed_wad, ln_bins))?;
-    require!(b > 0, SoothCoreError::LadderSeedTooSmall);
-    l.set_b_wad(b);
+    // Depth was bought by the tranches that joined during Seeding, each at
+    // b = 0.9999 · deposit / ln 64 — the most its deposit fully covers.
+    require!(l.b_wad() > 0, SoothCoreError::LadderSeedTooSmall);
 
     l.status = STATUS_OPEN;
     Ok(())
@@ -437,7 +445,11 @@ pub fn trade_handler(ctx: Context<LadderTrade>, args: LadderTradeArgs) -> Result
         l.cash = if buying { l.cash.checked_add(amount) } else { l.cash.checked_sub(amount) }
             .ok_or(SoothCoreError::MathOverflow)?;
 
+        l.curve_seq = l.curve_seq.wrapping_add(1);
+
         let (to_lp, to_creator, to_protocol) = split_fee(fee);
+        let b_units = Ladder::b_units(l.b_wad(), decimals);
+        l.accrue_lp_fee(to_lp, b_units);
         l.fees_lp = l.fees_lp.checked_add(to_lp).ok_or(SoothCoreError::MathOverflow)?;
         l.fees_creator = l.fees_creator.checked_add(to_creator).ok_or(SoothCoreError::MathOverflow)?;
         l.fees_protocol = l.fees_protocol.checked_add(to_protocol).ok_or(SoothCoreError::MathOverflow)?;
@@ -518,12 +530,27 @@ pub fn trade_handler(ctx: Context<LadderTrade>, args: LadderTradeArgs) -> Result
     Ok(())
 }
 
-// ── seed ─────────────────────────────────────────────────────────────────────
+// ── LP join ──────────────────────────────────────────────────────────────────
+
+#[derive(AnchorSerialize, AnchorDeserialize, Clone, Copy, Debug)]
+pub struct LadderLpJoinArgs {
+    /// Which of this wallet's tranches this is. A wallet that joins twice joins
+    /// at two sets of prices, so they are two tranches.
+    pub index: u8,
+    pub deposit: u64,
+    /// `Ladder::curve_seq` as the LP read it. The join lands at exactly those
+    /// prices or not at all.
+    pub expected_seq: u64,
+}
 
 #[derive(Accounts)]
-pub struct LadderSeed<'info> {
+#[instruction(args: LadderLpJoinArgs)]
+pub struct LadderLpJoin<'info> {
     #[account(mut)]
     pub lp: Signer<'info>,
+
+    #[account(seeds = [PROTOCOL_CONFIG_SEED], bump = config.bump)]
+    pub config: Box<Account<'info, ProtocolConfig>>,
 
     #[account(mut)]
     pub ladder: AccountLoader<'info, Ladder>,
@@ -543,30 +570,55 @@ pub struct LadderSeed<'info> {
     pub lp_token: Box<InterfaceAccount<'info, TokenAccount>>,
 
     #[account(
-        init_if_needed,
+        init,
         payer = lp,
-        space = LadderStake::SPACE,
-        seeds = [LADDER_STAKE_SEED, ladder.key().as_ref(), lp.key().as_ref()],
+        space = LadderTranche::SPACE,
+        seeds = [LADDER_TRANCHE_SEED, ladder.key().as_ref(), lp.key().as_ref(), &[args.index]],
         bump,
     )]
-    pub stake: Box<Account<'info, LadderStake>>,
+    pub tranche: AccountLoader<'info, LadderTranche>,
 
     pub token_program: Interface<'info, TokenInterface>,
     pub system_program: Program<'info, System>,
 }
 
-/// Add to a market's subsidy. Only while it is Seeding and before `opens_at`:
-/// once `b` is fixed, a deposit would have to be priced, and every reviewed
-/// design that priced one was sandwiched.
-pub fn seed_handler(ctx: Context<LadderSeed>, amount: u64) -> Result<()> {
-    require!(amount > 0, SoothCoreError::LadderZeroTrade);
+#[event]
+pub struct LadderLpJoined {
+    pub ladder: Pubkey,
+    pub owner: Pubkey,
+    pub index: u8,
+    pub deposit: u64,
+    /// Liquidity bought, WAD. Less per token the longer the longest shot is.
+    pub b: u128,
+    pub curve_seq: u64,
+}
+
+/// Add liquidity — while the market is Seeding or Open, by anyone.
+///
+/// The deposit buys `b = 0.9999 · deposit / ln(1/p_min)` at the prices of this
+/// moment: the most depth whose worst case the deposit covers alone. Late
+/// liquidity therefore never leans on earlier LPs, and earlier LPs' results are
+/// untouched by it — only future flow and future fees are shared.
+pub fn lp_join_handler(ctx: Context<LadderLpJoin>, args: LadderLpJoinArgs) -> Result<()> {
+    require_not_paused(&ctx.accounts.config)?;
     let now = Clock::get()?.unix_timestamp;
-    let decimals = {
+
+    let (decimals, b, seq) = {
         let mut l = ctx.accounts.ladder.load_mut()?;
-        require!(l.status == STATUS_SEEDING && now < l.opens_at, SoothCoreError::LadderNotSeeding);
-        l.seed_total = l.seed_total.checked_add(amount).ok_or(SoothCoreError::MathOverflow)?;
-        l.cash = l.cash.checked_add(amount).ok_or(SoothCoreError::MathOverflow)?;
-        l.quote_decimals
+        require!(
+            (l.status == STATUS_SEEDING || l.status == STATUS_OPEN) && now < l.locks_at,
+            SoothCoreError::LadderNotJoinable
+        );
+        require!(l.curve_seq == args.expected_seq, SoothCoreError::LadderCurveMoved);
+        require!(args.deposit >= one_token(l.quote_decimals)?, SoothCoreError::LadderSeedTooSmall);
+
+        let mut t = ctx.accounts.tranche.load_init()?;
+        t.ladder = ctx.accounts.ladder.key();
+        t.owner = ctx.accounts.lp.key();
+        t.index = args.index;
+        t.bump = ctx.bumps.tranche;
+        join(&mut l, &mut t, args.deposit)?;
+        (l.quote_decimals, t.b_wad(), l.curve_seq)
     };
 
     token_interface::transfer_checked(
@@ -579,17 +631,18 @@ pub fn seed_handler(ctx: Context<LadderSeed>, amount: u64) -> Result<()> {
                 authority: ctx.accounts.lp.to_account_info(),
             },
         ),
-        amount,
+        args.deposit,
         decimals,
     )?;
 
-    let stake = &mut ctx.accounts.stake;
-    if stake.owner == Pubkey::default() {
-        stake.ladder = ctx.accounts.ladder.key();
-        stake.owner = ctx.accounts.lp.key();
-        stake.bump = ctx.bumps.stake;
-    }
-    stake.amount = stake.amount.checked_add(amount).ok_or(SoothCoreError::MathOverflow)?;
+    emit!(LadderLpJoined {
+        ladder: ctx.accounts.ladder.key(),
+        owner: ctx.accounts.lp.key(),
+        index: args.index,
+        deposit: args.deposit,
+        b: b as u128,
+        curve_seq: seq,
+    });
     Ok(())
 }
 
@@ -644,14 +697,10 @@ pub fn settle_handler(ctx: Context<LadderSettle>) -> Result<()> {
     // moment it becomes a debt.
     require!(l.cash >= owed, SoothCoreError::LadderInsolvent);
 
-    // Winners' money stays reserved in `cash`. Everything else, plus the LP
-    // share of fees, is what LPs divide — fixed now, so the order of claims
-    // cannot change anyone's share.
-    l.lp_pool = (l.cash - owed)
-        .checked_add(l.fees_lp)
-        .ok_or(SoothCoreError::MathOverflow)?;
+    // Winners' money stays reserved in `cash`. The rest is what tranches draw
+    // their principal from; LP fees stay in `fees_lp` and are drawn separately.
+    l.lp_pool = l.cash - owed;
     l.cash = owed;
-    l.fees_lp = 0;
     l.settled_bin = bin;
     l.status = STATUS_SETTLED;
 
@@ -816,13 +865,34 @@ pub fn redeem_handler(ctx: Context<LadderRedeem>) -> Result<()> {
 
 // ── LP claim ─────────────────────────────────────────────────────────────────
 
-/// An LP's share of what is left, pro rata to stake. Floors, so the dust stays
-/// in the vault rather than the last LP finding it a unit short.
-pub fn lp_share(pool: u64, stake: u64, seed_total: u64) -> u64 {
-    if seed_total == 0 {
+/// A tranche's principal after settlement: its deposit plus its P&L at the
+/// settled bin, rounded against the tranche. Never negative — `b` was sized so
+/// the worst bin costs less than the deposit.
+pub fn tranche_principal(deposit: u64, pnl_wad: i128, decimals: u8) -> Option<u64> {
+    if pnl_wad >= 0 {
+        let gain = wad_to_amount_floor(pnl_wad as u128, decimals).ok()?;
+        deposit.checked_add(gain)
+    } else {
+        let loss = wad_to_amount_ceil(pnl_wad.unsigned_abs(), decimals).ok()?;
+        Some(deposit.saturating_sub(loss))
+    }
+}
+
+/// LP fees a tranche earned: the growth of the per-unit-`b` accumulator since
+/// it joined, times its `b`. Floors.
+pub fn tranche_fees(b_units: u128, acc_now: u128, acc_at_join: u128) -> Option<u64> {
+    let grown = acc_now.checked_sub(acc_at_join)?;
+    u64::try_from(b_units.checked_mul(grown)? / FEE_ACC_SCALE).ok()
+}
+
+/// A tranche's share of what a void leaves once every trader is refunded, pro
+/// rata to deposit. Floors, so the dust stays in the vault rather than the last
+/// LP finding it a unit short.
+pub fn lp_share(pool: u64, deposit: u64, deposit_total: u64) -> u64 {
+    if deposit_total == 0 {
         return 0;
     }
-    (pool as u128 * stake as u128 / seed_total as u128) as u64
+    (pool as u128 * deposit as u128 / deposit_total as u128) as u64
 }
 
 #[derive(Accounts)]
@@ -830,6 +900,7 @@ pub struct LadderClaimLp<'info> {
     #[account(mut)]
     pub owner: Signer<'info>,
 
+    #[account(mut)]
     pub ladder: AccountLoader<'info, Ladder>,
 
     /// CHECK: PDA vault authority.
@@ -856,26 +927,75 @@ pub struct LadderClaimLp<'info> {
     #[account(
         mut,
         close = owner,
-        constraint = stake.owner == owner.key() @ SoothCoreError::LadderWrongAccount,
-        constraint = stake.ladder == ladder.key() @ SoothCoreError::LadderWrongAccount,
+        constraint = tranche.load()?.owner == owner.key() @ SoothCoreError::LadderWrongAccount,
+        constraint = tranche.load()?.ladder == ladder.key() @ SoothCoreError::LadderWrongAccount,
     )]
-    pub stake: Box<Account<'info, LadderStake>>,
+    pub tranche: AccountLoader<'info, LadderTranche>,
 
     pub token_program: Interface<'info, TokenInterface>,
 }
 
+#[event]
+pub struct LadderLpClaimed {
+    pub ladder: Pubkey,
+    pub owner: Pubkey,
+    pub index: u8,
+    pub deposit: u64,
+    pub principal: u64,
+    pub fees: u64,
+}
+
 pub fn claim_lp_handler(ctx: Context<LadderClaimLp>) -> Result<()> {
     let ladder_key = ctx.accounts.ladder.key();
-    let (owed, decimals, authority_bump) = {
-        let l = ctx.accounts.ladder.load()?;
-        let pool = match l.status {
-            STATUS_SETTLED => l.lp_pool,
-            // In a void, LPs take what is left once every trader is made whole.
-            STATUS_VOID => l.void_vault.saturating_sub(l.void_basis),
+    let (principal, fees, decimals, authority_bump) = {
+        let mut l = ctx.accounts.ladder.load_mut()?;
+        let t = ctx.accounts.tranche.load()?;
+        let (principal, fees) = match l.status {
+            STATUS_SETTLED => {
+                let k = l.settled_bin as usize;
+                let pnl = math(tranche_pnl(
+                    t.b_wad(),
+                    t.join_weight(k),
+                    t.join_sum(),
+                    l.weight(k),
+                    l.sum_wad(),
+                ))?;
+                // Both are drawn from pots that only shrink, so rounding that
+                // sums a unit high is absorbed here, never by the vault.
+                let principal = tranche_principal(t.deposit, pnl, l.quote_decimals)
+                    .ok_or(SoothCoreError::MathOverflow)?
+                    .min(l.lp_pool);
+                let fees = tranche_fees(
+                    Ladder::b_units(t.b_wad(), l.quote_decimals),
+                    l.acc_fee(),
+                    t.fee_snap(),
+                )
+                .ok_or(SoothCoreError::MathOverflow)?
+                .min(l.fees_lp);
+                l.lp_pool -= principal;
+                l.fees_lp -= fees;
+                (principal, fees)
+            }
+            // In a void, LPs take what is left once every trader is made
+            // whole. Fees were folded back into the pot: nobody keeps a fee
+            // for a market that did not happen.
+            STATUS_VOID => (
+                lp_share(l.void_vault.saturating_sub(l.void_basis), t.deposit, l.deposit_total),
+                0,
+            ),
             _ => return err!(SoothCoreError::LadderNotFinal),
         };
-        (lp_share(pool, ctx.accounts.stake.amount, l.seed_total), l.quote_decimals, l.authority_bump)
+        emit!(LadderLpClaimed {
+            ladder: ladder_key,
+            owner: t.owner,
+            index: t.index,
+            deposit: t.deposit,
+            principal,
+            fees,
+        });
+        (principal, fees, l.quote_decimals, l.authority_bump)
     };
+    let owed = principal.checked_add(fees).ok_or(SoothCoreError::MathOverflow)?;
 
     if owed > 0 {
         let seeds: &[&[&[u8]]] = &[&[LADDER_AUTHORITY_SEED, ladder_key.as_ref(), &[authority_bump]]];
@@ -1055,12 +1175,27 @@ mod tests {
     }
 
     #[test]
-    fn the_liquidity_the_seed_buys_covers_the_worst_case() {
-        // seed 5,000 tokens at 6 decimals → b such that b·ln64 ≤ seed.
-        let seed_wad = 5_000i128 * crate::math::WAD * B_HAIRCUT_NUM / B_HAIRCUT_DEN;
-        let b = wad_div(seed_wad, LN2_WAD * 6).unwrap();
-        let worst = crate::math::wad_mul(b, LN2_WAD * 6).unwrap();
-        assert!(worst <= 5_000 * crate::math::WAD);
-        assert!(worst > 4_999 * crate::math::WAD, "and wastes almost none of it");
+    fn a_tranches_principal_rounds_against_it_and_never_goes_negative() {
+        let wad = crate::math::WAD;
+        assert_eq!(tranche_principal(1_000_000, 0, 6), Some(1_000_000));
+        assert_eq!(tranche_principal(1_000_000, wad / 2 + 1, 6), Some(1_500_000), "gain floors");
+        assert_eq!(tranche_principal(1_000_000, -(wad / 2 + 1), 6), Some(499_999), "loss ceils");
+        assert_eq!(tranche_principal(1_000_000, -5 * wad, 6), Some(0));
+    }
+
+    #[test]
+    fn a_tranche_earns_only_the_fees_accrued_after_it_joined() {
+        let mut l: Ladder = bytemuck::Zeroable::zeroed();
+        // Alone: the first tranche (b = 1,000) takes the whole of the first fee.
+        l.accrue_lp_fee(800, 1_000);
+        let snap = l.acc_fee();
+        // A second tranche of b = 3,000 joins; the next fee splits 1:3.
+        l.accrue_lp_fee(800, 4_000);
+        let first = tranche_fees(1_000, l.acc_fee(), 0).unwrap();
+        let second = tranche_fees(3_000, l.acc_fee(), snap).unwrap();
+        assert_eq!(first, 800 + 200);
+        assert_eq!(second, 600);
+        assert_eq!(first + second, 1_600);
+        assert_eq!(tranche_fees(1, 5, 9), None, "an accumulator never runs backwards");
     }
 }

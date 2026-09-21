@@ -249,6 +249,81 @@ pub fn bin_for(price: i64, p0: i64, step_bps: u16) -> Result<u8, MathError> {
     Ok(idx.clamp(0, last) as u8)
 }
 
+// ── liquidity tranches ───────────────────────────────────────────────────────
+//
+// Anyone may add liquidity at any time. Each deposit is a TRANCHE: its own LMSR
+// layered under the same prices, starting at the prices it joined at. Trades
+// split across tranches in proportion to `b`, so every layer keeps identical
+// prices and the market is one curve with `B = Σ bⱼ`.
+//
+// Per unit of `b`, a layer that joined at prices `p(join)` and ends at
+// `p(final)` has, if bin `k` settles, made exactly
+//
+//     ln( p_k(join) / p_k(final) )
+//
+// — the sum of `ln(S′/S) − x·m_k` over every trade it was present for
+// telescopes to that, whatever other tranches joined in between. So a
+// tranche's value needs no per-trade bookkeeping at all: snapshot the weights
+// at join, read the weights at settlement, take two logarithms. The measured
+// alternative — per-bin accumulators updated on every trade — costs compute on
+// the hot path to store what the weights already say.
+
+/// `−ln pᵢ = ln(S / wᵢ)`, WAD. Always ≥ 0, and computed as a ratio ≥ 1 so a
+/// one-in-a-billion bin keeps full precision instead of the seven digits
+/// `ln(w/S)` would leave it.
+pub fn neg_ln_price(w_i: i128, sum: i128) -> Result<i128, MathError> {
+    if w_i <= 0 || sum < w_i {
+        return Err(MathError::Overflow);
+    }
+    ln_wad(wad_div(sum, w_i)?)
+}
+
+/// Share of a deposit committed to `b`; the rest absorbs integer rounding.
+pub const B_HAIRCUT_NUM: i128 = 9_999;
+pub const B_HAIRCUT_DEN: i128 = 10_000;
+
+/// The liquidity a deposit buys at the current prices: `b = 0.9999·D / ln(1/p_min)`.
+///
+/// A layer's worst case is `b · ln(1/p_k(join))` for the bin that ends up
+/// certain, so the deposit must cover that for the CHEAPEST bin. At a fresh
+/// market that is `ln 64`; once some bin has become a long shot the same
+/// deposit buys less depth. That is the honest price of joining late, not a
+/// penalty: the cheap bins are exactly what the deposit now has to insure.
+pub fn liquidity_for_deposit(
+    w: &[i128; BINS],
+    sum: i128,
+    deposit_wad: i128,
+) -> Result<i128, MathError> {
+    if deposit_wad <= 0 {
+        return Err(MathError::Overflow);
+    }
+    let w_min = *w.iter().min().ok_or(MathError::Overflow)?;
+    let worst = neg_ln_price(w_min, sum)?;
+    if worst <= 0 {
+        return Err(MathError::Overflow);
+    }
+    let usable = deposit_wad
+        .checked_mul(B_HAIRCUT_NUM)
+        .ok_or(MathError::Overflow)?
+        / B_HAIRCUT_DEN;
+    wad_div(usable, worst)
+}
+
+/// A tranche's profit or loss, WAD, if bin `k` settles:
+/// `b · ( ln(S_f/w_f[k]) − ln(S_j/w_j[k]) )`. Negative when the settled bin
+/// became likelier after the tranche joined — the layer sold it too cheaply.
+pub fn tranche_pnl(
+    b: i128,
+    join_w_k: i128,
+    join_sum: i128,
+    final_w_k: i128,
+    final_sum: i128,
+) -> Result<i128, MathError> {
+    let at_join = neg_ln_price(join_w_k, join_sum)?;
+    let at_end = neg_ln_price(final_w_k, final_sum)?;
+    wad_mul(b, at_end - at_join)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -502,6 +577,96 @@ mod tests {
             let up = p0 + p0 / 40;
             assert_eq!(bin_for(up, p0, 100).unwrap(), 34, "p0 {p0}");
         }
+    }
+
+    // ── tranches ─────────────────────────────────────────────────────────────
+
+    #[test]
+    fn at_a_fresh_market_a_deposit_buys_b_over_ln_64() {
+        let (w, sum) = fresh();
+        let b = liquidity_for_deposit(&w, sum, 5_000 * WAD).unwrap();
+        let worst = wad_mul(b, LN2_WAD_X6).unwrap();
+        assert!(worst <= 5_000 * WAD && worst > 4_999 * WAD, "worst case {worst}");
+    }
+    const LN2_WAD_X6: i128 = 693_147_180_559_945_309 * 6;
+
+    #[test]
+    fn joining_after_a_bin_became_a_long_shot_buys_less_depth() {
+        let (mut w, mut sum) = fresh();
+        let early = liquidity_for_deposit(&w, sum, 1_000 * WAD).unwrap();
+        apply_trade(&mut w, &mut sum, 500 * WAD, Shape::band(30, 34), 1_500 * WAD).unwrap();
+        let late = liquidity_for_deposit(&w, sum, 1_000 * WAD).unwrap();
+        assert!(late < early, "early {early} late {late}");
+        // and whatever it buys, its worst case is still inside the deposit
+        let w_min = *w.iter().min().unwrap();
+        let worst = wad_mul(late, neg_ln_price(w_min, sum).unwrap()).unwrap();
+        assert!(worst <= 1_000 * WAD);
+    }
+
+    /// The identity the whole design rests on. Two tranches, one joining
+    /// mid-market; trades priced at B = b₁ + b₂. For EVERY possible outcome,
+    /// the tranches' P&L must add up to what the pool actually made —
+    /// everything traders paid in, minus what that outcome pays out.
+    #[test]
+    fn tranche_pnl_adds_up_to_the_pools_pnl_for_every_outcome() {
+        let (mut w, mut sum) = fresh();
+        let b1 = liquidity_for_deposit(&w, sum, 5_000 * WAD).unwrap();
+        let (w1, s1) = (w, sum);
+        let mut paid = 0i128;
+        let mut owed = [0i128; BINS];
+        fn go(w: &mut [i128; BINS], sum: &mut i128, owed: &mut [i128; BINS], b: i128, sh: Shape, d: i128) -> i128 {
+            let c = apply_trade(w, sum, b, sh, d).unwrap();
+            for i in sh.bins() { owed[i] += d * sh.level(i) as i128; }
+            c
+        }
+        paid += go(&mut w, &mut sum, &mut owed, b1, Shape::tent(30, 4), 200 * WAD);
+        paid += go(&mut w, &mut sum, &mut owed, b1, Shape::band(20, 40), 300 * WAD);
+
+        let b2 = liquidity_for_deposit(&w, sum, 2_500 * WAD).unwrap();
+        let (w2, s2) = (w, sum);
+        let paid_before_2 = paid;
+        let owed_before_2 = owed;
+        let big_b = b1 + b2;
+        paid += go(&mut w, &mut sum, &mut owed, big_b, Shape::tent(33, 4), 150 * WAD);
+        paid += go(&mut w, &mut sum, &mut owed, big_b, Shape::tent(30, 4), -80 * WAD);
+        paid += go(&mut w, &mut sum, &mut owed, big_b, Shape::band(45, 50), 400 * WAD);
+
+        for k in 0..BINS {
+            let pool = paid - owed[k];
+            let t1 = tranche_pnl(b1, w1[k], s1, w[k], sum).unwrap();
+            let t2 = tranche_pnl(b2, w2[k], s2, w[k], sum).unwrap();
+            assert!(close(t1 + t2, pool, WAD / 1_000_000), "bin {k}: tranches {} pool {pool}", t1 + t2);
+            // the late tranche is only exposed to what happened after it joined
+            let after = (paid - paid_before_2) - (owed[k] - owed_before_2[k]);
+            let share = wad_mul(after, wad_div(b2, big_b).unwrap()).unwrap();
+            assert!(close(t2, share, WAD / 1_000_000), "bin {k}: late {t2} vs its share {share}");
+        }
+    }
+
+    #[test]
+    fn no_tranche_can_lose_more_than_its_deposit() {
+        let (mut w, mut sum) = fresh();
+        let b0 = liquidity_for_deposit(&w, sum, 1_000 * WAD).unwrap();
+        apply_trade(&mut w, &mut sum, b0, Shape::band(10, 12), 300 * WAD).unwrap();
+        let deposit = 700 * WAD;
+        let b = liquidity_for_deposit(&w, sum, deposit).unwrap();
+        let (wj, sj) = (w, sum);
+        // drive the CHEAPEST bin at join to near certainty — the worst case
+        let k = (0..BINS).min_by_key(|&i| wj[i]).unwrap();
+        for _ in 0..6 {
+            let _ = apply_trade(&mut w, &mut sum, b0 + b, Shape::band(k as u8, k as u8), 3_000 * WAD);
+        }
+        let pnl = tranche_pnl(b, wj[k], sj, w[k], sum).unwrap();
+        assert!(pnl < 0);
+        assert!(-pnl <= deposit, "lost {} of a {deposit} deposit", -pnl);
+    }
+
+    #[test]
+    fn a_one_in_a_billion_bin_keeps_its_precision() {
+        let sum = 64 * W_MAX;
+        // ln(6.4e10) = ln 6.4 + 10·ln 10 = 1.8562980 + 23.0258509 = 24.8821489…
+        let l = neg_ln_price(WAD, sum).unwrap();
+        assert!(close(l, 24_882_148_920_306_083_000, 1_000_000_000), "{l}");
     }
 
     #[test]

@@ -5,14 +5,21 @@
 //! ```text
 //!   Seeding ──open──▶ Open ──(locks_at)──▶ locked ──settle──▶ Settled
 //!      │                                                  └──▶ Void
-//!      └── liquidity may only enter here
+//!      └── nobody can trade yet, so every tranche joins at uniform prices
 //! ```
 //!
-//! Liquidity enters during Seeding and at no other time. Every design in the
-//! blind review that allowed deposits after open was sandwiched — an attacker
-//! trades the price away from fair, lets the LP join at the distorted price,
-//! and trades back; measured at +2,802 on a 2,500 deposit. Fixing `b` at open
-//! removes the attack rather than pricing it.
+//! Liquidity may join at any time before lock, as a TRANCHE (`math::ladder`):
+//! its own layer under the same prices, valued at settlement from the prices it
+//! joined at. There is no withdrawal before the market is final, so liquidity
+//! cannot arrive for one trade's fee and leave.
+//!
+//! What the blind review measured is that a deposit priced at the instant it
+//! lands can be sandwiched — push a bin, let the LP join at the distorted
+//! prices, trade back: +2,802 taken from a 2,500 deposit. So a join names the
+//! `curve_seq` the LP saw, and lands only if no trade has happened since. The
+//! LP joins at exactly the prices they looked at or not at all; a trade placed
+//! in front of the join makes it fail, which costs the LP a retry and the
+//! attacker a fee.
 //!
 //! The grid is centred on the oracle price read *at open*, not at creation, so
 //! a market that sits in Seeding for a day does not open with a stale centre
@@ -26,7 +33,10 @@ pub const LADDER_SEED: &[u8] = b"ladder";
 pub const LADDER_AUTHORITY_SEED: &[u8] = b"ladder_auth";
 pub const LADDER_VAULT_SEED: &[u8] = b"ladder_vault";
 pub const LADDER_POSITION_SEED: &[u8] = b"ladder_pos";
-pub const LADDER_STAKE_SEED: &[u8] = b"ladder_stake";
+pub const LADDER_TRANCHE_SEED: &[u8] = b"ladder_tranche";
+
+/// Fixed-point scale of the per-unit-`b` fee accumulator.
+pub const FEE_ACC_SCALE: u128 = 1_000_000_000_000_000_000;
 
 /// How long after `settles_at` a market may wait for its settlement price
 /// before anyone can void it. Long enough for a crank outage; short enough
@@ -80,8 +90,10 @@ pub struct Ladder {
     /// solvency check compares against the payout table — counting fees would
     /// let fee income mask a shortfall in the pool that owes the payouts.
     pub cash: u64,
-    /// Total seed deposited during Seeding.
-    pub seed_total: u64,
+    /// Sum of tranche deposits.
+    pub deposit_total: u64,
+    /// Bumped by every trade. A join must name the value it was priced against.
+    pub curve_seq: u64,
 
     pub fees_lp: u64,
     pub fees_creator: u64,
@@ -89,8 +101,9 @@ pub struct Ladder {
 
     /// Sum of every position's `net_paid`. What a void would have to refund.
     pub basis_total: u64,
-    /// Fixed at settlement: what LPs share — pool cash left after the winning
-    /// bin's payouts are reserved, plus the LP share of fees.
+    /// Fixed at settlement: pool cash left after the winning bin's payouts are
+    /// reserved. Tranche principal is paid from here and it only decreases, so
+    /// a rounding surplus can never become an over-withdrawal.
     pub lp_pool: u64,
     /// Fixed at void: everything the vault held, and everything owed back.
     /// Refunds pay `net_paid × min(1, void_vault / void_basis)`, so if the
@@ -117,8 +130,12 @@ pub struct Ladder {
     /// attribution — it grants no authority.
     pub sponsor: Pubkey,
 
-    /// LMSR liquidity, WAD, little-endian i128. Fixed at open.
+    /// Total LMSR liquidity `B = Σ bⱼ` over active tranches, WAD, LE i128.
     pub b: [u8; 16],
+    /// LP fees accrued per unit of `b`, scaled by `FEE_ACC_SCALE`, LE u128. A
+    /// tranche earns the growth in this since it joined — so fees follow the
+    /// volume a tranche was actually present for.
+    pub acc_fee: [u8; 16],
     /// Exact sum of `weights`, WAD, little-endian i128.
     pub sum: [u8; 16],
     /// `wᵢ = exp(qᵢ/b)`, WAD, little-endian i128 each.
@@ -133,7 +150,7 @@ pub struct Ladder {
     pub vault_bump: u8,
     pub _pad: u8,
 
-    pub _reserved: [u8; 32],
+    pub _reserved: [u8; 8],
 }
 
 impl Ladder {
@@ -145,8 +162,31 @@ impl Ladder {
     pub fn set_b_wad(&mut self, v: i128) {
         self.b = v.to_le_bytes();
     }
+    pub fn acc_fee(&self) -> u128 {
+        u128::from_le_bytes(self.acc_fee)
+    }
+
+    /// Credit `fee` to every active tranche, pro rata to `b`. Floors, so the
+    /// accumulator never promises more than was collected.
+    pub fn accrue_lp_fee(&mut self, fee: u64, b_units: u128) {
+        if fee == 0 || b_units == 0 {
+            return;
+        }
+        let add = fee as u128 * FEE_ACC_SCALE / b_units;
+        self.acc_fee = self.acc_fee().saturating_add(add).to_le_bytes();
+    }
 
     /// Weights and their sum, decoded for `math::ladder`.
+    pub fn weight(&self, i: usize) -> i128 {
+        i128::from_le_bytes(self.weights[i])
+    }
+    pub fn sum_wad(&self) -> i128 {
+        i128::from_le_bytes(self.sum)
+    }
+    /// `b` in quote base units — the unit fees are accrued against.
+    pub fn b_units(b_wad: i128, decimals: u8) -> u128 {
+        (b_wad.max(0) as u128) / crate::math::scalar_for(decimals)
+    }
     pub fn load_curve(&self) -> ([i128; BINS], i128) {
         let mut w = [0i128; BINS];
         for (i, raw) in self.weights.iter().enumerate() {
@@ -201,19 +241,56 @@ impl LadderPosition {
     pub const SPACE: usize = 8 + 32 + 32 + 2 + 2 + 1 + 8 + 8 + 1 + 16;
 }
 
-/// One LP's share of a market's subsidy. Deposited during Seeding only.
-#[account]
+/// One deposit of liquidity. ~1.2 KB because it snapshots the 64 weights it
+/// joined at: that snapshot is the whole of its accounting (`tranche_pnl`), so
+/// a trade never has to touch a tranche.
+#[account(zero_copy)]
 #[derive(Debug)]
-pub struct LadderStake {
+pub struct LadderTranche {
+    pub deposit: u64,
+
     pub ladder: Pubkey,
     pub owner: Pubkey,
-    pub amount: u64,
+
+    /// Liquidity this tranche contributes, WAD, LE i128.
+    pub b: [u8; 16],
+    /// `Ladder::acc_fee` at joining.
+    pub fee_snap: [u8; 16],
+    /// `S` and `wᵢ` at joining.
+    pub join_sum: [u8; 16],
+    pub join_w: [[u8; 16]; BINS],
+
+    pub index: u8,
     pub bump: u8,
-    pub _reserved: [u8; 16],
+    pub _pad: [u8; 6],
 }
 
-impl LadderStake {
-    pub const SPACE: usize = 8 + 32 + 32 + 8 + 1 + 16;
+impl LadderTranche {
+    pub const SPACE: usize = 8 + core::mem::size_of::<LadderTranche>();
+
+    pub fn b_wad(&self) -> i128 {
+        i128::from_le_bytes(self.b)
+    }
+    pub fn fee_snap(&self) -> u128 {
+        u128::from_le_bytes(self.fee_snap)
+    }
+    pub fn join_sum(&self) -> i128 {
+        i128::from_le_bytes(self.join_sum)
+    }
+    pub fn join_weight(&self, i: usize) -> i128 {
+        i128::from_le_bytes(self.join_w[i])
+    }
+
+    /// Record the moment of joining: the liquidity bought and the prices it
+    /// was bought at.
+    pub fn record_join(&mut self, b: i128, w: &[i128; BINS], sum: i128, acc_fee: u128) {
+        self.b = b.to_le_bytes();
+        self.join_sum = sum.to_le_bytes();
+        for (i, v) in w.iter().enumerate() {
+            self.join_w[i] = v.to_le_bytes();
+        }
+        self.fee_snap = acc_fee.to_le_bytes();
+    }
 }
 
 #[cfg(test)]
@@ -227,6 +304,21 @@ mod tests {
         assert_eq!(core::mem::size_of::<Ladder>(), 1880);
         assert_eq!(core::mem::size_of::<Ladder>() % 8, 0);
         assert_eq!(Ladder::SPACE, 1888);
+        assert_eq!(core::mem::size_of::<LadderTranche>(), 1152);
+        assert_eq!(core::mem::size_of::<LadderTranche>() % 8, 0);
+    }
+
+    #[test]
+    fn fees_accrue_per_unit_of_liquidity_and_never_over_promise() {
+        let mut l: Ladder = bytemuck::Zeroable::zeroed();
+        l.accrue_lp_fee(1_000, 4_000);
+        // a tranche holding half the liquidity is owed half, floored
+        let owed = 2_000u128 * l.acc_fee() / FEE_ACC_SCALE;
+        assert_eq!(owed, 500);
+        l.accrue_lp_fee(7, 3); // awkward division
+        let total: u128 = [1u128, 1, 1].iter().map(|b| b * l.acc_fee() / FEE_ACC_SCALE).sum();
+        assert!(total <= 1_000 * 3 / 4_000 + 7, "promised {total}");
+        l.accrue_lp_fee(5, 0); // no liquidity: nothing to credit, no divide by zero
     }
 
     #[test]

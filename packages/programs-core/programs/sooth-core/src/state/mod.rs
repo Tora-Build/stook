@@ -17,7 +17,7 @@ pub mod resolution;
 
 pub use adjudicator::{AdjudicatorEntry, ADJUDICATOR_ENTRY_SEED};
 pub use amm_state::{require_seeded, AmmState};
-pub use ladder::{Ladder, LadderPosition, LadderStake};
+pub use ladder::{Ladder, LadderPosition, LadderTranche};
 pub use lifecycle::MarketLifecycle;
 pub use lock_entry::LockEntry;
 pub use lp_position::LpPosition;
