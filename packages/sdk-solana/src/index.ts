@@ -133,3 +133,9 @@ export {
 // The vendored cross-chain adapter interface — see `./types.ts`.
 export * from "./types.js";
 export * from "./reputation.js";
+
+// Stook's price-ladder markets: quote maths that matches the program to the
+// base unit, account decoders, and instruction builders. Namespaced because
+// names like `price`, `band` and `fresh` are too generic for the package root,
+// and `ladder` is already the order book's depth view.
+export * as stook from "./ladder/index.js";

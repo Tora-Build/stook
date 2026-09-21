@@ -140,8 +140,6 @@ supporting it properly means fee-aware accounting on every path.
 - Token-2022 on the ladder paths is built (`token_interface` throughout) but the
   end-to-end test runs on a classic SPL mint; an xStock-shaped Token-2022 mint
   has not been exercised yet.
-- SDK builders and a bit-exact quote function. The end-to-end test hand-rolls
-  its instructions.
 - The settle crank: fetch the one qualifying update from Hermes (API key
   required since 2026-08-26), post it through the Pyth receiver, call
   `ladder_settle`.

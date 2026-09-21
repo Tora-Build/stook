@@ -1,0 +1,221 @@
+// Instruction builders for the ladder. Hand-encoded rather than routed through
+// the Anchor IDL client: the argument layouts are small and fixed, and this
+// keeps the ladder usable from a bundle that never loads the IDL.
+//
+// Every transaction that reaches `sooth_core` must request a 256 KB heap frame
+// first — `withHeap` does it. The program's allocator assumes it.
+
+import {
+  ComputeBudgetProgram,
+  PublicKey,
+  SystemProgram,
+  TransactionInstruction,
+  type AccountMeta,
+} from "@solana/web3.js";
+import { SOOTH_CORE_PROGRAM_ID } from "../pdas.js";
+import type { Shape } from "./math.js";
+
+const enc = new TextEncoder();
+const SEED_LADDER = enc.encode("ladder");
+const SEED_AUTHORITY = enc.encode("ladder_auth");
+const SEED_VAULT = enc.encode("ladder_vault");
+const SEED_POSITION = enc.encode("ladder_pos");
+const SEED_TRANCHE = enc.encode("ladder_tranche");
+const SEED_CONFIG = enc.encode("protocol_config");
+
+const DISC = {
+  create: [165, 10, 127, 30, 41, 17, 252, 67],
+  open: [88, 129, 233, 84, 136, 27, 112, 248],
+  trade: [162, 88, 142, 115, 117, 138, 37, 209],
+  lpJoin: [232, 117, 195, 166, 157, 89, 197, 128],
+  settle: [124, 60, 106, 236, 76, 223, 153, 206],
+  void: [210, 181, 54, 242, 164, 19, 68, 196],
+  redeem: [202, 8, 83, 149, 73, 199, 152, 198],
+  claimLp: [173, 17, 30, 112, 208, 75, 43, 242],
+  collectFees: [255, 191, 4, 129, 247, 197, 29, 170],
+} as const;
+
+// ── little-endian packing ────────────────────────────────────────────────────
+
+const le = (bytes: number, write: (v: DataView) => void) => {
+  const b = new Uint8Array(bytes);
+  write(new DataView(b.buffer));
+  return b;
+};
+const u8 = (v: number) => Uint8Array.of(v);
+const u16 = (v: number) => le(2, (d) => d.setUint16(0, v, true));
+const i16 = (v: number) => le(2, (d) => d.setInt16(0, v, true));
+const u64 = (v: bigint) => le(8, (d) => d.setBigUint64(0, v, true));
+const i64 = (v: bigint) => le(8, (d) => d.setBigInt64(0, v, true));
+
+function pack(disc: readonly number[], ...parts: Uint8Array[]): Buffer {
+  return Buffer.concat([Uint8Array.from(disc), ...parts]);
+}
+
+const ro = (pubkey: PublicKey): AccountMeta => ({ pubkey, isSigner: false, isWritable: false });
+const rw = (pubkey: PublicKey): AccountMeta => ({ pubkey, isSigner: false, isWritable: true });
+const signer = (pubkey: PublicKey, isWritable = true): AccountMeta => ({ pubkey, isSigner: true, isWritable });
+
+// ── addresses ────────────────────────────────────────────────────────────────
+
+const find = (seeds: Uint8Array[], programId: PublicKey) => PublicKey.findProgramAddressSync(seeds, programId)[0];
+
+export interface LadderKey {
+  feedId: Uint8Array;
+  settlesAt: bigint;
+  quoteMint: PublicKey;
+  tier: number;
+}
+
+/** One market per (feed, settlement time, quote mint, tier). */
+export function deriveLadderPda(k: LadderKey, programId = SOOTH_CORE_PROGRAM_ID): PublicKey {
+  if (k.feedId.length !== 32) throw new Error("feedId must be 32 bytes");
+  return find([SEED_LADDER, k.feedId, i64(k.settlesAt), k.quoteMint.toBytes(), u8(k.tier)], programId);
+}
+export const deriveLadderAuthority = (ladder: PublicKey, programId = SOOTH_CORE_PROGRAM_ID) =>
+  find([SEED_AUTHORITY, ladder.toBytes()], programId);
+export const deriveLadderVault = (ladder: PublicKey, programId = SOOTH_CORE_PROGRAM_ID) =>
+  find([SEED_VAULT, ladder.toBytes()], programId);
+export const deriveLadderPosition = (ladder: PublicKey, owner: PublicKey, s: Shape, programId = SOOTH_CORE_PROGRAM_ID) =>
+  find([SEED_POSITION, ladder.toBytes(), owner.toBytes(), i16(s.lo), i16(s.hi), u8(s.h)], programId);
+/** A wallet's `index`-th tranche. The creator's seed is index 0. */
+export const deriveLadderTranche = (ladder: PublicKey, owner: PublicKey, index = 0, programId = SOOTH_CORE_PROGRAM_ID) =>
+  find([SEED_TRANCHE, ladder.toBytes(), owner.toBytes(), u8(index)], programId);
+const deriveConfig = (programId: PublicKey) => find([SEED_CONFIG], programId);
+
+// ── builders ─────────────────────────────────────────────────────────────────
+
+/** What every builder needs to know about the market it addresses. */
+export interface LadderRefs {
+  ladder: PublicKey;
+  quoteMint: PublicKey;
+  /** `TOKEN_PROGRAM_ID` or `TOKEN_2022_PROGRAM_ID` — whichever owns the mint. */
+  tokenProgram: PublicKey;
+  programId?: PublicKey;
+}
+
+const pid = (r: { programId?: PublicKey }) => r.programId ?? SOOTH_CORE_PROGRAM_ID;
+const ix = (r: { programId?: PublicKey }, data: Buffer, keys: AccountMeta[]) =>
+  new TransactionInstruction({ programId: pid(r), data, keys });
+
+/** The heap request every `sooth_core` transaction must carry, then `ixs`. */
+export function withHeap(ixs: TransactionInstruction[], computeUnits = 200_000): TransactionInstruction[] {
+  return [
+    ComputeBudgetProgram.requestHeapFrame({ bytes: 256 * 1024 }),
+    ComputeBudgetProgram.setComputeUnitLimit({ units: computeUnits }),
+    ...ixs,
+  ];
+}
+
+export interface CreateLadderArgs extends LadderKey {
+  creator: PublicKey;
+  creatorToken: PublicKey;
+  tokenProgram: PublicKey;
+  opensAt: bigint;
+  locksAt: bigint;
+  /** The creator's deposit — tranche 0. At least one whole quote token. */
+  seed: bigint;
+  feeBps: number;
+  /** Who the market is presented as funded by. Defaults to the creator. */
+  sponsor?: PublicKey;
+  programId?: PublicKey;
+}
+
+export function createLadderIx(a: CreateLadderArgs): TransactionInstruction {
+  const programId = pid(a);
+  const ladder = deriveLadderPda(a, programId);
+  return ix(
+    a,
+    pack(DISC.create, a.feedId, u8(a.tier), i64(a.opensAt), i64(a.locksAt), i64(a.settlesAt), u64(a.seed), u16(a.feeBps),
+      (a.sponsor ?? PublicKey.default).toBytes()),
+    [
+      signer(a.creator), ro(deriveConfig(programId)), rw(ladder), ro(deriveLadderAuthority(ladder, programId)),
+      ro(a.quoteMint), rw(deriveLadderVault(ladder, programId)), rw(a.creatorToken),
+      rw(deriveLadderTranche(ladder, a.creator, 0, programId)), ro(a.tokenProgram), ro(SystemProgram.programId),
+    ],
+  );
+}
+
+/** Centre the grid on the oracle price and start trading. Anyone may call it. */
+export const openLadderIx = (r: LadderRefs, cranker: PublicKey, priceUpdate: PublicKey) =>
+  ix(r, pack(DISC.open), [signer(cranker, false), rw(r.ladder), ro(priceUpdate)]);
+
+export interface TradeLadderArgs {
+  user: PublicKey;
+  userToken: PublicKey;
+  shape: Shape;
+  /** Base units. Positive buys, negative sells. */
+  shares: bigint;
+  /** Buying: most to pay, fee included. Selling: least to receive, fee deducted. */
+  limit: bigint;
+}
+
+export function tradeLadderIx(r: LadderRefs, a: TradeLadderArgs): TransactionInstruction {
+  const programId = pid(r);
+  return ix(
+    r,
+    pack(DISC.trade, i16(a.shape.lo), i16(a.shape.hi), u8(a.shape.h), i64(a.shares), u64(a.limit)),
+    [
+      signer(a.user), ro(deriveConfig(programId)), rw(r.ladder), ro(deriveLadderAuthority(r.ladder, programId)),
+      ro(r.quoteMint), rw(deriveLadderVault(r.ladder, programId)), rw(a.userToken),
+      rw(deriveLadderPosition(r.ladder, a.user, a.shape, programId)), ro(r.tokenProgram), ro(SystemProgram.programId),
+    ],
+  );
+}
+
+export interface JoinLadderArgs {
+  lp: PublicKey;
+  lpToken: PublicKey;
+  /** This wallet's tranche number — unused so far. */
+  index: number;
+  deposit: bigint;
+  /** `LadderAccount.curveSeq` as read. The join lands at those prices or fails. */
+  expectedSeq: bigint;
+}
+
+export function joinLadderIx(r: LadderRefs, a: JoinLadderArgs): TransactionInstruction {
+  const programId = pid(r);
+  return ix(
+    r,
+    pack(DISC.lpJoin, u8(a.index), u64(a.deposit), u64(a.expectedSeq)),
+    [
+      signer(a.lp), ro(deriveConfig(programId)), rw(r.ladder), ro(r.quoteMint),
+      rw(deriveLadderVault(r.ladder, programId)), rw(a.lpToken),
+      rw(deriveLadderTranche(r.ladder, a.lp, a.index, programId)), ro(r.tokenProgram), ro(SystemProgram.programId),
+    ],
+  );
+}
+
+/** Settle from the one Pyth update that is the price at `settlesAt`. Anyone. */
+export const settleLadderIx = (r: LadderRefs, cranker: PublicKey, priceUpdate: PublicKey) =>
+  ix(r, pack(DISC.settle), [signer(cranker, false), rw(r.ladder), ro(priceUpdate)]);
+
+/** Give up on a market that never opened, or never got its price. Anyone. */
+export const voidLadderIx = (r: LadderRefs, cranker: PublicKey) =>
+  ix(r, pack(DISC.void), [signer(cranker, false), rw(r.ladder)]);
+
+export function redeemLadderIx(r: LadderRefs, owner: PublicKey, ownerToken: PublicKey, shape: Shape): TransactionInstruction {
+  const programId = pid(r);
+  return ix(r, pack(DISC.redeem), [
+    signer(owner), rw(r.ladder), ro(deriveLadderAuthority(r.ladder, programId)), ro(r.quoteMint),
+    rw(deriveLadderVault(r.ladder, programId)), rw(ownerToken),
+    rw(deriveLadderPosition(r.ladder, owner, shape, programId)), ro(r.tokenProgram),
+  ]);
+}
+
+export function claimLpIx(r: LadderRefs, owner: PublicKey, ownerToken: PublicKey, index = 0): TransactionInstruction {
+  const programId = pid(r);
+  return ix(r, pack(DISC.claimLp), [
+    signer(owner), rw(r.ladder), ro(deriveLadderAuthority(r.ladder, programId)), ro(r.quoteMint),
+    rw(deriveLadderVault(r.ladder, programId)), rw(ownerToken),
+    rw(deriveLadderTranche(r.ladder, owner, index, programId)), ro(r.tokenProgram),
+  ]);
+}
+
+export function collectLadderFeesIx(r: LadderRefs, cranker: PublicKey, creatorToken: PublicKey, treasuryToken: PublicKey): TransactionInstruction {
+  const programId = pid(r);
+  return ix(r, pack(DISC.collectFees), [
+    signer(cranker, false), ro(deriveConfig(programId)), rw(r.ladder), ro(deriveLadderAuthority(r.ladder, programId)),
+    ro(r.quoteMint), rw(deriveLadderVault(r.ladder, programId)), rw(creatorToken), rw(treasuryToken), ro(r.tokenProgram),
+  ]);
+}
