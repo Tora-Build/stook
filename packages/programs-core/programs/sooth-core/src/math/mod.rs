@@ -1,6 +1,8 @@
 //! Math utilities for `sooth_core`.
 //!
 //! - `book`  — WAD↔base-unit conversion shared by the AMM settlement paths.
+//! - `ladder` — the 64-bin price ladder: `lmsr_n` reorganised so a shaped
+//!             trade (band or tent) costs one exp and one ln.
 //! - `lmsr`  — the binary LMSR cost function (exp_wad, ln_wad, cost_delta).
 //! - `lmsr_n` — the same scoring rule over N price bands, which is what a
 //!             "where will it land" market actually needs. The binary form is
@@ -8,6 +10,7 @@
 //! - `wad`   — WAD (1e18) fixed-point primitives.
 
 pub mod book;
+pub mod ladder;
 pub mod lmsr;
 pub mod lmsr_n;
 pub mod wad;
