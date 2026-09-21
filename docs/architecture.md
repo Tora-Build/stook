@@ -122,24 +122,70 @@ was this number" cannot, so settlement is a Pyth read — the 24/7
 `Equity.Index.*` feeds, consumed by a vendored `PriceUpdateV2` layout with no
 Pyth crate — and the resolution stack is unused weight here.
 
-## Token-2022
+## Token-2022, and what an xStock actually is
 
-The assets worth predicting on Solana — xStocks, and the stock-paired tokens
-launched against them — are Token-2022, not classic SPL, and carry 8 decimals.
-The inherited program uses `anchor_spl::token` throughout and cannot custody
-them. Migrating the vault paths to `token_interface` is required before any of
-these can be a market's quote asset, and is the largest single piece of work
-outstanding.
+Every ladder path moves tokens through `token_interface`, so one code path
+serves classic SPL (USDC) and Token-2022. What needed care is which Token-2022
+mints a vault may hold, and the first version of that answer was wrong.
 
-Mints carrying the transfer-fee extension must be refused at creation. A vault
-whose deposits arrive 3% short cannot pay what the curve believes it holds, and
-supporting it properly means fee-aware accounting on every path.
+The first guard refused a mint for *carrying* any of seven extensions. Read
+against a real xStock — NVDAx, from mainnet — it refused the entire asset
+class: xStocks carry `PermanentDelegate`, `Pausable`, `TransferHook`,
+`DefaultAccountState`, `ConfidentialTransferMint`, `ScaledUiAmount` and
+metadata. Two things were wrong with refusing by name:
+
+- Several of those are inert as configured. The `TransferHook` names no
+  program, so no code runs. `DefaultAccountState` is `Initialized`.
+  `ConfidentialTransferMint` cannot reach an account that never opts in, and a
+  vault never does. `ScaledUiAmount` changes the displayed amount only — it is
+  how a tokenized stock survives a split — so the ladder accounts in raw units
+  and a UI applies the multiplier.
+- The rest are not defects to handle but **issuer powers**: a permanent
+  delegate can empty any account of that mint, a pause authority can stall
+  every transfer. No program can defend against either. That is what a
+  regulated issuer's clawback looks like on chain, and holding the token at all
+  means accepting it.
+
+So `token_guard` now reads each extension's contents and returns one of three
+verdicts:
+
+| verdict | meaning | who may create a market |
+|---|---|---|
+| `Open` | nothing breaks the accounting, nobody holds power over the vault | anyone |
+| `IssuerTrusted` | custodiable, but the issuer can move or stall vault funds | anyone, **once the protocol authority has approved the mint** (`approve_quote_mint`) |
+| `Refused` | transfer fee, non-transferable, a hook that names a program, frozen-by-default, interest-bearing, or anything unrecognised | nobody |
+
+The approval is per mint, made once, and says exactly one thing: *we accept
+this issuer's powers*. It cannot lower the bar for a `Refused` mint. Revoking
+it stops new markets and leaves existing ones to finish.
+
+StonkFun's launchpad tokens carry a 1–3% transfer fee and stay refused: a vault
+whose deposits arrive short cannot pay what the curve believes it holds.
+
+Two things about the toolchain, both found by running the real mint:
+
+- The `spl-token-2022` crate Anchor 0.30.1 pins (3.0.5) predates
+  `ScaledUiAmount` and `Pausable`, and errors on a mint carrying an extension
+  it has no name for. The guard therefore walks the TLV region by type number.
+- For the same reason Anchor's `init` could not size a vault for an xStock.
+  The vendored `anchor-syn` fork now sizes token accounts by the same walk
+  (a 175-byte account for NVDAx: base, type byte, `TransferHookAccount`,
+  `PausableAccount`).
+
+`tests/ladder-token2022.test.ts` runs a whole market on NVDAx's real bytes:
+refused unapproved, approval refused from a non-authority, then create → trade
+(SDK quotes exact at 8 decimals) → late LP → settle → redeem → claim, supply
+conserved. That is LiteSVM's Token-2022, not mainnet's; a devnet run with a
+mint carrying the same extensions is still owed.
 
 ## Open
 
-- Token-2022 on the ladder paths is built (`token_interface` throughout) but the
-  end-to-end test runs on a classic SPL mint; an xStock-shaped Token-2022 mint
-  has not been exercised yet.
+- Token-2022 is proven on LiteSVM against a real xStock mint's bytes, not yet
+  on devnet or against mainnet's Token-2022 build.
+- The inherited `create_market` still uses the strict (`Open`-only) bar.
+- The inherited SDK adapter was never updated for `create_market`'s
+  `amm_mint_raw` account, so the inherited engine's SDK tests (adjudicator,
+  zk, order book) fail at market creation. The ladder shares none of that path.
 - The settle crank: fetch the one qualifying update from Hermes (API key
   required since 2026-08-26), post it through the Pyth receiver, call
   `ladder_settle`.

@@ -24,6 +24,7 @@ describe("ladder sdk", () => {
       ["ladder_collect_fees", L.collectLadderFeesIx(refs, k, k, k).data],
       ["ladder_create", L.createLadderIx({ feedId: new Uint8Array(32), settlesAt: 3n, quoteMint: k, tier: 0, creator: k, creatorToken: k, tokenProgram: k, opensAt: 1n, locksAt: 2n, seed: 1n, feeBps: 100 }).data],
     ];
+    built.push(["approve_quote_mint", L.approveQuoteMintIx(k, k).data], ["revoke_quote_mint", L.revokeQuoteMintIx(k, k).data]);
     for (const [name, data] of built) expect([...data.subarray(0, 8)], name).toEqual(disc("global", name));
     expect([...L.LADDER_DISCRIMINATOR]).toEqual(disc("account", "Ladder"));
     expect([...L.POSITION_DISCRIMINATOR]).toEqual(disc("account", "LadderPosition"));

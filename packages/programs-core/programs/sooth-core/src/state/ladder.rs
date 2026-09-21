@@ -34,6 +34,7 @@ pub const LADDER_AUTHORITY_SEED: &[u8] = b"ladder_auth";
 pub const LADDER_VAULT_SEED: &[u8] = b"ladder_vault";
 pub const LADDER_POSITION_SEED: &[u8] = b"ladder_pos";
 pub const LADDER_TRANCHE_SEED: &[u8] = b"ladder_tranche";
+pub const MINT_APPROVAL_SEED: &[u8] = b"mint_approval";
 
 /// Fixed-point scale of the per-unit-`b` fee accumulator.
 pub const FEE_ACC_SCALE: u128 = 1_000_000_000_000_000_000;
@@ -291,6 +292,22 @@ impl LadderTranche {
         }
         self.fee_snap = acc_fee.to_le_bytes();
     }
+}
+
+/// The protocol authority's acceptance of one mint's issuer. See
+/// `token_guard`: needed for mints whose issuer can move or stall what a vault
+/// holds, which includes every xStock.
+#[account]
+#[derive(Debug)]
+pub struct MintApproval {
+    pub mint: Pubkey,
+    pub approved_by: Pubkey,
+    pub approved_at: i64,
+    pub bump: u8,
+}
+
+impl MintApproval {
+    pub const SPACE: usize = 8 + 32 + 32 + 8 + 1;
 }
 
 #[cfg(test)]

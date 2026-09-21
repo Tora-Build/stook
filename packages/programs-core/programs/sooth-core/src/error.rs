@@ -66,6 +66,8 @@ pub enum SoothCoreError {
     /// owner moves it". See `token_guard`.
     #[msg("Mint carries a Token-2022 extension that cannot be custodied")]
     UnsupportedMintExtension,
+    #[msg("Mint gives its issuer power over holders; the protocol authority must approve it first")]
+    MintNeedsApproval,
 
     // ── Oracle settlement ────────────────────────────────────────────────────
     // Each refusal is its own code: the settle crank has to tell "post a

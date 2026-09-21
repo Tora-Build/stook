@@ -468,12 +468,23 @@ pub mod sooth_core {
 
     // ── Stook ladder markets ──────────────────────────────────────────────────
 
-    /// Create a price ladder and seed it. Liquidity enters only before open.
+    /// Accept the issuer of a mint that `token_guard` classes as
+    /// issuer-trusted, so markets may be quoted in it. Protocol authority only.
+    pub fn approve_quote_mint(ctx: Context<ApproveQuoteMint>) -> Result<()> {
+        ladder::approve_quote_mint_handler(ctx)
+    }
+
+    /// Withdraw that acceptance. Existing markets are unaffected.
+    pub fn revoke_quote_mint(ctx: Context<RevokeQuoteMint>) -> Result<()> {
+        ladder::revoke_quote_mint_handler(ctx)
+    }
+
+    /// Create a price ladder; the creator's seed is its first tranche.
     pub fn ladder_create(ctx: Context<LadderCreate>, args: LadderCreateArgs) -> Result<()> {
         ladder::create_handler(ctx, args)
     }
 
-    /// Open a seeded ladder: centre its grid on the Pyth price and fix `b`.
+    /// Open a seeded ladder: centre its grid on the Pyth price.
     /// Permissionless — nothing about opening is a choice.
     pub fn ladder_open(ctx: Context<LadderOpen>) -> Result<()> {
         ladder::open_handler(ctx)

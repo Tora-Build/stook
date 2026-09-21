@@ -1527,17 +1527,50 @@ impl<'a> OptionalCheckScope<'a> {
 }
 
 fn generate_get_token_account_space(mint: &Expr) -> proc_macro2::TokenStream {
+    // STOOK PATCH. Upstream sizes a Token-2022 account by asking the pinned
+    // `spl-token-2022` (3.0.5) for the mint's extension types, and that call
+    // fails outright on any extension newer than the crate — `ScaledUiAmount`
+    // (25) and `Pausable` (26), which every xStock carries. So `init` could
+    // not open a vault for the assets this protocol exists to quote.
+    //
+    // The TLV region is walked by type number instead. A token account needs
+    // an extension of its own for exactly four mint extensions
+    // (`get_required_init_account_extensions` in current spl-token-2022):
+    //
+    //   TransferFeeConfig (1) → TransferFeeAmount       4 + 8
+    //   NonTransferable   (9) → NonTransferableAccount  4 + 0
+    //   TransferHook     (14) → TransferHookAccount     4 + 1
+    //   Pausable         (26) → PausableAccount         4 + 0
+    //
+    // An account with none of them is the base 165 bytes; with any, the
+    // account-type byte is added at offset 165 and the TLVs follow.
     quote! {
         {
             let mint_info = #mint.to_account_info();
             if *mint_info.owner == ::anchor_spl::token_2022::Token2022::id() {
-                use ::anchor_spl::token_2022::spl_token_2022::extension::{BaseStateWithExtensions, ExtensionType, StateWithExtensions};
-                use ::anchor_spl::token_2022::spl_token_2022::state::{Account, Mint};
                 let mint_data = mint_info.try_borrow_data()?;
-                let mint_state = StateWithExtensions::<Mint>::unpack(&mint_data)?;
-                let mint_extensions = mint_state.get_extension_types()?;
-                let required_extensions = ExtensionType::get_required_init_account_extensions(&mint_extensions);
-                ExtensionType::try_calculate_account_len::<Account>(&required_extensions)?
+                let mut extra: usize = 0;
+                let mut at: usize = 166;
+                while at + 4 <= mint_data.len() {
+                    let ty = u16::from_le_bytes([mint_data[at], mint_data[at + 1]]);
+                    let len = u16::from_le_bytes([mint_data[at + 2], mint_data[at + 3]]) as usize;
+                    if ty == 0 {
+                        break;
+                    }
+                    extra += match ty {
+                        1 => 4 + 8,
+                        9 => 4,
+                        14 => 4 + 1,
+                        26 => 4,
+                        _ => 0,
+                    };
+                    at += 4 + len;
+                }
+                if extra == 0 {
+                    ::anchor_spl::token::TokenAccount::LEN
+                } else {
+                    ::anchor_spl::token::TokenAccount::LEN + 1 + extra
+                }
             } else {
                 ::anchor_spl::token::TokenAccount::LEN
             }

@@ -22,6 +22,7 @@ const SEED_VAULT = enc.encode("ladder_vault");
 const SEED_POSITION = enc.encode("ladder_pos");
 const SEED_TRANCHE = enc.encode("ladder_tranche");
 const SEED_CONFIG = enc.encode("protocol_config");
+const SEED_MINT_APPROVAL = enc.encode("mint_approval");
 
 const DISC = {
   create: [165, 10, 127, 30, 41, 17, 252, 67],
@@ -33,6 +34,8 @@ const DISC = {
   redeem: [202, 8, 83, 149, 73, 199, 152, 198],
   claimLp: [173, 17, 30, 112, 208, 75, 43, 242],
   collectFees: [255, 191, 4, 129, 247, 197, 29, 170],
+  approveQuoteMint: [178, 133, 192, 90, 211, 247, 157, 214],
+  revokeQuoteMint: [198, 235, 87, 238, 190, 187, 101, 33],
 } as const;
 
 // ── little-endian packing ────────────────────────────────────────────────────
@@ -81,6 +84,9 @@ export const deriveLadderPosition = (ladder: PublicKey, owner: PublicKey, s: Sha
 /** A wallet's `index`-th tranche. The creator's seed is index 0. */
 export const deriveLadderTranche = (ladder: PublicKey, owner: PublicKey, index = 0, programId = SOOTH_CORE_PROGRAM_ID) =>
   find([SEED_TRANCHE, ladder.toBytes(), owner.toBytes(), u8(index)], programId);
+/** Where the protocol authority's acceptance of a mint's issuer lives. */
+export const deriveMintApproval = (mint: PublicKey, programId = SOOTH_CORE_PROGRAM_ID) =>
+  find([SEED_MINT_APPROVAL, mint.toBytes()], programId);
 const deriveConfig = (programId: PublicKey) => find([SEED_CONFIG], programId);
 
 // ── builders ─────────────────────────────────────────────────────────────────
@@ -118,6 +124,12 @@ export interface CreateLadderArgs extends LadderKey {
   feeBps: number;
   /** Who the market is presented as funded by. Defaults to the creator. */
   sponsor?: PublicKey;
+  /**
+   * Set for a mint whose issuer holds powers over holders — every xStock. The
+   * protocol authority must have approved it (`approveQuoteMintIx`); the
+   * program refuses the market otherwise.
+   */
+  issuerTrusted?: boolean;
   programId?: PublicKey;
 }
 
@@ -132,8 +144,28 @@ export function createLadderIx(a: CreateLadderArgs): TransactionInstruction {
       signer(a.creator), ro(deriveConfig(programId)), rw(ladder), ro(deriveLadderAuthority(ladder, programId)),
       ro(a.quoteMint), rw(deriveLadderVault(ladder, programId)), rw(a.creatorToken),
       rw(deriveLadderTranche(ladder, a.creator, 0, programId)), ro(a.tokenProgram), ro(SystemProgram.programId),
+      // Anchor reads the program's own id as "this optional account is absent".
+      ro(a.issuerTrusted ? deriveMintApproval(a.quoteMint, programId) : programId),
     ],
   );
+}
+
+/** Protocol authority: accept a mint's issuer so markets may be quoted in it. */
+export function approveQuoteMintIx(authority: PublicKey, mint: PublicKey, programId = SOOTH_CORE_PROGRAM_ID): TransactionInstruction {
+  return new TransactionInstruction({
+    programId,
+    data: pack(DISC.approveQuoteMint),
+    keys: [signer(authority), ro(deriveConfig(programId)), ro(mint), rw(deriveMintApproval(mint, programId)), ro(SystemProgram.programId)],
+  });
+}
+
+/** Protocol authority: stop new markets in a mint. Existing ones run on. */
+export function revokeQuoteMintIx(authority: PublicKey, mint: PublicKey, programId = SOOTH_CORE_PROGRAM_ID): TransactionInstruction {
+  return new TransactionInstruction({
+    programId,
+    data: pack(DISC.revokeQuoteMint),
+    keys: [signer(authority), ro(deriveConfig(programId)), rw(deriveMintApproval(mint, programId))],
+  });
 }
 
 /** Centre the grid on the oracle price and start trading. Anyone may call it. */

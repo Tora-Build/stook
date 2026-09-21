@@ -175,6 +175,12 @@ pub struct LadderCreate<'info> {
 
     pub token_program: Interface<'info, TokenInterface>,
     pub system_program: Program<'info, System>,
+
+    /// Present only for a mint whose issuer holds powers over holders (every
+    /// xStock). Its address is derived from the mint, so it cannot be an
+    /// approval of something else.
+    #[account(seeds = [MINT_APPROVAL_SEED, quote_mint.key().as_ref()], bump = mint_approval.bump)]
+    pub mint_approval: Option<Box<Account<'info, MintApproval>>>,
 }
 
 pub fn create_handler(ctx: Context<LadderCreate>, args: LadderCreateArgs) -> Result<()> {
@@ -182,7 +188,10 @@ pub fn create_handler(ctx: Context<LadderCreate>, args: LadderCreateArgs) -> Res
 
     // Can this protocol hold the quote token at all? Asked before anything is
     // written: a market around a transfer-fee mint fails at its first deposit.
-    crate::token_guard::assert_mint_is_custodiable(&ctx.accounts.quote_mint.to_account_info())?;
+    crate::token_guard::assert_mint_allowed(
+        &ctx.accounts.quote_mint.to_account_info(),
+        ctx.accounts.mint_approval.is_some(),
+    )?;
 
     require!((args.tier as usize) < STEP_BPS.len(), SoothCoreError::LadderBadTier);
     require!(args.fee_bps <= MAX_LADDER_FEE_BPS, SoothCoreError::LadderBadFee);
@@ -1094,6 +1103,76 @@ pub fn collect_fees_handler(ctx: Context<LadderCollectFees>) -> Result<()> {
             decimals,
         )?;
     }
+    Ok(())
+}
+
+// ── mint approval ────────────────────────────────────────────────────────────
+
+#[derive(Accounts)]
+pub struct ApproveQuoteMint<'info> {
+    #[account(mut)]
+    pub authority: Signer<'info>,
+
+    #[account(
+        seeds = [PROTOCOL_CONFIG_SEED],
+        bump = config.bump,
+        constraint = config.authority == authority.key() @ SoothCoreError::Unauthorized,
+    )]
+    pub config: Box<Account<'info, ProtocolConfig>>,
+
+    pub mint: Box<InterfaceAccount<'info, Mint>>,
+
+    #[account(
+        init,
+        payer = authority,
+        space = MintApproval::SPACE,
+        seeds = [MINT_APPROVAL_SEED, mint.key().as_ref()],
+        bump,
+    )]
+    pub approval: Box<Account<'info, MintApproval>>,
+
+    pub system_program: Program<'info, System>,
+}
+
+/// Accept a mint's issuer. This says "we know this issuer can claw back and
+/// pause, and we quote markets in their token anyway" — it does not lower the
+/// bar for anything `token_guard` refuses, and approving a refused mint fails
+/// here rather than leaving a useless record.
+pub fn approve_quote_mint_handler(ctx: Context<ApproveQuoteMint>) -> Result<()> {
+    crate::token_guard::assert_mint_allowed(&ctx.accounts.mint.to_account_info(), true)?;
+    let a = &mut ctx.accounts.approval;
+    a.mint = ctx.accounts.mint.key();
+    a.approved_by = ctx.accounts.authority.key();
+    a.approved_at = Clock::get()?.unix_timestamp;
+    a.bump = ctx.bumps.approval;
+    Ok(())
+}
+
+#[derive(Accounts)]
+pub struct RevokeQuoteMint<'info> {
+    #[account(mut)]
+    pub authority: Signer<'info>,
+
+    #[account(
+        seeds = [PROTOCOL_CONFIG_SEED],
+        bump = config.bump,
+        constraint = config.authority == authority.key() @ SoothCoreError::Unauthorized,
+    )]
+    pub config: Box<Account<'info, ProtocolConfig>>,
+
+    #[account(
+        mut,
+        close = authority,
+        seeds = [MINT_APPROVAL_SEED, approval.mint.as_ref()],
+        bump = approval.bump,
+    )]
+    pub approval: Box<Account<'info, MintApproval>>,
+}
+
+/// Stops NEW markets in this mint. Markets that exist run to their end: their
+/// traders entered under the approval, and stranding them would be worse than
+/// whatever prompted the revocation.
+pub fn revoke_quote_mint_handler(_ctx: Context<RevokeQuoteMint>) -> Result<()> {
     Ok(())
 }
 
