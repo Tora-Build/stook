@@ -85,6 +85,26 @@ pub enum SoothCoreError {
     #[msg("Oracle confidence interval is wider than the market allows")]
     OracleTooUncertain,
 
+    // ── Ladder markets ───────────────────────────────────────────────────────
+    #[msg("Unknown step tier")]
+    LadderBadTier,
+    #[msg("Fee is above the ladder maximum")]
+    LadderBadFee,
+    #[msg("Ladder times must satisfy now < opens < locks, and lock at least a minute before settlement")]
+    LadderBadTimes,
+    #[msg("Seed is below one whole quote token")]
+    LadderSeedTooSmall,
+    #[msg("Ladder is not in its seeding phase")]
+    LadderNotSeeding,
+    #[msg("Ladder is not open for trading")]
+    LadderNotOpen,
+    #[msg("Trade size is zero")]
+    LadderZeroTrade,
+    #[msg("Position holds fewer shares than the sale")]
+    LadderInsufficientShares,
+    #[msg("Pool cash would not cover its largest payout")]
+    LadderInsolvent,
+
     // ── AMM ──────────────────────────────────────────────────────────────────
     #[msg("Slippage: cost exceeded max_cost_wad")]
     SlippageExceeded,

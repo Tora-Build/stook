@@ -465,4 +465,22 @@ pub mod sooth_core {
     pub fn book_withdraw(ctx: Context<BookWithdraw>) -> Result<()> {
         book_ops::withdraw_handler(ctx)
     }
+
+    // ── Stook ladder markets ──────────────────────────────────────────────────
+
+    /// Create a price ladder and seed it. Liquidity enters only before open.
+    pub fn ladder_create(ctx: Context<LadderCreate>, args: LadderCreateArgs) -> Result<()> {
+        ladder::create_handler(ctx, args)
+    }
+
+    /// Open a seeded ladder: centre its grid on the Pyth price and fix `b`.
+    /// Permissionless — nothing about opening is a choice.
+    pub fn ladder_open(ctx: Context<LadderOpen>) -> Result<()> {
+        ladder::open_handler(ctx)
+    }
+
+    /// Buy or sell a band or a tent.
+    pub fn ladder_trade(ctx: Context<LadderTrade>, args: LadderTradeArgs) -> Result<()> {
+        ladder::trade_handler(ctx, args)
+    }
 }
