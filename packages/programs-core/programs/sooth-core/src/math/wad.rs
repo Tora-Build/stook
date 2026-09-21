@@ -19,6 +19,10 @@ pub const LN2_WAD: i128 = 693_147_180_559_945_309;
 /// no longer a constant — see `scalar_for`.
 pub const WAD_TO_USDC_SCALAR: u128 = 1_000_000_000_000;
 
+/// Largest divisor `wad_div` handles exactly: its 32-bit-chunk long division
+/// shifts a remainder `< divisor` left by 32, which must stay inside a u128.
+pub const MAX_WAD_DIVISOR: u128 = 1u128 << 96;
+
 /// The WAD-to-base-unit scalar for a mint with `decimals`: 10^(18 - decimals).
 ///
 /// Sooth could hard-code 1e12 because one deployment served one token pair.
@@ -132,6 +136,17 @@ pub fn wad_div(a: i128, b: i128) -> Result<i128, MathError> {
     let num_hi = num_mid >> 64;
     let num_mid_low = num_mid & ((1u128 << 64) - 1);
     let num_low = (num_mid_low << 64) | num_lo_low;
+    // The long division below shifts the running remainder left by 32 bits per
+    // chunk, and the remainder is only bounded by the divisor. Past 2^96 that
+    // shift drops high bits and the quotient comes back wrong — not an error,
+    // a wrong number: a ratio of 1.0078 returned as 0.035 at a divisor of
+    // 2^105. Found by an adversarial audit of a design that would have divided
+    // by a sum of 64 exponentials; unreachable for a USDC-scale `b`, reachable
+    // for a market quoted in a token with a supply in the trillions. Refuse
+    // rather than misprice.
+    if bu > MAX_WAD_DIVISOR {
+        return Err(MathError::Overflow);
+    }
     let mut rem: u128 = num_hi;
     if rem >= bu {
         return Err(MathError::Overflow);
@@ -543,5 +558,29 @@ mod per_market_decimals {
         assert_eq!(scalar_for(9), 1_000_000_000);
         assert_eq!(scalar_for(18), 1);
         assert_eq!(scalar_for(2), 10u128.pow(16));
+    }
+}
+
+#[cfg(test)]
+mod large_divisor {
+    use super::*;
+
+    /// Reference by construction: a = b + b/128 exactly, so a/b = 1 + 1/128 and
+    /// the WAD quotient is 1_007_812_500_000_000_000 with no big-int needed.
+    #[test]
+    fn division_is_exact_up_to_the_bound_and_refused_past_it() {
+        for shift in [32u32, 64, 90, 95] {
+            let b: i128 = 1i128 << shift;
+            let a = b + (b >> 7);
+            assert_eq!(wad_div(a, b).unwrap(), 1_007_812_500_000_000_000, "2^{shift}");
+        }
+        let at = MAX_WAD_DIVISOR as i128;
+        assert_eq!(wad_div(at + (at >> 7), at).unwrap(), 1_007_812_500_000_000_000);
+
+        // One past the bound used to return a wrong number. It must now refuse.
+        for shift in [97u32, 105, 120] {
+            let b: i128 = 1i128 << shift;
+            assert!(wad_div(b + (b >> 7), b).is_err(), "2^{shift} must refuse, not misprice");
+        }
     }
 }
