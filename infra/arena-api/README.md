@@ -26,7 +26,7 @@ URL at demo build time (no trailing slash — the client appends `/api/arena/...
 ```sh
 BASE=https://soo-arena.<account>.workers.dev
 curl -s "$BASE/api/arena/bootstrap" | head -c 200   # {"profile":null,"leaderboard":[],"social":null}
-curl -s "$BASE/api/arena/bootstrap?wallet=EwiENXxrU3PEdmzCttJp9viCR6JZaFnFs3aW9n9a3EWw"  # guest profile echo
+curl -s "$BASE/api/arena/bootstrap?wallet=55kGEMHJyNbD3qcdonCD8UPTqzM85yg2kr6M5UF5P353"  # guest profile echo
 ```
 
 ## Local dev

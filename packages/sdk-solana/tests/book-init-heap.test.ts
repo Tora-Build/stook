@@ -22,7 +22,7 @@ import {
   buildBookInitIxs,
 } from "../src/book/index.js";
 
-const PROGRAM_ID = new PublicKey("EwiENXxrU3PEdmzCttJp9viCR6JZaFnFs3aW9n9a3EWw");
+const PROGRAM_ID = new PublicKey("55kGEMHJyNbD3qcdonCD8UPTqzM85yg2kr6M5UF5P353");
 const PAYER = Keypair.generate().publicKey;
 
 function refs() {

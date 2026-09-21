@@ -104,5 +104,5 @@ export type ChainId = keyof typeof CHAIN_NAMES;
 /// Program ids. There is one program; events self-CPI via Anchor's
 /// `emit_cpi!`, so no separate log program exists.
 export const PROGRAM_IDS = {
-  SOOTH_CORE: "EwiENXxrU3PEdmzCttJp9viCR6JZaFnFs3aW9n9a3EWw",
+  SOOTH_CORE: "55kGEMHJyNbD3qcdonCD8UPTqzM85yg2kr6M5UF5P353",
 } as const;

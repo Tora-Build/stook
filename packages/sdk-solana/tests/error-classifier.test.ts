@@ -16,7 +16,7 @@ const IDL_ERRORS = (
   }
 ).errors;
 
-const CORE_ID = "EwiENXxrU3PEdmzCttJp9viCR6JZaFnFs3aW9n9a3EWw";
+const CORE_ID = "55kGEMHJyNbD3qcdonCD8UPTqzM85yg2kr6M5UF5P353";
 
 const lookup = new Map([
   [CORE_ID, __testing.SOOTH_CORE_ERROR_TABLE],

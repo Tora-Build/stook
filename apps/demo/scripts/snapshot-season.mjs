@@ -36,7 +36,7 @@ function b58(buf) {
 }
 async function discoverMarketRefs(connection) {
   const { PublicKey } = await import("@solana/web3.js");
-  const pid = new PublicKey("EwiENXxrU3PEdmzCttJp9viCR6JZaFnFs3aW9n9a3EWw");
+  const pid = new PublicKey("55kGEMHJyNbD3qcdonCD8UPTqzM85yg2kr6M5UF5P353");
   const disc = Buffer.from([219, 190, 213, 55, 0, 227, 198, 154]);
   const accounts = await connection.getProgramAccounts(pid, {
     filters: [{ memcmp: { offset: 0, bytes: b58(disc) } }],

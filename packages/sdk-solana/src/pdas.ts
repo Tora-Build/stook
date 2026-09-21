@@ -41,7 +41,7 @@ const SEED_ADJUDICATOR = enc.encode("adjudicator");
 const SEED_RESOLUTION = enc.encode("resolution");
 
 export const SOOTH_CORE_PROGRAM_ID = new PublicKey(
-  "EwiENXxrU3PEdmzCttJp9viCR6JZaFnFs3aW9n9a3EWw",
+  "55kGEMHJyNbD3qcdonCD8UPTqzM85yg2kr6M5UF5P353",
 );
 
 // A wrong-length id would otherwise derive a real address for a market that

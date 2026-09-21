@@ -1,7 +1,7 @@
 # zk-resolver
 
 Resolution service for `sooth_core` markets on devnet
-(`EwiENXxrU3PEdmzCttJp9viCR6JZaFnFs3aW9n9a3EWw`). Two jobs:
+(`55kGEMHJyNbD3qcdonCD8UPTqzM85yg2kr6M5UF5P353`). Two jobs:
 
 1. **Attest.** Watch markets whose deadline has passed, obtain a Primus zkTLS
    attestation of the committed data source, and submit `attest_outcome_zk`.

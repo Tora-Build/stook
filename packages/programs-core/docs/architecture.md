@@ -11,7 +11,7 @@
 ## 1. One program
 
 Sooth on Solana is a single Anchor program, `sooth_core`, deployed to devnet at
-`EwiENXxrU3PEdmzCttJp9viCR6JZaFnFs3aW9n9a3EWw`.
+`55kGEMHJyNbD3qcdonCD8UPTqzM85yg2kr6M5UF5P353`.
 
 Market lifecycle, the LMSR AMM, the order book, LP and fee flows, and
 adjudication are Rust modules inside it, calling each other as ordinary

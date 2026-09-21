@@ -48,7 +48,7 @@ const adapter = new SolanaChainAdapter({
     cluster: "devnet",
     rpcUrl: "https://api.devnet.solana.com",
     programs: {
-      soothCore: "EwiENXxrU3PEdmzCttJp9viCR6JZaFnFs3aW9n9a3EWw",
+      soothCore: "55kGEMHJyNbD3qcdonCD8UPTqzM85yg2kr6M5UF5P353",
       usdcMint: "ByF1KoXgDS4hyLmqYh28Gm9s2HoxouAA1VStuKC4hErX", // book venue
       ammMint: "CUsiEVc29hQa9xLBFB7nPQxP1aEiWq1cZkdfn8ATFHBu",  // AMM venue
     },

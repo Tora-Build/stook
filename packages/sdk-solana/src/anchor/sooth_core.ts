@@ -5,7 +5,7 @@
  * IDL can be found at `target/idl/sooth_core.json`.
  */
 export type SoothCore = {
-  "address": "EwiENXxrU3PEdmzCttJp9viCR6JZaFnFs3aW9n9a3EWw",
+  "address": "55kGEMHJyNbD3qcdonCD8UPTqzM85yg2kr6M5UF5P353",
   "metadata": {
     "name": "soothCore",
     "version": "0.0.0",

@@ -20,7 +20,7 @@
 // do not leak into the trading deck.
 
 const DISCOVERY_RPC = "https://api.devnet.solana.com";
-const PROGRAM_ID = "EwiENXxrU3PEdmzCttJp9viCR6JZaFnFs3aW9n9a3EWw";
+const PROGRAM_ID = "55kGEMHJyNbD3qcdonCD8UPTqzM85yg2kr6M5UF5P353";
 const MARKET_ACCOUNT_SIZE = 335;
 const CREATOR_OFFSET = 24;
 
