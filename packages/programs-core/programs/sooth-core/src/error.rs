@@ -67,6 +67,24 @@ pub enum SoothCoreError {
     #[msg("Mint carries a Token-2022 extension that cannot be custodied")]
     UnsupportedMintExtension,
 
+    // ── Oracle settlement ────────────────────────────────────────────────────
+    // Each refusal is its own code: the settle crank has to tell "post a
+    // fresher update and retry" apart from "this feed cannot settle this market".
+    #[msg("Oracle account is not owned by the Pyth receiver program")]
+    OracleWrongOwner,
+    #[msg("Oracle account is not a PriceUpdateV2")]
+    OracleAccountMalformed,
+    #[msg("Oracle price is for a different feed than the market committed to")]
+    OracleWrongFeed,
+    #[msg("Oracle update carries fewer guardian signatures than required")]
+    OracleUnderVerified,
+    #[msg("Oracle price is older than the market allows, or from the future")]
+    OracleStale,
+    #[msg("Oracle price is not positive")]
+    OracleNonPositive,
+    #[msg("Oracle confidence interval is wider than the market allows")]
+    OracleTooUncertain,
+
     // ── AMM ──────────────────────────────────────────────────────────────────
     #[msg("Slippage: cost exceeded max_cost_wad")]
     SlippageExceeded,

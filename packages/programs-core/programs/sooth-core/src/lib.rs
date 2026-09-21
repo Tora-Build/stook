@@ -125,6 +125,7 @@ pub mod events;
 pub mod instructions;
 pub mod math;
 pub mod merkle;
+pub mod oracle;
 pub mod pda;
 pub mod state;
 pub mod token_guard;
