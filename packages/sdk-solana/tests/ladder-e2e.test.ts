@@ -12,7 +12,7 @@
 import { describe, expect, it } from "vitest";
 import { createHash } from "node:crypto";
 import { resolve } from "node:path";
-import { ComputeBudgetProgram, Keypair, PublicKey, SystemProgram, Transaction, TransactionInstruction } from "@solana/web3.js";
+import { ComputeBudgetProgram, Keypair, PublicKey, Transaction, TransactionInstruction } from "@solana/web3.js";
 import { ACCOUNT_SIZE, AccountLayout, MINT_SIZE, MintLayout, TOKEN_PROGRAM_ID } from "@solana/spl-token";
 import { LiteSVM } from "litesvm";
 import { SvmContext } from "./fixtures/svm";
@@ -39,14 +39,6 @@ const updateAt = (price: bigint, publish: bigint, prev: bigint) => {
 };
 
 const disc = (ns: string, name: string) => createHash("sha256").update(`${ns}:${name}`).digest().subarray(0, 8);
-const i64 = (v: bigint) => { const b = Buffer.alloc(8); b.writeBigInt64LE(v); return b; };
-const u64 = (v: bigint) => { const b = Buffer.alloc(8); b.writeBigUInt64LE(v); return b; };
-const i16 = (v: number) => { const b = Buffer.alloc(2); b.writeInt16LE(v); return b; };
-const u16 = (v: number) => { const b = Buffer.alloc(2); b.writeUInt16LE(v); return b; };
-const pda = (seeds: (Buffer | Uint8Array)[]) => PublicKey.findProgramAddressSync(seeds, PROGRAM)[0];
-const ro = (pubkey: PublicKey) => ({ pubkey, isSigner: false, isWritable: false });
-const rw = (pubkey: PublicKey) => ({ pubkey, isSigner: false, isWritable: true });
-const signer = (pubkey: PublicKey, isWritable = true) => ({ pubkey, isSigner: true, isWritable });
 
 const TIER = 2; // 1% steps
 

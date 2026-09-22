@@ -31,7 +31,6 @@ const updateAt = (price: bigint, publish: bigint, prev: bigint) => {
 
 const disc = (name: string) => createHash("sha256").update(`account:${name}`).digest().subarray(0, 8);
 
-const i64 = (v: bigint) => { const b = Buffer.alloc(8); b.writeBigInt64LE(v); return b; };
 const TOKENS = 100_000_000n; // 8 decimals
 
 function boot() {
