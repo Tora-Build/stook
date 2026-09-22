@@ -94,7 +94,7 @@
 
     function bubble(agent, text) {
       const el = document.createElement("div"); el.className = "floor-bubble"; el.textContent = text;
-      Object.assign(el.style, { position: "absolute", left: agent.x * P + "px", top: (agent.y - 14) * P + "px", transform: "translate(-50%, -100%)" });
+      Object.assign(el.style, { position: "absolute", left: agent.x * P + "px", top: (agent.y - 14) * P + "px", transform: "translate(-50%, -100%)", whiteSpace: "normal", width: "max-content", maxWidth: "150px", textAlign: "center" });
       bubbles.appendChild(el); return el;
     }
 
@@ -109,9 +109,9 @@
           const tx = a.state === "walk" ? a.tx : a.hx, ty = a.state === "walk" ? a.ty : a.hy;
           const dx = tx - a.x, dy = ty - a.y, d = Math.hypot(dx, dy);
           const sp = 70 * dt;
-          if (d < sp) { a.x = tx; a.y = ty; a.bob = 0; if (a.state === "walk") { a.state = "talk"; a.partner.state = "talk"; a.face = dx >= 0 ? 1 : -1; a.partner.face = -a.face; talk(a, a.partner); } else { a.state = "home"; a.partner = null; } }
+          if (d < sp) { a.x = tx; a.y = ty; if (a.state === "walk") { a.state = "talk"; a.partner.state = "talk"; talk(a, a.partner); } else { a.state = "home"; a.partner = null; } }
           else {
-            a.x += (dx / d) * sp; a.y += (dy / d) * sp; a.bob += dt * 22; a.face = dx >= 0 ? 1 : -1;
+            a.x += (dx / d) * sp; a.y += (dy / d) * sp;
             // Tables are furniture: nobody walks across one. If the step
             // lands inside a table, push back to its rim and slide along it
             // toward the target instead.
@@ -145,11 +145,9 @@
       ctx.clearRect(0, 0, W, H);
       const px = (x, y, w, h, col) => { ctx.fillStyle = col; ctx.fillRect(Math.round(x), Math.round(y), w, h); };
       for (const a of agents.slice().sort((p, q) => p.y - q.y)) {
-        const x = Math.round(a.x) - 3, y = Math.round(a.y) - 3 + (a.state === "walk" || a.state === "back" ? Math.round(Math.sin(a.bob) * 1) : 0);
+        const x = Math.round(a.x) - 3, y = Math.round(a.y) - 3;
         px(x - 2, y + 1, 10, 5, a.suit);                                  // shoulders
-        if (a.state === "walk" || a.state === "back") px(x + (a.face > 0 ? 8 : -3), y + 2, 1, 3, a.suit); // a swinging arm
         px(x, y - 1, 6, 6, a.skin); px(x, y - 2, 6, 3, a.hair);          // head from above
-        if (a.state === "talk") px(x + (a.face > 0 ? 5 : 0), y + 1, 1, 1, "#0b1120"); // turned a little toward the other
         if (a.paper) px(x + 7, y + 2, 2, 3, "#f4e9c8");
       }
     }
