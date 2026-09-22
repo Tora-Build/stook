@@ -300,3 +300,29 @@ button.link { background: none; border: 0; color: var(--taxi); font: inherit; cu
 .strip dl div { display: grid; grid-template-columns: 7rem 1fr; gap: 1rem; }
 .strip dt { color: var(--cream-2); } .strip dd { margin: 0; word-break: break-all; }
 @media (max-width: 860px) { .tiles { grid-template-columns: 1fr; } .strip dl div { grid-template-columns: 1fr; gap: .1rem; } }
+
+/* calendar */
+.cal { margin: 1rem 0 1.5rem; }
+.cal-title { font-family: var(--px); font-size: .6rem; color: var(--taxi); margin-bottom: .6rem; }
+.cal-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; }
+.cal-dow { font-family: var(--px); font-size: .42rem; color: var(--cream-3); text-align: center; padding: .3rem 0; }
+.cal-cell { min-height: 68px; background: var(--sky-2); border: 2px solid var(--line); padding: .4rem .45rem; display: flex; flex-direction: column; gap: .2rem; color: var(--cream); text-decoration: none; font: inherit; text-align: left; cursor: default; }
+.cal-blank { background: transparent; border-color: transparent; }
+.cal-past { opacity: .35; }
+.cal-open-slot { cursor: pointer; border-style: dashed; background: transparent; }
+.cal-open-slot:hover { border-color: var(--taxi); border-style: solid; }
+.cal-open-slot:disabled { cursor: not-allowed; }
+a.cal-cell:hover { text-decoration: none; border-color: var(--taxi); }
+.cal-today { box-shadow: inset 0 0 0 2px var(--taxi); }
+.cal-today .cal-num { color: var(--taxi); }
+.cal-open { border-color: var(--green); background: #14352a; }
+.cal-seeding { border-color: var(--taxi-2); }
+.cal-settled { background: var(--sky-3); }
+.cal-void { opacity: .5; }
+.cal-num { font-family: var(--px); font-size: .7rem; }
+.cal-status { font-family: var(--px); font-size: .4rem; color: var(--cream-2); }
+.cal-start { color: var(--taxi); }
+.cal-pool { font-size: .7rem; color: var(--cream-2); }
+.sheet-back { position: fixed; inset: 0; background: rgba(11, 17, 32, .7); display: grid; place-items: center; z-index: 40; padding: 1rem; }
+.sheet { width: min(520px, 100%); margin: 0; }
+@media (max-width: 640px) { .cal-cell { min-height: 54px; padding: .3rem; } .cal-status { display: none; } }

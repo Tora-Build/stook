@@ -13,7 +13,6 @@ import { ThemeProvider } from "./components/Theme";
 import { Layout } from "./components/Layout";
 import { Markets } from "./pages/Markets";
 import { Market } from "./pages/Market";
-import { Create } from "./pages/Create";
 import { How } from "./pages/How";
 import { Coin } from "./pages/Coin";
 
@@ -35,7 +34,6 @@ function App() {
                   <Route element={<Layout />}>
                     <Route index element={<Markets />} />
                     <Route path="/m/:id" element={<Market />} />
-                    <Route path="/new" element={<Create />} />
                     <Route path="/how" element={<How />} />
                     <Route path="/c/:symbol" element={<Coin />} />
                   </Route>
