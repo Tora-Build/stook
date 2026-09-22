@@ -93,6 +93,15 @@ An LP's expected trading result is `−b · KL(final ‖ join)`: never positive.
 are paid by fees, or are sponsors paying for a market to exist. That is the
 honest shape of an LMSR and the pitch does not hide it.
 
+## Who finishes a market
+
+Nobody is obliged to run a keeper, so a market pays for its own ending:
+whoever settles it takes half the protocol's fee share. A void pays nothing,
+so a losing trader never prefers voiding to settling. Which price settles is
+fixed by the oracle rule, not by who posts it, so the bounty buys liveness
+without buying discretion. See `docs/design-review/svm-review-2026-09-22.md`
+for the reviews that led here.
+
 ## Continuous UI over banded state
 
 A line is drawn at any price; it buys the band containing it. The band must be
