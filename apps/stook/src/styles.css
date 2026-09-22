@@ -219,11 +219,11 @@ button.link { background: none; border: 0; color: var(--taxi); font: inherit; cu
 /* the street (front page) */
 .main-street { padding: 0; }
 .street { margin: 0; }
-.hero-city { position: relative; min-height: 72vh; overflow: hidden; }
+.hero-city { position: relative; height: clamp(300px, 44vh, 440px); overflow: hidden; }
 .skyline-hero { position: absolute; inset: 0; width: 100%; height: 100%; border-bottom: 0; }
-.hero-copy { position: relative; z-index: 1; max-width: 1100px; margin: 0 auto; padding: 3rem 20px; }
+.hero-copy { position: relative; z-index: 1; max-width: 1100px; margin: 0 auto; padding: 1.6rem 20px; }
 .hero-copy h1 { font-size: clamp(1.3rem, 3.6vw, 2.2rem); color: #f4e9c8; text-shadow: 4px 4px 0 #7d2f22; margin: 0 0 1rem; }
-.lede { font-size: 1.1rem; max-width: 42ch; background: rgba(11,17,32,.78); color: #f4e9c8; padding: 1rem; border: 3px solid #f4e9c8; box-shadow: 6px 6px 0 #7d2f22; display: block; margin: 0 0 1.2rem; }
+.lede { font-size: 1rem; max-width: 46ch; background: rgba(11,17,32,.78); color: #f4e9c8; padding: 1rem; border: 3px solid #f4e9c8; box-shadow: 6px 6px 0 #7d2f22; display: block; margin: 0 0 1.2rem; }
 .cta { display: inline-block; font-family: var(--px); font-size: .62rem; background: var(--taxi); color: #0b1120; text-decoration: none; padding: .85rem 1.1rem; border: 3px solid #0b1120; box-shadow: 5px 5px 0 #0b1120; margin: 0 .8rem .8rem 0; }
 .cta.alt { background: var(--green); color: #f4e9c8; }
 .cta:hover { text-decoration: none; }
@@ -250,7 +250,7 @@ button.link { background: none; border: 0; color: var(--taxi); font: inherit; cu
 .screen .chg { font-family: var(--mono); font-size: .75rem; margin-top: .3rem; color: #8d8670; min-height: 1em; }
 .screen .chg.up { color: #5ef0a0; } .screen .chg.down { color: #e0605a; }
 .floor-note { text-align: center; margin-top: 1.5rem; color: #8d8670; }
-@media (max-width: 860px) { .posts { grid-template-columns: 1fr 1fr; gap: 2rem 1rem; } .hero-city { min-height: 60vh; } }
+@media (max-width: 860px) { .posts { grid-template-columns: 1fr 1fr; gap: 2rem 1rem; } .hero-city { height: auto; min-height: 340px; } }
 
 /* day cards */
 .day-grid { list-style: none; padding: 0; margin: 0 0 1.5rem; display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: .75rem; }

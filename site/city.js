@@ -40,7 +40,8 @@
     if (fctx) fctx.clearRect(0, 0, fctx.canvas.width, fctx.canvas.height);
     for (let i = 0; i < 5; i++) px(0, Math.floor((gh * i) / 5), gw, Math.ceil(gh / 5) + 1, mix(NIGHT[i], DAY[i], t));
     ctx.globalAlpha = Math.max(0, 1 - t * 1.6); for (const [x, y, a] of stars) { if (a && Math.floor(now / 700 + x) % 5 === 0) continue; px(x, y, 1, 1, a ? "#f0a83a" : "#f4e9c8"); } ctx.globalAlpha = 1; // stars twinkle
-    const moonY = Math.floor(lerp(10, gh * 0.62, t)), sunY = Math.floor(lerp(gh * 0.62, 8, t));
+    // the one that is down sits below the street, out of sight; they cross behind the skyline
+    const moonY = Math.floor(lerp(10, gh + 14, t)), sunY = Math.floor(lerp(gh + 14, 8, t));
     px(gw - 28, moonY, 7, 7, "#f4e9c8"); px(gw - 27, moonY - 1, 5, 9, "#f4e9c8"); px(gw - 29, moonY + 1, 9, 5, "#f4e9c8"); px(gw - 25, moonY + 2, 3, 3, "#c9bfa4");
     px(gw - 30, sunY, 10, 10, "#f0a83a"); px(gw - 29, sunY - 1, 8, 12, "#f0a83a"); px(gw - 31, sunY + 1, 12, 8, "#f0a83a"); px(gw - 27, sunY + 2, 4, 4, "#f7c96e");
     for (const [dx, dy] of [[-3, 13], [12, 13], [4, -2], [4, 12], [-2, 3], [11, 3], [-2, 9], [11, 9]]) px(gw - 25 + dx, sunY + dy, 1, 1, "#f0a83a");
