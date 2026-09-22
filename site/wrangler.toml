@@ -1,0 +1,9 @@
+# stooks.xyz — the Stook Street site, served as static assets from a Worker.
+#   cd site && npx wrangler deploy
+name = "stook-street"
+compatibility_date = "2026-08-01"
+assets = { directory = "./", not_found_handling = "single-page-application" }
+routes = [
+  { pattern = "stooks.xyz", custom_domain = true },
+  { pattern = "www.stooks.xyz", custom_domain = true },
+]
