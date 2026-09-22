@@ -168,3 +168,16 @@ button.link { background: none; border: 0; color: var(--taxi); font: inherit; cu
 .live-row { margin: .1rem 0 .2rem; font-size: 1.05rem; }
 .live .up { color: var(--good); } .live .down { color: var(--bad); }
 .live-stale { opacity: .6; }
+
+/* the street */
+.coin-block { margin: 1.5rem 0 2.5rem; }
+.coin-head { display: flex; align-items: center; gap: 1rem; flex-wrap: wrap; padding: .6rem 0; border-bottom: 3px solid var(--line); margin-bottom: 1rem; font-size: .85rem; }
+.coin-sym { font-family: var(--px); font-size: .8rem; color: var(--taxi); }
+.coin-anchor { color: var(--cream); }
+.coin-live { margin-left: auto; }
+.coin-new { font-family: var(--px); font-size: .5rem; border: 3px solid var(--cream); padding: .4rem .6rem; color: var(--cream); }
+.coin-new:hover { border-color: var(--taxi); color: var(--taxi); text-decoration: none; }
+.small { font-size: .85rem; }
+.seg-wrap { flex-wrap: wrap; }
+.hint b { color: var(--cream); }
+@media (max-width: 760px) { .coin-live { margin-left: 0; } }

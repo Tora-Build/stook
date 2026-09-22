@@ -13,6 +13,7 @@ import { feedByHex, feedHex } from "../lib/feeds";
 import { fmtAmount, fmtPrice, fmtWhen, untilText, short } from "../lib/format";
 import { EXPLORER } from "../lib/config";
 import { Live } from "../components/Live";
+import { coinByMint } from "../lib/coins";
 
 export function Market() {
   const { id } = useParams();
@@ -34,7 +35,8 @@ export function Market() {
   if (!l || !refs) return <p className="page muted">{l === null ? "No market at this address." : "Reading the quote token…"}</p>;
 
   const feed = feedByHex(feedHex(l.feedId));
-  const quoteSymbol = l.quoteMint.toBase58() === "GWrd84X5QxdRPAiNUFyiBaNoVZs85oHyWHtonJdd4wqu" ? "STOOK" : mint.data?.decimals === 6 ? "USDC" : "tokens";
+  const coin = coinByMint(l.quoteMint);
+  const quoteSymbol = coin ? coin.symbol : mint.data?.decimals === 6 ? "USDC" : "tokens";
   const tradeable = l.status === "open" && now < Number(l.locksAt);
   const step = stook.nextStep(l, BigInt(now));
   const setHeightAndShape = (h: number) => { setHeight(h); if (shape && shape.h > 1) setShape(stook.tent((shape.lo + shape.hi) / 2, h)); };
@@ -43,6 +45,7 @@ export function Market() {
     <div className="page market">
       <header className="market-head">
         <div>
+          {coin && <span className="sign">${coin.symbol} ROUND</span>}
           <h1>{feed.name} <span className="sym">{feed.symbol}</span></h1>
           <p className="live-row"><Live l={l} dp={feed.dp} /></p>
           <p className="muted">settles {fmtWhen(l.settlesAt)} · {l.stepBps / 100}% bands · fee {l.feeBps / 100}% · funded by {short(l.sponsor)} · <a href={EXPLORER("address", key.toBase58())} target="_blank" rel="noreferrer">account</a></p>

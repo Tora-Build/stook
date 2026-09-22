@@ -1,9 +1,10 @@
 import { useMemo, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { useWallet } from "@solana/wallet-adapter-react";
 import { PublicKey } from "@solana/web3.js";
 import { stook } from "@sooth/sdk-solana";
 import { FEEDS } from "../lib/feeds";
+import { COINS, mintOf } from "../lib/coins";
 import { QUOTE_MINT } from "../lib/config";
 import { ataOf } from "../lib/chain";
 import { useBalance, useMint, useSend } from "../hooks/useChain";
@@ -14,8 +15,12 @@ const hexToBytes = (h: string) => Uint8Array.from(h.replace(/^0x/, "").match(/.{
 
 export function Create() {
   const nav = useNavigate();
+  const [params] = useSearchParams();
   const { publicKey } = useWallet();
-  const send = useSend("Market created");
+  const send = useSend("Round created");
+  const first = COINS.find((c) => c.symbol === params.get("coin")) ?? COINS[0]!;
+  const [coinSym, setCoinSym] = useState<string>(first.symbol);           // a street coin, or "custom"
+  const coin = COINS.find((c) => c.symbol === coinSym) ?? null;
   const [feedId, setFeedId] = useState(FEEDS[0]!.id);
   const [customFeed, setCustomFeed] = useState("");
   const [mintText, setMintText] = useState(QUOTE_MINT?.toBase58() ?? "");
@@ -30,8 +35,9 @@ export function Create() {
   const balance = useBalance(mintKey, mint.data?.tokenProgram);
   const dec = mint.data?.decimals ?? 6;
   const seed = parseAmount(seedText, dec);
-  const feed = customFeed.trim() ? customFeed.trim().replace(/^0x/, "") : feedId;
+  const feed = coin ? coin.anchor.feedId : customFeed.trim() ? customFeed.trim().replace(/^0x/, "") : feedId;
   const feedOk = /^[0-9a-f]{64}$/i.test(feed);
+  const pick = (sym: string) => { setCoinSym(sym); const c = COINS.find((x) => x.symbol === sym); if (c) setMintText(mintOf(c).toBase58()); else setMintText(QUOTE_MINT?.toBase58() ?? ""); };
   const verdict = mint.data?.report.verdict;
 
   const submit = () => {
@@ -51,19 +57,29 @@ export function Create() {
 
   return (
     <div className="page narrow">
-      <h1>Create a market</h1>
-      <p className="explain">Your seed is the market's first liquidity. It buys depth at even odds across all 64 bands, earns 80% of every fee, and the most it can lose is itself. Anyone can add more once the market exists.</p>
+      <h1>Open a round</h1>
+      <p className="explain">A round is on a coin's anchor stock and in the coin. Your seed is its first liquidity: it buys depth at even odds across all 64 bands, earns 80% of every fee, and the most it can lose is itself. Anyone can add more once the round exists.</p>
 
-      <label className="field"><span>Asset (Pyth feed)</span>
-        <select value={feedId} onChange={(e) => setFeedId(e.target.value)} disabled={!!customFeed.trim()}>
-          {FEEDS.map((f) => <option key={f.id} value={f.id}>{f.symbol} — {f.name}</option>)}
-        </select>
-        <input placeholder="or paste any Pyth feed id (64 hex)" value={customFeed} onChange={(e) => setCustomFeed(e.target.value)} />
-        {!feedOk && <span className="warn">Not a feed id.</span>}
+      <label className="field"><span>Coin</span>
+        <div className="seg seg-wrap">
+          {COINS.map((c) => <button key={c.symbol} className={coinSym === c.symbol ? "on" : ""} onClick={() => pick(c.symbol)}>${c.symbol}</button>)}
+          <button className={coinSym === "custom" ? "on" : ""} onClick={() => pick("custom")}>custom</button>
+        </div>
+        {coin && <span className="hint">Rounds on <b>{coin.anchor.name}</b> ({coin.anchor.symbol}), {coin.anchor.hours === "24/7" ? "any time" : `settling inside ${coin.anchor.hours}`}. Quoted in ${coin.symbol}; the coin takes {coin.feeBps / 100}% on every transfer.</span>}
       </label>
 
+      {!coin && (
+        <label className="field"><span>Asset (Pyth feed)</span>
+          <select value={feedId} onChange={(e) => setFeedId(e.target.value)} disabled={!!customFeed.trim()}>
+            {FEEDS.map((f) => <option key={f.id} value={f.id}>{f.symbol} — {f.name}</option>)}
+          </select>
+          <input placeholder="or paste any Pyth feed id (64 hex)" value={customFeed} onChange={(e) => setCustomFeed(e.target.value)} />
+          {!feedOk && <span className="warn">Not a feed id.</span>}
+        </label>
+      )}
+
       <label className="field"><span>Quote token (mint)</span>
-        <input value={mintText} onChange={(e) => setMintText(e.target.value)} />
+        <input value={mintText} onChange={(e) => setMintText(e.target.value)} readOnly={!!coin} />
         {mintKey && mint.data === null && <span className="warn">No mint at this address.</span>}
         {mint.data && (
           <span className={`hint ${verdict === "refused" ? "warn" : ""}`}>
@@ -91,7 +107,7 @@ export function Create() {
       </div>
 
       <button className="primary" disabled={!publicKey || !seed || !feedOk || verdict === "refused" || !mint.data || send.isPending} onClick={submit}>
-        {!publicKey ? "Connect a wallet" : send.isPending ? "Creating…" : "Create market"}
+        {!publicKey ? "Connect a wallet" : send.isPending ? "Opening…" : "Open the round"}
       </button>
     </div>
   );
