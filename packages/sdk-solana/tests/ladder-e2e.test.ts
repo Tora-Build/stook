@@ -49,13 +49,9 @@ function boot() {
   const put = (key: PublicKey, owner: PublicKey, data: Buffer) =>
     ctx.setAccount(key, { executable: false, owner, lamports: 10_000_000n, data: new Uint8Array(data) });
 
-  const [config, configBump] = PublicKey.findProgramAddressSync([Buffer.from("protocol_config")], PROGRAM);
   const treasury = Keypair.generate();
-  // ProtocolConfig: authority, pending_authority, treasury, paused, bump, reserved
-  put(config, PROGRAM, Buffer.concat([
-    disc("account", "ProtocolConfig"), treasury.publicKey.toBuffer(), Buffer.alloc(32), treasury.publicKey.toBuffer(),
-    Buffer.from([0, configBump]), Buffer.alloc(30),
-  ]));
+  svm.airdrop(treasury.publicKey.toBase58() as any, 10_000_000_000n as any);
+  const config = L.deriveProtocolConfig(PROGRAM);
 
   const mint = Keypair.generate().publicKey;
   const mintData = Buffer.alloc(MINT_SIZE);
@@ -72,7 +68,7 @@ function boot() {
   const treasuryToken = fund(treasury.publicKey, 0n);
   const priceAccount = (data: Buffer) => { const k = Keypair.generate().publicKey; put(k, PYTH_RECEIVER, data); return k; };
 
-  return { svm, ctx, config, mint, creator, lp2, lp3, trader, treasuryToken, priceAccount };
+  return { svm, ctx, config, treasury, mint, creator, lp2, lp3, trader, treasuryToken, priceAccount };
 }
 type Env = ReturnType<typeof boot>;
 
@@ -143,6 +139,9 @@ describe("ladder end to end", () => {
     const e = boot();
     const opensAt = PUBLISH_TIME, locksAt = PUBLISH_TIME + 3600n, settlesAt = PUBLISH_TIME + 3700n;
     const m = market(e, settlesAt);
+    await ok(e, L.initializeProtocolIx(e.treasury.publicKey, e.treasury.publicKey, PROGRAM), e.treasury);
+    await refused(e, L.initializeProtocolIx(e.treasury.publicKey, e.treasury.publicKey, PROGRAM), e.treasury); // once
+    expect(L.decodeProtocolConfig(new Uint8Array((e.svm.getAccount(e.config.toBase58() as any) as any).data)).treasury.equals(e.treasury.publicKey)).toBe(true);
 
     // ── Seeding: the creator, then a second LP ─────────────────────────────
     warpClockTo(e.ctx, PUBLISH_TIME - 1000n);
@@ -274,6 +273,7 @@ describe("ladder end to end", () => {
     const e = boot();
     const opensAt = PUBLISH_TIME, locksAt = PUBLISH_TIME + 3600n, settlesAt = PUBLISH_TIME + 3700n;
     const m = market(e, settlesAt);
+    await ok(e, L.initializeProtocolIx(e.treasury.publicKey, e.treasury.publicKey, PROGRAM), e.treasury);
 
     warpClockTo(e.ctx, PUBLISH_TIME - 1000n);
     await ok(e, m.create(5_000_000_000n, opensAt, locksAt), e.creator.kp);

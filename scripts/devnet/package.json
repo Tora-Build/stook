@@ -1,0 +1,10 @@
+{
+  "name": "@stook/devnet-scripts",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "@solana/spl-token": "^0.4.9",
+    "@solana/web3.js": "^1.98.0",
+    "@sooth/sdk-solana": "workspace:*"
+  }
+}

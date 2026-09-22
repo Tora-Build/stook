@@ -25,10 +25,13 @@ describe("ladder sdk", () => {
       ["ladder_create", L.createLadderIx({ feedId: new Uint8Array(32), settlesAt: 3n, quoteMint: k, tier: 0, creator: k, creatorToken: k, tokenProgram: k, opensAt: 1n, locksAt: 2n, seed: 1n, feeBps: 100 }).data],
     ];
     built.push(["approve_quote_mint", L.approveQuoteMintIx(k, k).data], ["revoke_quote_mint", L.revokeQuoteMintIx(k, k).data]);
+    built.push(["initialize_protocol", L.initializeProtocolIx(k, k).data], ["set_paused", L.setPausedIx(k, true).data], ["set_treasury", L.setTreasuryIx(k, k).data],
+      ["transfer_authority", L.transferAuthorityIx(k, k).data], ["accept_authority", L.acceptAuthorityIx(k).data]);
     for (const [name, data] of built) expect([...data.subarray(0, 8)], name).toEqual(disc("global", name));
     expect([...L.LADDER_DISCRIMINATOR]).toEqual(disc("account", "Ladder"));
     expect([...L.POSITION_DISCRIMINATOR]).toEqual(disc("account", "LadderPosition"));
     expect([...L.TRANCHE_DISCRIMINATOR]).toEqual(disc("account", "LadderTranche"));
+    expect([...L.CONFIG_DISCRIMINATOR]).toEqual(disc("account", "ProtocolConfig"));
   });
 
   it("tapers a tent from its centre, even when the taper runs off the ladder", () => {

@@ -1,0 +1,119 @@
+// Reads and writes against the program. Every write goes through the wallet
+// adapter with the heap frame prepended (`stook.withHeap`).
+
+import { Connection, PublicKey, Transaction, type TransactionInstruction } from "@solana/web3.js";
+import { AccountLayout, TOKEN_2022_PROGRAM_ID, TOKEN_PROGRAM_ID, getAssociatedTokenAddressSync } from "@solana/spl-token";
+import { stook, SOOTH_CORE_PROGRAM_ID } from "@sooth/sdk-solana";
+import type { WalletContextState } from "@solana/wallet-adapter-react";
+import { PYTH_PUSH_ORACLE } from "./config";
+
+export interface LadderRow { pubkey: PublicKey; ladder: stook.LadderAccount }
+
+export async function fetchLadders(c: Connection): Promise<LadderRow[]> {
+  const accounts = await c.getProgramAccounts(SOOTH_CORE_PROGRAM_ID, { filters: stook.ladderFilters() });
+  return accounts.map((a) => ({ pubkey: a.pubkey, ladder: stook.decodeLadder(a.account.data) }));
+}
+
+export async function fetchLadder(c: Connection, pubkey: PublicKey): Promise<stook.LadderAccount | null> {
+  const a = await c.getAccountInfo(pubkey);
+  return a ? stook.decodeLadder(a.data) : null;
+}
+
+export interface PositionRow { pubkey: PublicKey; position: stook.LadderPositionAccount }
+export async function fetchPositions(c: Connection, ladder: PublicKey, owner: PublicKey): Promise<PositionRow[]> {
+  const accounts = await c.getProgramAccounts(SOOTH_CORE_PROGRAM_ID, {
+    filters: [
+      { memcmp: { offset: 0, bytes: base58(stook.POSITION_DISCRIMINATOR) } },
+      { memcmp: { offset: 8, bytes: ladder.toBase58() } },
+      { memcmp: { offset: 40, bytes: owner.toBase58() } },
+    ],
+  });
+  return accounts.map((a) => ({ pubkey: a.pubkey, position: stook.decodeLadderPosition(a.account.data) }));
+}
+
+export interface TrancheRow { pubkey: PublicKey; tranche: stook.LadderTrancheAccount }
+export async function fetchTranches(c: Connection, ladder: PublicKey, owner?: PublicKey): Promise<TrancheRow[]> {
+  const filters = [
+    { memcmp: { offset: 0, bytes: base58(stook.TRANCHE_DISCRIMINATOR) } },
+    { memcmp: { offset: 16, bytes: ladder.toBase58() } },
+  ];
+  if (owner) filters.push({ memcmp: { offset: 48, bytes: owner.toBase58() } });
+  const accounts = await c.getProgramAccounts(SOOTH_CORE_PROGRAM_ID, { filters });
+  return accounts.map((a) => ({ pubkey: a.pubkey, tranche: stook.decodeLadderTranche(a.account.data) }));
+}
+
+export interface MintInfo { decimals: number; tokenProgram: PublicKey; report: stook.MintReport }
+export async function fetchMint(c: Connection, mint: PublicKey): Promise<MintInfo | null> {
+  const a = await c.getAccountInfo(mint);
+  if (!a) return null;
+  const report = stook.classifyMint(new Uint8Array(a.data));
+  return { decimals: report.decimals, tokenProgram: a.owner, report };
+}
+
+export async function fetchTokenBalance(c: Connection, mint: PublicKey, owner: PublicKey, tokenProgram: PublicKey): Promise<bigint> {
+  const ata = getAssociatedTokenAddressSync(mint, owner, false, tokenProgram);
+  const a = await c.getAccountInfo(ata);
+  if (!a) return 0n;
+  return AccountLayout.decode(a.data.subarray(0, AccountLayout.span)).amount;
+}
+
+export const ataOf = (mint: PublicKey, owner: PublicKey, tokenProgram: PublicKey) => getAssociatedTokenAddressSync(mint, owner, false, tokenProgram);
+
+/** The live Pyth price for a feed, from the push oracle's devnet account. */
+export interface LivePrice { price: bigint; expo: number; publishTime: number; conf: bigint }
+export async function fetchLivePrice(c: Connection, feedId: Uint8Array): Promise<LivePrice | null> {
+  const [pda] = PublicKey.findProgramAddressSync([Uint8Array.of(0, 0), feedId], PYTH_PUSH_ORACLE);
+  const a = await c.getAccountInfo(pda);
+  if (!a) return null;
+  const d = Buffer.from(a.data);
+  // PriceUpdateV2: disc 8, write_authority 32, verification 1(+8 if partial? no: enum tag 1, then u8 for Partial) — locate the feed id instead.
+  const at = d.indexOf(Buffer.from(feedId));
+  if (at < 0) return null;
+  return { price: d.readBigInt64LE(at + 32), conf: d.readBigUInt64LE(at + 40), expo: d.readInt32LE(at + 48), publishTime: Number(d.readBigInt64LE(at + 52)) };
+}
+
+export async function send(c: Connection, wallet: WalletContextState, ixs: TransactionInstruction[]): Promise<string> {
+  if (!wallet.publicKey || !wallet.sendTransaction) throw new Error("connect a wallet first");
+  const tx = new Transaction().add(...stook.withHeap(ixs, 300_000));
+  tx.feePayer = wallet.publicKey;
+  const { blockhash, lastValidBlockHeight } = await c.getLatestBlockhash();
+  tx.recentBlockhash = blockhash;
+  const sig = await wallet.sendTransaction(tx, c);
+  const conf = await c.confirmTransaction({ signature: sig, blockhash, lastValidBlockHeight }, "confirmed");
+  if (conf.value.err) throw new Error(`transaction failed: ${JSON.stringify(conf.value.err)}`);
+  return sig;
+}
+
+/** Turn a program error in a simulation log into the message a person can act on. */
+export function explain(e: unknown): string {
+  const text = e instanceof Error ? e.message : String(e);
+  const m = text.match(/custom program error: 0x([0-9a-f]+)/i);
+  const logs = (e as { logs?: string[] })?.logs?.join("\n") ?? "";
+  const named = (logs + text).match(/Error Code: (\w+)/);
+  const code = named?.[1] ?? (m ? `0x${m[1]}` : null);
+  const known: Record<string, string> = {
+    SlippageExceeded: "The price moved past your limit. Quote again.",
+    LadderCurveMoved: "A trade landed while you were looking. Refresh the quote and try again.",
+    LadderNotOpen: "The market is not open for trading.",
+    LadderNotJoinable: "The market no longer takes liquidity.",
+    LadderInsufficientShares: "You hold fewer shares than that.",
+    LadderSeedTooSmall: "Deposit at least one whole token.",
+    MintNeedsApproval: "This token's issuer has powers over holders; the protocol must approve the mint before it can quote a market.",
+    UnsupportedMintExtension: "This token cannot be held in a market vault.",
+    ProtocolPaused: "The protocol is paused.",
+    LadderNotFinal: "The market has not settled yet.",
+  };
+  if (code && known[code]) return known[code]!;
+  if (text.includes("User rejected")) return "Signature declined.";
+  return code ? `Program refused: ${code}` : text.slice(0, 200);
+}
+
+export const TOKEN_PROGRAMS = { classic: TOKEN_PROGRAM_ID, token2022: TOKEN_2022_PROGRAM_ID };
+
+const B58 = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz";
+function base58(bytes: Uint8Array): string {
+  let n = 0n; for (const b of bytes) n = (n << 8n) | BigInt(b);
+  let out = ""; for (; n > 0n; n /= 58n) out = B58[Number(n % 58n)] + out;
+  for (const b of bytes) { if (b !== 0) break; out = "1" + out; }
+  return out;
+}
