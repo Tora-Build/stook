@@ -44,10 +44,10 @@ export function LpPanel(p: Props) {
 
   return (
     <section className="panel">
-      <h3>Liquidity</h3>
+      <h3>Provide liquidity</h3>
       <p className="explain">
-        Depth <span className="mono">{fmtAmount(l.b / 10n ** 12n, 6, 0)}</span> from <span className="mono">{fmtAmount(l.depositTotal, dec)}</span> {p.quoteSymbol} deposited.
-        Your deposit joins at today's prices as its own layer: it earns fees on every trade from now on, and at settlement it is worth its deposit plus what the curve moved in its favour — never less than zero.
+        The pool takes the other side of every trade. <span className="mono">{fmtAmount(l.depositTotal, dec)}</span> {p.quoteSymbol} in it gives depth <span className="mono">{fmtAmount(l.b / 10n ** 12n, 6, 0)}</span>.
+        Deposit and you are the house: you earn {(l.feeBps / 100 * 0.8).toFixed(2)}% of every trade from now on, you lose when traders were right, and you can never lose more than you put in.
       </p>
       {joinable && (
         <>
@@ -57,13 +57,14 @@ export function LpPanel(p: Props) {
           </label>
           {depth && (
             <dl className="quote">
-              <div><dt>buys depth</dt><dd className="mono">{fmtAmount(depth / 10n ** 12n, 6, 1)}</dd></div>
-              <div><dt>longest shot today</dt><dd className="mono">1 in {worst.toFixed(0)}</dd></div>
-              <div><dt>worst case</dt><dd className="mono">−{fmtAmount(deposit!, dec)} (all of it)</dd></div>
+              <div><dt>adds depth</dt><dd className="mono">{fmtAmount(depth / 10n ** 12n, 6, 1)}</dd></div>
+              <div><dt>your share of fees from now</dt><dd className="mono">{(Number(depth) / (Number(l.b) + Number(depth)) * 100).toFixed(1)}%</dd></div>
+              <div><dt>worst case</dt><dd className="mono">−{fmtAmount(deposit!, dec)} (the deposit, never more)</dd></div>
+              <div><dt>longest shot right now</dt><dd className="mono">1 in {worst.toFixed(0)}</dd></div>
             </dl>
           )}
           <button className="primary" disabled={!depth || join.isPending || !publicKey} onClick={submit}>
-            {!publicKey ? "Connect a wallet" : join.isPending ? "Sending…" : "Add liquidity"}
+            {!publicKey ? "Connect a wallet" : join.isPending ? "Sending…" : `Deposit ${text} ${p.quoteSymbol}`}
           </button>
         </>
       )}

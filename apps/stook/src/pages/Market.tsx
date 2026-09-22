@@ -12,6 +12,7 @@ import { useNow } from "../hooks/useNow";
 import { feedByHex, feedHex } from "../lib/feeds";
 import { fmtAmount, fmtPrice, fmtWhen, untilText, short } from "../lib/format";
 import { EXPLORER } from "../lib/config";
+import { Live } from "../components/Live";
 
 export function Market() {
   const { id } = useParams();
@@ -43,6 +44,7 @@ export function Market() {
       <header className="market-head">
         <div>
           <h1>{feed.name} <span className="sym">{feed.symbol}</span></h1>
+          <p className="live-row"><Live l={l} dp={feed.dp} /></p>
           <p className="muted">settles {fmtWhen(l.settlesAt)} · {l.stepBps / 100}% bands · fee {l.feeBps / 100}% · funded by {short(l.sponsor)} · <a href={EXPLORER("address", key.toBase58())} target="_blank" rel="noreferrer">account</a></p>
         </div>
         <Status l={l} now={now} step={step} />
@@ -91,7 +93,7 @@ export function Market() {
 function Status({ l, now, step }: { l: stook.LadderAccount; now: number; step: stook.CrankStep | null }) {
   const text =
     l.status === "seeding" ? (step === "open" ? "Waiting for the keeper to open it from the live price" : step === "void" ? "Never opened — can be voided" : `Taking liquidity · opens in ${untilText(l.opensAt, now)}`)
-    : l.status === "open" ? (now < Number(l.locksAt) ? `Trading · locks in ${untilText(l.locksAt, now)}` : step === "settle" ? "Waiting for the settlement price" : step === "void" ? "Price never arrived — can be voided" : `Locked · settles in ${untilText(l.settlesAt, now)}`)
+    : l.status === "open" ? (now < Number(l.locksAt) ? `Trading · locks in ${untilText(l.locksAt, now)}` : step === "settle" ? "Settling — the keeper posts the price within a minute" : step === "void" ? "Price never arrived — can be voided" : `Locked · settles in ${untilText(l.settlesAt, now)}`)
     : l.status === "settled" ? `Settled in band ${l.settledBin} — ${fmtPrice(stook.binBounds(l.settledBin!, l.p0, l.stepBps)[0], l.p0Expo, 2)} to ${stook.binBounds(l.settledBin!, l.p0, l.stepBps)[1] === Infinity ? "∞" : fmtPrice(stook.binBounds(l.settledBin!, l.p0, l.stepBps)[1], l.p0Expo, 2)}`
     : "Void — everyone is refunded what they paid";
   return <div className={`status status-${l.status}`}>{text}</div>;

@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
+import { Link } from "react-router-dom";
 import { useWallet } from "@solana/wallet-adapter-react";
-import { PublicKey } from "@solana/web3.js";
 import { stook } from "@sooth/sdk-solana";
 import { fmtAmount, parseAmount, fmtPrice } from "../lib/format";
 import { ataOf } from "../lib/chain";
@@ -25,43 +25,63 @@ export function TradePanel(p: Props) {
   const { publicKey } = useWallet();
   const [text, setText] = useState("10");
   const [side, setSide] = useState<"buy" | "sell">("buy");
-  const send = useSend(side === "buy" ? "Buy" : "Sell");
+  const send = useSend(side === "buy" ? "Bought" : "Sold");
   const balance = useBalance(p.ladder.quoteMint, p.refs.tokenProgram);
-  const dec = p.ladder.decimals;
+  const l = p.ladder, dec = l.decimals, s = p.shape;
 
   const shares = parseAmount(text, dec);
   const quote = useMemo(() => {
-    if (!p.shape || !shares || shares <= 0n) return null;
+    if (!s || !shares || shares <= 0n) return null;
     try {
-      return stook.quoteTrade({ curve: p.ladder.curve, b: p.ladder.b, feeBps: p.ladder.feeBps, decimals: dec }, p.shape, side === "buy" ? shares : -shares);
+      return stook.quoteTrade({ curve: l.curve, b: l.b, feeBps: l.feeBps, decimals: dec }, s, side === "buy" ? shares : -shares);
     } catch (e) { return { error: (e as Error).message }; }
-  }, [p.shape, shares, side, p.ladder, dec]);
+  }, [s, shares, side, l, dec]);
   const q = quote && "total" in quote ? quote : null;
 
-  const [lo, hi] = p.shape ? [stook.binBounds(Math.max(p.shape.lo, 0), p.ladder.p0, p.ladder.stepBps)[0], stook.binBounds(Math.min(p.shape.hi, 63), p.ladder.p0, p.ladder.stepBps)[1]] : [0, 0];
-  const centre = p.shape && p.shape.h > 1 ? (p.shape.lo + p.shape.hi) / 2 : null;
-  const describe = !p.shape ? null
-    : p.shape.h === 1 ? `${p.symbol} between ${fmtPrice(lo, p.ladder.p0Expo, p.dp)} and ${hi === Infinity ? "∞" : fmtPrice(hi, p.ladder.p0Expo, p.dp)}`
-    : `${p.symbol} at ${fmtPrice(stook.binBounds(centre!, p.ladder.p0, p.ladder.stepBps)[0], p.ladder.p0Expo, p.dp)}, ±${p.shape.h - 1} band${p.shape.h > 2 ? "s" : ""}`;
+  // How likely the shape is to pay at all, and to pay at each level, by the
+  // market's own odds. What a trader needs to compare against the price.
+  const odds = useMemo(() => {
+    if (!s) return null;
+    const [a, z] = stook.shapeBins(s);
+    const byLevel = new Map<number, bigint>();
+    let any = 0n;
+    for (let i = a; i <= z; i++) {
+      const lv = stook.level(s, i); if (!lv) continue;
+      const pr = stook.price(l.curve, i);
+      byLevel.set(lv, (byLevel.get(lv) ?? 0n) + pr); any += pr;
+    }
+    return { any, byLevel: [...byLevel.entries()].sort((x, y) => y[0] - x[0]) };
+  }, [s, l.curve]);
+
+  const priceAt = (i: number) => fmtPrice(stook.binBounds(i, l.p0, l.stepBps)[0], l.p0Expo, p.dp);
+  const [lo, hi] = s ? [stook.binBounds(Math.max(s.lo, 0), l.p0, l.stepBps)[0], stook.binBounds(Math.min(s.hi, 63), l.p0, l.stepBps)[1]] : [0, 0];
+  const centre = s && s.h > 1 ? (s.lo + s.hi) / 2 : null;
+  const describe = !s ? null
+    : s.h === 1 ? `${p.symbol} between ${fmtPrice(lo, l.p0Expo, p.dp)} and ${hi === Infinity ? "∞" : fmtPrice(hi, l.p0Expo, p.dp)}`
+    : `${p.symbol} near ${priceAt(centre!)}, reach ${s.h}`;
 
   const submit = () => {
-    if (!q || !p.shape || !shares || !publicKey) return;
-    send.mutate({ computeUnits: stook.tradeComputeUnits(p.shape), ixs: [stook.tradeLadderIx(p.refs, {
+    if (!q || !s || !shares || !publicKey) return;
+    send.mutate({ computeUnits: stook.tradeComputeUnits(s), ixs: [stook.tradeLadderIx(p.refs, {
       user: publicKey,
-      userToken: ataOf(p.ladder.quoteMint, publicKey, p.refs.tokenProgram),
-      shape: p.shape,
+      userToken: ataOf(l.quoteMint, publicKey, p.refs.tokenProgram),
+      shape: s,
       shares: side === "buy" ? shares : -shares,
-      // The quote IS the program's number; a small allowance covers a trade
+      // The quote is the program's own number; the allowance covers a trade
       // landing between our read and our send.
       limit: side === "buy" ? (q.total * 1005n) / 1000n : (q.total * 995n) / 1000n,
     })] });
   };
 
+  const perShare = q && shares ? Number(q.total) / Number(shares) : null;
+
   return (
     <section className="panel">
-      <div className="seg">
-        <button className={p.mode === "line" ? "on" : ""} onClick={() => p.setMode("line")}>Line</button>
-        <button className={p.mode === "range" ? "on" : ""} onClick={() => p.setMode("range")}>Range</button>
+      <div className="seg-row">
+        <div className="seg">
+          <button className={p.mode === "line" ? "on" : ""} onClick={() => p.setMode("line")}>Line</button>
+          <button className={p.mode === "range" ? "on" : ""} onClick={() => p.setMode("range")}>Range</button>
+        </div>
         {p.mode === "line" && (
           <label className="height">
             reach
@@ -72,11 +92,28 @@ export function TradePanel(p: Props) {
       </div>
       <p className="explain">
         {p.mode === "line"
-          ? "A line pays most at the band you pick and less at each band away from it. Reach is how far it stretches — and how much the centre pays."
-          : "A range pays the same at every band inside it, and nothing outside."}
+          ? <>Click the band you expect. Pays <b>{p.height}×</b> if the price lands there, one less for each band it misses by, nothing beyond {p.height - 1} band{p.height === 2 ? "" : "s"} away.</>
+          : <>Drag across a low and a high. Pays <b>1×</b> anywhere inside, nothing outside.</>}
+        {" "}<Link to="/how">How it works</Link>
       </p>
 
-      <div className="shape-desc">{describe ?? <span className="muted">Nothing drawn yet.</span>}</div>
+      <div className="shape-desc">{describe ?? <span className="muted">Draw on the chart to start.</span>}</div>
+
+      {s && odds && (
+        <table className="ladder-table">
+          <thead><tr><th>If it lands</th><th>chance</th><th>you get</th></tr></thead>
+          <tbody>
+            {odds.byLevel.map(([lv, pr]) => (
+              <tr key={lv}>
+                <td>{s.h === 1 ? "inside the range" : lv === s.h ? "on your band" : `${s.h - lv} band${s.h - lv > 1 ? "s" : ""} off`}</td>
+                <td className="mono">{(Number(pr) / 1e16).toFixed(1)}%</td>
+                <td className="mono amber">{lv}× {shares && side === "buy" ? `= ${fmtAmount(shares * BigInt(lv), dec)}` : ""}</td>
+              </tr>
+            ))}
+            <tr className="muted"><td>anywhere else</td><td className="mono">{(100 - Number(odds.any) / 1e16).toFixed(1)}%</td><td className="mono">0</td></tr>
+          </tbody>
+        </table>
+      )}
 
       <div className="seg">
         <button className={side === "buy" ? "on" : ""} onClick={() => setSide("buy")}>Buy</button>
@@ -89,19 +126,16 @@ export function TradePanel(p: Props) {
       </label>
 
       {quote && "error" in quote && <p className="warn">{quote.error.includes("too large") ? "Too large for this market's depth. Try fewer shares." : quote.error}</p>}
-      {q && p.shape && (
+      {q && s && (
         <dl className="quote">
           <div><dt>{side === "buy" ? "You pay" : "You receive"}</dt><dd className="mono">{fmtAmount(q.total, dec)} {p.quoteSymbol}</dd></div>
-          <div><dt>fee</dt><dd className="mono">{fmtAmount(q.fee, dec)}</dd></div>
-          {side === "buy" && <div><dt>If it lands on your {p.shape.h > 1 ? "line" : "range"}</dt><dd className="mono amber">{fmtAmount(q.maxPayout, dec)} {p.quoteSymbol}</dd></div>}
-          {side === "buy" && <div><dt>per share paid</dt><dd className="mono">{(Number(q.total) / Number(shares)).toFixed(3)}</dd></div>}
+          <div><dt>per share (fee included)</dt><dd className="mono">{perShare!.toFixed(3)}</dd></div>
+          {side === "buy" && <div><dt>best case</dt><dd className="mono amber">{fmtAmount(q.maxPayout, dec)} {p.quoteSymbol} ({(Number(q.maxPayout) / Number(q.total)).toFixed(1)}×)</dd></div>}
         </dl>
       )}
       <button className="primary" disabled={!q || !p.tradeable || send.isPending || !publicKey} onClick={submit}>
-        {!publicKey ? "Connect a wallet" : !p.tradeable ? "Market closed" : send.isPending ? "Sending…" : side === "buy" ? "Buy" : "Sell"}
+        {!publicKey ? "Connect a wallet" : !p.tradeable ? "Market closed" : send.isPending ? "Sending…" : side === "buy" ? `Buy ${text} shares` : `Sell ${text} shares`}
       </button>
     </section>
   );
 }
-
-export const emptyKey = PublicKey.default;

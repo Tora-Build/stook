@@ -4,6 +4,7 @@ import { useLadders } from "../hooks/useChain";
 import { feedByHex, feedHex } from "../lib/feeds";
 import { fmtAmount, fmtPrice, fmtWhen, untilText } from "../lib/format";
 import { useNow } from "../hooks/useNow";
+import { Live } from "../components/Live";
 
 const ORDER: Record<stook.LadderStatus, number> = { open: 0, seeding: 1, settled: 2, void: 3 };
 
@@ -16,7 +17,7 @@ export function Markets() {
     <div className="page">
       <section className="hero">
         <h1>Where will it land?</h1>
-        <p>Pick an asset and a time. Draw a line where you think the price will be. The closer you are, the more it pays — and anyone can fund the market that prices it.</p>
+        <p>Pick an asset and a time. Draw a line where you think the price will be — the closer you are, the more it pays. Or be the house: fund a market and earn its fees. <Link to="/how">How it works</Link></p>
       </section>
       {ladders.isLoading && <p className="muted">Reading markets…</p>}
       {ladders.data?.length === 0 && <p className="muted">No markets yet. <Link to="/new">Create the first.</Link></p>}
@@ -33,6 +34,7 @@ export function Markets() {
                 </div>
                 <div className="card-body">
                   <span>{feed.name} at {fmtWhen(l.settlesAt)}</span>
+                  <Live l={l} dp={feed.dp} compact />
                   {l.status === "open" && top && (
                     <span className="muted">crowd favours {fmtPrice(stook.binBounds(top.i, l.p0, l.stepBps)[0], l.p0Expo, feed.dp)}–{fmtPrice(stook.binBounds(top.i, l.p0, l.stepBps)[1], l.p0Expo, feed.dp)} ({(Number(top.p) / 1e16).toFixed(0)}%)</span>
                   )}

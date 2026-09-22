@@ -10,6 +10,7 @@ export function Layout() {
         <nav>
           <NavLink to="/" end>Markets</NavLink>
           <NavLink to="/new">Create</NavLink>
+          <NavLink to="/how">How it works</NavLink>
         </nav>
         <div className="top-right">
           <Faucet />

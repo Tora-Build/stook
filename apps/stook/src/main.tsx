@@ -13,6 +13,7 @@ import { Layout } from "./components/Layout";
 import { Markets } from "./pages/Markets";
 import { Market } from "./pages/Market";
 import { Create } from "./pages/Create";
+import { How } from "./pages/How";
 
 const qc = new QueryClient({ defaultOptions: { queries: { retry: 1, refetchOnWindowFocus: false } } });
 
@@ -32,6 +33,7 @@ function App() {
                     <Route index element={<Markets />} />
                     <Route path="/m/:id" element={<Market />} />
                     <Route path="/new" element={<Create />} />
+                    <Route path="/how" element={<How />} />
                   </Route>
                 </Routes>
               </BrowserRouter>
