@@ -17,13 +17,20 @@ use crate::oracle::{check_settlement_instant, read_price_update, read_settlement
 use crate::state::ladder::*;
 use crate::state::{require_not_paused, ProtocolConfig, PROTOCOL_CONFIG_SEED};
 
-/// Highest fee a market may charge. A creator who could set 100% could take the
-/// next trade whole.
-pub const MAX_LADDER_FEE_BPS: u16 = 500;
+/// The fee every round charges. Fixed rather than chosen, so a round's address
+/// implies its terms and the first funder cannot poison a slot for everyone.
+pub const LADDER_FEE_BPS: u16 = 100;
 
 /// The gap between the last trade and the settlement read. Nobody should be
 /// able to trade against a price they can already watch forming.
-pub const MIN_LOCK_GAP_SECS: i64 = 60;
+pub const LOCK_GAP_SECS: i64 = 120;
+
+/// A round opens this long after it is started: enough for the keeper to
+/// post the price the grid centres on.
+pub const OPEN_DELAY_SECS: i64 = 60;
+
+/// A round must be started at least this long before it settles.
+pub const MIN_ROUND_SECS: i64 = 15 * 60;
 
 /// Oracle freshness at open, and the widest confidence interval accepted.
 pub const OPEN_MAX_AGE_SECS: i64 = 60;
@@ -138,13 +145,12 @@ fn join(l: &mut Ladder, t: &mut LadderTranche, deposit: u64) -> Result<()> {
 pub struct LadderCreateArgs {
     pub feed_id: [u8; 32],
     pub tier: u8,
-    pub opens_at: i64,
-    pub locks_at: i64,
+    /// The round's settlement instant. Everything else about its timing
+    /// follows: it opens a minute from now and locks `LOCK_GAP_SECS` before.
     pub settles_at: i64,
-    /// The creator's subsidy, in quote base units.
+    /// The starter's deposit, in quote base units — the round's first liquidity.
     pub seed: u64,
-    pub fee_bps: u16,
-    /// Who the market is presented as funded by. Attribution only.
+    /// Who the round is presented as funded by. Attribution only.
     pub sponsor: Pubkey,
 }
 
@@ -157,19 +163,17 @@ pub struct LadderCreate<'info> {
     #[account(seeds = [PROTOCOL_CONFIG_SEED], bump = config.bump)]
     pub config: Box<Account<'info, ProtocolConfig>>,
 
-    /// One market per (creator, feed, settlement time, quote mint, tier). The
-    /// creator is in the seeds so nobody can claim a slot for everyone else
-    /// with a hostile config — a 1-token seed, a 5% fee and a one-second
-    /// trading window would otherwise make "NVDA at Friday 16:00" dead for
-    /// all. Two people creating the same slot get two markets; the app lists
-    /// both.
+    /// One round per (feed, settlement time, quote mint, tier): a slot on the
+    /// street. Whoever funds it first starts it; everyone after adds
+    /// liquidity to the same round. A slot cannot be poisoned by its starter
+    /// because nothing about a round is the starter's choice — the fee is
+    /// fixed and the times derive from `settles_at`.
     #[account(
         init,
         payer = creator,
         space = Ladder::SPACE,
         seeds = [
             LADDER_SEED,
-            creator.key().as_ref(),
             args.feed_id.as_ref(),
             &args.settles_at.to_le_bytes(),
             quote_mint.key().as_ref(),
@@ -262,15 +266,10 @@ pub fn create_handler(ctx: Context<LadderCreate>, args: LadderCreateArgs) -> Res
     )?;
 
     require!((args.tier as usize) < STEP_BPS.len(), SoothCoreError::LadderBadTier);
-    require!(args.fee_bps <= MAX_LADDER_FEE_BPS, SoothCoreError::LadderBadFee);
-
     let now = Clock::get()?.unix_timestamp;
-    require!(
-        now < args.opens_at
-            && args.opens_at < args.locks_at
-            && args.locks_at + MIN_LOCK_GAP_SECS <= args.settles_at,
-        SoothCoreError::LadderBadTimes
-    );
+    let opens_at = now + OPEN_DELAY_SECS;
+    let locks_at = args.settles_at - LOCK_GAP_SECS;
+    require!(now + MIN_ROUND_SECS <= args.settles_at, SoothCoreError::LadderBadTimes);
 
     // At least one whole quote token. Below that `b` rounds to nothing and a
     // single small trade moves a bin from 2% to 80%.
@@ -287,11 +286,11 @@ pub fn create_handler(ctx: Context<LadderCreate>, args: LadderCreateArgs) -> Res
     )?;
 
     let mut l = ctx.accounts.ladder.load_init()?;
-    l.opens_at = args.opens_at;
-    l.locks_at = args.locks_at;
+    l.opens_at = opens_at;
+    l.locks_at = locks_at;
     l.settles_at = args.settles_at;
     l.step_bps = STEP_BPS[args.tier as usize];
-    l.fee_bps = args.fee_bps;
+    l.fee_bps = LADDER_FEE_BPS;
     l.feed_id = args.feed_id;
     l.quote_mint = ctx.accounts.quote_mint.key();
     l.vault = ctx.accounts.vault.key();
@@ -324,8 +323,8 @@ pub fn create_handler(ctx: Context<LadderCreate>, args: LadderCreateArgs) -> Res
         feed_id: args.feed_id,
         quote_mint: ctx.accounts.quote_mint.key(),
         tier: args.tier,
-        opens_at: args.opens_at,
-        locks_at: args.locks_at,
+        opens_at,
+        locks_at,
         settles_at: args.settles_at,
         seed: args.seed,
     });

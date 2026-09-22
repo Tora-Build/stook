@@ -85,7 +85,7 @@ const balance = (e: Env, key: PublicKey) => AccountLayout.decode(Buffer.from((e.
 const exists = (e: Env, key: PublicKey) => { const a: any = e.svm.getAccount(key.toBase58() as any); return !!a && (a.exists ?? true) && BigInt(a.lamports ?? 0) > 0n; };
 
 function market(e: Env, settlesAt: bigint) {
-  const key = { creator: e.creator.kp.publicKey, feedId: NVDA_FEED, settlesAt, quoteMint: e.mint, tier: TIER };
+  const key = { feedId: NVDA_FEED, settlesAt, quoteMint: e.mint, tier: TIER };
   const ladder = L.deriveLadderPda(key, PROGRAM);
   const refs: L.LadderRefs = { ladder, quoteMint: e.mint, tokenProgram: TOKEN_PROGRAM_ID, programId: PROGRAM };
   const vault = L.deriveLadderVault(ladder, PROGRAM);
@@ -116,9 +116,9 @@ function market(e: Env, settlesAt: bigint) {
     position: (lo: number, hi: number, h: number) => L.decodeLadderPosition(raw(posOf(e.trader.kp.publicKey, lo, hi, h))),
     curveSeq: () => state().curveSeq,
     depthOf: (o: PublicKey, index = 0) => L.decodeLadderTranche(raw(trancheOf(o, index))).b,
-    create: (seed: bigint, opens: bigint, locks: bigint) => L.createLadderIx({
-      ...key, creatorToken: e.creator.token, tokenProgram: TOKEN_PROGRAM_ID,
-      opensAt: opens, locksAt: locks, seed, feeBps: 100, programId: PROGRAM,
+    create: (seed: bigint) => L.createLadderIx({
+      ...key, creator: e.creator.kp.publicKey, creatorToken: e.creator.token, tokenProgram: TOKEN_PROGRAM_ID,
+      seed, programId: PROGRAM,
     }),
     join: (w: Env["lp2"], amount: bigint, seq: bigint, index = 0) =>
       L.joinLadderIx(refs, { lp: w.kp.publicKey, lpToken: w.token, index, deposit: amount, expectedSeq: seq }),
@@ -145,7 +145,7 @@ describe("ladder end to end", () => {
 
     // ── Seeding: the creator, then a second LP ─────────────────────────────
     warpClockTo(e.ctx, PUBLISH_TIME - 1000n);
-    const create = await ok(e, m.create(5_000_000_000n, opensAt, locksAt), e.creator.kp);
+    const create = await ok(e, m.create(5_000_000_000n), e.creator.kp);
     await ok(e, m.join(e.lp2, 2_500_000_000n, 0n), e.lp2.kp);
     expect(balance(e, m.vault)).toBe(7_500_000_000n);
 
@@ -286,7 +286,7 @@ describe("ladder end to end", () => {
     await ok(e, L.initializeProtocolIx(e.treasury.publicKey, e.treasury.publicKey, PROGRAM), e.treasury);
 
     warpClockTo(e.ctx, PUBLISH_TIME - 1000n);
-    await ok(e, m.create(5_000_000_000n, opensAt, locksAt), e.creator.kp);
+    await ok(e, m.create(5_000_000_000n), e.creator.kp);
     warpClockTo(e.ctx, PUBLISH_TIME + 10n);
     await ok(e, m.open(e.priceAccount(NVDA_UPDATE)), e.trader.kp);
 

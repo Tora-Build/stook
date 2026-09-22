@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // Devnet market operations from the CLI wallet.
 //
-//   node market.mjs create BTC [--opens-in 120] [--trades-for 3600] [--seed 2000] [--tier 2] [--coin STOOK]
+//   node market.mjs create BTC [--settles-in 1800] [--seed 2000] [--tier 2] [--coin STOOK]
 //     --coin: quote the round in a street coin's devnet twin, on that coin's anchor (feed argument ignored)
 //   node market.mjs open <ladder>      open from Pyth's push-oracle account, once it is fresh
 //   node market.mjs list
@@ -14,7 +14,7 @@ import { stook, SOOTH_CORE_PROGRAM_ID } from "@sooth/sdk-solana";
 
 const FEEDS = Object.fromEntries(JSON.parse(readFileSync(new URL("../../apps/stook/src/lib/feeds.json", import.meta.url), "utf8")).map((f) => [f.symbol, f.id]));
 const PUSH = new PublicKey("pythWSnswVUd12oZpeFP8e9CVaEqJg25g1Vtc2biRsT");
-const c = new Connection(process.env.RPC_URL ?? "https://api.devnet.solana.com", "confirmed");
+const c = new Connection(process.env.RPC_URL ?? "https://soo-rpc.zak-a35.workers.dev", "confirmed");
 const payer = Keypair.fromSecretKey(Uint8Array.from(JSON.parse(readFileSync(process.env.KEYPAIR ?? `${homedir()}/.config/solana/id.json`, "utf8"))));
 const env = readFileSync(new URL("../../apps/stook/.env.local", import.meta.url), "utf8");
 const QUOTE = new PublicKey(env.match(/^VITE_QUOTE_MINT=(\S+)/m)[1]);
@@ -34,13 +34,13 @@ if (cmd === "create") {
   const dec = coinArg ? STREET[coinArg][1] : 6;
   const tokenProgram = coinArg ? TOKEN_2022_PROGRAM_ID : TOKEN_PROGRAM_ID;
   const now = BigInt(Math.floor(Date.now() / 1000));
-  const opensAt = now + BigInt(flag("opens-in", 120)), locksAt = opensAt + BigInt(flag("trades-for", 3600)), settlesAt = locksAt + 120n;
-  const key = { creator: payer.publicKey, feedId: hex(feed), settlesAt, quoteMint: quote, tier: flag("tier", 2) };
+  const settlesAt = now + BigInt(flag("settles-in", 1800));
+  const key = { feedId: hex(feed), settlesAt, quoteMint: quote, tier: flag("tier", 2) };
   const sig = await send([stook.createLadderIx({
-    ...key, creatorToken: getAssociatedTokenAddressSync(quote, payer.publicKey, false, tokenProgram),
-    tokenProgram, opensAt, locksAt, seed: BigInt(flag("seed", 2000)) * 10n ** BigInt(dec), feeBps: 100, issuerTrusted: !!coinArg,
+    ...key, creator: payer.publicKey, creatorToken: getAssociatedTokenAddressSync(quote, payer.publicKey, false, tokenProgram),
+    tokenProgram, seed: BigInt(flag("seed", 2000)) * 10n ** BigInt(dec), issuerTrusted: !!coinArg,
   })]);
-  console.log("created", stook.deriveLadderPda(key).toBase58(), "opens", new Date(Number(opensAt) * 1000).toISOString(), "settles", new Date(Number(settlesAt) * 1000).toISOString(), sig);
+  console.log("started", stook.deriveLadderPda(key).toBase58(), "settles", new Date(Number(settlesAt) * 1000).toISOString(), sig);
 } else if (cmd === "open") {
   const ladderKey = new PublicKey(rest[0]);
   const l = stook.decodeLadder((await c.getAccountInfo(ladderKey)).data);

@@ -74,14 +74,14 @@ describe("a ladder quoted in $STOOK, a 1% transfer-fee mint", () => {
     const fee = report.transferFee!;
 
     const opensAt = PUBLISH_TIME, locksAt = PUBLISH_TIME + 3600n, settlesAt = PUBLISH_TIME + 3700n;
-    const key = { creator: e.creator.kp.publicKey, feedId: NVDA_FEED, settlesAt, quoteMint: e.mint, tier: 2 };
+    const key = { feedId: NVDA_FEED, settlesAt, quoteMint: e.mint, tier: 2 };
     const ladder = L.deriveLadderPda(key, PROGRAM);
     const refs: L.LadderRefs = { ladder, quoteMint: e.mint, tokenProgram: TOKEN_2022_PROGRAM_ID, programId: PROGRAM };
     const vault = L.deriveLadderVault(ladder, PROGRAM);
     const state = () => L.decodeLadder(new Uint8Array(raw(e, ladder).data));
 
     warpClockTo(e.ctx, PUBLISH_TIME - 1000n);
-    const create = (t: boolean) => L.createLadderIx({ ...key, creatorToken: e.creator.token, tokenProgram: TOKEN_2022_PROGRAM_ID, opensAt, locksAt, seed: 1_000n * T, feeBps: 100, issuerTrusted: t, programId: PROGRAM });
+    const create = (t: boolean) => L.createLadderIx({ ...key, creator: e.creator.kp.publicKey, creatorToken: e.creator.token, tokenProgram: TOKEN_2022_PROGRAM_ID, seed: 1_000n * T, issuerTrusted: t, programId: PROGRAM });
     await refused(e, create(false), e.creator.kp, "MintNeedsApproval");
     await ok(e, L.approveQuoteMintIx(e.admin.publicKey, e.mint, PROGRAM), e.admin);
 

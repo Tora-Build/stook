@@ -58,6 +58,27 @@ const devnetMints: Record<string, string> = (() => {
 })();
 
 /** The coin's mint on this cluster, or null while the mainnet mint is unknown and no twin exists. */
+/**
+ * Devnet stand-in feeds. The Pyth key this deployment settles with covers
+ * crypto majors only, so on devnet each coin's rounds run on a major the
+ * keeper can actually open and settle; the app says so on the page. Mainnet
+ * uses the real anchors above. Remove the entry for a coin once its anchor
+ * feed is entitled.
+ */
+const DEVNET_FEEDS: Record<string, { symbol: string; name: string; feedId: string; dp: number }> = {
+  STOOK: { symbol: "BTC", name: "Bitcoin", feedId: "e62df6c8b4a85fe1a67db44dc12de5db330f7ac66b72dc658afedf0f4a415b43", dp: 0 },
+  ZCAT: { symbol: "ETH", name: "Ether", feedId: "ff61491a931112ddf1bd8147cd1b641375f79f5825126d665480874634fd0ace", dp: 2 },
+  KNOTS: { symbol: "SOL", name: "Solana", feedId: "ef0d8b6fda2ceba41da15d4095d1da392a0d2f8ed0c6c7bc0f4cfac8c280b56d", dp: 2 },
+  GP: { symbol: "DOGE", name: "Dogecoin", feedId: "dcef50dd0a4cd2dcc17e45df1676dcb336a11a61c69df7a0299b0150c672d25c", dp: 4 },
+};
+export const isDevnet = Object.keys(devnetMints).length > 0;
+/** The feed a coin's rounds settle on, here: the anchor on mainnet, a stand-in on devnet. */
+export const anchorOf = (c: Coin): Anchor => {
+  const d = isDevnet ? DEVNET_FEEDS[c.symbol] : undefined;
+  return d ? { ...c.anchor, symbol: d.symbol, name: d.name, feedId: d.feedId, dp: d.dp } : c.anchor;
+};
+export const standInNote = (c: Coin): string | null => (isDevnet && DEVNET_FEEDS[c.symbol] ? `On devnet this coin's rounds run on ${DEVNET_FEEDS[c.symbol]!.name}, a stand-in for ${c.anchor.name}, because the test keeper's Pyth key covers crypto majors only.` : null);
+
 export const mintOf = (c: Coin): PublicKey | null => { const k = devnetMints[c.symbol] ?? c.mint; return k ? new PublicKey(k) : null; };
 export const coinByMint = (mint: PublicKey): Coin | undefined => {
   const k = mint.toBase58();

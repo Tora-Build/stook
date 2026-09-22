@@ -46,7 +46,6 @@ const le = (bytes: number, write: (v: DataView) => void) => {
   return b;
 };
 const u8 = (v: number) => Uint8Array.of(v);
-const u16 = (v: number) => le(2, (d) => d.setUint16(0, v, true));
 const i16 = (v: number) => le(2, (d) => d.setInt16(0, v, true));
 const u64 = (v: bigint) => le(8, (d) => d.setBigUint64(0, v, true));
 const i64 = (v: bigint) => le(8, (d) => d.setBigInt64(0, v, true));
@@ -64,17 +63,16 @@ const signer = (pubkey: PublicKey, isWritable = true): AccountMeta => ({ pubkey,
 const find = (seeds: Uint8Array[], programId: PublicKey) => PublicKey.findProgramAddressSync(seeds, programId)[0];
 
 export interface LadderKey {
-  creator: PublicKey;
   feedId: Uint8Array;
   settlesAt: bigint;
   quoteMint: PublicKey;
   tier: number;
 }
 
-/** One market per (creator, feed, settlement time, quote mint, tier). */
+/** One round per (feed, settlement time, quote mint, tier): a slot on the street. */
 export function deriveLadderPda(k: LadderKey, programId = SOOTH_CORE_PROGRAM_ID): PublicKey {
   if (k.feedId.length !== 32) throw new Error("feedId must be 32 bytes");
-  return find([SEED_LADDER, k.creator.toBytes(), k.feedId, i64(k.settlesAt), k.quoteMint.toBytes(), u8(k.tier)], programId);
+  return find([SEED_LADDER, k.feedId, i64(k.settlesAt), k.quoteMint.toBytes(), u8(k.tier)], programId);
 }
 export const deriveLadderAuthority = (ladder: PublicKey, programId = SOOTH_CORE_PROGRAM_ID) =>
   find([SEED_AUTHORITY, ladder.toBytes()], programId);
@@ -131,13 +129,11 @@ export function tradeComputeUnits(shape: Shape): number {
 }
 
 export interface CreateLadderArgs extends LadderKey {
+  creator: PublicKey;
   creatorToken: PublicKey;
   tokenProgram: PublicKey;
-  opensAt: bigint;
-  locksAt: bigint;
-  /** The creator's deposit — tranche 0. At least one whole quote token. */
+  /** The starter's deposit — tranche 0. At least one whole quote token. */
   seed: bigint;
-  feeBps: number;
   /** Who the market is presented as funded by. Defaults to the creator. */
   sponsor?: PublicKey;
   /**
@@ -154,8 +150,7 @@ export function createLadderIx(a: CreateLadderArgs): TransactionInstruction {
   const ladder = deriveLadderPda(a, programId);
   return ix(
     a,
-    pack(DISC.create, a.feedId, u8(a.tier), i64(a.opensAt), i64(a.locksAt), i64(a.settlesAt), u64(a.seed), u16(a.feeBps),
-      (a.sponsor ?? PublicKey.default).toBytes()),
+    pack(DISC.create, a.feedId, u8(a.tier), i64(a.settlesAt), u64(a.seed), (a.sponsor ?? PublicKey.default).toBytes()),
     [
       signer(a.creator), ro(deriveConfig(programId)), rw(ladder), ro(deriveLadderAuthority(ladder, programId)),
       ro(a.quoteMint), rw(deriveLadderVault(ladder, programId)), rw(a.creatorToken),

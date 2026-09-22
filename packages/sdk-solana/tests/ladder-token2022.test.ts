@@ -85,14 +85,14 @@ describe("a ladder quoted in a real xStock", () => {
   it("is refused until the protocol authority accepts the issuer, then runs to an empty vault", async () => {
     const e = boot();
     const opensAt = PUBLISH_TIME, locksAt = PUBLISH_TIME + 3600n, settlesAt = PUBLISH_TIME + 3700n;
-    const key = { creator: e.creator.kp.publicKey, feedId: NVDA_FEED, settlesAt, quoteMint: e.mint, tier: 2 };
+    const key = { feedId: NVDA_FEED, settlesAt, quoteMint: e.mint, tier: 2 };
     const ladder = L.deriveLadderPda(key, PROGRAM);
     const refs: L.LadderRefs = { ladder, quoteMint: e.mint, tokenProgram: TOKEN_2022_PROGRAM_ID, programId: PROGRAM };
     const vault = L.deriveLadderVault(ladder, PROGRAM);
     const state = () => L.decodeLadder(new Uint8Array(raw(e, ladder).data));
     const create = (issuerTrusted: boolean) => L.createLadderIx({
-      ...key, creatorToken: e.creator.token, tokenProgram: TOKEN_2022_PROGRAM_ID,
-      opensAt, locksAt, seed: 500n * TOKENS, feeBps: 100, issuerTrusted, programId: PROGRAM,
+      ...key, creator: e.creator.kp.publicKey, creatorToken: e.creator.token, tokenProgram: TOKEN_2022_PROGRAM_ID,
+      seed: 500n * TOKENS, issuerTrusted, programId: PROGRAM,
     });
 
     // ── what the SDK tells a creator before they try ────────────────────────
@@ -155,8 +155,8 @@ describe("a ladder quoted in a real xStock", () => {
 
     // ── revoking stops the next market, not this one ────────────────────────
     await ok(e, L.revokeQuoteMintIx(e.admin.publicKey, e.mint, PROGRAM), e.admin);
-    const next = L.createLadderIx({ ...key, settlesAt: settlesAt + 86_400n, creatorToken: e.creator.token,
-      tokenProgram: TOKEN_2022_PROGRAM_ID, opensAt: settlesAt + 100n, locksAt: settlesAt + 3600n, seed: 500n * TOKENS, feeBps: 100, issuerTrusted: true, programId: PROGRAM });
+    const next = L.createLadderIx({ ...key, settlesAt: settlesAt + 86_400n, creator: e.creator.kp.publicKey, creatorToken: e.creator.token,
+      tokenProgram: TOKEN_2022_PROGRAM_ID, seed: 500n * TOKENS, issuerTrusted: true, programId: PROGRAM });
     await refused(e, next, e.creator.kp, "AccountNotInitialized");
 
     console.log(`\nTOKEN-2022  real NVDAx mint (679 B, 8 dp, 8 extensions) → issuer-trusted → approved → full lifecycle

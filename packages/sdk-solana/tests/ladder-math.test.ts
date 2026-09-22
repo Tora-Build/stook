@@ -22,7 +22,7 @@ describe("ladder sdk", () => {
       ["ladder_redeem", L.redeemLadderIx(refs, k, k, shape).data],
       ["ladder_claim_lp", L.claimLpIx(refs, k, k).data],
       ["ladder_collect_fees", L.collectLadderFeesIx(refs, k, k, k).data],
-      ["ladder_create", L.createLadderIx({ creator: k, feedId: new Uint8Array(32), settlesAt: 3n, quoteMint: k, tier: 0, creatorToken: k, tokenProgram: k, opensAt: 1n, locksAt: 2n, seed: 1n, feeBps: 100 }).data],
+      ["ladder_create", L.createLadderIx({ creator: k, feedId: new Uint8Array(32), settlesAt: 3n, quoteMint: k, tier: 0, creatorToken: k, tokenProgram: k, seed: 1n }).data],
     ];
     built.push(["approve_quote_mint", L.approveQuoteMintIx(k, k).data], ["revoke_quote_mint", L.revokeQuoteMintIx(k, k).data]);
     built.push(["initialize_protocol", L.initializeProtocolIx(k, k).data], ["set_paused", L.setPausedIx(k, true).data], ["set_treasury", L.setTreasuryIx(k, k).data],

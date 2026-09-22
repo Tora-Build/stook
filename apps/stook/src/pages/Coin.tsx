@@ -1,19 +1,31 @@
 // One coin's post: the anchor's price over the last day, and the round slots
-// — one per hour, today and tomorrow. A slot that nobody has funded is empty;
-// whoever seeds it first opens it and is its first LP.
+// — one per day, settling at the New York close, for the week ahead. A slot
+// nobody has funded is empty; whoever seeds it first starts the round and is
+// its first LP; everyone after adds liquidity to the same round.
 import { useMemo } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
-import { COINS, coinByMint, feedHexToBytes, mintOf } from "../lib/coins";
+import { COINS, anchorOf, coinByMint, feedHexToBytes, mintOf, standInNote } from "../lib/coins";
 import { useLadders } from "../hooks/useChain";
 import { useNow } from "../hooks/useNow";
 import { fmtAmount, untilText } from "../lib/format";
 import type { LadderRow } from "../lib/chain";
 
 const DATA = "https://stooks.xyz";
-const SLOT_SECS = 3600;
-/** A slot can be funded until this long before it settles: trading needs time to happen. */
+/** Rounds settle at 16:00 New York — the close — every day, including weekends for 24/7 anchors. */
+const SETTLE_HOUR_NY = 16;
+/** A slot can be started until this long before it settles: trading needs time to happen. */
 const MIN_LEAD_SECS = 15 * 60;
+const DAYS_AHEAD = 7;
+
+/** Unix seconds of 16:00 New York on the day `offset` days from today (New York). */
+function nyClose(offset: number): number {
+  const now = new Date();
+  const ny = new Date(now.toLocaleString("en-US", { timeZone: "America/New_York" }));
+  const target = new Date(ny); target.setDate(ny.getDate() + offset); target.setHours(SETTLE_HOUR_NY, 0, 0, 0);
+  // the offset between this machine's zone and New York, applied back
+  return Math.floor((target.getTime() - (ny.getTime() - now.getTime())) / 1000);
+}
 
 export function Coin() {
   const { symbol } = useParams();
@@ -24,77 +36,70 @@ export function Coin() {
   const chart = useQuery({ queryKey: ["chart", coin?.symbol], queryFn: async () => (await fetch(`${DATA}/chart?coin=${coin!.symbol}`)).json() as Promise<{ points: [number, number][] }>, enabled: !!coin, refetchInterval: 300_000 });
   const quote = useQuery({ queryKey: ["quote", coin?.symbol], queryFn: async () => (await fetch(`${DATA}/prices`)).json(), enabled: !!coin, refetchInterval: 60_000 });
 
+  const anchor = coin ? anchorOf(coin) : null;
   const mine = useMemo(() => {
-    if (!coin) return [];
-    const feed = feedHexToBytes(coin.anchor.feedId);
+    if (!coin || !anchor) return [];
+    const feed = feedHexToBytes(anchor.feedId);
     return (ladders.data ?? []).filter((r) => coinByMint(r.ladder.quoteMint)?.symbol === coin.symbol && r.ladder.feedId.every((b, i) => b === feed[i]));
-  }, [ladders.data, coin]);
+  }, [ladders.data, coin, anchor]);
 
-  if (!coin) return <p className="page muted">No such coin on the street.</p>;
+  if (!coin || !anchor) return <p className="page muted">No such coin on the street.</p>;
+  const note = standInNote(coin);
   const q = quote.data?.[coin.symbol] as { price: number; change24h: number | null } | undefined;
   const mint = mintOf(coin);
 
-  // Slots: every hour on the hour from the next one, through the end of tomorrow (local time).
+  // Slots: one per day at the New York close, for the week ahead.
   const slots: { at: number; round?: LadderRow }[] = [];
-  const firstSlot = Math.ceil((now + MIN_LEAD_SECS) / SLOT_SECS) * SLOT_SECS;
-  const endOfTomorrow = new Date(); endOfTomorrow.setDate(endOfTomorrow.getDate() + 2); endOfTomorrow.setHours(0, 0, 0, 0);
-  for (let t = firstSlot; t < endOfTomorrow.getTime() / 1000; t += SLOT_SECS) slots.push({ at: t, round: mine.find((r) => Number(r.ladder.settlesAt) === t) });
+  for (let d = 0; slots.length < DAYS_AHEAD; d++) { const at = nyClose(d); if (at - now < MIN_LEAD_SECS) continue; slots.push({ at, round: mine.find((r) => Number(r.ladder.settlesAt) === at) }); }
+  const firstSlot = slots[0]?.at ?? now;
   const past = mine.filter((r) => Number(r.ladder.settlesAt) < firstSlot).sort((a, b) => Number(b.ladder.settlesAt - a.ladder.settlesAt));
-
-  const activate = (at: number) => nav(`/new?coin=${coin.symbol}&settles=${at}`);
-  const byDay = new Map<string, typeof slots>();
-  for (const s of slots) { const d = new Date(s.at * 1000).toLocaleDateString("en-US", { weekday: "long", month: "short", day: "numeric" }); byDay.set(d, [...(byDay.get(d) ?? []), s]); }
+  const start = (at: number) => nav(`/new?coin=${coin.symbol}&settles=${at}`);
+  const when = (at: number) => new Date(at * 1000).toLocaleString("en-US", { weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
 
   return (
     <div className="page">
       <header className="market-head">
         <div>
           <span className="sign">${coin.symbol} · {coin.name.toUpperCase()}</span>
-          <h1>{coin.anchor.name} <span className="sym">{coin.anchor.symbol}</span></h1>
+          <h1>{anchor.name} <span className="sym">{anchor.symbol}</span></h1>
           <p className="live-row">
-            {q ? <><span className="mono">{q.price.toLocaleString("en-US", { minimumFractionDigits: coin.anchor.dp, maximumFractionDigits: coin.anchor.dp })}</span>{q.change24h != null && <span className={`mono ${q.change24h >= 0 ? "up" : "down"}`}> {q.change24h >= 0 ? "+" : ""}{q.change24h.toFixed(2)}% 24h</span>}</> : <span className="muted">price…</span>}
+            {q && !note ? <><span className="mono">{q.price.toLocaleString("en-US", { minimumFractionDigits: coin.anchor.dp, maximumFractionDigits: coin.anchor.dp })}</span>{q.change24h != null && <span className={`mono ${q.change24h >= 0 ? "up" : "down"}`}> {q.change24h >= 0 ? "+" : ""}{q.change24h.toFixed(2)}% 24h</span>}</> : note ? <span className="warn">{note}</span> : <span className="muted">price…</span>}
           </p>
-          <p className="muted">rounds on {coin.anchor.name}, paid in ${coin.symbol} · {coin.anchor.hours === "24/7" ? "every hour, around the clock" : `settling inside ${coin.anchor.hours}`} · the coin takes {coin.feeBps / 100}% on each transfer</p>
+          <p className="muted">one round a day on {anchor.name}, settling at the New York close, paid in ${coin.symbol} · the coin takes {coin.feeBps / 100}% on each transfer</p>
         </div>
       </header>
 
-      <Chart24 points={chart.data?.points ?? []} dp={coin.anchor.dp} />
+      {!note && <Chart24 points={chart.data?.points ?? []} dp={coin.anchor.dp} />}
 
       <section className="slots">
         <h3>Rounds</h3>
-        <p className="explain">One round per hour. An empty hour is a round nobody has funded yet: seed it and you are its first liquidity — the pool at even odds, earning fees on every trade from the first one. <Link to="/how">How it works</Link></p>
-        {[...byDay.entries()].map(([day, list]) => (
-          <div key={day} className="day">
-            <div className="day-head">{day}</div>
-            <ul className="slot-list">
-              {list.map((s) => {
-                const hh = new Date(s.at * 1000).toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" });
-                const r = s.round;
-                return (
-                  <li key={s.at} className={`slot ${r ? `slot-${r.ladder.status}` : "slot-empty"}`}>
-                    <span className="mono slot-time">{hh}</span>
-                    {r ? (
-                      <Link to={`/m/${r.pubkey.toBase58()}`} className="slot-link">
-                        <span className={`pill pill-${r.ladder.status}`}>{r.ladder.status === "open" ? (now < Number(r.ladder.locksAt) ? "trading" : "locked") : r.ladder.status}</span>
-                        <span className="mono muted">pool {fmtAmount(r.ladder.depositTotal, r.ladder.decimals, 0)} · {r.ladder.curveSeq.toString()} trades</span>
-                        <span className="muted">{r.ladder.status === "open" ? `locks in ${untilText(r.ladder.locksAt, now)}` : ""}</span>
-                      </Link>
-                    ) : (
-                      <button className="small" onClick={() => activate(s.at)} disabled={!mint}>Activate — be the first LP</button>
-                    )}
-                  </li>
-                );
-              })}
-            </ul>
-          </div>
-        ))}
+        <p className="explain">One round a day, settling at 4:00 PM New York. An empty day is a round nobody has funded yet: <b>start it</b> and you are its first liquidity — even odds, earning fees on every trade from the first one. Once started, everyone else joins the same round. <Link to="/how">How it works</Link></p>
+        <ul className="slot-list">
+          {slots.map((s) => {
+            const r = s.round;
+            return (
+              <li key={s.at} className={`slot ${r ? `slot-${r.ladder.status}` : "slot-empty"}`}>
+                <span className="mono slot-time">{when(s.at)}</span>
+                {r ? (
+                  <Link to={`/m/${r.pubkey.toBase58()}`} className="slot-link">
+                    <span className={`pill pill-${r.ladder.status}`}>{r.ladder.status === "open" ? (now < Number(r.ladder.locksAt) ? "trading" : "locked") : r.ladder.status === "seeding" ? "opening" : r.ladder.status}</span>
+                    <span className="mono muted">pool {fmtAmount(r.ladder.depositTotal, r.ladder.decimals, 0)} ${coin.symbol} · {r.ladder.curveSeq.toString()} trades</span>
+                    <span className="muted">{r.ladder.status === "open" && now < Number(r.ladder.locksAt) ? `locks in ${untilText(r.ladder.locksAt, now)}` : ""}</span>
+                  </Link>
+                ) : (
+                  <button className="small" onClick={() => start(s.at)} disabled={!mint}>Start this round</button>
+                )}
+              </li>
+            );
+          })}
+        </ul>
         {past.length > 0 && (
           <div className="day">
             <div className="day-head">Earlier</div>
             <ul className="slot-list">
               {past.map((r) => (
                 <li key={r.pubkey.toBase58()} className={`slot slot-${r.ladder.status}`}>
-                  <span className="mono slot-time">{new Date(Number(r.ladder.settlesAt) * 1000).toLocaleString("en-US", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}</span>
+                  <span className="mono slot-time">{when(Number(r.ladder.settlesAt))}</span>
                   <Link to={`/m/${r.pubkey.toBase58()}`} className="slot-link"><span className={`pill pill-${r.ladder.status}`}>{r.ladder.status}</span><span className="mono muted">pool {fmtAmount(r.ladder.depositTotal, r.ladder.decimals, 0)}</span></Link>
                 </li>
               ))}

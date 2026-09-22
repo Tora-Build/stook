@@ -5,12 +5,16 @@ import { Connection, PublicKey, Transaction, type TransactionInstruction } from 
 import { AccountLayout, TOKEN_2022_PROGRAM_ID, TOKEN_PROGRAM_ID, getAssociatedTokenAddressSync } from "@solana/spl-token";
 import { stook, SOOTH_CORE_PROGRAM_ID } from "@sooth/sdk-solana";
 import type { WalletContextState } from "@solana/wallet-adapter-react";
-import { PYTH_PUSH_ORACLE } from "./config";
+import { PYTH_PUSH_ORACLE, SCAN_RPC_URL } from "./config";
 
 export interface LadderRow { pubkey: PublicKey; ladder: stook.LadderAccount }
 
-export async function fetchLadders(c: Connection): Promise<LadderRow[]> {
-  const accounts = await c.getProgramAccounts(SOOTH_CORE_PROGRAM_ID, { filters: stook.ladderFilters() });
+// Account scans go to the public endpoint: keyed free tiers refuse
+// getProgramAccounts, and the public one copes with a scan every few seconds.
+const scanner = new Connection(SCAN_RPC_URL, "confirmed");
+
+export async function fetchLadders(_c: Connection): Promise<LadderRow[]> {
+  const accounts = await scanner.getProgramAccounts(SOOTH_CORE_PROGRAM_ID, { filters: stook.ladderFilters() });
   return accounts.map((a) => ({ pubkey: a.pubkey, ladder: stook.decodeLadder(a.account.data) }));
 }
 
@@ -20,8 +24,8 @@ export async function fetchLadder(c: Connection, pubkey: PublicKey): Promise<sto
 }
 
 export interface PositionRow { pubkey: PublicKey; position: stook.LadderPositionAccount }
-export async function fetchPositions(c: Connection, ladder: PublicKey, owner: PublicKey): Promise<PositionRow[]> {
-  const accounts = await c.getProgramAccounts(SOOTH_CORE_PROGRAM_ID, {
+export async function fetchPositions(_c: Connection, ladder: PublicKey, owner: PublicKey): Promise<PositionRow[]> {
+  const accounts = await scanner.getProgramAccounts(SOOTH_CORE_PROGRAM_ID, {
     filters: [
       { memcmp: { offset: 0, bytes: base58(stook.POSITION_DISCRIMINATOR) } },
       { memcmp: { offset: 8, bytes: ladder.toBase58() } },
@@ -32,13 +36,13 @@ export async function fetchPositions(c: Connection, ladder: PublicKey, owner: Pu
 }
 
 export interface TrancheRow { pubkey: PublicKey; tranche: stook.LadderTrancheAccount }
-export async function fetchTranches(c: Connection, ladder: PublicKey, owner?: PublicKey): Promise<TrancheRow[]> {
+export async function fetchTranches(_c: Connection, ladder: PublicKey, owner?: PublicKey): Promise<TrancheRow[]> {
   const filters = [
     { memcmp: { offset: 0, bytes: base58(stook.TRANCHE_DISCRIMINATOR) } },
     { memcmp: { offset: 16, bytes: ladder.toBase58() } },
   ];
   if (owner) filters.push({ memcmp: { offset: 48, bytes: owner.toBase58() } });
-  const accounts = await c.getProgramAccounts(SOOTH_CORE_PROGRAM_ID, { filters });
+  const accounts = await scanner.getProgramAccounts(SOOTH_CORE_PROGRAM_ID, { filters });
   return accounts.map((a) => ({ pubkey: a.pubkey, tranche: stook.decodeLadderTranche(a.account.data) }));
 }
 
@@ -74,14 +78,24 @@ export async function fetchLivePrice(c: Connection, feedId: Uint8Array): Promise
 
 export async function send(c: Connection, wallet: WalletContextState, ixs: TransactionInstruction[], computeUnits = 120_000): Promise<string> {
   if (!wallet.publicKey || !wallet.sendTransaction) throw new Error("connect a wallet first");
-  const tx = new Transaction().add(...stook.withHeap(ixs, computeUnits, 20_000));
-  tx.feePayer = wallet.publicKey;
-  const { blockhash, lastValidBlockHeight } = await c.getLatestBlockhash();
-  tx.recentBlockhash = blockhash;
-  const sig = await wallet.sendTransaction(tx, c);
-  const conf = await c.confirmTransaction({ signature: sig, blockhash, lastValidBlockHeight }, "confirmed");
-  if (conf.value.err) throw new Error(`transaction failed: ${JSON.stringify(conf.value.err)}`);
-  return sig;
+  // A blockhash lives ~60–90 s. The wallet's own approval can eat most of
+  // that, so the blockhash is taken as late as possible and a transaction
+  // that still expires is rebuilt and sent once more.
+  for (let attempt = 0; ; attempt++) {
+    const tx = new Transaction().add(...stook.withHeap(ixs, computeUnits, 20_000));
+    tx.feePayer = wallet.publicKey;
+    const { blockhash, lastValidBlockHeight } = await c.getLatestBlockhash("confirmed");
+    tx.recentBlockhash = blockhash;
+    const sig = await wallet.sendTransaction(tx, c, { maxRetries: 5, preflightCommitment: "confirmed" });
+    try {
+      const conf = await c.confirmTransaction({ signature: sig, blockhash, lastValidBlockHeight }, "confirmed");
+      if (conf.value.err) throw new Error(`transaction failed: ${JSON.stringify(conf.value.err)}`);
+      return sig;
+    } catch (e) {
+      const expired = e instanceof Error && /expired|block height exceeded/i.test(e.message);
+      if (!expired || attempt >= 1) throw e;
+    }
+  }
 }
 
 /** Turn a program error in a simulation log into the message a person can act on. */

@@ -49,7 +49,7 @@ pub enum SoothCoreError {
     LadderBadTier,
     #[msg("Fee is above the ladder maximum")]
     LadderBadFee,
-    #[msg("Ladder times must satisfy now < opens < locks, and lock at least a minute before settlement")]
+    #[msg("A round must be started at least fifteen minutes before it settles")]
     LadderBadTimes,
     #[msg("Seed is below one whole quote token")]
     LadderSeedTooSmall,

@@ -34,13 +34,16 @@ import { stook, SOOTH_CORE_PROGRAM_ID } from "@sooth/sdk-solana";
 const { PythSolanaReceiver } = createRequire(import.meta.url)("@pythnetwork/pyth-solana-receiver");
 
 const args = new Set(process.argv.slice(2));
-const RPC_URL = process.env.RPC_URL ?? "https://api.devnet.solana.com";
+const RPC_URL = process.env.RPC_URL ?? "https://soo-rpc.zak-a35.workers.dev";
 const HERMES = (process.env.HERMES_URL ?? "https://hermes.pyth.network").replace(/\/$/, "");
 const KEYPAIR = process.env.KEYPAIR ?? `${homedir()}/.config/solana/id.json`;
 const INTERVAL = Number(process.env.CRANK_INTERVAL_SECS ?? 5) * 1000;
 const FULL = process.env.FULL_VERIFICATION === "1";
 
 const connection = new Connection(RPC_URL, "confirmed");
+// Scanning for markets needs getProgramAccounts, which keyed free tiers refuse;
+// the public endpoint serves it fine at one scan per pass.
+const scanner = new Connection(process.env.SCAN_RPC_URL ?? "https://api.devnet.solana.com", "confirmed");
 const payer = Keypair.fromSecretKey(Uint8Array.from(JSON.parse(readFileSync(KEYPAIR, "utf8"))));
 const hex = (b) => Buffer.from(b).toString("hex");
 
@@ -89,7 +92,7 @@ async function pass() {
   const now = BigInt(Math.floor(Date.now() / 1000));
   const found = [];
   for (const status of ["seeding", "open"]) {
-    const accounts = await connection.getProgramAccounts(SOOTH_CORE_PROGRAM_ID, { filters: stook.ladderFilters(status) });
+    const accounts = await scanner.getProgramAccounts(SOOTH_CORE_PROGRAM_ID, { filters: stook.ladderFilters(status) });
     for (const a of accounts) found.push({ pubkey: a.pubkey, ladder: stook.decodeLadder(a.account.data) });
   }
 

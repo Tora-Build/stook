@@ -19,7 +19,7 @@ const COINS = [
   { symbol: "GP", decimals: 6, feeBps: 300 },
 ];
 const ENV = new URL("../../apps/stook/.env.local", import.meta.url);
-const c = new Connection(process.env.RPC_URL ?? "https://api.devnet.solana.com", "confirmed");
+const c = new Connection(process.env.RPC_URL ?? "https://soo-rpc.zak-a35.workers.dev", "confirmed");
 const payer = Keypair.fromSecretKey(Uint8Array.from(JSON.parse(readFileSync(process.env.KEYPAIR ?? `${homedir()}/.config/solana/id.json`, "utf8"))));
 let env = readFileSync(ENV, "utf8");
 const authority = Keypair.fromSecretKey(Uint8Array.from(JSON.parse(env.match(/^VITE_FAUCET_AUTHORITY_BYTES=(.+)$/m)[1])));
