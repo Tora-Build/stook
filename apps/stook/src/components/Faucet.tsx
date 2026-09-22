@@ -32,7 +32,7 @@ export function Faucet() {
         tx.add(createAssociatedTokenAccountIdempotentInstruction(owner, ata, owner, m, program), createMintToInstruction(m, ata, authority.publicKey, amount, [], program));
       };
       give(QUOTE_MINT, TOKEN_PROGRAM_ID, 10_000_000_000n);
-      for (const c of COINS) { const m = mintOf(c); if (m.toBase58() !== c.mint) give(m, TOKEN_2022_PROGRAM_ID, 10_000n * 10n ** BigInt(c.decimals)); }
+      for (const c of COINS) { const m = mintOf(c); if (m && m.toBase58() !== c.mint) give(m, TOKEN_2022_PROGRAM_ID, 10_000n * 10n ** BigInt(c.decimals)); }
       tx.feePayer = owner;
       const { blockhash, lastValidBlockHeight } = await connection.getLatestBlockhash();
       tx.recentBlockhash = blockhash;

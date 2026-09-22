@@ -42,8 +42,10 @@ export const COINS: Coin[] = [
     anchor: { symbol: "STONK", name: "STONK", feedId: "f68272be1240150c36b54dce26a9b75f62f507a94f49f43533a5050c77e07049", hours: "24/7", dp: 4 },
   },
   {
-    symbol: "ALLINU", name: "ALLINU", mint: "4MMQY9bwkxxTtsK3W227Q5ABT6yFY8Pmn9Ze7wmAXKY8", decimals: 6, feeBps: 100,
-    anchor: { symbol: "DKNG", name: "DraftKings", feedId: "c0713033a43355d99ca9bb3d77aaba2341efaded3a9518f201331a3f0c1c374c", hours: "NY 09:30–16:00", dp: 2 },
+    // Mainnet mint still to be pasted in; until then the coin is listed but
+    // has no rounds. Decimals/fee are read from the mint once it is set.
+    symbol: "GP", name: "GP", mint: "", decimals: 6, feeBps: 0,
+    anchor: { symbol: "GLDx", name: "Gold", feedId: "e7d1138d0083368634087268c64b7bea0b4101a6365f83915cba9e76a8364b96", hours: "24/7", dp: 2 },
   },
 ];
 
@@ -57,9 +59,10 @@ const devnetMints: Record<string, string> = (() => {
   try { return JSON.parse(import.meta.env.VITE_DEVNET_MINTS || "{}"); } catch { return {}; }
 })();
 
-export const mintOf = (c: Coin): PublicKey => new PublicKey(devnetMints[c.symbol] ?? c.mint);
+/** The coin's mint on this cluster, or null while the mainnet mint is unknown and no twin exists. */
+export const mintOf = (c: Coin): PublicKey | null => { const k = devnetMints[c.symbol] ?? c.mint; return k ? new PublicKey(k) : null; };
 export const coinByMint = (mint: PublicKey): Coin | undefined => {
   const k = mint.toBase58();
-  return COINS.find((c) => c.mint === k || devnetMints[c.symbol] === k);
+  return COINS.find((c) => (c.mint && c.mint === k) || devnetMints[c.symbol] === k);
 };
 export const feedHexToBytes = (h: string) => Uint8Array.from(h.match(/.{2}/g)!.map((b) => parseInt(b, 16)));

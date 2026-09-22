@@ -2,7 +2,7 @@ import { Link } from "react-router-dom";
 import { stook } from "@sooth/sdk-solana";
 import { useLadders } from "../hooks/useChain";
 import { feedByHex, feedHex } from "../lib/feeds";
-import { COINS, coinByMint, feedHexToBytes, type Coin } from "../lib/coins";
+import { COINS, coinByMint, feedHexToBytes, mintOf, type Coin } from "../lib/coins";
 import { fmtAmount, fmtPrice, fmtWhen, untilText } from "../lib/format";
 import { useNow } from "../hooks/useNow";
 import { Live } from "../components/Live";
@@ -49,7 +49,7 @@ function CoinBlock({ coin, rounds, now }: { coin: Coin; rounds: LadderRow[]; now
         <span className="coin-anchor">⇢ {coin.anchor.name}{coin.anchor.name !== coin.anchor.symbol && <> <span className="mono">{coin.anchor.symbol}</span></>}</span>
         <span className="muted">{coin.anchor.hours === "24/7" ? "rounds any time" : `settles ${coin.anchor.hours}`} · {coin.feeBps / 100}% transfer fee on the coin</span>
         <AnchorLive coin={coin} />
-        <Link to={`/new?coin=${coin.symbol}`} className="coin-new">+ round</Link>
+        {mintOf(coin) ? <Link to={`/new?coin=${coin.symbol}`} className="coin-new">+ round</Link> : <span className="muted small">mint pending</span>}
       </div>
       {open.length === 0 && rounds.length === 0 && <p className="muted small">No rounds yet.</p>}
       <ul className="cards">{rounds.map((r) => <RoundCard key={r.pubkey.toBase58()} r={r} now={now} />)}</ul>

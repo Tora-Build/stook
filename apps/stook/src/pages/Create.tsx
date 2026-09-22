@@ -18,7 +18,7 @@ export function Create() {
   const [params] = useSearchParams();
   const { publicKey } = useWallet();
   const send = useSend("Round created");
-  const first = COINS.find((c) => c.symbol === params.get("coin")) ?? COINS[0]!;
+  const first = COINS.find((c) => c.symbol === params.get("coin") && mintOf(c)) ?? COINS.find((c) => mintOf(c)) ?? COINS[0]!;
   const [coinSym, setCoinSym] = useState<string>(first.symbol);           // a street coin, or "custom"
   const coin = COINS.find((c) => c.symbol === coinSym) ?? null;
   const [feedId, setFeedId] = useState(FEEDS[0]!.id);
@@ -37,7 +37,7 @@ export function Create() {
   const seed = parseAmount(seedText, dec);
   const feed = coin ? coin.anchor.feedId : customFeed.trim() ? customFeed.trim().replace(/^0x/, "") : feedId;
   const feedOk = /^[0-9a-f]{64}$/i.test(feed);
-  const pick = (sym: string) => { setCoinSym(sym); const c = COINS.find((x) => x.symbol === sym); if (c) setMintText(mintOf(c).toBase58()); else setMintText(QUOTE_MINT?.toBase58() ?? ""); };
+  const pick = (sym: string) => { setCoinSym(sym); const c = COINS.find((x) => x.symbol === sym); const m = c ? mintOf(c) : null; setMintText(m ? m.toBase58() : c ? "" : QUOTE_MINT?.toBase58() ?? ""); };
   const verdict = mint.data?.report.verdict;
 
   const submit = () => {
@@ -62,7 +62,7 @@ export function Create() {
 
       <label className="field"><span>Coin</span>
         <div className="seg seg-wrap">
-          {COINS.map((c) => <button key={c.symbol} className={coinSym === c.symbol ? "on" : ""} onClick={() => pick(c.symbol)}>${c.symbol}</button>)}
+          {COINS.filter((c) => mintOf(c)).map((c) => <button key={c.symbol} className={coinSym === c.symbol ? "on" : ""} onClick={() => pick(c.symbol)}>${c.symbol}</button>)}
           <button className={coinSym === "custom" ? "on" : ""} onClick={() => pick("custom")}>custom</button>
         </div>
         {coin && <span className="hint">Rounds on <b>{coin.anchor.name}</b> ({coin.anchor.symbol}), {coin.anchor.hours === "24/7" ? "any time" : `settling inside ${coin.anchor.hours}`}. Quoted in ${coin.symbol}; the coin takes {coin.feeBps / 100}% on every transfer.</span>}

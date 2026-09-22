@@ -1,3 +1,4 @@
 LAUNCH-KIT.md
 wrangler.toml
+worker.js
 *.mjs
