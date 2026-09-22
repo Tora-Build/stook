@@ -40,7 +40,10 @@ const KEYPAIR = process.env.KEYPAIR ?? `${homedir()}/.config/solana/id.json`;
 const INTERVAL = Number(process.env.CRANK_INTERVAL_SECS ?? 5) * 1000;
 const FULL = process.env.FULL_VERIFICATION === "1";
 
-const connection = new Connection(RPC_URL, "confirmed");
+// Reads and sends go through RPC_URL; confirmations subscribe over a
+// websocket, which an HTTP proxy cannot carry, so that stays on the public
+// endpoint.
+const connection = new Connection(RPC_URL, { commitment: "confirmed", wsEndpoint: process.env.WS_URL ?? "wss://api.devnet.solana.com/" });
 // Scanning for markets needs getProgramAccounts, which keyed free tiers refuse;
 // the public endpoint serves it fine at one scan per pass.
 const scanner = new Connection(process.env.SCAN_RPC_URL ?? "https://api.devnet.solana.com", "confirmed");

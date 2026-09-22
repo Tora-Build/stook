@@ -7,7 +7,7 @@ import { ConnectionProvider, WalletProvider } from "@solana/wallet-adapter-react
 import { WalletModalProvider } from "@solana/wallet-adapter-react-ui";
 import "@solana/wallet-adapter-react-ui/styles.css";
 import "./styles.css";
-import { RPC_URL } from "./lib/config";
+import { RPC_URL, WS_URL } from "./lib/config";
 import { ToastProvider } from "./components/Toast";
 import { ThemeProvider } from "./components/Theme";
 import { Layout } from "./components/Layout";
@@ -24,7 +24,7 @@ function App() {
   // adapters here only produces "already registered" warnings.
   const wallets = useMemo(() => [], []);
   return (
-    <ConnectionProvider endpoint={RPC_URL} config={{ commitment: "confirmed" }}>
+    <ConnectionProvider endpoint={RPC_URL} config={{ commitment: "confirmed", wsEndpoint: WS_URL }}>
       <WalletProvider wallets={wallets} autoConnect>
         <WalletModalProvider>
           <QueryClientProvider client={qc}>
