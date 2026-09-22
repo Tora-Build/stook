@@ -82,8 +82,9 @@
     px(0, ground, gw, 8, "#2a2a30"); for (let x = 2; x < gw; x += 10) px(x, ground + 4, 5, 1, "#f0a83a");
     for (const s of c.steam) px(s.x + Math.round(Math.sin(s.age * 3) * 1), ground - s.age * 3, 2, 2, `rgba(244,233,200,${Math.max(0, 0.5 - s.age * 0.12)})`);
     for (const car of cars) { const x = Math.round(car.x), y = ground + (car.dir > 0 ? 1 : 5); px(x, y - 2, 10, 3, car.col); px(x + 2, y - 4, 6, 2, car.col); px(x + 3, y - 3, 4, 1, "#0b1120"); px(x + 1, y + 1, 2, 1, "#0b1120"); px(x + 7, y + 1, 2, 1, "#0b1120"); if (t < 0.5) px(car.dir > 0 ? x + 9 : x, y - 1, 1, 1, "#fff6c9"); if (car.taxi) px(x + 4, y - 5, 2, 1, "#f0a83a"); }
-    const sx = Math.floor(gw * 0.72); px(sx, ground - 22, 1, 22, "#8a8f99");
-    if (hero) { px(sx - 9, ground - 28, 19, 6, "#f4e9c8"); px(sx - 8, ground - 27, 17, 4, "#0f7a4d"); if (fctx) { const w = ftext(sx - 7, ground - 26.5, "STOOK", "#f4e9c8"); fp(sx - 7 + w, ground - 25, 0, 0, "#f4e9c8"); ftext(sx - 7 + w + 0.5, ground - 25.5, "ST", "#f4e9c8"); } }
+    // the street sign: lamp-post height, a little over a car, not a building
+    const sx = Math.floor(gw * 0.72); px(sx, ground - 11, 1, 11, "#8a8f99");
+    if (hero) { px(sx - 8, ground - 15, 17, 5, "#f4e9c8"); px(sx - 7, ground - 14, 15, 3, "#0f7a4d"); if (fctx) { const w = ftext(sx - 6.5, ground - 14, "STOOK", "#f4e9c8"); ftext(sx - 6.5 + w + 0.5, ground - 13, "ST", "#f4e9c8"); } }
     else { px(sx - 9, ground - 27, 20, 6, "#f4e9c8"); px(sx - 8, ground - 26, 18, 4, "#0f7a4d"); }
   }
 
