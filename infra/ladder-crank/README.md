@@ -21,10 +21,11 @@ and settled it seven minutes later from the update at its settlement instant
 (SOL, $117.395 → band 31). The winner redeemed and the LP claimed exactly what
 the SDK predicted.
 
-Two things learned on that run, both fixed:
+Things learned on the first runs, all fixed:
 
 - **Opening asks Hermes for the update 15 s ago, not `latest`.** Hermes stamps
   ahead of a lagging clock and the program refuses a price from the future.
+- **The consume transaction is ours, not the builder's.** The receiver's builder batches by byte size; once `ladder_settle` grew to eight accounts it no longer fit beside the VAA post and was moved to a transaction of its own — without the heap frame. Now: builder posts, we send `withHeap([settle])`, then close the price account.
 - **`@pythnetwork/pyth-solana-receiver` is loaded through `require`.** Its ESM
   build imports `jito-ts` without a file extension, which Node refuses. The
   root `package.json` also pins one `@solana/web3.js` across the workspace,

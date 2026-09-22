@@ -54,20 +54,30 @@ async function hermes(path, feedId) {
   return { parsed: body.parsed?.[0], vaas: body.binary?.data ?? [] };
 }
 
-/** Post `vaas`, run `ix` against the posted account, close the account. */
+/**
+ * Post `vaas`, run our instruction against the posted account, close the
+ * account. Three transactions on purpose. The receiver's builder batches
+ * instructions by byte size, and once our instruction did not fit beside the
+ * VAA post it was moved to a transaction of its own — without the heap frame
+ * it needs. So the builder only posts; the consume transaction is ours.
+ */
 async function postAndConsume(vaas, feedHex, makeIxs) {
   const receiver = new PythSolanaReceiver({ connection, wallet: new Wallet(payer) });
-  const builder = receiver.newTransactionBuilder({ closeUpdateAccounts: true });
+  const builder = receiver.newTransactionBuilder({ closeUpdateAccounts: false });
   if (FULL) await builder.addPostPriceUpdates(vaas);
   else await builder.addPostPartiallyVerifiedPriceUpdates(vaas);
-  // The builder keys posted accounts by "0x"-prefixed feed id.
-  await builder.addPriceConsumerInstructions(async (getPriceUpdateAccount) => [
-    // sooth_core's allocator assumes a 256 KB heap on every transaction.
-    { instruction: ComputeBudgetProgram.requestHeapFrame({ bytes: 256 * 1024 }), signers: [] },
-    ...makeIxs(getPriceUpdateAccount(`0x${feedHex}`)).map((instruction) => ({ instruction, signers: [] })),
-  ]);
-  const txs = await builder.buildVersionedTransactions({ computeUnitPriceMicroLamports: 50_000 });
-  return receiver.provider.sendAll(txs, { skipPreflight: false });
+  const priceUpdate = builder.getPriceUpdateAccount(`0x${feedHex}`);
+  const posted = await builder.buildVersionedTransactions({ computeUnitPriceMicroLamports: 50_000 });
+  await receiver.provider.sendAll(posted, { skipPreflight: false });
+
+  const { Transaction, sendAndConfirmTransaction } = await import("@solana/web3.js");
+  try {
+    return await sendAndConfirmTransaction(connection, new Transaction().add(...stook.withHeap(makeIxs(priceUpdate), 200_000, 50_000)), [payer]);
+  } finally {
+    // Rent back, whether or not the consume landed.
+    const { instruction: close } = await receiver.buildClosePriceUpdateInstruction(priceUpdate);
+    await sendAndConfirmTransaction(connection, new Transaction().add(close), [payer]).catch((e) => console.error("close price account:", e?.message));
+  }
 }
 
 async function sendPlain(ix) {
@@ -116,12 +126,17 @@ async function pass() {
       if (step === "open") {
         console.log(tag, await postAndConsume(vaas, feed, (price) => [stook.openLadderIx(refs, payer.publicKey, price)]));
       } else {
-        // The settler is paid in the market's quote token; make sure we can receive it.
+        // The settler is paid in the market's quote token. The token account is
+        // made in its own transaction first: adding it beside the settle
+        // instruction pushed the Pyth builder to split the transaction, and
+        // the settle landed without its heap frame.
         const ata = getAssociatedTokenAddressSync(ladder.quoteMint, payer.publicKey, false, mint.owner);
-        console.log(tag, await postAndConsume(vaas, feed, (price) => [
-          createAssociatedTokenAccountIdempotentInstruction(payer.publicKey, ata, payer.publicKey, ladder.quoteMint, mint.owner),
-          stook.settleLadderIx(refs, payer.publicKey, price, ata),
-        ]));
+        if (!(await connection.getAccountInfo(ata))) {
+          const { Transaction, sendAndConfirmTransaction } = await import("@solana/web3.js");
+          await sendAndConfirmTransaction(connection, new Transaction().add(
+            createAssociatedTokenAccountIdempotentInstruction(payer.publicKey, ata, payer.publicKey, ladder.quoteMint, mint.owner)), [payer]);
+        }
+        console.log(tag, await postAndConsume(vaas, feed, (price) => [stook.settleLadderIx(refs, payer.publicKey, price, ata)]));
       }
     } catch (e) {
       console.error(tag, "failed:", e?.message ?? e);
