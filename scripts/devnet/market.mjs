@@ -19,7 +19,7 @@ const payer = Keypair.fromSecretKey(Uint8Array.from(JSON.parse(readFileSync(proc
 const env = readFileSync(new URL("../../apps/stook/.env.local", import.meta.url), "utf8");
 const QUOTE = new PublicKey(env.match(/^VITE_QUOTE_MINT=(\S+)/m)[1]);
 const TWINS = JSON.parse(env.match(/^VITE_DEVNET_MINTS=(.+)$/m)?.[1] ?? "{}");
-const STREET = { STOOK: ["2817b78438c769357182c04346fddaad1178c82f4048828fe0997c3c64624e14", 6], ZCAT: ["be9b59d178f0d6a97ab4c343bff2aa69caa1eaae3e9048a65788c529b125bb24", 9], KNOTS: ["f68272be1240150c36b54dce26a9b75f62f507a94f49f43533a5050c77e07049", 6], ALLINU: ["c0713033a43355d99ca9bb3d77aaba2341efaded3a9518f201331a3f0c1c374c", 6] };
+const STREET = { STOOK: ["2817b78438c769357182c04346fddaad1178c82f4048828fe0997c3c64624e14", 6], ZCAT: ["be9b59d178f0d6a97ab4c343bff2aa69caa1eaae3e9048a65788c529b125bb24", 9], KNOTS: ["f68272be1240150c36b54dce26a9b75f62f507a94f49f43533a5050c77e07049", 6], GP: ["e7d1138d0083368634087268c64b7bea0b4101a6365f83915cba9e76a8364b96", 6] };
 const [cmd, ...rest] = process.argv.slice(2);
 const flag = (name, dflt) => { const i = rest.indexOf(`--${name}`); return i >= 0 ? Number(rest[i + 1]) : dflt; };
 const send = (ixs, signers = [payer]) => sendAndConfirmTransaction(c, new Transaction().add(...stook.withHeap(ixs)), signers);

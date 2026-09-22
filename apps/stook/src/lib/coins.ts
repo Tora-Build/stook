@@ -42,9 +42,7 @@ export const COINS: Coin[] = [
     anchor: { symbol: "STONK", name: "STONK", feedId: "f68272be1240150c36b54dce26a9b75f62f507a94f49f43533a5050c77e07049", hours: "24/7", dp: 4 },
   },
   {
-    // Mainnet mint still to be pasted in; until then the coin is listed but
-    // has no rounds. Decimals/fee are read from the mint once it is set.
-    symbol: "GP", name: "GP", mint: "", decimals: 6, feeBps: 0,
+    symbol: "GP", name: "RuneScape Gold", mint: "HTmQz7My6MehV7bjhJ6jde8nDND1yvsz68d24LP7YgUQ", decimals: 6, feeBps: 300,
     anchor: { symbol: "GLDx", name: "Gold", feedId: "e7d1138d0083368634087268c64b7bea0b4101a6365f83915cba9e76a8364b96", hours: "24/7", dp: 2 },
   },
 ];

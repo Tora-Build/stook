@@ -16,7 +16,7 @@ const COINS = [
   { symbol: "STOOK", decimals: 6, feeBps: 100 },
   { symbol: "ZCAT", decimals: 9, feeBps: 300 },
   { symbol: "KNOTS", decimals: 6, feeBps: 300 },
-  { symbol: "GP", decimals: 6, feeBps: 100 },   // assumed until the mainnet mint is known
+  { symbol: "GP", decimals: 6, feeBps: 300 },
 ];
 const ENV = new URL("../../apps/stook/.env.local", import.meta.url);
 const c = new Connection(process.env.RPC_URL ?? "https://api.devnet.solana.com", "confirmed");
