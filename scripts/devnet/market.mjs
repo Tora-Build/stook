@@ -19,7 +19,8 @@ const payer = Keypair.fromSecretKey(Uint8Array.from(JSON.parse(readFileSync(proc
 const env = readFileSync(new URL("../../apps/stook/.env.local", import.meta.url), "utf8");
 const QUOTE = new PublicKey(env.match(/^VITE_QUOTE_MINT=(\S+)/m)[1]);
 const TWINS = JSON.parse(env.match(/^VITE_DEVNET_MINTS=(.+)$/m)?.[1] ?? "{}");
-const STREET = { STOOK: ["2817b78438c769357182c04346fddaad1178c82f4048828fe0997c3c64624e14", 6], ZCAT: ["be9b59d178f0d6a97ab4c343bff2aa69caa1eaae3e9048a65788c529b125bb24", 9], KNOTS: ["f68272be1240150c36b54dce26a9b75f62f507a94f49f43533a5050c77e07049", 6], GP: ["e7d1138d0083368634087268c64b7bea0b4101a6365f83915cba9e76a8364b96", 6] };
+const STREET = { // devnet stand-in feeds (see apps/stook/src/lib/coins.ts): BTC, ETH, SOL, DOGE
+STOOK: ["e62df6c8b4a85fe1a67db44dc12de5db330f7ac66b72dc658afedf0f4a415b43", 6], ZCAT: ["ff61491a931112ddf1bd8147cd1b641375f79f5825126d665480874634fd0ace", 9], KNOTS: ["ef0d8b6fda2ceba41da15d4095d1da392a0d2f8ed0c6c7bc0f4cfac8c280b56d", 6], GP: ["dcef50dd0a4cd2dcc17e45df1676dcb336a11a61c69df7a0299b0150c672d25c", 6] };
 const [cmd, ...rest] = process.argv.slice(2);
 const flag = (name, dflt) => { const i = rest.indexOf(`--${name}`); return i >= 0 ? Number(rest[i + 1]) : dflt; };
 const send = (ixs, signers = [payer]) => sendAndConfirmTransaction(c, new Transaction().add(...stook.withHeap(ixs)), signers);
@@ -59,7 +60,7 @@ if (cmd === "create") {
     } catch (e) { console.log("open failed:", e.message.slice(0, 200)); await new Promise((r) => setTimeout(r, 5000)); }
   }
 } else if (cmd === "list") {
-  const accounts = await c.getProgramAccounts(SOOTH_CORE_PROGRAM_ID, { filters: stook.ladderFilters() });
+  const accounts = await new Connection("https://api.devnet.solana.com").getProgramAccounts(SOOTH_CORE_PROGRAM_ID, { filters: stook.ladderFilters() }); // scans: public endpoint
   for (const a of accounts) {
     const l = stook.decodeLadder(a.account.data);
     console.log(a.pubkey.toBase58(), l.status, "settles", new Date(Number(l.settlesAt) * 1000).toISOString(), "deposits", l.depositTotal, "trades", l.curveSeq);
