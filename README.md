@@ -30,7 +30,9 @@ and sell out any time before settlement.
 ```
 packages/programs-core/   the Anchor program (sooth_core)
 packages/sdk-solana/      quotes exact to the base unit, decoders, builders, keeper logic
+apps/stook/               the front end
 infra/ladder-crank/       opens, settles and voids markets from Pyth
+scripts/devnet/           protocol init, mock USDC, market create/open from the CLI
 infra/rpc-proxy/          Worker that keeps the RPC key out of the browser
 docs/architecture.md      the design, and the decisions behind it
 docs/feasibility.md       the measurements the design rests on
@@ -44,8 +46,17 @@ stack were removed once the ladder could stand without them.
 
 ## Status
 
-The program and SDK are complete and tested end to end on LiteSVM, including a
-market quoted in a real xStock. Not yet deployed; no UI yet.
+Deployed on devnet (`55kGEMHJyNbD3qcdonCD8UPTqzM85yg2kr6M5UF5P353`). The
+program and SDK are tested end to end on LiteSVM, including a market quoted in
+a real xStock, and the first devnet market has been created, opened from Pyth,
+traded and joined from both the CLI and the app. Settlement needs the keeper
+running with a Hermes key.
+
+```bash
+pnpm install && pnpm -F @sooth/sdk-solana build
+cp apps/stook/.env.example apps/stook/.env.local   # or run scripts/devnet/setup.mjs
+pnpm -F @stook/app dev                              # http://127.0.0.1:5180
+```
 
 ## Licence
 

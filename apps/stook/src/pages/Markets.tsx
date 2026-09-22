@@ -26,7 +26,7 @@ export function Markets() {
           const top = l.status === "open" ? (() => { let best = 0, bp = 0n; for (let i = 0; i < 64; i++) { const p = stook.price(l.curve, i); if (p > bp) { bp = p; best = i; } } return { i: best, p: bp }; })() : null;
           return (
             <li key={pubkey.toBase58()}>
-              <Link to={`/m/${pubkey.toBase58()}`} className={`card status-${l.status}`}>
+              <Link to={`/m/${pubkey.toBase58()}`} className={`card card-${l.status}`}>
                 <div className="card-head">
                   <span className="sym">{feed.symbol}</span>
                   <span className={`pill pill-${l.status}`}>{l.status === "open" ? `settles in ${untilText(l.settlesAt, now)}` : l.status === "seeding" ? `opens in ${untilText(l.opensAt, now)}` : l.status}</span>

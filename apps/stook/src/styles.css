@@ -53,6 +53,7 @@ main { padding: 0 1rem; }
 .cards { list-style: none; padding: 0; margin: 0; display: grid; gap: .75rem; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); }
 .card { display: block; background: var(--ink-2); border: 1px solid var(--line); border-radius: 10px; padding: 1rem; color: var(--paper); transition: border-color .15s; }
 .card:hover { border-color: var(--crowd); text-decoration: none; }
+.card-settled, .card-void { opacity: .7; }
 .card-head { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: .5rem; }
 .card-head .sym { font-size: 1.25rem; color: var(--paper); margin: 0; letter-spacing: 0; font-family: var(--display); }
 .card-body { display: flex; flex-direction: column; gap: .2rem; font-size: .9rem; }

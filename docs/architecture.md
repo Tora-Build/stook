@@ -184,8 +184,15 @@ mint carrying the same extensions is still owed.
 - Token-2022 is proven on LiteSVM against a real xStock mint's bytes, not yet
   on devnet or against mainnet's Token-2022 build.
 - The keeper (`infra/ladder-crank`): its decisions are in the SDK and tested;
-  its I/O has never run, for want of a Hermes API key (required since
-  2026-08-26) and a devnet deployment.
+  its I/O has never run, for want of a Hermes API key in the environment.
+  Opening works without it — Pyth's devnet push oracle keeps a fresh
+  `PriceUpdateV2` per feed, and `scripts/devnet/market.mjs open` uses it —
+  but settlement needs the one update at the settlement instant, which only
+  Hermes serves.
+- Deployed on devnet as `55kGEMHJyNbD3qcdonCD8UPTqzM85yg2kr6M5UF5P353` with
+  the protocol initialised and a mock USDC (`AUzQ1ncKFsKQvZh8vX1vt64X8X738t86xUcFWPnmXXHT`).
+  A first BTC market was created, opened from the push oracle, traded and
+  joined; every amount matched the SDK's quote exactly.
 - Rounding dust (a few base units per market) stays in the vault after all
   claims; nothing sweeps it.
 - On a market busy enough to trade every slot, a sequence-guarded join has to
