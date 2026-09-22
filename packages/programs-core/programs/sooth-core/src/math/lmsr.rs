@@ -29,11 +29,24 @@ pub const EXP_MAX_INPUT_WAD: i128 = 64 * WAD;
 
 /// Number of Taylor terms for `exp`. 12 gives ~1e-18 relative error on the
 /// reduced range |r| ≤ ln(2)/2 ≈ 0.347·WAD.
-const EXP_TERMS: u32 = 12;
+/// ⌊2⁶⁴ / n!⌋ for n = 2..=12. With the n = 1 term taken as `r` itself, this
+/// is a 12-term series, as before.
+const INV_FACT_Q64: [u64; 11] = [
+    9223372036854775808, 3074457345618258602, 768614336404564650, 153722867280912930,
+    25620477880152155, 3660068268593165, 457508533574145, 50834281508238, 5083428150823,
+    462129831893, 38510819324,
+];
 
 /// Number of Taylor terms for `ln` (in `(z + z³/3 + z⁵/5 + …)` form).
 /// 14 gives ~1e-19 relative error on z ∈ [0, 1/3).
-const LN_TERMS: u32 = 14;
+/// ⌊2⁶⁴ / (2n+1)⌋ for n = 1..=13. With the n = 0 term taken as `z` itself,
+/// 14 terms, as before.
+const INV_ODD_Q64: [u64; 13] = [
+    6148914691236517205, 3689348814741910323, 2635249153387078802, 2049638230412172401,
+    1676976733973595601, 1418980313362273201, 1229782938247303441, 1085102592571150095,
+    970881267037344821, 878416384462359600, 802032351030850070, 737869762948382064,
+    683212743470724133,
+];
 
 pub fn exp_wad(x: i128) -> Result<i128, MathError> {
     // Saturate the negative tail. exp(-EXP_MAX_INPUT_WAD) ≈ 1e-28; returning
@@ -59,14 +72,19 @@ pub fn exp_wad(x: i128) -> Result<i128, MathError> {
     };
     let r = x - k * LN2_WAD;
 
-    // Taylor: exp(r) = Σ rⁿ / n!
-    let mut term = WAD;
-    let mut sum = WAD;
-    for n in 1..=EXP_TERMS {
-        term = wad_mul(term, r)?;
-        term /= n as i128;
-        sum = sum.checked_add(term).ok_or(MathError::Overflow)?;
+    // exp(r) − 1 for |r| ≤ ln2/2, as a Taylor series in binary Q0.64. Each
+    // term is one 64×64 multiply and a shift — the 1/n! are constants, so
+    // there is no division in the loop. The old WAD series divided by n
+    // every step: on SBF a 128-bit division costs ~5x a multiply, and this
+    // loop ran on every trade. Precision is 2⁻⁶⁴ per step, finer than WAD.
+    let r_q: i128 = (r << 64) / WAD; // one division, |r| < 2^59 so no overflow
+    let mut pow = r_q;
+    let mut acc = r_q;
+    for inv in INV_FACT_Q64 {
+        pow = (pow * r_q) >> 64;
+        acc += (pow * inv as i128) >> 64;
     }
+    let sum: i128 = (((1i128 << 64) + acc) * WAD) >> 64;
     // Multiply by 2^k.
     let result = if k >= 0 {
         let k_u = k as u32;
@@ -101,18 +119,20 @@ pub fn ln_wad(y: i128) -> Result<i128, MathError> {
         }
         (yu << kk) as i128
     };
+    // ln m = 2·atanh(z), z = (m−1)/(m+1), |z| < 0.27. Same Q0.64 series
+    // discipline as `exp_wad`: one division for z, then multiplies by the
+    // constant reciprocals of the odd numbers.
     let m_minus = m - WAD;
     let m_plus = m + WAD;
-    let z = wad_div(m_minus, m_plus)?;
-    let z2 = wad_mul(z, z)?;
+    let z: i128 = (m_minus << 64) / m_plus;
+    let z2 = (z * z) >> 64;
     let mut term = z;
-    let mut sum = z;
-    for n in 1..LN_TERMS {
-        term = wad_mul(term, z2)?;
-        let denom = (2 * n + 1) as i128;
-        sum = sum.checked_add(term / denom).ok_or(MathError::Overflow)?;
+    let mut acc = z;
+    for inv in INV_ODD_Q64 {
+        term = (term * z2) >> 64;
+        acc += (term * inv as i128) >> 64;
     }
-    let ln_m_over_wad = sum.checked_mul(2).ok_or(MathError::Overflow)?;
+    let ln_m_over_wad: i128 = ((2 * acc) * WAD) >> 64;
     let k_term = (k as i128)
         .checked_mul(LN2_WAD)
         .ok_or(MathError::Overflow)?;

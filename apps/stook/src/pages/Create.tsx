@@ -41,11 +41,11 @@ export function Create() {
     const locksAt = opensAt + BigInt(tradeFor * 60);
     const settlesAt = locksAt + 120n; // lock two minutes before the price is read
     send.mutate([stook.createLadderIx({
-      feedId: hexToBytes(feed), settlesAt, quoteMint: mintKey, tier,
-      creator: publicKey, creatorToken: ataOf(mintKey, publicKey, mint.data.tokenProgram), tokenProgram: mint.data.tokenProgram,
+      creator: publicKey, feedId: hexToBytes(feed), settlesAt, quoteMint: mintKey, tier,
+      creatorToken: ataOf(mintKey, publicKey, mint.data.tokenProgram), tokenProgram: mint.data.tokenProgram,
       opensAt, locksAt, seed, feeBps, issuerTrusted: verdict === "issuer-trusted",
     })], {
-      onSuccess: () => nav(`/m/${stook.deriveLadderPda({ feedId: hexToBytes(feed), settlesAt, quoteMint: mintKey, tier }).toBase58()}`),
+      onSuccess: () => nav(`/m/${stook.deriveLadderPda({ creator: publicKey, feedId: hexToBytes(feed), settlesAt, quoteMint: mintKey, tier }).toBase58()}`),
     });
   };
 

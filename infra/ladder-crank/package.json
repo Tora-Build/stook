@@ -4,7 +4,9 @@
   "private": true,
   "type": "module",
   "description": "Keeper for Stook ladders: opens markets from the current Pyth price, settles them from the one update that is the price at settlement time, voids the ones that cannot finish.",
-  "engines": { "node": ">=20" },
+  "engines": {
+    "node": ">=20"
+  },
   "scripts": {
     "start": "node src/index.mjs --watch",
     "once": "node src/index.mjs",
@@ -15,6 +17,7 @@
     "@coral-xyz/anchor": "0.30.1",
     "@pythnetwork/pyth-solana-receiver": "^0.16.0",
     "@solana/web3.js": "^1.98.0",
-    "@sooth/sdk-solana": "workspace:*"
+    "@sooth/sdk-solana": "workspace:*",
+    "@solana/spl-token": "^0.4.9"
   }
 }

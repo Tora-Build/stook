@@ -209,6 +209,9 @@ pub fn check_settlement_instant(
 }
 
 /// The policy checks, split out so they are testable without an `AccountInfo`.
+/// How far ahead of the cluster clock an update may be stamped and still count as now.
+pub const CLOCK_SKEW_SECS: i64 = 10;
+
 pub fn check_policy(p: &OraclePrice, policy: &OraclePolicy, now: i64) -> Result<()> {
     require!(p.feed_id == policy.feed_id, SoothCoreError::OracleWrongFeed);
     require!(
@@ -216,9 +219,11 @@ pub fn check_policy(p: &OraclePrice, policy: &OraclePolicy, now: i64) -> Result<
         SoothCoreError::OracleUnderVerified
     );
 
-    // A publish_time in the future is a clock disagreement, not freshness.
+    // The cluster clock lags wall time by a few seconds under load, and Pyth
+    // stamps on its own clock, so a fresh update can look like it is from the
+    // future. A few seconds of that is skew; more is a wrong update.
     let age = now.saturating_sub(p.publish_time);
-    require!(age >= 0 && age <= policy.max_age_secs, SoothCoreError::OracleStale);
+    require!(age >= -CLOCK_SKEW_SECS && age <= policy.max_age_secs, SoothCoreError::OracleStale);
 
     require!(p.price > 0, SoothCoreError::OracleNonPositive);
 
@@ -275,8 +280,9 @@ mod tests {
     fn a_stale_price_is_refused() {
         let p = parse_price_update(&unhex(NVDA_DEVNET)).unwrap();
         assert!(check_policy(&p, &policy(), p.publish_time + 61).is_err());
-        // and so is one from the future
-        assert!(check_policy(&p, &policy(), p.publish_time - 1).is_err());
+        // a few seconds ahead is clock skew and passes; more is from the future
+        assert!(check_policy(&p, &policy(), p.publish_time - CLOCK_SKEW_SECS).is_ok());
+        assert!(check_policy(&p, &policy(), p.publish_time - CLOCK_SKEW_SECS - 1).is_err());
     }
 
     #[test]

@@ -121,14 +121,19 @@ pub struct LadderCreate<'info> {
     #[account(seeds = [PROTOCOL_CONFIG_SEED], bump = config.bump)]
     pub config: Box<Account<'info, ProtocolConfig>>,
 
-    /// One market per (feed, settlement time, quote mint, tier). The tier is in
-    /// the seeds so a slot cannot be squatted with a useless step.
+    /// One market per (creator, feed, settlement time, quote mint, tier). The
+    /// creator is in the seeds so nobody can claim a slot for everyone else
+    /// with a hostile config — a 1-token seed, a 5% fee and a one-second
+    /// trading window would otherwise make "NVDA at Friday 16:00" dead for
+    /// all. Two people creating the same slot get two markets; the app lists
+    /// both.
     #[account(
         init,
         payer = creator,
         space = Ladder::SPACE,
         seeds = [
             LADDER_SEED,
+            creator.key().as_ref(),
             args.feed_id.as_ref(),
             &args.settles_at.to_le_bytes(),
             quote_mint.key().as_ref(),
@@ -181,6 +186,33 @@ pub struct LadderCreate<'info> {
     /// approval of something else.
     #[account(seeds = [MINT_APPROVAL_SEED, quote_mint.key().as_ref()], bump = mint_approval.bump)]
     pub mint_approval: Option<Box<Account<'info, MintApproval>>>,
+}
+
+#[event]
+pub struct LadderCreated {
+    pub ladder: Pubkey,
+    pub creator: Pubkey,
+    pub feed_id: [u8; 32],
+    pub quote_mint: Pubkey,
+    pub tier: u8,
+    pub opens_at: i64,
+    pub locks_at: i64,
+    pub settles_at: i64,
+    pub seed: u64,
+}
+
+#[event]
+pub struct LadderOpened {
+    pub ladder: Pubkey,
+    pub p0: i64,
+    pub exponent: i32,
+    pub b: u128,
+}
+
+#[event]
+pub struct LadderVoided {
+    pub ladder: Pubkey,
+    pub refundable: u64,
 }
 
 pub fn create_handler(ctx: Context<LadderCreate>, args: LadderCreateArgs) -> Result<()> {
@@ -253,7 +285,20 @@ pub fn create_handler(ctx: Context<LadderCreate>, args: LadderCreateArgs) -> Res
     t.owner = ctx.accounts.creator.key();
     t.index = 0;
     t.bump = ctx.bumps.tranche;
-    join(&mut l, &mut t, args.seed)
+    join(&mut l, &mut t, args.seed)?;
+
+    emit!(LadderCreated {
+        ladder: ctx.accounts.ladder.key(),
+        creator: ctx.accounts.creator.key(),
+        feed_id: args.feed_id,
+        quote_mint: ctx.accounts.quote_mint.key(),
+        tier: args.tier,
+        opens_at: args.opens_at,
+        locks_at: args.locks_at,
+        settles_at: args.settles_at,
+        seed: args.seed,
+    });
+    Ok(())
 }
 
 // ── open ─────────────────────────────────────────────────────────────────────
@@ -299,6 +344,7 @@ pub fn open_handler(ctx: Context<LadderOpen>) -> Result<()> {
     require!(l.b_wad() > 0, SoothCoreError::LadderSeedTooSmall);
 
     l.status = STATUS_OPEN;
+    emit!(LadderOpened { ladder: ctx.accounts.ladder.key(), p0: l.p0, exponent: l.p0_expo, b: l.b_wad() as u128 });
     Ok(())
 }
 
@@ -657,6 +703,17 @@ pub fn lp_join_handler(ctx: Context<LadderLpJoin>, args: LadderLpJoinArgs) -> Re
 
 // ── settle ───────────────────────────────────────────────────────────────────
 
+/// Share of the protocol's fee take paid to whoever settles. Nobody is
+/// obliged to run a keeper, so the market pays for its own ending: the
+/// settler gets half the protocol's cut, the treasury the rest. A void pays
+/// nothing — a losing trader should never prefer voiding to settling.
+pub const SETTLE_BOUNTY_NUM: u64 = 1;
+pub const SETTLE_BOUNTY_DEN: u64 = 2;
+
+pub fn settle_bounty(fees_protocol: u64) -> u64 {
+    fees_protocol / SETTLE_BOUNTY_DEN * SETTLE_BOUNTY_NUM
+}
+
 #[derive(Accounts)]
 pub struct LadderSettle<'info> {
     /// Anyone. Which update settles a market is fixed by the rule in
@@ -668,6 +725,27 @@ pub struct LadderSettle<'info> {
 
     /// CHECK: a Pyth `PriceUpdateV2`; verified in `oracle`.
     pub price_update: UncheckedAccount<'info>,
+
+    /// CHECK: PDA vault authority.
+    #[account(seeds = [LADDER_AUTHORITY_SEED, ladder.key().as_ref()], bump = ladder.load()?.authority_bump)]
+    pub authority: UncheckedAccount<'info>,
+
+    #[account(address = ladder.load()?.quote_mint)]
+    pub quote_mint: Box<InterfaceAccount<'info, Mint>>,
+
+    #[account(mut, address = ladder.load()?.vault)]
+    pub vault: Box<InterfaceAccount<'info, TokenAccount>>,
+
+    /// Where the bounty goes.
+    #[account(
+        mut,
+        token::mint = quote_mint,
+        token::authority = cranker,
+        token::token_program = token_program,
+    )]
+    pub cranker_token: Box<InterfaceAccount<'info, TokenAccount>>,
+
+    pub token_program: Interface<'info, TokenInterface>,
 }
 
 #[event]
@@ -678,10 +756,13 @@ pub struct LadderSettled {
     pub bin: u8,
     pub owed_to_winners: u64,
     pub lp_pool: u64,
+    pub bounty: u64,
 }
 
 pub fn settle_handler(ctx: Context<LadderSettle>) -> Result<()> {
     let now = Clock::get()?.unix_timestamp;
+    let ladder_key = ctx.accounts.ladder.key();
+    let (bounty, decimals, authority_bump) = {
     let mut l = ctx.accounts.ladder.load_mut()?;
     require!(
         l.status == STATUS_OPEN && now >= l.settles_at,
@@ -713,14 +794,38 @@ pub fn settle_handler(ctx: Context<LadderSettle>) -> Result<()> {
     l.settled_bin = bin;
     l.status = STATUS_SETTLED;
 
+    let bounty = settle_bounty(l.fees_protocol);
+    l.fees_protocol -= bounty;
+
     emit!(LadderSettled {
-        ladder: ctx.accounts.ladder.key(),
+        ladder: ladder_key,
         price: p.price,
         exponent: p.exponent,
         bin,
         owed_to_winners: owed,
         lp_pool: l.lp_pool,
+        bounty,
     });
+    (bounty, l.quote_decimals, l.authority_bump)
+    };
+
+    if bounty > 0 {
+        let seeds: &[&[&[u8]]] = &[&[LADDER_AUTHORITY_SEED, ladder_key.as_ref(), &[authority_bump]]];
+        token_interface::transfer_checked(
+            CpiContext::new_with_signer(
+                ctx.accounts.token_program.to_account_info(),
+                TransferChecked {
+                    from: ctx.accounts.vault.to_account_info(),
+                    mint: ctx.accounts.quote_mint.to_account_info(),
+                    to: ctx.accounts.cranker_token.to_account_info(),
+                    authority: ctx.accounts.authority.to_account_info(),
+                },
+                seeds,
+            ),
+            bounty,
+            decimals,
+        )?;
+    }
     Ok(())
 }
 
@@ -758,6 +863,7 @@ pub fn void_handler(ctx: Context<LadderVoid>) -> Result<()> {
     l.fees_creator = 0;
     l.fees_protocol = 0;
     l.status = STATUS_VOID;
+    emit!(LadderVoided { ladder: ctx.accounts.ladder.key(), refundable: vault });
     Ok(())
 }
 
@@ -1251,6 +1357,16 @@ mod tests {
         let parts: u64 = [1u64, 1, 1].iter().map(|s| lp_share(1_000, *s, 3)).sum();
         assert!(parts <= 1_000);
         assert_eq!(lp_share(1_000, 5, 0), 0);
+    }
+
+    #[test]
+    fn the_settler_takes_half_the_protocols_cut_and_the_split_never_over_pays() {
+        assert_eq!(settle_bounty(1_000), 500);
+        assert_eq!(settle_bounty(1), 0);
+        assert_eq!(settle_bounty(0), 0);
+        for f in [3u64, 999, 1_000_001] {
+            assert!(settle_bounty(f) <= f);
+        }
     }
 
     #[test]

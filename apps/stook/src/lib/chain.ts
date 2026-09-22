@@ -72,9 +72,9 @@ export async function fetchLivePrice(c: Connection, feedId: Uint8Array): Promise
   return { price: d.readBigInt64LE(at + 32), conf: d.readBigUInt64LE(at + 40), expo: d.readInt32LE(at + 48), publishTime: Number(d.readBigInt64LE(at + 52)) };
 }
 
-export async function send(c: Connection, wallet: WalletContextState, ixs: TransactionInstruction[]): Promise<string> {
+export async function send(c: Connection, wallet: WalletContextState, ixs: TransactionInstruction[], computeUnits = 120_000): Promise<string> {
   if (!wallet.publicKey || !wallet.sendTransaction) throw new Error("connect a wallet first");
-  const tx = new Transaction().add(...stook.withHeap(ixs, 300_000));
+  const tx = new Transaction().add(...stook.withHeap(ixs, computeUnits, 20_000));
   tx.feePayer = wallet.publicKey;
   const { blockhash, lastValidBlockHeight } = await c.getLatestBlockhash();
   tx.recentBlockhash = blockhash;

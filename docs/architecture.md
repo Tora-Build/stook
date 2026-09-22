@@ -51,8 +51,7 @@ risk selection plus fee share, and a range containing the outcome pays out.
 
 A trade does not reprice every band. The market keeps `Σ exp(qᵢ/b − m)` cached,
 so a buy recomputes one exponential and costs the same at 32 bands as at 8.
-Bands are capped at 32, which keeps the occasional full recompute inside a
-transaction.
+There are 64 bands.
 
 ## Liquidity joins at any time, as tranches
 
@@ -100,7 +99,7 @@ A line is drawn at any price; it buys the band containing it. The band must be
 visible before the trade is confirmed — someone must never believe they
 committed to a finer price than the market recorded.
 
-Bands are capped at 32 — see the compute measurements in `docs/feasibility.md`.
+64 bands, log-spaced; the width per band is the market's tier.
 
 ## What Stook changed in the inherited engine
 

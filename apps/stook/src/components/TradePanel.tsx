@@ -46,7 +46,7 @@ export function TradePanel(p: Props) {
 
   const submit = () => {
     if (!q || !p.shape || !shares || !publicKey) return;
-    send.mutate([stook.tradeLadderIx(p.refs, {
+    send.mutate({ computeUnits: stook.tradeComputeUnits(p.shape), ixs: [stook.tradeLadderIx(p.refs, {
       user: publicKey,
       userToken: ataOf(p.ladder.quoteMint, publicKey, p.refs.tokenProgram),
       shape: p.shape,
@@ -54,7 +54,7 @@ export function TradePanel(p: Props) {
       // The quote IS the program's number; a small allowance covers a trade
       // landing between our read and our send.
       limit: side === "buy" ? (q.total * 1005n) / 1000n : (q.total * 995n) / 1000n,
-    })]);
+    })] });
   };
 
   return (

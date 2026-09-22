@@ -278,3 +278,6 @@ export function trancheFees(bWad: bigint, decimals: number, accNow: bigint, accA
   const bUnits = (bWad > 0n ? bWad : 0n) / scalarFor(decimals);
   return (bUnits * (accNow - accAtJoin)) / FEE_ACC_SCALE;
 }
+
+/** What `ladder_settle` pays whoever settles: half the protocol's fee take. */
+export const settleBounty = (feesProtocol: bigint): bigint => feesProtocol / 2n;

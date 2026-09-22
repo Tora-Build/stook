@@ -70,7 +70,8 @@ export function useSend(label: string) {
   const qc = useQueryClient();
   const toast = useToast();
   return useMutation({
-    mutationFn: (ixs: TransactionInstruction[]) => chain.send(connection, wallet, ixs),
+    mutationFn: (ixs: TransactionInstruction[] | { ixs: TransactionInstruction[]; computeUnits: number }) =>
+      Array.isArray(ixs) ? chain.send(connection, wallet, ixs) : chain.send(connection, wallet, ixs.ixs, ixs.computeUnits),
     onSuccess: (sig) => { toast.ok(`${label} confirmed`, sig); void qc.invalidateQueries(); },
     onError: (e) => toast.err(chain.explain(e)),
   });

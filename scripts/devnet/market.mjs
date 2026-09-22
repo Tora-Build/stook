@@ -11,12 +11,7 @@ import { Connection, Keypair, PublicKey, Transaction, sendAndConfirmTransaction 
 import { TOKEN_PROGRAM_ID, getAssociatedTokenAddressSync } from "@solana/spl-token";
 import { stook, SOOTH_CORE_PROGRAM_ID } from "@sooth/sdk-solana";
 
-const FEEDS = {
-  NVDA: "b1073854ed24cbc755dc527418f52b7d271f6cc967bbf8d8129112b18860a593",
-  BTC: "e62df6c8b4a85fe1a67db44dc12de5db330f7ac66b72dc658afedf0f4a415b43",
-  ETH: "ff61491a931112ddf1bd8147cd1b641375f79f5825126d665480874634fd0ace",
-  SOL: "ef0d8b6fda2ceba41da15d4095d1da392a0d2f8ed0c6c7bc0f4cfac8c280b56d",
-};
+const FEEDS = Object.fromEntries(JSON.parse(readFileSync(new URL("../../apps/stook/src/lib/feeds.json", import.meta.url), "utf8")).map((f) => [f.symbol, f.id]));
 const PUSH = new PublicKey("pythWSnswVUd12oZpeFP8e9CVaEqJg25g1Vtc2biRsT");
 const c = new Connection(process.env.RPC_URL ?? "https://api.devnet.solana.com", "confirmed");
 const payer = Keypair.fromSecretKey(Uint8Array.from(JSON.parse(readFileSync(process.env.KEYPAIR ?? `${homedir()}/.config/solana/id.json`, "utf8"))));
@@ -33,9 +28,9 @@ if (cmd === "create") {
   if (!feed) throw new Error(`unknown asset ${sym}; one of ${Object.keys(FEEDS).join(", ")} or a feed id`);
   const now = BigInt(Math.floor(Date.now() / 1000));
   const opensAt = now + BigInt(flag("opens-in", 120)), locksAt = opensAt + BigInt(flag("trades-for", 3600)), settlesAt = locksAt + 120n;
-  const key = { feedId: hex(feed), settlesAt, quoteMint: QUOTE, tier: flag("tier", 2) };
+  const key = { creator: payer.publicKey, feedId: hex(feed), settlesAt, quoteMint: QUOTE, tier: flag("tier", 2) };
   const sig = await send([stook.createLadderIx({
-    ...key, creator: payer.publicKey, creatorToken: getAssociatedTokenAddressSync(QUOTE, payer.publicKey, false, TOKEN_PROGRAM_ID),
+    ...key, creatorToken: getAssociatedTokenAddressSync(QUOTE, payer.publicKey, false, TOKEN_PROGRAM_ID),
     tokenProgram: TOKEN_PROGRAM_ID, opensAt, locksAt, seed: BigInt(flag("seed", 2000)) * 1_000_000n, feeBps: 100,
   })]);
   console.log("created", stook.deriveLadderPda(key).toBase58(), "opens", new Date(Number(opensAt) * 1000).toISOString(), "settles", new Date(Number(settlesAt) * 1000).toISOString(), sig);

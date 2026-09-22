@@ -1,0 +1,338 @@
+[
+ {
+  "id": "ad519718d387de4f0d7d29ea16a3730ce42e49c59fef6fba6fc9bac477645f6f",
+  "symbol": "GOOGL",
+  "name": "Alphabet",
+  "kind": "stock",
+  "dp": 2
+ },
+ {
+  "id": "329635cf9e705e01ed2d842fafbb6c426d7e5630e75847740d89957222fd68b8",
+  "symbol": "AMZN",
+  "name": "Amazon",
+  "kind": "stock",
+  "dp": 2
+ },
+ {
+  "id": "5da511a7c68b17a3bc94380cab4756bc83ab87f86307af10ea58467a64b6689d",
+  "symbol": "ANTHROPIC",
+  "name": "Anthropic",
+  "kind": "stock",
+  "dp": 2
+ },
+ {
+  "id": "aaba35e6f33fb973bb2201d48a79ae24795affa6ba8bd50a93dcaf7da0030f36",
+  "symbol": "AAPL",
+  "name": "Apple",
+  "kind": "stock",
+  "dp": 2
+ },
+ {
+  "id": "59751961c9aa1943ece2d3e9060070d8d665a99a28642e4b10fcae972c10b833",
+  "symbol": "CRCL",
+  "name": "Circle",
+  "kind": "stock",
+  "dp": 2
+ },
+ {
+  "id": "49387483ff50427bf0ff5928082b0cf16331421067c59f4c582a07aa117db1ac",
+  "symbol": "COIN",
+  "name": "Coinbase",
+  "kind": "stock",
+  "dp": 2
+ },
+ {
+  "id": "ffdb40ac3e5b24f32dd77736181bd43eed5fd0b5b019ba90f14901fcda0007d8",
+  "symbol": "US30",
+  "name": "Dow Jones",
+  "kind": "stock",
+  "dp": 2
+ },
+ {
+  "id": "cecbc86ad1adfa72b78b573375dc36eb4664e096252c0a3e55e625ea838685f1",
+  "symbol": "INTC",
+  "name": "Intel",
+  "kind": "stock",
+  "dp": 2
+ },
+ {
+  "id": "2a7acae7e6da804f5857d10040693e42fb345203a974fff725caa1f0b1998357",
+  "symbol": "EWY",
+  "name": "iShares South Korea",
+  "kind": "stock",
+  "dp": 2
+ },
+ {
+  "id": "2cc0c022f7f37920485a5947f3cea8633783b6cb7fff6d94ee52f48687b7783d",
+  "symbol": "META",
+  "name": "Meta",
+  "kind": "stock",
+  "dp": 2
+ },
+ {
+  "id": "27e65b49e4572601374c5bde284411c20f49eb74845cc7f7801f9d27fba2b4b2",
+  "symbol": "MU",
+  "name": "Micron",
+  "kind": "stock",
+  "dp": 2
+ },
+ {
+  "id": "d9144b30a3a162a2748d384dc53387571f3ec77b9edfe31739349396ed67a63a",
+  "symbol": "MSFT",
+  "name": "Microsoft",
+  "kind": "stock",
+  "dp": 2
+ },
+ {
+  "id": "09a53e8f54215c0ad456ffbef1ed893f824eb65e15168b64151e52e53389be00",
+  "symbol": "US100",
+  "name": "Nasdaq 100",
+  "kind": "stock",
+  "dp": 2
+ },
+ {
+  "id": "c8d8050cde18920d0274f296a7589620c67a9898a73c93d0a91fddde6f3cdf6b",
+  "symbol": "NBIS",
+  "name": "Nebius",
+  "kind": "stock",
+  "dp": 2
+ },
+ {
+  "id": "a470c4ac46f44b547b2cba52338f311fb642b79375ce5f0cfd5cb5b99227b852",
+  "symbol": "NVDA",
+  "name": "NVIDIA",
+  "kind": "stock",
+  "dp": 2
+ },
+ {
+  "id": "96d4bb23a3db78fdb72b3a03ce80ead686096f324319166534d9a27c0519c483",
+  "symbol": "OPENAI",
+  "name": "OpenAI",
+  "kind": "stock",
+  "dp": 2
+ },
+ {
+  "id": "98aacad2adc9ffa8949da73015a5b623b0c062bd7f07b6f4dfda244b9b672c39",
+  "symbol": "ORCL",
+  "name": "Oracle",
+  "kind": "stock",
+  "dp": 2
+ },
+ {
+  "id": "52c7c6b70032b7151c8d0febf684f14318e1e13315976e171267639955400bb9",
+  "symbol": "PLTR",
+  "name": "Palantir",
+  "kind": "stock",
+  "dp": 2
+ },
+ {
+  "id": "4a4f96283d157d08b7b8aa596363f7978587d4fa59a77dcb90f84af7d870a630",
+  "symbol": "HOOD",
+  "name": "Robinhood",
+  "kind": "stock",
+  "dp": 2
+ },
+ {
+  "id": "e266cf0bf9a358bb19c4269f59b3d2e6258ecda5b0707e758f00c087f4baa3e9",
+  "symbol": "US500",
+  "name": "S&P 500",
+  "kind": "stock",
+  "dp": 2
+ },
+ {
+  "id": "3d98d6fcce0d5e828870bb93b2b1725060a581cb9bef790847337a6c8933c7a4",
+  "symbol": "SAMSUNG",
+  "name": "Samsung",
+  "kind": "stock",
+  "dp": 2
+ },
+ {
+  "id": "9a972ccd0df577006dda1679dc39e00f370e330c318f21bdcb34e83fa5a70002",
+  "symbol": "SNDK",
+  "name": "Sandisk",
+  "kind": "stock",
+  "dp": 2
+ },
+ {
+  "id": "071f452ec5a5f4fa8ea8e585222c2f65890724374a2af16aec0bc70b4cd1c669",
+  "symbol": "SOXS",
+  "name": "Semiconductor Bear 3x",
+  "kind": "stock",
+  "dp": 2
+ },
+ {
+  "id": "5b4183fbbab47c0508c39db436e6b0a0376e50650e79c9f836677a04d65d592f",
+  "symbol": "SOXL",
+  "name": "Semiconductor Bull 3x",
+  "kind": "stock",
+  "dp": 2
+ },
+ {
+  "id": "b196587ca694ea231cd8710321f4f62ed08794c6a096759d5c63616730042ae0",
+  "symbol": "SKHY",
+  "name": "SK Hynix",
+  "kind": "stock",
+  "dp": 2
+ },
+ {
+  "id": "2dbfb1791e75725227a90dbd23c6bdd83b80cc9d13011973c948b6aeacdf17b9",
+  "symbol": "SPCX",
+  "name": "SpaceX",
+  "kind": "stock",
+  "dp": 2
+ },
+ {
+  "id": "109b49ea13e04334cb570ba3b0fb1a18d500d8eeaf32ad1987816eb4bb26d8f3",
+  "symbol": "MSTR",
+  "name": "Strategy",
+  "kind": "stock",
+  "dp": 2
+ },
+ {
+  "id": "e6da44bff5b8b06897a3739dd331b440d6662595bb862e37046892c568ae3fc0",
+  "symbol": "TSLA",
+  "name": "Tesla",
+  "kind": "stock",
+  "dp": 2
+ },
+ {
+  "id": "e62df6c8b4a85fe1a67db44dc12de5db330f7ac66b72dc658afedf0f4a415b43",
+  "symbol": "BTC",
+  "name": "Bitcoin",
+  "kind": "crypto",
+  "dp": 0
+ },
+ {
+  "id": "ff61491a931112ddf1bd8147cd1b641375f79f5825126d665480874634fd0ace",
+  "symbol": "ETH",
+  "name": "Ether",
+  "kind": "crypto",
+  "dp": 2
+ },
+ {
+  "id": "ef0d8b6fda2ceba41da15d4095d1da392a0d2f8ed0c6c7bc0f4cfac8c280b56d",
+  "symbol": "SOL",
+  "name": "Solana",
+  "kind": "crypto",
+  "dp": 2
+ },
+ {
+  "id": "ec5d399846a9209f3fe5881d70aae9268c94339ff9817e8d18ff19fa05eea1c8",
+  "symbol": "XRP",
+  "name": "XRP",
+  "kind": "crypto",
+  "dp": 4
+ },
+ {
+  "id": "2f95862b045670cd22bee3114c39763a4a08beeb663b145d283c31d7d1101c4f",
+  "symbol": "BNB",
+  "name": "BNB",
+  "kind": "crypto",
+  "dp": 2
+ },
+ {
+  "id": "dcef50dd0a4cd2dcc17e45df1676dcb336a11a61c69df7a0299b0150c672d25c",
+  "symbol": "DOGE",
+  "name": "Dogecoin",
+  "kind": "crypto",
+  "dp": 4
+ },
+ {
+  "id": "2a01deaec9e51a579277b34b122399984d0bbf57e2458a7e42fecd2829867a0d",
+  "symbol": "ADA",
+  "name": "Cardano",
+  "kind": "crypto",
+  "dp": 4
+ },
+ {
+  "id": "93da3352f9f1d105fdfe4971cfa80e9dd777bfc5d0f683ebb6e1294b92137bb7",
+  "symbol": "AVAX",
+  "name": "Avalanche",
+  "kind": "crypto",
+  "dp": 2
+ },
+ {
+  "id": "8ac0c70fff57e9aefdf5edf44b51d62c2d433653cbb2cf5cc06bb115af04d221",
+  "symbol": "LINK",
+  "name": "Chainlink",
+  "kind": "crypto",
+  "dp": 2
+ },
+ {
+  "id": "23d7315113f5b1d3ba7a83604c44b94d79f4fd69af77f804fc7f920a6dc65744",
+  "symbol": "SUI",
+  "name": "Sui",
+  "kind": "crypto",
+  "dp": 2
+ },
+ {
+  "id": "4279e31cc369bbcc2faf022b382b080e32a8e689ff20fbc530d2a603eb6cd98b",
+  "symbol": "HYPE",
+  "name": "Hyperliquid",
+  "kind": "crypto",
+  "dp": 2
+ },
+ {
+  "id": "67aed5a24fdad045475e7195c98a98aea119c763f272d4523f5bac93a4f33c2b",
+  "symbol": "TRX",
+  "name": "Tron",
+  "kind": "crypto",
+  "dp": 4
+ },
+ {
+  "id": "8963217838ab4cf5cadc172203c1f0b763fbaa45f346d8ee50ba994bbcac3026",
+  "symbol": "TON",
+  "name": "Toncoin",
+  "kind": "crypto",
+  "dp": 2
+ },
+ {
+  "id": "ca3eed9b267293f6595901c734c7525ce8ef49adafe8284606ceb307afa2ca5b",
+  "symbol": "DOT",
+  "name": "Polkadot",
+  "kind": "crypto",
+  "dp": 2
+ },
+ {
+  "id": "6e3f3fa8253588df9326580180233eb791e03b443a3ba7a1d892e73874e19a54",
+  "symbol": "LTC",
+  "name": "Litecoin",
+  "kind": "crypto",
+  "dp": 2
+ },
+ {
+  "id": "d69731a2e74ac1ce884fc3890f7ee324b6deb66147055249568869ed700882e4",
+  "symbol": "PEPE",
+  "name": "Pepe",
+  "kind": "crypto",
+  "dp": 7
+ },
+ {
+  "id": "4ca4beeca86f0d164160323817a4e42b10010a724c2217c6ee41b54cd4cc61fc",
+  "symbol": "WIF",
+  "name": "dogwifhat",
+  "kind": "crypto",
+  "dp": 4
+ },
+ {
+  "id": "72b021217ca3fe68922a19aaf990109cb9d84e9ad004b4d2025ad6f529314419",
+  "symbol": "BONK",
+  "name": "Bonk",
+  "kind": "crypto",
+  "dp": 7
+ },
+ {
+  "id": "0a0408d619e9380abad35060f9192039ed5042fa6f82301d0e48bb52be830996",
+  "symbol": "JUP",
+  "name": "Jupiter",
+  "kind": "crypto",
+  "dp": 4
+ },
+ {
+  "id": "0bbf28e9a841a1cc788f6a361b17ca072d0ea3098a1e5df1c3922d06719579ff",
+  "symbol": "PYTH",
+  "name": "Pyth",
+  "kind": "crypto",
+  "dp": 4
+ }
+]

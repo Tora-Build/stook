@@ -25,6 +25,7 @@ import { readFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { createRequire } from "node:module";
 import { Connection, Keypair, ComputeBudgetProgram } from "@solana/web3.js";
+import { createAssociatedTokenAccountIdempotentInstruction, getAssociatedTokenAddressSync } from "@solana/spl-token";
 import { Wallet } from "@coral-xyz/anchor";
 import { stook, SOOTH_CORE_PROGRAM_ID } from "@sooth/sdk-solana";
 
@@ -54,7 +55,7 @@ async function hermes(path, feedId) {
 }
 
 /** Post `vaas`, run `ix` against the posted account, close the account. */
-async function postAndConsume(vaas, feedHex, makeIx) {
+async function postAndConsume(vaas, feedHex, makeIxs) {
   const receiver = new PythSolanaReceiver({ connection, wallet: new Wallet(payer) });
   const builder = receiver.newTransactionBuilder({ closeUpdateAccounts: true });
   if (FULL) await builder.addPostPriceUpdates(vaas);
@@ -63,7 +64,7 @@ async function postAndConsume(vaas, feedHex, makeIx) {
   await builder.addPriceConsumerInstructions(async (getPriceUpdateAccount) => [
     // sooth_core's allocator assumes a 256 KB heap on every transaction.
     { instruction: ComputeBudgetProgram.requestHeapFrame({ bytes: 256 * 1024 }), signers: [] },
-    { instruction: makeIx(getPriceUpdateAccount(`0x${feedHex}`)), signers: [] },
+    ...makeIxs(getPriceUpdateAccount(`0x${feedHex}`)).map((instruction) => ({ instruction, signers: [] })),
   ]);
   const txs = await builder.buildVersionedTransactions({ computeUnitPriceMicroLamports: 50_000 });
   return receiver.provider.sendAll(txs, { skipPreflight: false });
@@ -112,8 +113,16 @@ async function pass() {
       // is SUPPOSED to be unsettleable, and will void after the grace period.
       if (problem) { console.log(tag, "skipped:", problem); continue; }
 
-      const build = step === "open" ? stook.openLadderIx : stook.settleLadderIx;
-      console.log(tag, await postAndConsume(vaas, feed, (price) => build(refs, payer.publicKey, price)));
+      if (step === "open") {
+        console.log(tag, await postAndConsume(vaas, feed, (price) => [stook.openLadderIx(refs, payer.publicKey, price)]));
+      } else {
+        // The settler is paid in the market's quote token; make sure we can receive it.
+        const ata = getAssociatedTokenAddressSync(ladder.quoteMint, payer.publicKey, false, mint.owner);
+        console.log(tag, await postAndConsume(vaas, feed, (price) => [
+          createAssociatedTokenAccountIdempotentInstruction(payer.publicKey, ata, payer.publicKey, ladder.quoteMint, mint.owner),
+          stook.settleLadderIx(refs, payer.publicKey, price, ata),
+        ]));
+      }
     } catch (e) {
       console.error(tag, "failed:", e?.message ?? e);
     }

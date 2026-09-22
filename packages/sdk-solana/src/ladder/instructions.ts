@@ -13,7 +13,7 @@ import {
   type AccountMeta,
 } from "@solana/web3.js";
 import { SOOTH_CORE_PROGRAM_ID } from "../program.js";
-import type { Shape } from "./math.js";
+import { BINS, type Shape } from "./math.js";
 
 const enc = new TextEncoder();
 const SEED_LADDER = enc.encode("ladder");
@@ -64,16 +64,17 @@ const signer = (pubkey: PublicKey, isWritable = true): AccountMeta => ({ pubkey,
 const find = (seeds: Uint8Array[], programId: PublicKey) => PublicKey.findProgramAddressSync(seeds, programId)[0];
 
 export interface LadderKey {
+  creator: PublicKey;
   feedId: Uint8Array;
   settlesAt: bigint;
   quoteMint: PublicKey;
   tier: number;
 }
 
-/** One market per (feed, settlement time, quote mint, tier). */
+/** One market per (creator, feed, settlement time, quote mint, tier). */
 export function deriveLadderPda(k: LadderKey, programId = SOOTH_CORE_PROGRAM_ID): PublicKey {
   if (k.feedId.length !== 32) throw new Error("feedId must be 32 bytes");
-  return find([SEED_LADDER, k.feedId, i64(k.settlesAt), k.quoteMint.toBytes(), u8(k.tier)], programId);
+  return find([SEED_LADDER, k.creator.toBytes(), k.feedId, i64(k.settlesAt), k.quoteMint.toBytes(), u8(k.tier)], programId);
 }
 export const deriveLadderAuthority = (ladder: PublicKey, programId = SOOTH_CORE_PROGRAM_ID) =>
   find([SEED_AUTHORITY, ladder.toBytes()], programId);
@@ -104,17 +105,32 @@ const pid = (r: { programId?: PublicKey }) => r.programId ?? SOOTH_CORE_PROGRAM_
 const ix = (r: { programId?: PublicKey }, data: Buffer, keys: AccountMeta[]) =>
   new TransactionInstruction({ programId: pid(r), data, keys });
 
-/** The heap request every `sooth_core` transaction must carry, then `ixs`. */
-export function withHeap(ixs: TransactionInstruction[], computeUnits = 200_000): TransactionInstruction[] {
+/**
+ * The heap request every `sooth_core` transaction must carry, then `ixs`.
+ * 120K CU covers the widest trade (measured 81K) with room; a lower request
+ * also raises how many trades a block can hold on one market.
+ */
+export function withHeap(ixs: TransactionInstruction[], computeUnits = 120_000, priorityMicroLamports = 0): TransactionInstruction[] {
   return [
     ComputeBudgetProgram.requestHeapFrame({ bytes: 256 * 1024 }),
     ComputeBudgetProgram.setComputeUnitLimit({ units: computeUnits }),
+    ...(priorityMicroLamports > 0 ? [ComputeBudgetProgram.setComputeUnitPrice({ microLamports: priorityMicroLamports })] : []),
     ...ixs,
   ];
 }
 
+/**
+ * Compute to request for a trade of `shape`. Cost grows with the bins
+ * touched; measured 45K for a 7-bin tent and 109K for all 64 bins on a
+ * grown market, and per-bin cost doubles once weights pass ~340. Requesting
+ * more than is used costs nothing but priority fee, so this errs generous.
+ */
+export function tradeComputeUnits(shape: Shape): number {
+  const bins = Math.min(shape.hi, BINS - 1) - Math.max(shape.lo, 0) + 1;
+  return 60_000 + bins * 2_000;
+}
+
 export interface CreateLadderArgs extends LadderKey {
-  creator: PublicKey;
   creatorToken: PublicKey;
   tokenProgram: PublicKey;
   opensAt: bigint;
@@ -218,9 +234,17 @@ export function joinLadderIx(r: LadderRefs, a: JoinLadderArgs): TransactionInstr
   );
 }
 
-/** Settle from the one Pyth update that is the price at `settlesAt`. Anyone. */
-export const settleLadderIx = (r: LadderRefs, cranker: PublicKey, priceUpdate: PublicKey) =>
-  ix(r, pack(DISC.settle), [signer(cranker, false), rw(r.ladder), ro(priceUpdate)]);
+/**
+ * Settle from the one Pyth update that is the price at `settlesAt`. Anyone;
+ * the settler is paid half the protocol's fee take into `crankerToken`.
+ */
+export function settleLadderIx(r: LadderRefs, cranker: PublicKey, priceUpdate: PublicKey, crankerToken: PublicKey): TransactionInstruction {
+  const programId = pid(r);
+  return ix(r, pack(DISC.settle), [
+    signer(cranker, false), rw(r.ladder), ro(priceUpdate), ro(deriveLadderAuthority(r.ladder, programId)),
+    ro(r.quoteMint), rw(deriveLadderVault(r.ladder, programId)), rw(crankerToken), ro(r.tokenProgram),
+  ]);
+}
 
 /** Give up on a market that never opened, or never got its price. Anyone. */
 export const voidLadderIx = (r: LadderRefs, cranker: PublicKey) =>

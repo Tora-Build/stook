@@ -15,7 +15,8 @@
 //     (= 64·WAD). This is what makes the log-sum-exp shifted `lmsrCost`
 //     numerically stable on imbalanced markets.
 //
-//   - The Taylor series term counts (12 for exp, 14 for ln) match the Rust.
+//   - The series (12 terms for exp, 14 for ln, in binary Q0.64 with constant
+//     reciprocals) is the Rust's op for op, so results are bit-identical.
 //     `tests/lmsr.test.ts` pins the small-buy case
 //     `cost_delta(q=0, q=0, b=1000·WAD, d_yes=10·WAD, d_no=0)` to within
 //     0.001% of ~5.0125 USDC, the same threshold as the Rust unit test
@@ -31,8 +32,10 @@ export const LN2_WAD = 693_147_180_559_945_309n;
 export const WAD_TO_USDC_SCALAR = 1_000_000_000_000n;
 
 const EXP_MAX_INPUT_WAD = 64n * WAD;
-const EXP_TERMS = 12;
-const LN_TERMS = 14;
+// ⌊2⁶⁴ / n!⌋ for n = 2..12 and ⌊2⁶⁴ / (2n+1)⌋ for n = 1..13 — the same
+// constants as `math/lmsr.rs`.
+const INV_FACT_Q64 = [9223372036854775808n, 3074457345618258602n, 768614336404564650n, 153722867280912930n, 25620477880152155n, 3660068268593165n, 457508533574145n, 50834281508238n, 5083428150823n, 462129831893n, 38510819324n];
+const INV_ODD_Q64 = [6148914691236517205n, 3689348814741910323n, 2635249153387078802n, 2049638230412172401n, 1676976733973595601n, 1418980313362273201n, 1229782938247303441n, 1085102592571150095n, 970881267037344821n, 878416384462359600n, 802032351030850070n, 737869762948382064n, 683212743470724133n];
 
 export class LmsrMathError extends Error {
   constructor(msg: string) {
@@ -81,14 +84,18 @@ export function expWad(x: bigint): bigint {
   }
   const r = x - k * LN2_WAD;
 
-  // Taylor: exp(r) = Σ rⁿ / n!  on the reduced range.
-  let term = WAD;
-  let sum = WAD;
-  for (let n = 1; n <= EXP_TERMS; n++) {
-    term = wadMul(term, r);
-    term = term / BigInt(n);
-    sum = sum + term;
+  // exp(r) − 1 as a Taylor series in binary Q0.64 with constant reciprocal
+  // factorials — no division in the loop, exactly as the Rust does it. Every
+  // op here must round the way i128 does: `/` truncates toward zero and `>>`
+  // floors, in both languages.
+  const rq = (r << 64n) / WAD;
+  let pow = rq;
+  let acc = rq;
+  for (const inv of INV_FACT_Q64) {
+    pow = (pow * rq) >> 64n;
+    acc += (pow * inv) >> 64n;
   }
+  const sum = (((1n << 64n) + acc) * WAD) >> 64n;
 
   // Multiply by 2^k. k can be negative.
   if (k >= 0n) {
@@ -126,19 +133,19 @@ export function lnWad(y: bigint): bigint {
     if (kk >= 127) throw new LmsrMathError(`ln_wad shift overflow`);
     m = yu << BigInt(kk);
   }
-  // ln(m/WAD) via series on z = (m - WAD) / (m + WAD).
+  // ln m = 2·atanh(z), z = (m − 1)/(m + 1), in Q0.64 with constant
+  // reciprocal odds — the Rust's series, op for op.
   const mMinus = m - WAD;
   const mPlus = m + WAD;
-  const z = wadDiv(mMinus, mPlus);
-  const z2 = wadMul(z, z);
+  const z = (mMinus << 64n) / mPlus;
+  const z2 = (z * z) >> 64n;
   let term = z;
-  let sum = z;
-  for (let n = 1; n < LN_TERMS; n++) {
-    term = wadMul(term, z2);
-    const denom = BigInt(2 * n + 1);
-    sum = sum + term / denom;
+  let acc = z;
+  for (const inv of INV_ODD_Q64) {
+    term = (term * z2) >> 64n;
+    acc += (term * inv) >> 64n;
   }
-  const lnMOverWad = sum * 2n;
+  const lnMOverWad = ((2n * acc) * WAD) >> 64n;
   const kTerm = BigInt(k) * LN2_WAD;
   return kTerm + lnMOverWad;
 }

@@ -85,7 +85,7 @@ const balance = (e: Env, key: PublicKey) => AccountLayout.decode(Buffer.from((e.
 const exists = (e: Env, key: PublicKey) => { const a: any = e.svm.getAccount(key.toBase58() as any); return !!a && (a.exists ?? true) && BigInt(a.lamports ?? 0) > 0n; };
 
 function market(e: Env, settlesAt: bigint) {
-  const key = { feedId: NVDA_FEED, settlesAt, quoteMint: e.mint, tier: TIER };
+  const key = { creator: e.creator.kp.publicKey, feedId: NVDA_FEED, settlesAt, quoteMint: e.mint, tier: TIER };
   const ladder = L.deriveLadderPda(key, PROGRAM);
   const refs: L.LadderRefs = { ladder, quoteMint: e.mint, tokenProgram: TOKEN_PROGRAM_ID, programId: PROGRAM };
   const vault = L.deriveLadderVault(ladder, PROGRAM);
@@ -117,14 +117,14 @@ function market(e: Env, settlesAt: bigint) {
     curveSeq: () => state().curveSeq,
     depthOf: (o: PublicKey, index = 0) => L.decodeLadderTranche(raw(trancheOf(o, index))).b,
     create: (seed: bigint, opens: bigint, locks: bigint) => L.createLadderIx({
-      ...key, creator: e.creator.kp.publicKey, creatorToken: e.creator.token, tokenProgram: TOKEN_PROGRAM_ID,
+      ...key, creatorToken: e.creator.token, tokenProgram: TOKEN_PROGRAM_ID,
       opensAt: opens, locksAt: locks, seed, feeBps: 100, programId: PROGRAM,
     }),
     join: (w: Env["lp2"], amount: bigint, seq: bigint, index = 0) =>
       L.joinLadderIx(refs, { lp: w.kp.publicKey, lpToken: w.token, index, deposit: amount, expectedSeq: seq }),
     open: (price: PublicKey) => L.openLadderIx(refs, e.trader.kp.publicKey, price),
     trade: (lo: number, hi: number, h: number, shares: bigint, limit: bigint) => tradeAs(e.trader, lo, hi, h, shares, limit),
-    settle: (price: PublicKey) => L.settleLadderIx(refs, e.trader.kp.publicKey, price),
+    settle: (price: PublicKey) => L.settleLadderIx(refs, e.trader.kp.publicKey, price, e.trader.token),
     voidIt: () => L.voidLadderIx(refs, e.trader.kp.publicKey),
     redeem: (lo: number, hi: number, h: number) => L.redeemLadderIx(refs, e.trader.kp.publicKey, e.trader.token, { lo, hi, h }),
     claimLp: (w: Env["lp2"], index = 0) => L.claimLpIx(refs, w.kp.publicKey, w.token, index),
@@ -194,6 +194,12 @@ describe("ladder end to end", () => {
 
     // the line that will win: a tent centred on bin 33
     await m.quoted(30, 36, 4, 100_000_000n);
+    // the widest possible trade on a market whose weights have all grown — the
+    // compute worst case; must stay inside the SDK's default limit
+    await m.quoted(0, 63, 1, 1_500_000_000n);
+    const widest = await m.quoted(0, 63, 1, 300_000_000n);
+    expect(widest.cu).toBeLessThan(120_000);
+    await m.quoted(0, 63, 1, -1_800_000_000n);
     // an edge tent: its taper runs off the ladder, and the quote still holds
     await m.quoted(-2, 4, 4, 10_000_000n);
     await m.quoted(-2, 4, 4, -10_000_000n);
@@ -210,7 +216,11 @@ describe("ladder end to end", () => {
     await refused(e, m.settle(e.priceAccount(updateAt(price, settlesAt, settlesAt))), e.trader.kp);        // a LATER update in second T
     await refused(e, m.settle(e.priceAccount(updateAt(price, settlesAt - 1n, settlesAt - 2n))), e.trader.kp); // from before T
     await refused(e, m.settle(e.priceAccount(updateAt(price, settlesAt + 31n, settlesAt - 1n))), e.trader.kp); // feed silent across T
+    const bountyBefore = balance(e, e.trader.token);
     const settle = await ok(e, m.settle(e.priceAccount(updateAt(price, settlesAt, settlesAt - 1n))), e.trader.kp);
+    const bounty = balance(e, e.trader.token) - bountyBefore;
+    expect(bounty).toBeGreaterThan(0n);                                                                    // the settler is paid
+    expect(bounty).toBe(L.settleBounty(m.state().feesProtocol + bounty));
     await refused(e, m.settle(e.priceAccount(updateAt(price, settlesAt, settlesAt - 1n))), e.trader.kp);   // only once
     await refused(e, m.voidIt(), e.trader.kp);                                                             // settled markets do not void
 
@@ -259,7 +269,7 @@ describe("ladder end to end", () => {
     const lpPnl = (creatorGot + lp2Got + lp3Got) - 10_000_000_000n;
     const pct = (got: bigint, put: bigint) => `${(Number(got - put) / 1e6).toFixed(6)} (${(Number(got - put) / Number(put) * 100).toFixed(3)}%)`;
     console.log(`\nSETTLE PATH  NVDA opened $220.19 → settled $224.60 (bin 33)
-  compute units: create ${create.cu} · open ${open.cu} · tent ${tent.cu} · 25-bin band ${band.cu} · sell ${sell.cu} · late LP join ${join.cu} · settle ${settle.cu} · redeem ${redeem.cu} · LP claim ${claim.cu}
+  compute units: create ${create.cu} · open ${open.cu} · tent ${tent.cu} · 25-bin band ${band.cu} · 64-bin band on a grown market ${widest.cu} · sell ${sell.cu} · late LP join ${join.cu} · settle ${settle.cu} · redeem ${redeem.cu} · LP claim ${claim.cu}
   depth bought per 2,500: at seeding ${(Number(m0) / 1e18).toFixed(3)} · mid-market ${(Number(m1) / 1e18).toFixed(3)}
   creator (5,000 at seeding)  P&L ${pct(creatorGot, 5_000_000_000n)}
   lp2     (2,500 at seeding)  P&L ${pct(lp2Got, 2_500_000_000n)}
