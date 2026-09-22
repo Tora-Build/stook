@@ -6,11 +6,43 @@
 
 export type MintVerdict = "open" | "issuer-trusted" | "refused";
 
+export interface TransferFee {
+  bps: number;
+  /** Most the fee can be on one transfer, base units. */
+  maxFee: bigint;
+}
+
 export interface MintReport {
   verdict: MintVerdict;
   /** Human-readable findings, most serious first. */
   reasons: string[];
   decimals: number;
+  /** Set when the mint takes a fee on every transfer (the schedule in force now). */
+  transferFee?: TransferFee;
+}
+
+/**
+ * The smallest amount to send so at least `net` arrives after the fee —
+ * the program's `token_guard::gross_for`, op for op. What a wallet pays for
+ * a deposit of `net`.
+ */
+export function grossFor(net: bigint, fee?: TransferFee): bigint {
+  if (!fee || fee.bps === 0) return net;
+  if (fee.bps >= 10_000) throw new Error("a 100% transfer fee cannot be paid through");
+  const bps = BigInt(fee.bps);
+  const feeAt = (g: bigint) => { const f = (g * bps + 9_999n) / 10_000n; return f < fee.maxFee ? f : fee.maxFee; };
+  let gross = (net * 10_000n + (10_000n - bps) - 1n) / (10_000n - bps);
+  const capped = net + fee.maxFee;
+  if (capped < gross && feeAt(capped) === fee.maxFee) gross = capped;
+  while (gross - feeAt(gross) < net) gross += 1n;
+  return gross;
+}
+
+/** What arrives when `gross` is sent: what a payout is worth to its receiver. */
+export function netOf(gross: bigint, fee?: TransferFee): bigint {
+  if (!fee || fee.bps === 0) return gross;
+  const f = (gross * BigInt(fee.bps) + 9_999n) / 10_000n;
+  return gross - (f < fee.maxFee ? f : fee.maxFee);
 }
 
 const NAMES: Record<number, string> = {
@@ -22,13 +54,14 @@ const NAMES: Record<number, string> = {
 const DESCRIPTIVE = new Set([3, 4, 18, 19, 20, 21, 22, 23, 25]);
 const isSet = (b: Uint8Array) => b.some((v) => v !== 0);
 
-export function classifyMint(data: Uint8Array): MintReport {
+export function classifyMint(data: Uint8Array, epoch?: bigint): MintReport {
   const decimals = data.length >= 45 ? data[44]! : 0;
   const refused = (why: string): MintReport => ({ verdict: "refused", reasons: [why], decimals });
   if (data.length === 82) return { verdict: "open", reasons: [], decimals };
   if (data.length < 166 || data[165] !== 1) return refused("not a mint account");
 
   const trust: string[] = [];
+  let transferFee: TransferFee | undefined;
   const view = new DataView(data.buffer, data.byteOffset, data.byteLength);
   for (let at = 166; at + 4 <= data.length; ) {
     const ty = view.getUint16(at, true), len = view.getUint16(at + 2, true);
@@ -39,7 +72,20 @@ export function classifyMint(data: Uint8Array): MintReport {
     at += 4 + len;
 
     if (DESCRIPTIVE.has(ty)) continue;
-    if (ty === 1 || ty === 16) return refused(`${name}: a deposit would arrive short of what the curve credits`);
+    if (ty === 16) return refused(`${name}: fees the vault cannot see`);
+    if (ty === 1) {
+      if (len !== 108) return refused("malformed extension data");
+      // authority 32 · withdraw 32 · withheld 8 · older {epoch, max, bps} · newer {epoch, max, bps}
+      const dv = new DataView(v.buffer, v.byteOffset, v.byteLength);
+      const sched = (o: number) => ({ epoch: dv.getBigUint64(o, true), maxFee: dv.getBigUint64(o + 8, true), bps: dv.getUint16(o + 16, true) });
+      const older = sched(72), newer = sched(90);
+      // Without the cluster epoch, take the newer schedule: it is the one in
+      // force unless it starts in the future, and StonkFun sets both alike.
+      const inForce = epoch !== undefined && epoch < newer.epoch ? older : newer;
+      if (inForce.bps > 0) transferFee = { bps: inForce.bps, maxFee: inForce.maxFee };
+      if (isSet(v.subarray(0, 32))) trust.push(`${name}: ${(inForce.bps / 100).toFixed(2)}% is taken on every transfer, and the issuer can change the rate`);
+      continue;
+    }
     if (ty === 9) return refused(`${name}: a vault could never pay out`);
     if (ty === 10) return refused(`${name}: not supported`);
     if (ty === 6) {
@@ -57,5 +103,5 @@ export function classifyMint(data: Uint8Array): MintReport {
       return refused(`${name}: not recognised`);
     }
   }
-  return { verdict: trust.length ? "issuer-trusted" : "open", reasons: trust, decimals };
+  return { verdict: trust.length ? "issuer-trusted" : "open", reasons: trust, decimals, ...(transferFee ? { transferFee } : {}) };
 }

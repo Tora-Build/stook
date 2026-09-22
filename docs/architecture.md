@@ -168,8 +168,17 @@ The approval is per mint, made once, and says exactly one thing: *we accept
 this issuer's powers*. It cannot lower the bar for a `Refused` mint. Revoking
 it stops new markets and leaves existing ones to finish.
 
-StonkFun's launchpad tokens carry a 1–3% transfer fee and stay refused: a vault
-whose deposits arrive short cannot pay what the curve believes it holds.
+**Transfer fees.** StonkFun sets a 1% transfer fee on every launch, $STOOK
+included, so refusing fee-bearing mints would refuse Stook's own coin. Every
+deposit — the creator's seed, a buy, an LP join — now goes through one
+`pull`: the program reads the mint's fee schedule for the current epoch,
+sends the gross that lands at least the net, then reloads the vault and
+credits only what arrived. A shortfall of any size reverts. Payouts send
+exactly what the pool owes and the receiver gets the mint's fee less; the
+app shows both numbers. The fee authority can change the rate, so such a
+mint is `IssuerTrusted` and needs the one-time approval. Proven on LiteSVM
+against $STOOK's real bytes with Token-2022 taking its 1% on every transfer
+(`tests/ladder-stook.test.ts`).
 
 Two things about the toolchain, both found by running the real mint:
 

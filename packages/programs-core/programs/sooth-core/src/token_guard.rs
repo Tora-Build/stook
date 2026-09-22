@@ -13,9 +13,14 @@
 //!   3. The vault can receive, and can pay out.
 //!   4. Nobody but the vault's authority moves what the vault holds.
 //!
-//! An extension that breaks 1–3 is `Refused`: handling it means fee-aware
-//! accounting or reentrancy analysis on every vault path, and that work does
-//! not exist.
+//! An extension that breaks 2–3 is `Refused`: handling it means reentrancy
+//! analysis on every vault path, and that work does not exist.
+//!
+//! A transfer fee breaks 1, and IS handled: every deposit is credited by what
+//! the vault says arrived, not by what was sent (`instructions::ladder::pull`).
+//! The fee authority can change the rate at will, which is an issuer power, so
+//! a fee-bearing mint is `IssuerTrusted`. StonkFun sets 1% on every launch —
+//! $STOOK included — so this is the common case, not the exotic one.
 //!
 //! An extension that breaks 4 cannot be handled at all — a permanent delegate
 //! can empty any account of that mint, and no program can stop it. It is not a
@@ -87,11 +92,15 @@ fn is_set(key: &[u8]) -> bool {
 fn judge(ty: u16, value: &[u8]) -> Verdict {
     use Verdict::*;
     match ty {
-        // 1. A deposit of `n` arrives as less than `n`; the curve credits what
-        //    it was told and the vault holds less than it owes. A zero fee
-        //    today is no comfort: its authority can raise it tomorrow.
-        //    StonkFun's launchpad tokens carry 1–3%.
-        TRANSFER_FEE_CONFIG | CONFIDENTIAL_TRANSFER_FEE_CONFIG => Refused,
+        // 1. A deposit of `n` arrives as less than `n`. Handled by crediting
+        //    arrivals (`pull`), so the vault never believes more than it holds.
+        //    The authority can raise the rate at will: an issuer power.
+        TRANSFER_FEE_CONFIG => match value {
+            v if v.len() == 108 => if is_set(&v[..32]) { IssuerTrusted } else { Open },
+            _ => Refused,
+        },
+        // Confidential fees cannot be observed by the vault at all.
+        CONFIDENTIAL_TRANSFER_FEE_CONFIG => Refused,
 
         // 2. With a program named, every transfer CPIs into it, needs accounts
         //    this protocol does not pass, and can be failed at will. With only
@@ -145,6 +154,64 @@ fn judge(ty: u16, value: &[u8]) -> Verdict {
 
         _ => Refused,
     }
+}
+
+/// A mint's transfer fee at `epoch`: (basis points, maximum fee per transfer).
+/// `None` when the mint takes no fee. The config holds two schedules — the
+/// one in force and the one becoming so — and the epoch picks between them.
+pub fn transfer_fee(data: &[u8], epoch: u64) -> Option<(u16, u64)> {
+    if data.len() < TLV_START || data[ACCOUNT_TYPE_OFFSET] != ACCOUNT_TYPE_MINT {
+        return None;
+    }
+    let mut at = TLV_START;
+    while at + 4 <= data.len() {
+        let ty = u16::from_le_bytes([data[at], data[at + 1]]);
+        let len = u16::from_le_bytes([data[at + 2], data[at + 3]]) as usize;
+        if ty == 0 {
+            break;
+        }
+        let v = data.get(at + 4..at + 4 + len)?;
+        if ty == TRANSFER_FEE_CONFIG && v.len() == 108 {
+            // authority 32 · withdraw authority 32 · withheld 8 · older {epoch 8, max 8, bps 2} · newer {…}
+            let sched = |o: usize| {
+                let ep = u64::from_le_bytes(v[o..o + 8].try_into().unwrap());
+                let max = u64::from_le_bytes(v[o + 8..o + 16].try_into().unwrap());
+                let bps = u16::from_le_bytes([v[o + 16], v[o + 17]]);
+                (ep, bps, max)
+            };
+            let (older, newer) = (sched(72), sched(90));
+            let (_, bps, max) = if epoch >= newer.0 { newer } else { older };
+            return if bps == 0 { None } else { Some((bps, max)) };
+        }
+        at += 4 + len;
+    }
+    None
+}
+
+/// The smallest amount to send so that at least `net` arrives after a fee of
+/// `bps` capped at `max_fee`. Exact inverse of Token-2022's own rounding
+/// (fee = ceil(gross · bps / 10_000), then min with the cap).
+pub fn gross_for(net: u64, fee: Option<(u16, u64)>) -> Option<u64> {
+    let Some((bps, max_fee)) = fee else { return Some(net) };
+    if bps >= 10_000 {
+        return None;
+    }
+    let bps = bps as u128;
+    // gross ≥ net · 10_000 / (10_000 − bps), rounded up
+    let mut gross = ((net as u128 * 10_000 + (10_000 - bps) - 1) / (10_000 - bps)) as u64;
+    let fee_at = |g: u64| (((g as u128 * bps + 9_999) / 10_000) as u64).min(max_fee);
+    // Past the cap the fee is flat, so the gross is just net + cap — and that
+    // is less than the uncapped estimate exactly when the cap binds.
+    if let Some(capped) = net.checked_add(max_fee) {
+        if capped < gross && fee_at(capped) == max_fee {
+            gross = capped;
+        }
+    }
+    // Rounding can leave the estimate a unit short; never more than a few.
+    while gross.checked_sub(fee_at(gross))? < net {
+        gross = gross.checked_add(1)?;
+    }
+    Some(gross)
 }
 
 /// Classify a mint account's raw data.
@@ -232,10 +299,48 @@ mod tests {
         assert_eq!(classify(&mint_with(&[(TOKEN_METADATA, &[7u8; 90]), (METADATA_POINTER, &[1u8; 64])])), Verdict::Open);
     }
 
+    /// $STOOK, `GWrd84X5QxdRPAiNUFyiBaNoVZs85oHyWHtonJdd4wqu`, read from mainnet
+    /// on 2026-09-22: 6 decimals, 1% transfer fee set by StonkFun, metadata.
+    fn stook() -> Vec<u8> {
+        let hex = include_str!("../tests-fixtures/stook-mint.hex");
+        (0..hex.len() / 2).map(|i| u8::from_str_radix(&hex[2 * i..2 * i + 2], 16).unwrap()).collect()
+    }
+
+    #[test]
+    fn stook_itself_is_custodiable_with_its_fee_read_correctly() {
+        let d = stook();
+        assert_eq!(d.len(), 516);
+        assert_eq!(d[44], 6);
+        assert_eq!(classify(&d), Verdict::IssuerTrusted, "the fee authority can change the rate");
+        assert_eq!(transfer_fee(&d, 1040), Some((100, 1_000_000_000_000_000)));
+        assert_eq!(transfer_fee(&d, 5_000), Some((100, 1_000_000_000_000_000)));
+        assert_eq!(transfer_fee(&nvdax(), 1040), None, "no fee extension at all");
+    }
+
+    #[test]
+    fn the_gross_sent_lands_exactly_the_net_needed() {
+        // 1%: token-2022 takes ceil(gross/100)
+        let fee = Some((100u16, u64::MAX));
+        for net in [1u64, 99, 100, 101, 12_345, 1_000_000, 987_654_321, 10u64.pow(15)] {
+            let g = gross_for(net, fee).unwrap();
+            let taken = (g as u128 * 100 + 9_999) / 10_000;
+            assert!(g as u128 - taken >= net as u128, "net {net}: gross {g} lands {}", g as u128 - taken);
+            let g1 = g - 1;
+            let taken1 = (g1 as u128 * 100 + 9_999) / 10_000;
+            assert!((g1 as u128 - taken1) < net as u128, "net {net}: {g} is not the smallest");
+        }
+        // a capped fee: past the cap the gross is net + cap, not net / 0.99
+        assert_eq!(gross_for(1_000_000, Some((100, 500))), Some(1_000_500));
+        assert_eq!(gross_for(1_000, None), Some(1_000));
+        assert_eq!(gross_for(1_000, Some((10_000, u64::MAX))), None, "a 100% fee cannot be paid through");
+    }
+
     #[test]
     fn what_breaks_the_accounting_is_refused_whatever_it_contains() {
-        // 1. a transfer of n delivers n — even at a zero fee
-        assert_eq!(classify(&mint_with(&[(TRANSFER_FEE_CONFIG, &[0u8; 108])])), Verdict::Refused);
+        // a fee whose authority is nobody is just a rate; with an authority it is a power
+        assert_eq!(classify(&mint_with(&[(TRANSFER_FEE_CONFIG, &[0u8; 108])])), Verdict::Open);
+        assert_eq!(classify(&mint_with(&[(TRANSFER_FEE_CONFIG, &[9u8; 108])])), Verdict::IssuerTrusted);
+        assert_eq!(classify(&mint_with(&[(CONFIDENTIAL_TRANSFER_FEE_CONFIG, &[0u8; 64])])), Verdict::Refused);
         // 3. the vault can pay out
         assert_eq!(classify(&mint_with(&[(NON_TRANSFERABLE, &[])])), Verdict::Refused);
         assert_eq!(classify(&mint_with(&[(INTEREST_BEARING_CONFIG, &[0u8; 52])])), Verdict::Refused);
@@ -265,7 +370,7 @@ mod tests {
         assert_eq!(classify(&mint_with(&[(PAUSABLE, &[9u8; 33])])), Verdict::IssuerTrusted);
         // and one refusal outweighs any amount of trust
         assert_eq!(
-            classify(&mint_with(&[(PERMANENT_DELEGATE, &[9u8; 32]), (TRANSFER_FEE_CONFIG, &[0u8; 108])])),
+            classify(&mint_with(&[(PERMANENT_DELEGATE, &[9u8; 32]), (NON_TRANSFERABLE, &[])])),
             Verdict::Refused
         );
     }

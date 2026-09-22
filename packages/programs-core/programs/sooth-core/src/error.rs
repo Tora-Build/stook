@@ -75,4 +75,6 @@ pub enum SoothCoreError {
     LadderNotJoinable,
     #[msg("A trade landed since this join was priced; read the curve again")]
     LadderCurveMoved,
+    #[msg("Less arrived in the vault than the deposit requires; the mint's transfer fee changed")]
+    LadderDepositShort,
 }

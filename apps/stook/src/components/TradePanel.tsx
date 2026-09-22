@@ -19,6 +19,7 @@ interface Props {
   dp: number;
   quoteSymbol: string;
   tradeable: boolean;
+  transferFee?: stook.TransferFee;
 }
 
 export function TradePanel(p: Props) {
@@ -74,6 +75,11 @@ export function TradePanel(p: Props) {
   };
 
   const perShare = q && shares ? Number(q.total) / Number(shares) : null;
+  // A mint that takes a transfer fee: the wallet pays a little more than the
+  // quote on a buy, and receives a little less on a sell. The market's books
+  // see exactly the quote either way.
+  const tf = p.transferFee;
+  const wallet = q ? (side === "buy" ? stook.grossFor(q.total, tf) : stook.netOf(q.total, tf)) : null;
 
   return (
     <section className="panel">
@@ -128,7 +134,8 @@ export function TradePanel(p: Props) {
       {quote && "error" in quote && <p className="warn">{quote.error.includes("too large") ? "Too large for this market's depth. Try fewer shares." : quote.error}</p>}
       {q && s && (
         <dl className="quote">
-          <div><dt>{side === "buy" ? "You pay" : "You receive"}</dt><dd className="mono">{fmtAmount(q.total, dec)} {p.quoteSymbol}</dd></div>
+          <div><dt>{side === "buy" ? "You pay" : "You receive"}</dt><dd className="mono">{fmtAmount(wallet!, dec)} {p.quoteSymbol}</dd></div>
+          {tf && <div><dt>of which the token's own {(tf.bps / 100).toFixed(1)}% transfer fee</dt><dd className="mono">{fmtAmount(side === "buy" ? wallet! - q.total : q.total - wallet!, dec)}</dd></div>}
           <div><dt>per share (fee included)</dt><dd className="mono">{perShare!.toFixed(3)}</dd></div>
           {side === "buy" && <div><dt>best case</dt><dd className="mono amber">{fmtAmount(q.maxPayout, dec)} {p.quoteSymbol} ({(Number(q.maxPayout) / Number(q.total)).toFixed(1)}×)</dd></div>}
         </dl>

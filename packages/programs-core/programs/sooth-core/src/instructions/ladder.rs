@@ -77,6 +77,42 @@ fn one_token(decimals: u8) -> Result<u64> {
     10u64.checked_pow(decimals as u32).ok_or_else(|| error!(SoothCoreError::MathOverflow))
 }
 
+/// Move `net` quote tokens from `from` into the vault, on a mint that may
+/// take a transfer fee. Sends the gross the mint's fee schedule implies, then
+/// believes only what the vault says arrived: the pool's books are credited
+/// with `net`, and a shortfall of any size reverts. A mint whose fee authority
+/// raised the rate between the quote and the send fails here rather than
+/// leaving the vault holding less than the curve believes.
+fn pull<'info>(
+    net: u64,
+    from: &AccountInfo<'info>,
+    authority: &AccountInfo<'info>,
+    mint: &InterfaceAccount<'info, Mint>,
+    vault: &mut InterfaceAccount<'info, TokenAccount>,
+    token_program: &Interface<'info, TokenInterface>,
+) -> Result<()> {
+    let fee = crate::token_guard::transfer_fee(&mint.to_account_info().try_borrow_data()?, Clock::get()?.epoch);
+    let gross = crate::token_guard::gross_for(net, fee).ok_or(SoothCoreError::UnsupportedMintExtension)?;
+    let before = vault.amount;
+    token_interface::transfer_checked(
+        CpiContext::new(
+            token_program.to_account_info(),
+            TransferChecked {
+                from: from.clone(),
+                mint: mint.to_account_info(),
+                to: vault.to_account_info(),
+                authority: authority.clone(),
+            },
+        ),
+        gross,
+        mint.decimals,
+    )?;
+    vault.reload()?;
+    let arrived = vault.amount.checked_sub(before).ok_or(SoothCoreError::MathOverflow)?;
+    require!(arrived >= net, SoothCoreError::LadderDepositShort);
+    Ok(())
+}
+
 /// Price a deposit against the curve as it stands, and book it: the tranche
 /// records what it joined at, the market gains its cash and its depth.
 fn join(l: &mut Ladder, t: &mut LadderTranche, deposit: u64) -> Result<()> {
@@ -241,18 +277,13 @@ pub fn create_handler(ctx: Context<LadderCreate>, args: LadderCreateArgs) -> Res
     let decimals = ctx.accounts.quote_mint.decimals;
     require!(args.seed >= one_token(decimals)?, SoothCoreError::LadderSeedTooSmall);
 
-    token_interface::transfer_checked(
-        CpiContext::new(
-            ctx.accounts.token_program.to_account_info(),
-            TransferChecked {
-                from: ctx.accounts.creator_token.to_account_info(),
-                mint: ctx.accounts.quote_mint.to_account_info(),
-                to: ctx.accounts.vault.to_account_info(),
-                authority: ctx.accounts.creator.to_account_info(),
-            },
-        ),
+    pull(
         args.seed,
-        decimals,
+        &ctx.accounts.creator_token.to_account_info(),
+        &ctx.accounts.creator.to_account_info(),
+        &ctx.accounts.quote_mint,
+        &mut ctx.accounts.vault,
+        &ctx.accounts.token_program,
     )?;
 
     let mut l = ctx.accounts.ladder.load_init()?;
@@ -523,18 +554,13 @@ pub fn trade_handler(ctx: Context<LadderTrade>, args: LadderTradeArgs) -> Result
         let total = amount.checked_add(fee).ok_or(SoothCoreError::MathOverflow)?;
         require!(total <= args.limit, SoothCoreError::SlippageExceeded);
 
-        token_interface::transfer_checked(
-            CpiContext::new(
-                ctx.accounts.token_program.to_account_info(),
-                TransferChecked {
-                    from: ctx.accounts.user_token.to_account_info(),
-                    mint: ctx.accounts.quote_mint.to_account_info(),
-                    to: ctx.accounts.vault.to_account_info(),
-                    authority: ctx.accounts.user.to_account_info(),
-                },
-            ),
+        pull(
             total,
-            decimals,
+            &ctx.accounts.user_token.to_account_info(),
+            &ctx.accounts.user.to_account_info(),
+            &ctx.accounts.quote_mint,
+            &mut ctx.accounts.vault,
+            &ctx.accounts.token_program,
         )?;
         pos.shares = pos.shares.checked_add(size).ok_or(SoothCoreError::MathOverflow)?;
         pos.net_paid = pos.net_paid.checked_add(total).ok_or(SoothCoreError::MathOverflow)?;
@@ -658,7 +684,7 @@ pub fn lp_join_handler(ctx: Context<LadderLpJoin>, args: LadderLpJoinArgs) -> Re
     require_not_paused(&ctx.accounts.config)?;
     let now = Clock::get()?.unix_timestamp;
 
-    let (decimals, b, seq) = {
+    let (b, seq) = {
         let mut l = ctx.accounts.ladder.load_mut()?;
         require!(
             (l.status == STATUS_SEEDING || l.status == STATUS_OPEN) && now < l.locks_at,
@@ -673,21 +699,16 @@ pub fn lp_join_handler(ctx: Context<LadderLpJoin>, args: LadderLpJoinArgs) -> Re
         t.index = args.index;
         t.bump = ctx.bumps.tranche;
         join(&mut l, &mut t, args.deposit)?;
-        (l.quote_decimals, t.b_wad(), l.curve_seq)
+        (t.b_wad(), l.curve_seq)
     };
 
-    token_interface::transfer_checked(
-        CpiContext::new(
-            ctx.accounts.token_program.to_account_info(),
-            TransferChecked {
-                from: ctx.accounts.lp_token.to_account_info(),
-                mint: ctx.accounts.quote_mint.to_account_info(),
-                to: ctx.accounts.vault.to_account_info(),
-                authority: ctx.accounts.lp.to_account_info(),
-            },
-        ),
+    pull(
         args.deposit,
-        decimals,
+        &ctx.accounts.lp_token.to_account_info(),
+        &ctx.accounts.lp.to_account_info(),
+        &ctx.accounts.quote_mint,
+        &mut ctx.accounts.vault,
+        &ctx.accounts.token_program,
     )?;
 
     emit!(LadderLpJoined {

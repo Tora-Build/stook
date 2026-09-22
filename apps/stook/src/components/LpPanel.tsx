@@ -5,7 +5,7 @@ import { fmtAmount, parseAmount, short } from "../lib/format";
 import { ataOf } from "../lib/chain";
 import { useSend, useTranches } from "../hooks/useChain";
 
-interface Props { refs: stook.LadderRefs; ladder: stook.LadderAccount; quoteSymbol: string; now: number }
+interface Props { refs: stook.LadderRefs; ladder: stook.LadderAccount; quoteSymbol: string; now: number; transferFee?: stook.TransferFee }
 
 export function LpPanel(p: Props) {
   const { publicKey } = useWallet();
@@ -60,6 +60,7 @@ export function LpPanel(p: Props) {
               <div><dt>adds depth</dt><dd className="mono">{fmtAmount(depth / 10n ** 12n, 6, 1)}</dd></div>
               <div><dt>your share of fees from now</dt><dd className="mono">{(Number(depth) / (Number(l.b) + Number(depth)) * 100).toFixed(1)}%</dd></div>
               <div><dt>worst case</dt><dd className="mono">−{fmtAmount(deposit!, dec)} (the deposit, never more)</dd></div>
+              {p.transferFee && <div><dt>your wallet sends</dt><dd className="mono">{fmtAmount(stook.grossFor(deposit!, p.transferFee), dec)} (incl. the token's {(p.transferFee.bps / 100).toFixed(1)}% transfer fee)</dd></div>}
               <div><dt>longest shot right now</dt><dd className="mono">1 in {worst.toFixed(0)}</dd></div>
             </dl>
           )}

@@ -29,5 +29,5 @@ Stook Street is a corner of the financial district for memecoins anchored to sto
 - "Program and trading site run on Solana devnet" — true (program `55kGEMHJ…`, four markets run end to end).
 - "Markets open and settle themselves from Pyth; the keeper is public and paid a bounty" — true (`infra/ladder-crank`, bounty in `ladder_settle`).
 - "$STOOK launches on StonkFun, paired with SPY" — planned, not done. The site says "launches", not "launched".
-- "Markets quoted in $STOOK" — the mint `GWrd84X5QxdRPAiNUFyiBaNoVZs85oHyWHtonJdd4wqu` carries a 1% transfer fee set by StonkFun. The program is being taught fee-bearing mints (deposits credited by what actually arrives); until that ships, a market cannot be created in $STOOK.
+- "Markets quoted in $STOOK" — the mint `GWrd84X5QxdRPAiNUFyiBaNoVZs85oHyWHtonJdd4wqu` carries a 1% transfer fee set by StonkFun. The program handles fee-bearing mints (deposits credited by what arrives; proven against the real mint bytes). On mainnet the protocol authority must `approve_quote_mint` it once.
 - Nothing on the site quotes a price, a market cap, a supply or an APY. Keep it that way until there are real numbers.

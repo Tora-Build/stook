@@ -34,7 +34,7 @@ export function Market() {
   if (!l || !refs) return <p className="page muted">{l === null ? "No market at this address." : "Reading the quote token…"}</p>;
 
   const feed = feedByHex(feedHex(l.feedId));
-  const quoteSymbol = mint.data?.decimals === 6 ? "USDC" : "tokens";
+  const quoteSymbol = l.quoteMint.toBase58() === "GWrd84X5QxdRPAiNUFyiBaNoVZs85oHyWHtonJdd4wqu" ? "STOOK" : mint.data?.decimals === 6 ? "USDC" : "tokens";
   const tradeable = l.status === "open" && now < Number(l.locksAt);
   const step = stook.nextStep(l, BigInt(now));
   const setHeightAndShape = (h: number) => { setHeight(h); if (shape && shape.h > 1) setShape(stook.tent((shape.lo + shape.hi) / 2, h)); };
@@ -67,11 +67,11 @@ export function Market() {
 
       <div className="cols">
         <div>
-          <TradePanel refs={refs} ladder={l} shape={shape} mode={mode} setMode={setMode} height={height} setHeight={setHeightAndShape} symbol={feed.symbol} dp={feed.dp} quoteSymbol={quoteSymbol} tradeable={tradeable} />
+          <TradePanel refs={refs} ladder={l} shape={shape} mode={mode} setMode={setMode} height={height} setHeight={setHeightAndShape} symbol={feed.symbol} dp={feed.dp} quoteSymbol={quoteSymbol} tradeable={tradeable} transferFee={mint.data?.report.transferFee} />
           <Positions refs={refs} ladder={l} dp={feed.dp} quoteSymbol={quoteSymbol} onPick={setShape} />
         </div>
         <div>
-          <LpPanel refs={refs} ladder={l} quoteSymbol={quoteSymbol} now={now} />
+          <LpPanel refs={refs} ladder={l} quoteSymbol={quoteSymbol} now={now} transferFee={mint.data?.report.transferFee} />
           <section className="panel">
             <h3>Market</h3>
             <dl className="quote">

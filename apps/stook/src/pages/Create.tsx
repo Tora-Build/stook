@@ -67,7 +67,7 @@ export function Create() {
         {mintKey && mint.data === null && <span className="warn">No mint at this address.</span>}
         {mint.data && (
           <span className={`hint ${verdict === "refused" ? "warn" : ""}`}>
-            {mint.data.decimals} decimals · {verdict === "open" ? "any market may quote in it" : verdict === "issuer-trusted" ? "issuer holds powers over holders — needs protocol approval" : "cannot be held in a vault"}
+            {mint.data.decimals} decimals · {verdict === "open" ? "any market may quote in it" : verdict === "issuer-trusted" ? "needs protocol approval" : "cannot be held in a vault"}
             {mint.data.report.reasons.map((r) => <><br />{r}</>)}
           </span>
         )}
