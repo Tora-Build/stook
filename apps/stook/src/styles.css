@@ -56,11 +56,11 @@ h3 { font-family: var(--px); font-size: .6rem; color: var(--teal); margin: 0 0 .
 .sign { display: inline-block; background: var(--green); color: var(--cream); font-family: var(--px); font-size: .55rem; padding: .5rem .8rem; border: 3px solid var(--cream); margin-bottom: 1rem; }
 
 .app { min-height: 100vh; display: flex; flex-direction: column; }
-.top { display: flex; align-items: center; gap: 1.5rem; padding: .7rem 1rem; background: var(--ink); }
-.brand { display: flex; align-items: center; gap: .6rem; font-family: var(--px); font-size: .7rem; color: var(--cream); }
+.top { display: flex; align-items: center; gap: 1.5rem; padding: .8rem 20px; background: #0b1120; }
+.brand { display: flex; align-items: center; gap: .6rem; font-family: var(--px); font-size: .75rem; color: #f4e9c8; }
 .brand img { image-rendering: pixelated; }
 .top nav { display: flex; gap: 1.2rem; }
-.top nav a { font-family: var(--px); font-size: .55rem; color: var(--cream-2); padding: .35rem 0; }
+.top nav a { font-family: var(--px); font-size: .55rem; color: #c9bfa4; padding: .35rem 0; }
 .top nav a.active { color: var(--taxi); border-bottom: 3px solid var(--taxi); }
 .top-right { margin-left: auto; display: flex; gap: .5rem; align-items: center; }
 .wallet-adapter-button { background: var(--taxi) !important; color: var(--ink) !important; font-family: var(--px) !important; font-size: .55rem !important; height: 38px !important; border-radius: 0 !important; border: 3px solid var(--ink) !important; box-shadow: 3px 3px 0 var(--brick-2) !important; }
@@ -219,13 +219,15 @@ button.link { background: none; border: 0; color: var(--taxi); font: inherit; cu
 /* the street (front page) */
 .main-street { padding: 0; }
 .street { margin: 0; }
-.hero-city { position: relative; min-height: 70vh; overflow: hidden; }
+.hero-city { position: relative; min-height: 72vh; overflow: hidden; }
 .skyline-hero { position: absolute; inset: 0; width: 100%; height: 100%; border-bottom: 0; }
 .hero-copy { position: relative; z-index: 1; max-width: 1100px; margin: 0 auto; padding: 3rem 20px; }
-.hero-copy h1 { font-size: clamp(1.3rem, 3.6vw, 2.2rem); color: #f4e9c8; text-shadow: 4px 4px 0 #7d2f22; }
-.lede { font-size: 1.1rem; max-width: 42ch; background: rgba(11,17,32,.78); color: #f4e9c8; padding: 1rem; border: 3px solid #f4e9c8; box-shadow: 6px 6px 0 #7d2f22; display: inline-block; margin: 0 0 1rem; }
-.lede-links { font-family: var(--px); font-size: .55rem; }
-.lede-links a { color: #f4e9c8; background: #0b1120; padding: .5rem .7rem; border: 3px solid #f4e9c8; text-decoration: none; }
+.hero-copy h1 { font-size: clamp(1.3rem, 3.6vw, 2.2rem); color: #f4e9c8; text-shadow: 4px 4px 0 #7d2f22; margin: 0 0 1rem; }
+.lede { font-size: 1.1rem; max-width: 42ch; background: rgba(11,17,32,.78); color: #f4e9c8; padding: 1rem; border: 3px solid #f4e9c8; box-shadow: 6px 6px 0 #7d2f22; display: block; margin: 0 0 1.2rem; }
+.cta { display: inline-block; font-family: var(--px); font-size: .62rem; background: var(--taxi); color: #0b1120; text-decoration: none; padding: .85rem 1.1rem; border: 3px solid #0b1120; box-shadow: 5px 5px 0 #0b1120; margin: 0 .8rem .8rem 0; }
+.cta.alt { background: var(--green); color: #f4e9c8; }
+.cta:hover { text-decoration: none; }
+.cta:active { transform: translate(3px, 3px); box-shadow: 2px 2px 0 #0b1120; }
 .theme-btn { font-family: var(--px); font-size: .5rem; background: var(--ink); color: var(--cream); border: 3px solid var(--cream); padding: .55rem .7rem; cursor: pointer; }
 .top .theme-btn { background: #0b1120; color: #f4e9c8; border-color: #f4e9c8; }
 .floor { background: #141a26; border-top: 6px solid var(--taxi); border-bottom: 6px solid var(--taxi); position: relative; color: #f4e9c8; padding: 2rem 20px 2.5rem; }
@@ -280,4 +282,5 @@ button.link { background: none; border: 0; color: var(--taxi); font: inherit; cu
 :root[data-theme="day"] .line-hist { stroke: #101a2e; }
 .posts { position: relative; }
 .floor-bubble { font-family: var(--px); font-size: .46rem; line-height: 1.7; background: #f4e9c8; color: #0b1120; padding: .4rem .55rem; border: 2px solid #0b1120; box-shadow: 2px 2px 0 #0b1120; }
+.floor-bubble.below::after { bottom: auto; top: -6px; transform: translateX(-50%) rotate(-135deg); }
 .floor-bubble::after { content: ""; position: absolute; left: 50%; bottom: -6px; width: 4px; height: 4px; background: #f4e9c8; border: 2px solid #0b1120; border-top: 0; border-left: 0; transform: translateX(-50%) rotate(45deg); }

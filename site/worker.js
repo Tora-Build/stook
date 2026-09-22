@@ -5,13 +5,36 @@
 const COINS = {
   STOOK: { kind: "yahoo", symbol: "SPY" },
   ZCAT: { kind: "yahoo", symbol: "ZEC-USD" },   // CoinGecko rate-limits Cloudflare egress; Yahoo carries ZEC 24/7
-  KNOTS: { kind: "geckoterminal", pool: "7a8xxAJBELDo6P9dikSYctdw6ce8F4mWr3ahcAD8Ao49", quoteFallback: "dexscreener" }, // STONK/SOL on Raydium
+  // STONK trades on a Raydium CLMM pool against SPYx. The pool's state is read
+  // straight from the chain (no aggregator, no rate limit) and priced in
+  // dollars through SPY. No intraday series for it: the pool's own history
+  // buffer is minutes long, and the aggregators that keep one throttle
+  // Cloudflare's shared addresses.
+  KNOTS: { kind: "raydium-clmm", pool: "7a8xxAJBELDo6P9dikSYctdw6ce8F4mWr3ahcAD8Ao49", quoteSymbol: "SPY", quoteDecimals: 8, baseDecimals: 9 },
   GP: { kind: "yahoo", symbol: "GLD" },
 };
-const UA = { "user-agent": "Mozilla/5.0 stook-street" };
+const UA = { "user-agent": "Mozilla/5.0 stook-street", accept: "application/json" };
+
+const RPC = "https://solana-rpc.publicnode.com";
+
+/** A Raydium CLMM pool's spot price of token1 in token0, from sqrt_price_x64. */
+async function clmmPrice(pool, dec0, dec1) {
+  const j = await (await fetch(RPC, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "getAccountInfo", params: [pool, { encoding: "base64" }] }) })).json();
+  const d = Uint8Array.from(atob(j.result.value.data[0]), (c) => c.charCodeAt(0));
+  const o = 8 + 1 + 32 * 7 + 2 + 2 + 16;                       // …tick_spacing, liquidity, then sqrt_price_x64
+  const dv = new DataView(d.buffer);
+  const sqrt = Number(dv.getBigUint64(o, true)) + Number(dv.getBigUint64(o + 8, true)) * 2 ** 64;
+  const p = sqrt / 2 ** 64;
+  return p * p * 10 ** (dec0 - dec1);                          // token1 per token0
+}
 
 /** [ [unix seconds, price], … ] over roughly the last day, oldest first. */
 async function series(src) {
+  if (src.kind === "raydium-clmm") {
+    const [perQuote, quote] = await Promise.all([clmmPrice(src.pool, src.quoteDecimals, src.baseDecimals), series({ kind: "yahoo", symbol: src.quoteSymbol })]);
+    const q = quote[quote.length - 1];
+    return q ? [[q[0], q[1] / perQuote]] : [];                  // a single point: the price now
+  }
   if (src.kind === "yahoo") {
     const j = await (await fetch(`https://query1.finance.yahoo.com/v8/finance/chart/${src.symbol}?range=1d&interval=5m`, { headers: UA })).json();
     const r = j.chart.result[0]; const close = r.indicators.quote[0].close;
@@ -22,7 +45,9 @@ async function series(src) {
     return j.prices.map(([ms, p]) => [Math.floor(ms / 1000), p]);
   }
   if (src.kind === "geckoterminal") {
-    const j = await (await fetch(`https://api.geckoterminal.com/api/v2/networks/solana/pools/${src.pool}/ohlcv/minute?aggregate=15&limit=96`, { headers: UA })).json();
+    const r = await fetch(`https://api.geckoterminal.com/api/v2/networks/solana/pools/${src.pool}/ohlcv/minute?aggregate=15&limit=96`, { headers: UA });
+    const j = await r.json();
+    if (!j.data) throw new Error(`geckoterminal ${r.status}: ${JSON.stringify(j).slice(0, 80)}`);
     return j.data.attributes.ohlcv_list.map(([t, , , , close]) => [t, close]).reverse();
   }
   return [];
@@ -58,7 +83,7 @@ export default {
           const pts = await series(src);
           const last = pts[pts.length - 1], first = pts[0];
           if (!last) throw new Error("empty");
-          body[sym] = { price: last[1], at: last[0], change24h: first ? (last[1] / first[1] - 1) * 100 : null };
+          body[sym] = { price: last[1], at: last[0], change24h: pts.length > 1 ? (last[1] / first[1] - 1) * 100 : null };
           ctx.waitUntil(cache.put(qkey, new Response(JSON.stringify(body[sym]), { headers: { "cache-control": "public, max-age=3600" } })));
         } catch (e1) {
           if (debug) body[sym + "_err"] = String(e1).slice(0, 120);

@@ -4,7 +4,7 @@
 import { useEffect, useRef } from "react";
 import { Link } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
-import { COINS, anchorOf, isDevnet, type Coin } from "../lib/coins";
+import { COINS, anchorOf, type Coin } from "../lib/coins";
 import { useNow } from "../hooks/useNow";
 
 const DATA = "https://stooks.xyz";
@@ -33,7 +33,6 @@ export function Floor() {
     <section className="floor">
       <div className="board"><span>STOOK STREET · THE BOARD</span><span className="dim">ROUNDS ON THE ANCHOR · PAID IN THE COIN</span><span className="dim">{new Date(now * 1000).toLocaleTimeString("en-US", { timeZone: "America/New_York", hour12: false })} NY</span></div>
       <div className="posts" ref={posts}>{COINS.map((c) => <Table key={c.symbol} coin={c} q={quotes.data?.[c.symbol]} />)}</div>
-      {isDevnet && <p className="hint floor-note">Devnet. Prices on the tables are the real anchors; rounds here run on stand-in feeds until the keeper's Pyth key covers the anchors.</p>}
     </section>
   );
 }

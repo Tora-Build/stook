@@ -108,7 +108,10 @@
 
     function bubble(agent, text) {
       const el = document.createElement("div"); el.className = "floor-bubble"; el.textContent = text;
-      Object.assign(el.style, { position: "absolute", left: agent.x * P + "px", top: (agent.y - 14) * P + "px", transform: "translate(-50%, -100%)", whiteSpace: "normal", width: "max-content", maxWidth: "150px", textAlign: "center" });
+      // above the head, unless that would leave the floor — then below it
+      const above = agent.y * P > 70;
+      Object.assign(el.style, { position: "absolute", left: agent.x * P + "px", top: (above ? agent.y - 14 : agent.y + 8) * P + "px", transform: above ? "translate(-50%, -100%)" : "translate(-50%, 0)", whiteSpace: "normal", width: "max-content", maxWidth: "150px", textAlign: "center" });
+      el.classList.add(above ? "above" : "below");
       bubbles.appendChild(el); return el;
     }
 

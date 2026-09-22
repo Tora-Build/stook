@@ -22,16 +22,22 @@ h1{font-size:clamp(1.3rem,3.6vw,2.2rem);margin:0 0 1rem;text-shadow:4px 4px 0 va
 h2{font-size:clamp(.75rem,1.6vw,1rem);margin:0 0 1.2rem;color:var(--taxi)}
 p{margin:0 0 1rem}
 .wrap{max-width:1100px;margin:0 auto;padding:0 20px}
+/* header, the same on stooks.xyz and the app */
+.top{display:flex;align-items:center;gap:1.5rem;padding:.8rem 20px;background:#0b1120;color:#f4e9c8}
+.brand{display:flex;align-items:center;gap:.6rem;font-family:var(--px);font-size:.75rem;color:#f4e9c8;text-decoration:none}
+.brand img{image-rendering:pixelated}
+.top nav{display:flex;gap:1.2rem}
+.top nav a{font-family:var(--px);font-size:.55rem;color:#c9bfa4;text-decoration:none;padding:.35rem 0}
+.top nav a:hover{color:var(--taxi)}
+.top-right{margin-left:auto;display:flex;gap:.6rem;align-items:center}
+.theme-btn{font-family:var(--px);font-size:.5rem;background:#0b1120;color:#f4e9c8;border:3px solid #f4e9c8;padding:.55rem .7rem;cursor:pointer}
+.launch{font-family:var(--px);font-size:.55rem;background:var(--taxi);color:#0b1120;text-decoration:none;padding:.6rem .9rem;border:3px solid #0b1120;box-shadow:3px 3px 0 var(--brick2)}
+.launch:hover{background:#f7b95c}
 /* hero */
-.hero{position:relative;overflow:hidden;min-height:78vh;display:flex;flex-direction:column}
-.hero canvas{position:absolute;inset:0;width:100%;height:100%;image-rendering:pixelated;image-rendering:crisp-edges}
-.hero .wrap{position:relative;z-index:1;padding-top:2rem;flex:1;display:flex;flex-direction:column}
-.top{display:flex;align-items:center;gap:14px;margin-bottom:3rem}
-.top img{width:48px;height:48px;image-rendering:pixelated}
-.top .name{font-family:var(--px);font-size:.75rem;color:#f4e9c8;text-shadow:2px 2px 0 #0b1120}
-.top nav{margin-left:auto;display:flex;gap:1rem;align-items:center}
-.top nav a{font-family:var(--px);font-size:.5rem;color:#f4e9c8;text-decoration:none;text-shadow:2px 2px 0 #0b1120}
-#theme{font-family:var(--px);font-size:.5rem;background:#0b1120;color:#f4e9c8;border:3px solid #f4e9c8;padding:.5rem .7rem;cursor:pointer}
+.hero-city{position:relative;overflow:hidden;min-height:72vh}
+.hero-city canvas{position:absolute;inset:0;width:100%;height:100%;image-rendering:pixelated;image-rendering:crisp-edges}
+.hero-copy{position:relative;z-index:1;max-width:1100px;margin:0 auto;padding:3rem 20px}
+.hero-copy h1{color:#f4e9c8}
 .lede{font-size:1.1rem;max-width:42ch;background:rgba(11,17,32,.78);color:#f4e9c8;padding:1rem;border:3px solid #f4e9c8;box-shadow:6px 6px 0 var(--brick2);display:inline-block;margin:0 0 1.2rem}
 .cta{display:inline-block;font-family:var(--px);font-size:.62rem;background:var(--taxi);color:#0b1120;text-decoration:none;padding:.85rem 1.1rem;border:3px solid #0b1120;box-shadow:5px 5px 0 #0b1120;margin:0 .8rem .8rem 0}
 .cta.alt{background:var(--green);color:#f4e9c8}
@@ -61,6 +67,7 @@ p{margin:0 0 1rem}
 /* the floor, alive */
 .posts{position:relative}
 .floor-bubble{font-family:var(--px);font-size:.46rem;line-height:1.7;background:#f4e9c8;color:#0b1120;padding:.4rem .55rem;border:2px solid #0b1120;box-shadow:2px 2px 0 #0b1120}
+.floor-bubble.below::after{bottom:auto;top:-6px;transform:translateX(-50%) rotate(-135deg)}
 .floor-bubble::after{content:"";position:absolute;left:50%;bottom:-6px;width:4px;height:4px;background:#f4e9c8;border:2px solid #0b1120;border-top:0;border-left:0;transform:translateX(-50%) rotate(45deg)}
 @keyframes pop{from{transform:translate(-50%,-100%) scale(.6)}to{transform:translate(-50%,-100%) scale(1)}}
 /* how */
@@ -79,24 +86,26 @@ p{margin:0 0 1rem}
 .strip dt{color:var(--fg2)}.strip dd{margin:0;word-break:break-all}
 footer{padding:1.5rem 0 2.5rem;font-size:.85rem;color:var(--fg2);border-top:3px solid var(--taxi)}
 footer .px{font-size:.5rem}
-@media(max-width:860px){.posts{grid-template-columns:1fr 1fr;gap:2rem 1rem}.tiles{grid-template-columns:1fr}.hero{min-height:70vh}.board{font-size:.45rem}}
+@media(max-width:860px){.posts{grid-template-columns:1fr 1fr;gap:2rem 1rem}.tiles{grid-template-columns:1fr}.hero-city{min-height:60vh}.board{font-size:.45rem}.top{flex-wrap:wrap;gap:.75rem}.top nav{display:none}}
 @media(prefers-reduced-motion:reduce){*{animation:none!important}}
 </style>
 </head>
 <body>
 
-<header class="hero">
+<header class="top">
+  <a class="brand" href="/"><img src="stook-coin.svg" alt="" width="30" height="30"> STOOK STREET</a>
+  <nav><a href="#floor">The floor</a><a href="#how">How it works</a><a href="#stook">$STOOK</a></nav>
+  <div class="top-right"><button id="theme" class="theme-btn" aria-label="Switch between night and day">☾ NIGHT</button><a class="launch" href="https://app.stooks.xyz/">Launch app</a></div>
+</header>
+
+<section class="hero-city">
   <canvas id="city" aria-hidden="true"></canvas>
-  <div class="wrap">
-    <div class="top">
-      <img src="stook-coin.svg" alt=""><span class="name">STOOK STREET</span>
-      <nav><a href="#floor">The floor</a><a href="#how">How</a><a href="#stook">$STOOK</a><button id="theme" aria-label="Switch between night and day">☾ NIGHT</button></nav>
-    </div>
+  <div class="hero-copy">
     <h1>Where will it land?</h1>
     <p class="lede">Memecoins anchored to stocks. Your coin follows a stock; here you draw a line where that stock will land, in your coin, and get paid by how close you were.</p>
     <div><a class="cta" href="#floor">Walk onto the floor</a><a class="cta alt" href="#how">How it works</a></div>
   </div>
-</header>
+</section>
 
 <section id="floor" class="floor">
   <div class="wrap">
@@ -135,67 +144,26 @@ footer .px{font-size:.5rem}
 
 <footer><div class="wrap"><span class="px">STOOK STREET</span> · built on Solana · prices by Pyth · <a href="https://github.com/Tora-Build/stook">source</a></div></footer>
 
+<script src="city.js"></script>
 <script src="floor-life.js"></script>
 <script>
-// ── the street: one fixed skyline, lit for night or day. The layout is
-// computed once from a seed; the theme only changes sky, sun/moon, clouds and
-// whether the windows are lit. Toggling tweens between the two: the sun sets
-// as the moon rises, and back. ──
+let QUOTES={};
+// ── the street ──
 const root=document.documentElement,btn=document.getElementById('theme');
-const c=document.getElementById('city'),ctx=c.getContext('2d');
-let city=null,T=0; // T: 0 = night, 1 = day
-function layout(gw,gh){
-  let seed=20260922;const rnd=()=>{seed=(seed*1103515245+12345)&0x7fffffff;return seed/0x7fffffff};
-  const ground=gh-8,stars=[],far=[],near=[],clouds=[];
-  for(let i=0;i<gw*gh/900;i++)stars.push([Math.floor(rnd()*gw),Math.floor(rnd()*gh*.55),rnd()>.8]);
-  for(let x=0;x<gw;){const w=6+Math.floor(rnd()*10),h=Math.floor(gh*(.18+rnd()*.28));const win=[];for(let wy=ground-h+2;wy<ground-2;wy+=3)for(let wx=x+1;wx<x+w-1;wx+=2)if(rnd()>.55)win.push([wx,wy]);far.push({x,w,h,win});x+=w+Math.floor(rnd()*3)}
-  const pal=[['#7d2f22','#a8412f'],['#5a4a3a','#8a7256'],['#243a5e','#2f4d7c']];
-  for(let x=-2;x<gw;){const w=10+Math.floor(rnd()*16),h=Math.floor(gh*(.28+rnd()*.34)),p=pal[Math.floor(rnd()*pal.length)],cap=rnd()>.6;const win=[];for(let wy=ground-h+3;wy<ground-3;wy+=4)for(let wx=x+2;wx<x+w-2;wx+=3)win.push([wx,wy,rnd()>.45]);const sign=w>18&&rnd()>.5?ground-h+Math.floor(h*.35):null;near.push({x,w,h,d:p[0],l:p[1],cap,win,sign});x+=w+1+Math.floor(rnd()*3)}
-  for(let i=0;i<Math.max(3,gw/60);i++)clouds.push([Math.floor(rnd()*gw),4+Math.floor(rnd()*gh*.22),8+Math.floor(rnd()*14)]);
-  return{gw,gh,ground,stars,far,near,clouds};
-}
+let T=0,anim=null;
+StookCity.mount(document.getElementById('city'),{hero:true,t:()=>T,ticker:()=>Object.entries(QUOTES).map(([k,q])=>`$${k} ${q.price.toLocaleString('en-US',{maximumFractionDigits:q.dp??2})} ${q.change24h==null?'':(q.change24h>=0?'+':'')+q.change24h.toFixed(1)+'%'}`).join('   ')||'STOOK STREET'});
 const lerp=(a,b,t)=>a+(b-a)*t;
-const hex=(h)=>[parseInt(h.slice(1,3),16),parseInt(h.slice(3,5),16),parseInt(h.slice(5,7),16)];
-const mix=(a,b,t)=>{const A=hex(a),B=hex(b);return `rgb(${Math.round(lerp(A[0],B[0],t))},${Math.round(lerp(A[1],B[1],t))},${Math.round(lerp(A[2],B[2],t))})`};
-function drawCity(){
-  const W=c.clientWidth,H=c.clientHeight,P=Math.max(3,Math.round(W/260));const gw=Math.ceil(W/P),gh=Math.ceil(H/P);
-  if(!city||city.gw!==gw||city.gh!==gh)city=layout(gw,gh);
-  c.width=gw;c.height=gh;const t=T,{ground,stars,far,near,clouds}=city;
-  const px=(x,y,w,h,col)=>{ctx.fillStyle=col;ctx.fillRect(x,y,w,h)};
-  const night=['#0b1120','#0e1729','#101a2e','#132038','#182642'],day=['#8fc4ee','#a6d1f2','#bfdcf5','#d6e8f7','#ecf3f8'];
-  for(let i=0;i<5;i++)px(0,Math.floor(gh*i/5),gw,Math.ceil(gh/5)+1,mix(night[i],day[i],t));
-  ctx.globalAlpha=Math.max(0,1-t*1.6);for(const[x,y,a]of stars)px(x,y,1,1,a?'#f0a83a':'#f4e9c8');ctx.globalAlpha=1;
-  // sun and moon on one arc: the moon is up at night, the sun by day
-  const moonY=Math.floor(lerp(10,gh*.62,t)),sunY=Math.floor(lerp(gh*.62,8,t));
-  px(gw-28,moonY,7,7,'#f4e9c8');px(gw-27,moonY-1,5,9,'#f4e9c8');px(gw-29,moonY+1,9,5,'#f4e9c8');px(gw-25,moonY+2,3,3,'#c9bfa4');
-  px(gw-30,sunY,10,10,'#f0a83a');px(gw-29,sunY-1,8,12,'#f0a83a');px(gw-31,sunY+1,12,8,'#f0a83a');px(gw-27,sunY+2,4,4,'#f7c96e');
-  for(const[dx,dy]of[[-3,13],[12,13],[4,-2],[4,12],[-2,3],[11,3],[-2,9],[11,9]])px(gw-25+dx,sunY+dy,1,1,'#f0a83a');
-  ctx.globalAlpha=Math.max(0,(t-.4)*1.6);for(const[x,y,w]of clouds){px(x,y,w,3,'#ffffff');px(x+2,y-2,w-4,2,'#ffffff');px(x+1,y+3,w-2,1,'#e6eef7')}ctx.globalAlpha=1;
-  for(const b of far){px(b.x,ground-b.h,b.w,b.h,mix('#1b2a47','#6f86ad',t));for(const[wx,wy]of b.win)px(wx,wy,1,1,'#3a4f7a')}
-  for(const b of near){px(b.x,ground-b.h,b.w,b.h,b.d);px(b.x,ground-b.h,b.w,1,b.l);px(b.x,ground-b.h,1,b.h,b.l);
-    if(b.cap){px(b.x+2,ground-b.h-4,b.w-4,4,b.d);px(b.x+2,ground-b.h-4,b.w-4,1,b.l)}
-    for(const[wx,wy,lit]of b.win)px(wx,wy,2,2,lit?mix('#f0a83a','#0b1120',t):mix('#0b1120','#3a4f7a',t));
-    if(b.sign!==null){px(b.x+3,b.sign,b.w-6,5,'#0f7a4d');px(b.x+4,b.sign+1,b.w-8,3,'#35c4c4')}}
-  const ex=Math.floor(gw*.42),ew=Math.min(60,Math.floor(gw*.16)),eh=Math.floor(gh*.30);
-  px(ex,ground-eh,ew,eh,'#c9bfa4');px(ex-2,ground-eh-3,ew+4,4,'#f4e9c8');px(ex+ew/2-8,ground-eh-9,16,6,'#f4e9c8');
-  for(let cx=ex+3;cx<ex+ew-3;cx+=6)px(cx,ground-eh+5,3,eh-8,'#8a8f99');
-  px(ex+Math.floor(ew/2)-6,ground-eh+eh*.5,12,4,'#0f7a4d');
-  px(0,ground,gw,8,'#2a2a30');for(let x=2;x<gw;x+=10)px(x,ground+4,5,1,'#f0a83a');
-  const tx=Math.floor(gw*.2);px(tx,ground-4,10,4,'#f0a83a');px(tx+2,ground-6,6,2,'#f0a83a');px(tx+3,ground-5,4,1,'#0b1120');px(tx+1,ground,2,2,'#0b1120');px(tx+7,ground,2,2,'#0b1120');
-  const sx=Math.floor(gw*.72);px(sx,ground-22,1,22,'#8a8f99');px(sx-9,ground-27,20,6,'#f4e9c8');px(sx-8,ground-26,18,4,'#0f7a4d');
-}
-let anim=null;
 function setTheme(t,animate){
   const target=t==='day'?1:0;btn.textContent=t==='day'?'☀ DAY':'☾ NIGHT';try{localStorage.setItem('stook-theme',t);document.cookie=`stook-theme=${t};domain=.stooks.xyz;path=/;max-age=31536000;samesite=lax`}catch{}
   const reduce=matchMedia('(prefers-reduced-motion: reduce)').matches;
-  if(!animate||reduce){T=target;root.dataset.theme=t;drawCity();return}
+  if(!animate||reduce){T=target;root.dataset.theme=t;return}
   const from=T,start=performance.now(),dur=1400;cancelAnimationFrame(anim);
-  const step=(now)=>{const u=Math.min(1,(now-start)/dur),e=u<.5?2*u*u:1-Math.pow(-2*u+2,2)/2;T=lerp(from,target,e);if((target===1&&T>.5)||(target===0&&T<.5))root.dataset.theme=t;drawCity();if(u<1)anim=requestAnimationFrame(step)};
+  const step=(now)=>{const u=Math.min(1,(now-start)/dur),e=u<.5?2*u*u:1-Math.pow(-2*u+2,2)/2;T=lerp(from,target,e);if((target===1&&T>.5)||(target===0&&T<.5))root.dataset.theme=t;if(u<1)anim=requestAnimationFrame(step)};
   anim=requestAnimationFrame(step);
 }
 btn.onclick=()=>setTheme(root.dataset.theme==='day'?'night':'day',true);
 let saved='night';try{saved=(document.cookie.match(/stook-theme=(day|night)/)||[])[1]||localStorage.getItem('stook-theme')||'night'}catch{}
-setTheme(saved,false);let rt;addEventListener('resize',()=>{clearTimeout(rt);rt=setTimeout(drawCity,120)});
+setTheme(saved,false);
 
 // ── the floor: one post per coin, the anchor's live price from Pyth ──
 const APP='https://app.stooks.xyz';
@@ -208,7 +176,6 @@ const COINS=[
 // One post per coin: the coin's screen above, a round table with the traders who work it below.
 const posts=document.getElementById('posts');
 posts.innerHTML=COINS.map((k,i)=>`<a class="post" href="${APP}/?coin=${k.coin.slice(1)}"><div class="table"><div class="screen" id="s${i}"><div class="coin">${k.coin}</div><div class="anchor">${k.anchor}</div><div class="price">—</div><div class="chg"></div></div></div></a>`).join('');
-let QUOTES={};
 (async()=>{
   // /prices: each anchor's latest quote (market data, cached a minute by the Worker).
   try{
