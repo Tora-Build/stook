@@ -11,7 +11,7 @@ import { useNow } from "../hooks/useNow";
 import { fmtAmount, untilText } from "../lib/format";
 import type { LadderRow } from "../lib/chain";
 
-const DATA = "https://stooks.xyz";
+const DATA = "";
 /** Rounds settle at 16:00 New York — the close — every day, including weekends for 24/7 anchors. */
 const SETTLE_HOUR_NY = 16;
 /** A slot can be started until this long before it settles: trading needs time to happen. */

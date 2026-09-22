@@ -1,16 +1,15 @@
-# stooks.xyz — the Stook Street site: static assets, plus /prices from worker.js.
-#   cd site && npx wrangler deploy
+# stooks.xyz — the Stook Street app (built from apps/stook) plus the data
+# routes in worker.js (/prices, /chart).
+#   pnpm -F @stook/app build && cd site && npx wrangler deploy
 name = "stook-street"
 main = "worker.js"
 compatibility_date = "2026-08-01"
-assets = { directory = "./", binding = "ASSETS", not_found_handling = "single-page-application", run_worker_first = ["/prices", "/chart"] }
+assets = { directory = "../apps/stook/dist", binding = "ASSETS", not_found_handling = "single-page-application", run_worker_first = ["/prices", "/chart"] }
 routes = [
   { pattern = "stooks.xyz", custom_domain = true },
   { pattern = "www.stooks.xyz", custom_domain = true },
 ]
 
-# A rolling day of prices for anchors that have no public intraday series
-# (STONK, read from its pool). One point every five minutes.
 [[kv_namespaces]]
 binding = "SERIES"
 id = "a9bb0c3390bb486d969c2a16f946fe73"

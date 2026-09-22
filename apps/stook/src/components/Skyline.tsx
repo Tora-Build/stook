@@ -4,7 +4,7 @@
 import { useEffect, useRef } from "react";
 import { useTheme } from "./Theme";
 
-const SRC = "https://stooks.xyz/city.js";
+const SRC = "/city.js";
 type City = { mount: (c: HTMLCanvasElement, o: { hero?: boolean; t: () => number; ticker?: () => string }) => () => void };
 let loading: Promise<City> | null = null;
 const load = () => (loading ??= new Promise<City>((res, rej) => {

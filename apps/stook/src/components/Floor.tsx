@@ -7,7 +7,7 @@ import { useQuery } from "@tanstack/react-query";
 import { COINS, anchorOf, type Coin } from "../lib/coins";
 import { useNow } from "../hooks/useNow";
 
-const DATA = "https://stooks.xyz";
+const DATA = "";
 
 export function Floor() {
   const quotes = useQuery({ queryKey: ["quotes"], queryFn: async () => (await fetch(`${DATA}/prices`)).json() as Promise<Record<string, { price: number; change24h: number | null }>>, refetchInterval: 60_000 });

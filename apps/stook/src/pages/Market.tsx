@@ -30,7 +30,7 @@ export function Market() {
   const [height, setHeight] = useState(4);
   const live = useLivePrice(l?.feedId ?? null);
   const feedSym = l ? feedByHex(feedHex(l.feedId)).symbol : null;
-  const history = useQuery({ queryKey: ["hist", feedSym], queryFn: async () => (await fetch(`https://stooks.xyz/chart?sym=${feedSym}`)).json() as Promise<{ points: [number, number][] }>, enabled: !!feedSym, refetchInterval: 300_000 });
+  const history = useQuery({ queryKey: ["hist", feedSym], queryFn: async () => (await fetch(`/chart?sym=${feedSym}`)).json() as Promise<{ points: [number, number][] }>, enabled: !!feedSym, refetchInterval: 300_000 });
   const voidIt = useSend("Void");
 
   if (!key) return <p className="page muted">Not a market address.</p>;
