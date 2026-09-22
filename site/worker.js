@@ -34,7 +34,8 @@ export default {
     if (url.pathname !== "/prices" && url.pathname !== "/chart") return env.ASSETS.fetch(request);
     const cache = caches.default;
     const key = new Request(url.origin + url.pathname + (url.pathname === "/chart" ? `?coin=${url.searchParams.get("coin")}&sym=${url.searchParams.get("sym")}` : ""));
-    const hit = await cache.match(key);
+    const debug = url.searchParams.has("debug");
+    const hit = debug ? null : await cache.match(key);
     if (hit) return hit;
 
     let body, maxAge;
@@ -59,14 +60,21 @@ export default {
           if (!last) throw new Error("empty");
           body[sym] = { price: last[1], at: last[0], change24h: first ? (last[1] / first[1] - 1) * 100 : null };
           ctx.waitUntil(cache.put(qkey, new Response(JSON.stringify(body[sym]), { headers: { "cache-control": "public, max-age=3600" } })));
-        } catch {
+        } catch (e1) {
+          if (debug) body[sym + "_err"] = String(e1).slice(0, 120);
           // GeckoTerminal drops requests now and then; DexScreener has the same pool's spot price.
           if (src.quoteFallback === "dexscreener") {
             try {
-              const j = await (await fetch(`https://api.dexscreener.com/latest/dex/pairs/solana/${src.pool}`, { headers: UA })).json();
+              const r = await fetch(`https://api.dexscreener.com/latest/dex/pairs/solana/${src.pool}`, { headers: UA });
+              if (debug) body[sym + "_ds"] = r.status;
+              const j = await r.json();
               const p = j.pairs?.[0] ?? j.pair;
-              if (p?.priceUsd) { body[sym] = { price: Number(p.priceUsd), at: Math.floor(Date.now() / 1000), change24h: p.priceChange?.h24 ?? null }; return; }
-            } catch {}
+              if (p?.priceUsd) {
+                body[sym] = { price: Number(p.priceUsd), at: Math.floor(Date.now() / 1000), change24h: p.priceChange?.h24 ?? null };
+                ctx.waitUntil(cache.put(qkey, new Response(JSON.stringify(body[sym]), { headers: { "cache-control": "public, max-age=3600" } })));
+                return;
+              }
+            } catch (e2) { if (debug) body[sym + "_err2"] = String(e2).slice(0, 120); }
           }
           const old = await cache.match(qkey);
           if (old) body[sym] = { ...(await old.json()), stale: true };

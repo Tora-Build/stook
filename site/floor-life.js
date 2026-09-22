@@ -20,6 +20,9 @@
   // ── what they say ──────────────────────────────────────────────────────
   // {coin} {anchor} {price} {chg} {up} {level} {near} {far} are filled from data.
   const OPENERS = [
+    "{anchor} moved {abs}% today. That's {bands} bands.", "A band on {anchor} is about {band} wide right now.", "{anchor} needs {abs}% to get back where it started.", "If {anchor} holds {price} into the close, my line pays.",
+    "{coin} pool's paying fees. Somebody's trading.", "{anchor} at {price} — that's the middle band, nobody wins big there.", "Two bands up on {anchor} is {far}. I'd take it.", "{anchor} {chg} and the crowd hasn't moved. Odd.",
+    "Sold my {coin} line, buying it back lower.", "Is the {coin} round started yet?", "Whoever seeded {coin} today is up on fees already.", "Range on {anchor}: {near} to {far}. Sleep easy.",
     "{anchor} at {price}.", "{anchor}'s {chg} today.", "Seen {anchor}? {price}.", "{coin} crowd's quiet.", "Who's starting {coin}'s round?",
     "{anchor} {up} — you in?", "I've got a line at {level}.", "Anyone above {far}? Madness.", "{near} by the close, I'd say.", "Bands are tight on {coin}.",
     "The pool on {coin} is thin.", "{anchor} hasn't moved since lunch.", "Coffee? Then {coin}.", "Odds on {anchor} look wrong to me.", "Where does {anchor} land? {level}?",
@@ -27,18 +30,24 @@
     "Pyth says {price}.", "{anchor}: {chg}. Boring. Good.", "Close is at four. Get your line in.", "Whoever starts Friday's {coin} round eats the fees.", "Range {near}–{far}? Coward's bet.",
   ];
   const REPLIES = [
+    "{bands} bands? The tent won't cover that.", "Then draw the line at {near}.", "The house made {abs}% just sitting there.", "Start it yourself, it's one click.", "{band} a band. Fine. Reach 2.",
+    "{anchor}'s never closed there.", "I'll seed it if you trade it.", "Wider reach. Costs more, pays wider.", "Your line's four bands out. Good luck.", "The odds already say {near}.",
     "No way. {level}, easy.", "I'm long the close.", "Not with my {coin}.", "Line's in. {level}.", "Pool's fine, you fund it then.", "{chg}? That's nothing.", "Told you. {price}.",
     "Range for me. Sleep well.", "I'll take the other side.", "Crowd's got it at {near}.", "Give it an hour.", "Fees pay either way.", "Reach 4, centre {level}.", "That's a {far} print by Friday.",
     "Wider bands, more chance.", "You said that yesterday.", "Fine. Ten shares.", "The house always eats.", "Below {near}? I doubt it.", "Show me the odds.", "Sure. After the close.",
   ];
   const CLOSERS = ["Deal.", "We'll see.", "Ha.", "Fine.", "Back to it.", "Watch the tape.", "Later.", "Mm.", "Nope.", "Coffee."];
 
+  const GENERIC = ["Coffee?", "Long day.", "Close is at four.", "Watch the tape.", "Who's on the board today?", "Nothing moves before lunch.", "You seen the new post?", "Same as yesterday.", "Lines in?", "I'll be at the $STOOK table."];
   function line(tpl, k, q) {
-    if (!q) return tpl.replace(/\{[a-z]+\}/g, "…");
+    if (!q || q.price == null) return pick(GENERIC);       // no number to talk about: small talk
     const dp = q.dp ?? 2, p = q.price, chg = q.change24h;
     const lvl = (m) => fmt(p * (1 + m), dp);
-    return tpl.replace("{coin}", "$" + k).replace("{anchor}", q.anchor || k).replace("{price}", fmt(p, dp)).replace("{chg}", pctf(chg))
-      .replace("{up}", chg == null ? "flat" : chg >= 0 ? "up" : "down").replace("{level}", lvl(rnd(-0.02, 0.02))).replace("{near}", lvl(rnd(-0.01, 0.01))).replace("{far}", lvl(rnd(0.05, 0.12)));
+    const abs = chg == null ? "0.0" : Math.abs(chg).toFixed(1);
+    return tpl.replace("{coin}", "$" + k).replace("{anchor}", q.anchor || k).replace("{price}", fmt(p, dp)).replace("{chg}", pctf(chg)).replace("{abs}", abs)
+      .replace("{bands}", chg == null ? "0" : String(Math.max(1, Math.round(Math.abs(chg)))))
+      .replace("{band}", fmt(p * 0.01, dp)).replace("{up}", chg == null ? "flat" : chg >= 0 ? "up" : "down")
+      .replace("{level}", lvl(rnd(-0.02, 0.02))).replace("{near}", lvl(rnd(-0.01, 0.01))).replace("{far}", lvl(rnd(0.05, 0.12)));
   }
 
   function mount(container, opts) {
@@ -78,15 +87,20 @@
       const sameTable = Math.random() < 0.65;
       const pool = agents.filter((x) => x !== a && x.state === "home" && (sameTable ? x.table === a.table : x.table !== a.table));
       const b = pick(pool); if (!b) return;
-      const dx = a.hx - b.hx, dy = a.hy - b.hy, d = Math.hypot(dx, dy) || 1;
-      a.state = "walk"; a.tx = b.hx + (dx / d) * 9; a.ty = b.hy + (dy / d) * 9; a.partner = b; b.state = "wait"; b.partner = a;
+      // Where to stand: beside b on the rim of b's table (a neighbour), or a
+      // step outside the rim (a visitor). Never on the table.
+      const t = tables[b.table], bang = Math.atan2(b.hy - t.cy, b.hx - t.cx);
+      if (sameTable) { const side = Math.random() < 0.5 ? 1 : -1, ang = bang + side * (11 / t.r); a.tx = t.cx + Math.cos(ang) * t.r; a.ty = t.cy + Math.sin(ang) * t.r; }
+      else { a.tx = t.cx + Math.cos(bang) * (t.r + 9); a.ty = t.cy + Math.sin(bang) * (t.r + 9); }
+      a.state = "walk"; a.partner = b; b.state = "wait"; b.partner = a;
     }
 
     // ── the conversation, two or three lines ───────────────────────────────
     function talk(a, b) {
       const q = opts.data() || {};
       const tk = tables[b.table]?.coin || tables[a.table]?.coin;
-      const k = Math.random() < 0.7 ? tk : pick(Object.keys(q).length ? Object.keys(q) : [tk]);
+      const withData = Object.keys(q).filter((c) => q[c] && q[c].price != null);
+      const k = Math.random() < 0.7 && q[tk] ? tk : withData.length ? pick(withData) : tk;
       const lines = [[a, line(pick(OPENERS), k, q[k])], [b, line(pick(REPLIES), k, q[k])]];
       if (Math.random() < 0.5) lines.push([Math.random() < 0.5 ? a : b, pick(CLOSERS)]);
       convos.push({ lines, i: 0, until: 0, a, b });
@@ -106,10 +120,15 @@
 
       for (const a of agents) {
         if (a.state === "walk" || a.state === "back") {
+          a.t = (a.t || 0) + dt;
+          if (a.t > 8) { // could not get there: give up, everyone goes home
+            if (a.partner) { a.partner.state = "home"; a.partner.partner = null; }
+            a.state = "home"; a.partner = null; a.x = a.hx; a.y = a.hy; a.t = 0; continue;
+          }
           const tx = a.state === "walk" ? a.tx : a.hx, ty = a.state === "walk" ? a.ty : a.hy;
           const dx = tx - a.x, dy = ty - a.y, d = Math.hypot(dx, dy);
           const sp = 70 * dt;
-          if (d < sp) { a.x = tx; a.y = ty; if (a.state === "walk") { a.state = "talk"; a.partner.state = "talk"; talk(a, a.partner); } else { a.state = "home"; a.partner = null; } }
+          if (d < sp) { a.x = tx; a.y = ty; a.t = 0; if (a.state === "walk") { a.state = "talk"; a.partner.state = "talk"; talk(a, a.partner); } else { a.state = "home"; a.partner = null; } }
           else {
             a.x += (dx / d) * sp; a.y += (dy / d) * sp;
             // Tables are furniture: nobody walks across one. If the step
@@ -117,7 +136,7 @@
             // toward the target instead.
             for (const t of tables) {
               const ex = a.x - t.cx, ey = a.y - t.cy, ed = Math.hypot(ex, ey);
-              if (ed >= t.r - 0.5) continue;
+              if (ed >= t.r - 1) continue;
               const ang = Math.atan2(ey, ex), tang = Math.atan2(ty - t.cy, tx - t.cx);
               let da = tang - ang; da = Math.atan2(Math.sin(da), Math.cos(da));
               const na = ang + Math.sign(da) * Math.min(Math.abs(da), sp / t.r);
