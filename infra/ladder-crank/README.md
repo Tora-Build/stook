@@ -30,3 +30,12 @@ Two things learned on that run, both fixed:
   root `package.json` also pins one `@solana/web3.js` across the workspace,
   because the receiver's own copy pulled a second `rpc-websockets` that broke
   under pnpm's hoisting.
+
+## Hosted
+
+Runs on the `tora` box under cron (`deploy/keepalive.sh` every minute, same
+pattern as Soo's resolver), as its own devnet wallet
+`AWJiY5es1XWzba2QMQxU3jYEabBR5wxP2QKgJfVYB65r` (needs SOL for fees; ~0.01 SOL
+per settle). `deploy/deploy.sh` rsyncs the repo and restarts it. Secrets live
+only in `~/stook.env` on the box, written by hand over ssh stdin. Log:
+`~/ladder-crank.log`.
