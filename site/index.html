@@ -151,7 +151,7 @@ let QUOTES={};
 // ── the street ──
 const root=document.documentElement,btn=document.getElementById('theme');
 let T=0,anim=null;
-StookCity.mount(document.getElementById('city'),{hero:true,t:()=>T,ticker:()=>Object.entries(QUOTES).map(([k,q])=>`$${k} ${q.price.toLocaleString('en-US',{maximumFractionDigits:q.dp??2})} ${q.change24h==null?'':(q.change24h>=0?'+':'')+q.change24h.toFixed(1)+'%'}`).join('   ')||'STOOK STREET'});
+StookCity.mount(document.getElementById('city'),{hero:true,t:()=>T,ticker:()=>{const e=Object.entries(QUOTES);return e.length?e.map(([k,q])=>({text:`${k} ${q.price.toLocaleString('en-US',{maximumFractionDigits:q.dp??2})}${q.change24h==null?'':' '+(q.change24h>=0?'+':'')+q.change24h.toFixed(1)+'%'}`,down:q.change24h!=null&&q.change24h<0})):[{text:'STOOK STREET'}]}});
 const lerp=(a,b,t)=>a+(b-a)*t;
 function setTheme(t,animate){
   const target=t==='day'?1:0;btn.textContent=t==='day'?'☀ DAY':'☾ NIGHT';try{localStorage.setItem('stook-theme',t);document.cookie=`stook-theme=${t};domain=.stooks.xyz;path=/;max-age=31536000;samesite=lax`}catch{}

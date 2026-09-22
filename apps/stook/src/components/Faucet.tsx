@@ -43,5 +43,5 @@ export function Faucet() {
       void qc.invalidateQueries({ queryKey: ["balance"] });
     } catch (e) { toast.err(explain(e)); } finally { setBusy(false); }
   };
-  return <button className="small" onClick={mint} disabled={busy}>{busy ? "Minting…" : "Get test coins"}</button>;
+  return <button className="small" onClick={mint} disabled={busy} title="Devnet: 10,000 each of $STOOK, $ZCAT, $KNOTS, $GP and test USDC">{busy ? "Minting…" : "Get test coins (all 4 + USDC)"}</button>;
 }

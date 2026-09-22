@@ -8,3 +8,9 @@ routes = [
   { pattern = "stooks.xyz", custom_domain = true },
   { pattern = "www.stooks.xyz", custom_domain = true },
 ]
+
+# A rolling day of prices for anchors that have no public intraday series
+# (STONK, read from its pool). One point every five minutes.
+[[kv_namespaces]]
+binding = "SERIES"
+id = "a9bb0c3390bb486d969c2a16f946fe73"

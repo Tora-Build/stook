@@ -33,7 +33,17 @@ async function series(src) {
   if (src.kind === "raydium-clmm") {
     const [perQuote, quote] = await Promise.all([clmmPrice(src.pool, src.quoteDecimals, src.baseDecimals), series({ kind: "yahoo", symbol: src.quoteSymbol })]);
     const q = quote[quote.length - 1];
-    return q ? [[q[0], q[1] / perQuote]] : [];                  // a single point: the price now
+    if (!q) return [];
+    const point = [Math.floor(Date.now() / 1000), q[1] / perQuote];
+    // Keep our own day of history: one point per five minutes in KV.
+    if (!src.kv) return [point];
+    const key = `series:${src.key}`;
+    let pts = (await src.kv.get(key, "json")) || [];
+    const dayAgo = point[0] - 86_400;
+    pts = pts.filter((p) => p[0] >= dayAgo);
+    if (!pts.length || point[0] - pts[pts.length - 1][0] >= 300) { pts.push(point); await src.kv.put(key, JSON.stringify(pts)); }
+    else pts[pts.length - 1] = point;
+    return pts;
   }
   if (src.kind === "yahoo") {
     const j = await (await fetch(`https://query1.finance.yahoo.com/v8/finance/chart/${src.symbol}?range=1d&interval=5m`, { headers: UA })).json();
@@ -69,7 +79,8 @@ export default {
       // the devnet stand-in feeds and for custom rounds
       const SYMS = { BTC: "BTC-USD", ETH: "ETH-USD", SOL: "SOL-USD", DOGE: "DOGE-USD", XRP: "XRP-USD", BNB: "BNB-USD", ZEC: "ZEC-USD", SPY: "SPY", GLDx: "GLD", GLD: "GLD", SPYx: "SPY" };
       const sym = url.searchParams.get("sym");
-      const coin = sym ? (SYMS[sym] ? { kind: "yahoo", symbol: SYMS[sym] } : sym === "STONK" ? COINS.KNOTS : null) : COINS[url.searchParams.get("coin")];
+      const coinKey = url.searchParams.get("coin");
+      const coin = sym ? (SYMS[sym] ? { kind: "yahoo", symbol: SYMS[sym] } : sym === "STONK" ? { ...COINS.KNOTS, kv: env.SERIES, key: "KNOTS" } : null) : COINS[coinKey] ? { ...COINS[coinKey], kv: env.SERIES, key: coinKey } : null;
       if (!coin) return new Response("unknown coin", { status: 404 });
       try { body = { points: await series(coin) }; } catch (e) { body = { points: [], error: String(e).slice(0, 100) }; }
       maxAge = 300;
@@ -77,7 +88,8 @@ export default {
       // Each source hiccups on its own schedule; a coin whose source fails
       // keeps its last good quote (kept for an hour) instead of going dark.
       body = {};
-      await Promise.all(Object.entries(COINS).map(async ([sym, src]) => {
+      await Promise.all(Object.entries(COINS).map(async ([sym, src0]) => {
+        const src = { ...src0, kv: env.SERIES, key: sym };
         const qkey = new Request(`${url.origin}/q/${sym}`);
         try {
           const pts = await series(src);
