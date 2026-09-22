@@ -108,9 +108,22 @@
         if (a.state === "walk" || a.state === "back") {
           const tx = a.state === "walk" ? a.tx : a.hx, ty = a.state === "walk" ? a.ty : a.hy;
           const dx = tx - a.x, dy = ty - a.y, d = Math.hypot(dx, dy);
-          const sp = 22 * dt;
+          const sp = 70 * dt;
           if (d < sp) { a.x = tx; a.y = ty; a.bob = 0; if (a.state === "walk") { a.state = "talk"; a.partner.state = "talk"; a.face = dx >= 0 ? 1 : -1; a.partner.face = -a.face; talk(a, a.partner); } else { a.state = "home"; a.partner = null; } }
-          else { a.x += (dx / d) * sp; a.y += (dy / d) * sp; a.bob += dt * 10; a.face = dx >= 0 ? 1 : -1; }
+          else {
+            a.x += (dx / d) * sp; a.y += (dy / d) * sp; a.bob += dt * 22; a.face = dx >= 0 ? 1 : -1;
+            // Tables are furniture: nobody walks across one. If the step
+            // lands inside a table, push back to its rim and slide along it
+            // toward the target instead.
+            for (const t of tables) {
+              const ex = a.x - t.cx, ey = a.y - t.cy, ed = Math.hypot(ex, ey);
+              if (ed >= t.r - 0.5) continue;
+              const ang = Math.atan2(ey, ex), tang = Math.atan2(ty - t.cy, tx - t.cx);
+              let da = tang - ang; da = Math.atan2(Math.sin(da), Math.cos(da));
+              const na = ang + Math.sign(da) * Math.min(Math.abs(da), sp / t.r);
+              a.x = t.cx + Math.cos(na) * t.r; a.y = t.cy + Math.sin(na) * t.r;
+            }
+          }
         }
       }
       for (const c of convos.slice()) {
