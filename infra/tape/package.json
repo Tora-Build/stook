@@ -1,0 +1,10 @@
+{
+  "name": "@stook/tape",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "The tape: live prices for the street's anchors from their Solana pools, with candles, served over HTTP and SSE. Display only — settlement is Pyth, on chain.",
+  "engines": { "node": ">=20" },
+  "scripts": { "start": "node src/index.mjs", "lint": "node --check src/index.mjs" },
+  "dependencies": { "ws": "^8.18.0" }
+}

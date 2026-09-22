@@ -3,3 +3,4 @@ packages:
   - "apps/*"
   - "scripts/devnet"
   - "infra/ladder-crank"
+  - "infra/tape"

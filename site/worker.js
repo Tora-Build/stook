@@ -63,17 +63,38 @@ async function series(src) {
   return [];
 }
 
+/** The tape's current public address (a quick tunnel, re-announced when it restarts). */
+async function tapeUrl(env) { return env.SERIES.get("tape:url"); }
+
+/** Ask the tape; null if it is down or slow. */
+async function fromTape(env, path) {
+  const base = await tapeUrl(env); if (!base) return null;
+  try { const r = await fetch(base + path, { signal: AbortSignal.timeout(2500) }); if (!r.ok) return null; return await r.json(); } catch { return null; }
+}
+
 export default {
   async fetch(request, env, ctx) {
     const url = new URL(request.url);
+    // The tape announces where it is.
+    if (url.pathname === "/tape/register" && request.method === "POST") {
+      if (request.headers.get("authorization") !== `Bearer ${env.TAPE_TOKEN}`) return new Response("no", { status: 401 });
+      const { url: u } = await request.json(); if (!/^https:\/\/[a-z0-9-]+\.trycloudflare\.com$/.test(u)) return new Response("bad url", { status: 400 });
+      await env.SERIES.put("tape:url", u); return new Response("ok");
+    }
+    // Live stream and candles straight from the tape (no cache).
+    if (url.pathname === "/tape/stream" || url.pathname === "/tape/candles") {
+      const base = await tapeUrl(env); if (!base) return new Response("tape offline", { status: 503 });
+      return fetch(base + url.pathname.replace("/tape", "") + url.search, { headers: { accept: request.headers.get("accept") || "*/*" } });
+    }
     if (url.pathname !== "/prices" && url.pathname !== "/chart") return env.ASSETS.fetch(request);
     const cache = caches.default;
     const key = new Request(url.origin + url.pathname + (url.pathname === "/chart" ? `?coin=${url.searchParams.get("coin")}&sym=${url.searchParams.get("sym")}` : ""));
+    let maxAge;
     const debug = url.searchParams.has("debug");
     const hit = debug ? null : await cache.match(key);
     if (hit) return hit;
 
-    let body, maxAge;
+    let body;
     if (url.pathname === "/chart") {
       // by coin (its anchor), or by a plain symbol Yahoo carries — used for
       // the devnet stand-in feeds and for custom rounds
@@ -82,13 +103,17 @@ export default {
       const coinKey = url.searchParams.get("coin");
       const coin = sym ? (SYMS[sym] ? { kind: "yahoo", symbol: SYMS[sym] } : sym === "STONK" ? { ...COINS.KNOTS, kv: env.SERIES, key: "KNOTS" } : null) : COINS[coinKey] ? { ...COINS[coinKey], kv: env.SERIES, key: coinKey } : null;
       if (!coin) return new Response("unknown coin", { status: 404 });
-      try { body = { points: await series(coin) }; } catch (e) { body = { points: [], error: String(e).slice(0, 100) }; }
-      maxAge = 300;
+      const tapeCoin = coinKey || Object.keys(COINS).find((k) => COINS[k].symbol === SYMS[sym]) || (sym === "STONK" ? "KNOTS" : null);
+      const t = tapeCoin ? await fromTape(env, `/candles?coin=${tapeCoin}&res=300`) : null;
+      if (t?.candles?.length > 12) { body = { points: t.candles.map((c) => [c[0], c[4]]), source: "pool" }; maxAge = 30; }
+      else { try { body = { points: await series(coin) }; } catch (e) { body = { points: [], error: String(e).slice(0, 100) }; } maxAge = 300; }
     } else {
-      // Each source hiccups on its own schedule; a coin whose source fails
-      // keeps its last good quote (kept for an hour) instead of going dark.
+      // The tape (live, from the pools) is the first source; each coin it
+      // lacks falls through to the market-data sources below.
       body = {};
-      await Promise.all(Object.entries(COINS).map(async ([sym, src0]) => {
+      const tape = await fromTape(env, "/prices");
+      if (tape) for (const [sym, q] of Object.entries(tape)) if (q?.price) body[sym] = { price: q.price, at: q.at, change24h: q.change24h ?? null, source: "pool" };
+      await Promise.all(Object.entries(COINS).filter(([sym]) => !body[sym]).map(async ([sym, src0]) => {
         const src = { ...src0, kv: env.SERIES, key: sym };
         const qkey = new Request(`${url.origin}/q/${sym}`);
         try {
@@ -117,7 +142,7 @@ export default {
           if (old) body[sym] = { ...(await old.json()), stale: true };
         }
       }));
-      maxAge = 60;
+      maxAge = tape ? 5 : 60;
     }
     const res = new Response(JSON.stringify(body), { headers: { "content-type": "application/json", "cache-control": `public, max-age=${maxAge}`, "access-control-allow-origin": "*" } });
     ctx.waitUntil(cache.put(key, res.clone()));
