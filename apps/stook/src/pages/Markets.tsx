@@ -16,6 +16,7 @@ export function Markets() {
   return (
     <div className="page">
       <section className="hero">
+        <span className="sign">CORNER OF STOOK &amp; WALL</span>
         <h1>Where will it land?</h1>
         <p>Pick an asset and a time. Draw a line where you think the price will be — the closer you are, the more it pays. Or be the house: fund a market and earn its fees. <Link to="/how">How it works</Link></p>
       </section>
