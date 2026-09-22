@@ -4,15 +4,19 @@ import { Faucet } from "./Faucet";
 import { Skyline } from "./Skyline";
 import { ThemeToggle } from "./Theme";
 import { useLocation } from "react-router-dom";
+import { useEffect } from "react";
 
 export function Layout() {
-  const home = useLocation().pathname === "/";
+  const location = useLocation();
+  const home = location.pathname === "/";
+  // A hash in the address scrolls to that section once the page has rendered it.
+  useEffect(() => { if (!location.hash) return; const t = setTimeout(() => document.querySelector(location.hash)?.scrollIntoView({ block: "start" }), 150); return () => clearTimeout(t); }, [location]);
   return (
     <div className="app">
       <header className="top">
         <Link to="/" className="brand"><img src="/stook-coin.svg" alt="" width={30} height={30} /> STOOK STREET</Link>
         <nav>
-          <NavLink to="/" end>Markets</NavLink>
+          <NavLink to="/#floor" className={({ isActive }) => (isActive && location.hash === "#floor" ? "active" : "")}>Markets</NavLink>
           <NavLink to="/new">Create</NavLink>
           <NavLink to="/how">How it works</NavLink>
         </nav>

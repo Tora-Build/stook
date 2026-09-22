@@ -17,7 +17,7 @@ export function Markets() {
         <div className="hero-copy">
           <h1>Where will it land?</h1>
           <p className="lede">Memecoins anchored to stocks. Your coin follows a stock; here you draw a line where that stock will land, in your coin, and get paid by how close you were.</p>
-          <div><a className="cta" href="#floor">Walk onto the floor</a><Link className="cta alt" to="/how">How it works</Link></div>
+          <div><Link className="cta" to="/#floor">Walk onto the floor</Link><Link className="cta alt" to="/how">How it works</Link></div>
         </div>
       </div>
       <div id="floor"><Floor /></div>
