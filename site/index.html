@@ -1,0 +1,207 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Stook Street</title>
+<meta name="description" content="A corner of the financial district for memecoins anchored to stocks. Draw a line where the price lands. $STOOK trades on StonkFun, paired with SPY.">
+<link rel="icon" href="stook-coin.svg">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=IBM+Plex+Sans:wght@400;600&family=IBM+Plex+Mono:wght@500&display=swap" rel="stylesheet">
+<style>
+:root{--sky:#101a2e;--sky2:#182642;--brick:#a8412f;--brick2:#7d2f22;--taxi:#f0a83a;--green:#0f7a4d;--cream:#f4e9c8;--cream2:#c9bfa4;--teal:#35c4c4;--ink:#0b1120;--px:"Press Start 2P",monospace;--sans:"IBM Plex Sans",system-ui,sans-serif;--mono:"IBM Plex Mono",monospace}
+*{box-sizing:border-box}html{scroll-behavior:smooth}
+body{margin:0;background:var(--sky);color:var(--cream);font-family:var(--sans);font-size:17px;line-height:1.55}
+a{color:var(--taxi)}
+h1,h2,h3,.px{font-family:var(--px);font-weight:400;line-height:1.5;letter-spacing:0}
+h1{font-size:clamp(1.4rem,4vw,2.4rem);margin:0 0 1rem;text-shadow:4px 4px 0 var(--brick2)}
+h2{font-size:clamp(.9rem,2vw,1.2rem);margin:0 0 1rem;color:var(--taxi)}
+h3{font-size:.75rem;color:var(--teal);margin:0 0 .6rem}
+p{margin:0 0 1rem;max-width:62ch}
+.wrap{max-width:1080px;margin:0 auto;padding:0 20px}
+/* sky + skyline */
+.hero{position:relative;overflow:hidden;min-height:92vh;display:flex;flex-direction:column}
+.hero canvas{position:absolute;inset:0;width:100%;height:100%;image-rendering:pixelated;image-rendering:crisp-edges}
+.hero .wrap{position:relative;z-index:1;padding-top:3rem;flex:1}
+.brand{display:flex;align-items:center;gap:14px;margin-bottom:3.5rem}
+.brand img{width:56px;height:56px;image-rendering:pixelated}
+.brand span{font-family:var(--px);font-size:.8rem}
+.lede{font-size:1.15rem;max-width:44ch;background:rgba(16,26,46,.72);padding:1rem;border:3px solid var(--cream);box-shadow:6px 6px 0 var(--brick2);display:inline-block}
+.cta{display:inline-block;font-family:var(--px);font-size:.7rem;background:var(--taxi);color:var(--ink);text-decoration:none;padding:.9rem 1.2rem;border:3px solid var(--ink);box-shadow:5px 5px 0 var(--ink);margin:1.5rem .8rem 0 0}
+.cta.alt{background:var(--green);color:var(--cream)}
+.cta:active{transform:translate(3px,3px);box-shadow:2px 2px 0 var(--ink)}
+/* ticker */
+.tape{position:relative;z-index:1;background:var(--ink);border-top:3px solid var(--taxi);border-bottom:3px solid var(--taxi);overflow:hidden;white-space:nowrap;padding:.55rem 0;font-family:var(--mono);font-size:.85rem;color:var(--cream2)}
+.tape span{display:inline-block;padding-right:3rem}.tape b{color:var(--taxi);font-weight:500}.tape i{font-style:normal;color:var(--teal)}
+.tape .run{display:inline-block;animation:run 60s linear infinite}
+@keyframes run{from{transform:translateX(0)}to{transform:translateX(-50%)}}
+/* blocks */
+section{padding:4rem 0;border-bottom:3px dashed var(--sky2)}
+.block{background:var(--sky2);border:3px solid var(--cream);box-shadow:8px 8px 0 var(--brick2);padding:1.5rem;margin:1.5rem 0}
+.two{display:grid;grid-template-columns:1fr 1fr;gap:1.5rem}
+.sign{display:inline-block;background:var(--green);color:var(--cream);font-family:var(--px);font-size:.62rem;padding:.6rem .9rem;border:3px solid var(--cream);margin-bottom:1rem}
+ol.steps{padding-left:0;list-style:none;counter-reset:s;display:grid;gap:1rem}
+ol.steps li{counter-increment:s;padding-left:3.2rem;position:relative}
+ol.steps li::before{content:counter(s);position:absolute;left:0;top:0;width:2.2rem;height:2.2rem;background:var(--taxi);color:var(--ink);font-family:var(--px);font-size:.7rem;display:grid;place-items:center;border:3px solid var(--ink)}
+.token dl{display:grid;grid-template-columns:auto 1fr;gap:.4rem 1.2rem;font-size:.95rem;margin:0}
+.token dt{font-family:var(--mono);color:var(--cream2)}.token dd{margin:0;font-family:var(--mono)}
+.chart{display:block;width:100%;height:auto;image-rendering:pixelated;border:3px solid var(--cream);background:var(--ink)}
+.small{font-size:.85rem;color:var(--cream2)}
+footer{padding:2rem 0 3rem;font-size:.85rem;color:var(--cream2)}
+footer .px{font-size:.55rem}
+@media(max-width:720px){.two{grid-template-columns:1fr}.hero{min-height:80vh}}
+/* ?banner renders just the hero at a fixed size, for social images */
+body.banner main,body.banner footer,body.banner .tape,body.banner .cta{display:none}body.banner .hero{min-height:500px;height:500px}body.banner .brand{margin-bottom:2rem}
+@media(prefers-reduced-motion:reduce){.tape .run{animation:none}}
+</style>
+</head>
+<body>
+
+<header class="hero">
+  <canvas id="city" aria-hidden="true"></canvas>
+  <div class="wrap">
+    <div class="brand"><img src="stook-coin.svg" alt=""><span>STOOK STREET</span></div>
+    <h1>Where will it land?</h1>
+    <p class="lede">A corner of the financial district for memecoins anchored to stocks. Pick a ticker, draw a line where you think the price will be, and get paid by how close you were. Then go be the house for the next one.</p>
+    <div>
+      <a class="cta" href="#stook">$STOOK on StonkFun</a>
+      <a class="cta alt" href="#how">How the street works</a>
+    </div>
+  </div>
+  <div class="tape" aria-hidden="true"><div class="run" id="tape"></div></div>
+</header>
+
+<main class="wrap">
+
+<section id="street">
+  <span class="sign">CORNER OF STOOK &amp; WALL</span>
+  <h2>What this place is</h2>
+  <p>StonkFun launches memecoins that are pegged to real stocks — a coin for the NVDA crowd, a coin for the SPY crowd. Those coins have communities and no game to play together. Stook Street is the game.</p>
+  <p>Every market here is a bet on <em>where a stock will be</em> at a set time, quoted in the community's own coin. Not yes-or-no. You draw a line at the price you expect and buy it. If the price lands on your line you're paid the most; a band or two away, less; miss by a mile, nothing. The whole crowd's guesses sit on one chart, so you can see what the street believes before you bet against it.</p>
+  <p>Markets are opened by us, for coins we've brought onto the street. Nobody can paste a random mint and spam a hundred markets. Tokens get added one at a time, starting with our own.</p>
+</section>
+
+<section id="how">
+  <h2>How the street works</h2>
+  <div class="two">
+    <div>
+      <ol class="steps">
+        <li><strong>Pick a market.</strong> NVDA at Friday's close, SPY at noon tomorrow, BTC in an hour. Each one has 64 price bands laid out around where the price is when it opens.</li>
+        <li><strong>Draw a line.</strong> Click the band you expect. A line pays most on that band and one less for every band it misses by. Want a plain bet? Drag a range instead — it pays the same anywhere inside.</li>
+        <li><strong>Buy it, or sell out early.</strong> The price of a share is exactly what the crowd's odds say your payout profile is worth. Change your mind before the lock and sell at the current odds.</li>
+        <li><strong>Settlement is a number, not a vote.</strong> At the settlement second the market reads the Pyth price — one specific update, chosen by a rule, so nobody picks it. It lands in a band. That band pays.</li>
+        <li><strong>Or be the house.</strong> Put your coin into a market's pool any time before it locks. You earn 80% of every fee from then on, you pay out when the crowd is right, and you can never lose more than you put in.</li>
+      </ol>
+    </div>
+    <div>
+      <svg class="chart" viewBox="0 0 320 180" shape-rendering="crispEdges" role="img" aria-label="A pixel chart: the crowd's odds per band, and a line drawn on it">
+        <rect width="320" height="180" fill="#0b1120"/>
+        <g fill="#2f5d92">
+          <rect x="10" y="150" width="8" height="20"/><rect x="20" y="146" width="8" height="24"/><rect x="30" y="140" width="8" height="30"/><rect x="40" y="130" width="8" height="40"/><rect x="50" y="118" width="8" height="52"/><rect x="60" y="100" width="8" height="70"/><rect x="70" y="80" width="8" height="90"/><rect x="80" y="60" width="8" height="110"/><rect x="90" y="48" width="8" height="122"/><rect x="100" y="40" width="8" height="130"/><rect x="110" y="46" width="8" height="124"/><rect x="120" y="58" width="8" height="112"/><rect x="130" y="74" width="8" height="96"/><rect x="140" y="92" width="8" height="78"/><rect x="150" y="110" width="8" height="60"/><rect x="160" y="124" width="8" height="46"/><rect x="170" y="134" width="8" height="36"/><rect x="180" y="142" width="8" height="28"/><rect x="190" y="148" width="8" height="22"/><rect x="200" y="152" width="8" height="18"/><rect x="210" y="155" width="8" height="15"/><rect x="220" y="157" width="8" height="13"/><rect x="230" y="158" width="8" height="12"/><rect x="240" y="159" width="8" height="11"/><rect x="250" y="160" width="8" height="10"/><rect x="260" y="160" width="8" height="10"/><rect x="270" y="161" width="8" height="9"/><rect x="280" y="161" width="8" height="9"/><rect x="290" y="162" width="8" height="8"/><rect x="300" y="162" width="8" height="8"/>
+        </g>
+        <!-- the line: a tent on band 15 -->
+        <g fill="#f0a83a" opacity=".9">
+          <rect x="130" y="150" width="8" height="4"/><rect x="140" y="130" width="8" height="4"/><rect x="150" y="110" width="8" height="4"/><rect x="160" y="90" width="8" height="4"/><rect x="170" y="110" width="8" height="4"/><rect x="180" y="130" width="8" height="4"/><rect x="190" y="150" width="8" height="4"/>
+        </g>
+        <rect x="163" y="60" width="2" height="30" fill="#f4e9c8"/>
+        <text x="166" y="58" fill="#f4e9c8" font-family="Press Start 2P" font-size="7">your line</text>
+        <text x="12" y="16" fill="#35c4c4" font-family="Press Start 2P" font-size="7">NVDA · settles 16:00</text>
+        <text x="12" y="176" fill="#c9bfa4" font-family="IBM Plex Mono" font-size="7">180  185  190  195  200  205  210  215  220  225</text>
+      </svg>
+      <p class="small" style="margin-top:.8rem">Every number on a market page is the program's own. The site quotes with the same maths the chain uses, to the last unit.</p>
+    </div>
+  </div>
+</section>
+
+<section id="stook" class="token">
+  <span class="sign">$STOOK</span>
+  <h2>The street's own coin</h2>
+  <div class="two">
+    <div>
+      <p>$STOOK launches on StonkFun, paired with SPY — the index, because the street trades everything. It's the first coin markets here are quoted in: you buy lines with it, you provide liquidity with it, winners are paid in it, and every fee a market collects is paid out in it.</p>
+      <p>That's the whole utility and we'd rather say it plainly: the coin is what the games on this street are played with. More coins join as we bring their communities in — one at a time, by us, not by whoever shows up with a mint address.</p>
+      <p class="small">Nothing here is investment advice. Lines can lose. Pools can lose. Read <a href="#how">how it works</a> before you buy anything.</p>
+    </div>
+    <div class="block">
+      <dl>
+        <dt>ticker</dt><dd>STOOK</dd>
+        <dt>launch</dt><dd>StonkFun, Solana</dd>
+        <dt>anchor</dt><dd>SPY</dd>
+        <dt>used for</dt><dd>buying lines, providing liquidity, fees, settlement bounties</dd>
+        <dt>markets</dt><dd>opened by the team; assets from Pyth's 24/7 feeds (NVDA, TSLA, SPY, BTC, …)</dd>
+        <dt>settlement</dt><dd>Pyth price at the settlement second, on-chain, no committee</dd>
+        <dt>program</dt><dd>open source, Solana</dd>
+      </dl>
+    </div>
+  </div>
+</section>
+
+<section id="pool">
+  <h2>Being the house</h2>
+  <p>Somebody takes the other side of every line. On Stook Street that's a pool anyone can join, in the market's coin, any time before the market locks.</p>
+  <div class="two">
+    <div class="block"><h3>YOU EARN</h3><p>80% of every trade's fee, split by how much depth you put in — and only for trades after you joined. Half the protocol's cut goes to whoever settles the market, so it always gets settled.</p></div>
+    <div class="block"><h3>YOU RISK</h3><p>Your deposit, and never a unit more. It buys exactly as much depth as it can cover by itself. If the crowd draws its lines in the right place, the pool pays them; if it's wrong, the pool keeps their money.</p></div>
+  </div>
+</section>
+
+<section id="roadmap">
+  <h2>What's open, what's next</h2>
+  <ol class="steps">
+    <li><strong>Now.</strong> The program and the trading site run on Solana devnet. Markets open and settle themselves from Pyth; the keeper that does it is public and paid a bounty.</li>
+    <li><strong>$STOOK launch.</strong> StonkFun, paired with SPY. First markets quoted in it: NVDA, TSLA, SPY, BTC — hourly and daily rounds.</li>
+    <li><strong>More corners of the street.</strong> Other stock-anchored coins, brought in with their communities. Each gets its own markets, quoted in its own coin.</li>
+    <li><strong>Rolling rounds.</strong> Markets that create themselves on a schedule, so there's always a next one.</li>
+  </ol>
+</section>
+
+</main>
+
+<footer class="wrap">
+  <span class="px">STOOK STREET</span> · built on Solana · prices by Pyth · <a href="https://github.com/Tora-Build/stook">source</a>
+</footer>
+
+<script>
+if(location.search.includes('banner'))document.body.classList.add('banner');
+// A pixel skyline, drawn once per resize. Deterministic — the same street every visit.
+(function(){
+  const c=document.getElementById('city'),ctx=c.getContext('2d');
+  let seed=20260922;const rnd=()=>{seed=(seed*1103515245+12345)&0x7fffffff;return seed/0x7fffffff};
+  function draw(){
+    const W=c.clientWidth,H=c.clientHeight,P=Math.max(3,Math.round(W/260));const gw=Math.ceil(W/P),gh=Math.ceil(H/P);
+    c.width=gw;c.height=gh;seed=20260922;
+    const px=(x,y,w,h,col)=>{ctx.fillStyle=col;ctx.fillRect(x,y,w,h)};
+    // sky gradient in bands
+    const bands=['#0b1120','#0e1729','#101a2e','#132038','#182642'];for(let i=0;i<bands.length;i++)px(0,Math.floor(gh*i/bands.length),gw,Math.ceil(gh/bands.length)+1,bands[i]);
+    for(let i=0;i<gw*gh/900;i++)px(Math.floor(rnd()*gw),Math.floor(rnd()*gh*.55),1,1,rnd()>.8?'#f0a83a':'#f4e9c8');
+    // moon
+    px(gw-28,10,7,7,'#f4e9c8');px(gw-27,9,5,9,'#f4e9c8');px(gw-29,11,9,5,'#f4e9c8');px(gw-25,12,3,3,'#c9bfa4');
+    const ground=gh-8;
+    // far buildings
+    for(let x=0;x<gw;){const w=6+Math.floor(rnd()*10),h=Math.floor(gh*(.18+rnd()*.28));px(x,ground-h,w,h,'#1b2a47');for(let wy=ground-h+2;wy<ground-2;wy+=3)for(let wx=x+1;wx<x+w-1;wx+=2)if(rnd()>.55)px(wx,wy,1,1,'#3a4f7a');x+=w+Math.floor(rnd()*3)}
+    // near buildings: brick, cream, teal signage
+    const pal=[['#7d2f22','#a8412f'],['#5a4a3a','#8a7256'],['#243a5e','#2f4d7c']];
+    for(let x=-2;x<gw;){const w=10+Math.floor(rnd()*16),h=Math.floor(gh*(.28+rnd()*.34)),[d,l]=pal[Math.floor(rnd()*pal.length)];
+      px(x,ground-h,w,h,d);px(x,ground-h,w,1,l);px(x,ground-h,1,h,l);
+      if(rnd()>.6){px(x+2,ground-h-4,w-4,4,d);px(x+2,ground-h-4,w-4,1,l)}
+      for(let wy=ground-h+3;wy<ground-3;wy+=4)for(let wx=x+2;wx<x+w-2;wx+=3)px(wx,wy,2,2,rnd()>.45?'#f0a83a':'#0b1120');
+      if(w>18&&rnd()>.5){const sy=ground-h+Math.floor(h*.35);px(x+3,sy,w-6,5,'#0f7a4d');px(x+4,sy+1,w-8,3,'#35c4c4');}
+      x+=w+1+Math.floor(rnd()*3)}
+    // the exchange: columns
+    const ex=Math.floor(gw*.42),ew=Math.min(60,Math.floor(gw*.16)),eh=Math.floor(gh*.30);
+    px(ex,ground-eh,ew,eh,'#c9bfa4');px(ex-2,ground-eh-3,ew+4,4,'#f4e9c8');px(ex+ew/2-8,ground-eh-9,16,6,'#f4e9c8');
+    for(let cx=ex+3;cx<ex+ew-3;cx+=6)px(cx,ground-eh+5,3,eh-8,'#8a8f99');
+    px(ex+Math.floor(ew/2)-6,ground-eh+eh*.5,12,4,'#0f7a4d');
+    // street, taxi, sign
+    px(0,ground,gw,8,'#2a2a30');for(let x=2;x<gw;x+=10)px(x,ground+4,5,1,'#f0a83a');
+    const tx=Math.floor(gw*.2);px(tx,ground-4,10,4,'#f0a83a');px(tx+2,ground-6,6,2,'#f0a83a');px(tx+3,ground-5,4,1,'#0b1120');px(tx+1,ground,2,2,'#0b1120');px(tx+7,ground,2,2,'#0b1120');
+    const sx=Math.floor(gw*.72);px(sx,ground-22,1,22,'#8a8f99');px(sx-9,ground-27,20,6,'#f4e9c8');px(sx-8,ground-26,18,4,'#0f7a4d');
+  }
+  draw();let t;addEventListener('resize',()=>{clearTimeout(t);t=setTimeout(draw,120)});
+})();
+// ticker tape: the assets the street trades, no made-up prices
+(function(){const names=['NVDA','TSLA','SPY','AAPL','MSFT','META','AMZN','GOOGL','PLTR','HOOD','COIN','MSTR','SPCX','OPENAI','BTC','ETH','SOL'];
+  const one=names.map(n=>`<span><b>${n}</b> <i>where will it land?</i></span>`).join('');document.getElementById('tape').innerHTML=one+one;})();
+</script>
+</body>
+</html>
