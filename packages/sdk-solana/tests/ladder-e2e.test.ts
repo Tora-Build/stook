@@ -59,10 +59,10 @@ function boot() {
 
   const [config, configBump] = PublicKey.findProgramAddressSync([Buffer.from("protocol_config")], PROGRAM);
   const treasury = Keypair.generate();
+  // ProtocolConfig: authority, pending_authority, treasury, paused, bump, reserved
   put(config, PROGRAM, Buffer.concat([
-    disc("account", "ProtocolConfig"), treasury.publicKey.toBuffer(), treasury.publicKey.toBuffer(),
-    u16(500), u16(100), u16(0), u16(5000), u16(3000), u16(1000), u16(1000),
-    i64(0n), Buffer.from([configBump, 0, 0]), i64(0n), Buffer.alloc(32), Buffer.alloc(28),
+    disc("account", "ProtocolConfig"), treasury.publicKey.toBuffer(), Buffer.alloc(32), treasury.publicKey.toBuffer(),
+    Buffer.from([0, configBump]), Buffer.alloc(30),
   ]));
 
   const mint = Keypair.generate().publicKey;

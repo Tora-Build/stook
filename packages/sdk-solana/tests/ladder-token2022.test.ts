@@ -30,7 +30,7 @@ const updateAt = (price: bigint, publish: bigint, prev: bigint) => {
 };
 
 const disc = (name: string) => createHash("sha256").update(`account:${name}`).digest().subarray(0, 8);
-const u16 = (v: number) => { const b = Buffer.alloc(2); b.writeUInt16LE(v); return b; };
+
 const i64 = (v: bigint) => { const b = Buffer.alloc(8); b.writeBigInt64LE(v); return b; };
 const TOKENS = 100_000_000n; // 8 decimals
 
@@ -44,10 +44,10 @@ function boot() {
   const [config, bump] = PublicKey.findProgramAddressSync([Buffer.from("protocol_config")], PROGRAM);
   const admin = Keypair.generate();
   svm.airdrop(admin.publicKey.toBase58() as any, 10_000_000_000n as any);
+  // ProtocolConfig: authority, pending_authority, treasury, paused, bump, reserved
   put(config, PROGRAM, Buffer.concat([
-    disc("ProtocolConfig"), admin.publicKey.toBuffer(), admin.publicKey.toBuffer(),
-    u16(500), u16(100), u16(0), u16(5000), u16(3000), u16(1000), u16(1000),
-    i64(0n), Buffer.from([bump, 0, 0]), i64(0n), Buffer.alloc(32), Buffer.alloc(28),
+    disc("ProtocolConfig"), admin.publicKey.toBuffer(), Buffer.alloc(32), admin.publicKey.toBuffer(),
+    Buffer.from([0, bump]), Buffer.alloc(30),
   ]));
 
   const mint = Keypair.generate().publicKey;

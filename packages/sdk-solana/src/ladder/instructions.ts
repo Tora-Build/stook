@@ -12,7 +12,7 @@ import {
   TransactionInstruction,
   type AccountMeta,
 } from "@solana/web3.js";
-import { SOOTH_CORE_PROGRAM_ID } from "../pdas.js";
+import { SOOTH_CORE_PROGRAM_ID } from "../program.js";
 import type { Shape } from "./math.js";
 
 const enc = new TextEncoder();

@@ -111,10 +111,11 @@ hard-coded to USDC's 6 and a tokenized equity with 8 run through a 6-decimal
 scalar misprices by 100x, silently, in the protocol's favour. The scalar now
 travels with the market.
 
-**No graduation.** Sooth ran the venues in sequence: bond on the curve, unlock
-the book at a fee threshold. Stook opens both when the curve is funded. The
-curve exists so a market is tradeable at its first trade; the book exists for
-anyone wanting a limit order. Neither is a phase the other leaves.
+**No order book, no graduation.** Sooth ran two venues in sequence: bond on
+the curve, unlock the book at a fee threshold. Stook first opened both at
+once, then removed the book altogether: a 64-outcome market has no natural
+book, and the inherited one was 1.2 MB of program the ladder never called.
+The program went from 1.82 MB to 567 KB.
 
 **No adjudicator.** Sooth carries manual, zkTLS and bonded-optimistic
 resolution plus committees, because "did this happen" can be contested. "What
@@ -182,15 +183,9 @@ mint carrying the same extensions is still owed.
 
 - Token-2022 is proven on LiteSVM against a real xStock mint's bytes, not yet
   on devnet or against mainnet's Token-2022 build.
-- The inherited `create_market` still uses the strict (`Open`-only) bar.
-- The inherited SDK adapter was never updated for `create_market`'s
-  `amm_mint_raw` account, so the inherited engine's SDK tests (adjudicator,
-  zk, order book) fail at market creation. The ladder shares none of that path.
 - The keeper (`infra/ladder-crank`): its decisions are in the SDK and tested;
   its I/O has never run, for want of a Hermes API key (required since
   2026-08-26) and a devnet deployment.
-- The inherited binary engine, order book and adjudication stack are still in
-  the program. Stook uses none of them; removing them shrinks the audit surface.
 - Rounding dust (a few base units per market) stays in the vault after all
   claims; nothing sweeps it.
 - On a market busy enough to trade every slot, a sequence-guarded join has to

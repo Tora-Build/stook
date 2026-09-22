@@ -1,24 +1,18 @@
-//! Math utilities for `sooth_core`.
+//! Fixed-point maths for `sooth_core`. Everything is WAD (1e18) i128.
 //!
-//! - `book`  — WAD↔base-unit conversion shared by the AMM settlement paths.
-//! - `ladder` — the 64-bin price ladder: `lmsr_n` reorganised so a shaped
-//!             trade (band or tent) costs one exp and one ln.
-//! - `lmsr`  — the binary LMSR cost function (exp_wad, ln_wad, cost_delta).
-//! - `lmsr_n` — the same scoring rule over N price bands, which is what a
-//!             "where will it land" market actually needs. The binary form is
-//!             its two-outcome case, and a test pins that they agree.
-//! - `wad`   — WAD (1e18) fixed-point primitives.
+//! - `wad`    — multiply, divide, base-unit conversion.
+//! - `lmsr`   — `exp_wad`, `ln_wad`, and the two-outcome scoring rule.
+//! - `lmsr_n` — the same rule over N outcomes; the ladder's reference
+//!              implementation, kept for the test that pins them equal.
+//! - `ladder` — the 64-bin ladder as the program runs it: a shaped trade
+//!              (band or tent) costs one exp and one ln.
 
-pub mod book;
 pub mod ladder;
 pub mod lmsr;
 pub mod lmsr_n;
 pub mod wad;
 
-pub use book::{wad_to_base, wad_to_base_dec, BASE_UNIT_WAD};
-pub use lmsr::{cost_delta, lmsr_cost};
-pub use lmsr_n::{cost_delta_n, lmsr_cost_n, prices_n, MAX_OUTCOMES};
 pub use wad::{
-    wad_div, wad_mul, wad_to_usdc_ceil, wad_to_usdc_floor, MathError, LN2_WAD, WAD,
-    scalar_for, wad_to_amount_ceil, wad_to_amount_floor, WAD_TO_USDC_SCALAR, WAD_U,
+    scalar_for, wad_div, wad_mul, wad_to_amount_ceil, wad_to_amount_floor, MathError, LN2_WAD,
+    WAD, WAD_U,
 };
