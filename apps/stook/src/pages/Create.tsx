@@ -25,7 +25,8 @@ export function Create() {
   const [customFeed, setCustomFeed] = useState("");
   const [mintText, setMintText] = useState(QUOTE_MINT?.toBase58() ?? "");
   const [tier, setTier] = useState(2);
-  const [opensIn, setOpensIn] = useState(5);      // minutes
+  const slot = params.get("settles") ? Number(params.get("settles")) : null;   // a fixed hour from the coin page
+  const [opensIn, setOpensIn] = useState(slot ? 1 : 5);      // minutes
   const [tradeFor, setTradeFor] = useState(60);   // minutes after open
   const [seedText, setSeedText] = useState("1000");
   const [feeBps, setFeeBps] = useState(100);
@@ -44,8 +45,9 @@ export function Create() {
     if (!publicKey || !mintKey || !mint.data || !seed || !feedOk) return;
     const now = BigInt(Math.floor(Date.now() / 1000));
     const opensAt = now + BigInt(opensIn * 60);
-    const locksAt = opensAt + BigInt(tradeFor * 60);
-    const settlesAt = locksAt + 120n; // lock two minutes before the price is read
+    // A slot from the coin page fixes the settlement hour; trading locks two minutes before it.
+    const settlesAt = slot ? BigInt(slot) : opensAt + BigInt(tradeFor * 60) + 120n;
+    const locksAt = settlesAt - 120n;
     send.mutate([stook.createLadderIx({
       creator: publicKey, feedId: hexToBytes(feed), settlesAt, quoteMint: mintKey, tier,
       creatorToken: ataOf(mintKey, publicKey, mint.data.tokenProgram), tokenProgram: mint.data.tokenProgram,
@@ -94,11 +96,17 @@ export function Create() {
         <span className="hint">64 bands, {stook.STEP_BPS[tier]! / 100}% apart, centred on the price when the market opens: it covers ±{(Math.exp(32 * stook.STEP_BPS[tier]! / 10_000) * 100 - 100).toFixed(0)}%.</span>
       </label>
 
-      <div className="two">
-        <label className="field"><span>Opens in (minutes)</span><input type="number" min={1} value={opensIn} onChange={(e) => setOpensIn(Number(e.target.value))} /></label>
-        <label className="field"><span>Trades for (minutes)</span><input type="number" min={5} value={tradeFor} onChange={(e) => setTradeFor(Number(e.target.value))} /></label>
-      </div>
-      <p className="hint">Settlement reads the Pyth price two minutes after trading locks.</p>
+      {slot ? (
+        <p className="hint">Settles <b>{new Date(slot * 1000).toLocaleString("en-US", { weekday: "short", hour: "2-digit", minute: "2-digit" })}</b>; trading opens in a minute and locks two minutes before settlement.</p>
+      ) : (
+        <>
+          <div className="two">
+            <label className="field"><span>Opens in (minutes)</span><input type="number" min={1} value={opensIn} onChange={(e) => setOpensIn(Number(e.target.value))} /></label>
+            <label className="field"><span>Trades for (minutes)</span><input type="number" min={5} value={tradeFor} onChange={(e) => setTradeFor(Number(e.target.value))} /></label>
+          </div>
+          <p className="hint">Settlement reads the Pyth price two minutes after trading locks.</p>
+        </>
+      )}
 
       <div className="two">
         <label className="field"><span>Seed</span><input value={seedText} onChange={(e) => setSeedText(e.target.value)} inputMode="decimal" />

@@ -181,3 +181,19 @@ button.link { background: none; border: 0; color: var(--taxi); font: inherit; cu
 .seg-wrap { flex-wrap: wrap; }
 .hint b { color: var(--cream); }
 @media (max-width: 760px) { .coin-live { margin-left: 0; } }
+
+/* coin page */
+.chart24 { margin-bottom: 1.5rem; }
+.area24 { fill: rgba(94, 240, 160, .08); }
+.line24 { fill: none; stroke-width: 2; stroke-linejoin: round; }
+.line24.up { stroke: var(--good); } .line24.down { stroke: var(--bad); }
+.slots h3 { margin-top: .5rem; }
+.day { margin: 1rem 0 1.5rem; }
+.day-head { font-family: var(--px); font-size: .55rem; color: var(--taxi); padding: .4rem 0; border-bottom: 3px solid var(--line); margin-bottom: .5rem; }
+.slot-list { list-style: none; padding: 0; margin: 0; display: grid; gap: .4rem; }
+.slot { display: flex; align-items: center; gap: 1rem; padding: .45rem .6rem; background: var(--sky-2); border: 2px solid var(--line); font-size: .85rem; flex-wrap: wrap; }
+.slot-empty { background: transparent; border-style: dashed; }
+.slot-open { border-color: var(--green); }
+.slot-time { width: 5.5rem; color: var(--cream); }
+.slot-link { display: flex; gap: 1rem; align-items: center; color: var(--cream); flex: 1; flex-wrap: wrap; }
+.slot-link:hover { text-decoration: none; color: var(--taxi); }

@@ -1,8 +1,8 @@
-import { Link } from "react-router-dom";
+import { Link, Navigate, useSearchParams } from "react-router-dom";
 import { stook } from "@sooth/sdk-solana";
 import { useLadders } from "../hooks/useChain";
 import { feedByHex, feedHex } from "../lib/feeds";
-import { COINS, coinByMint, feedHexToBytes, mintOf, type Coin } from "../lib/coins";
+import { COINS, coinByMint, feedHexToBytes, type Coin } from "../lib/coins";
 import { fmtAmount, fmtPrice, fmtWhen, untilText } from "../lib/format";
 import { useNow } from "../hooks/useNow";
 import { Live } from "../components/Live";
@@ -11,7 +11,10 @@ import type { LadderRow } from "../lib/chain";
 const ORDER: Record<stook.LadderStatus, number> = { open: 0, seeding: 1, settled: 2, void: 3 };
 
 export function Markets() {
+  const [params] = useSearchParams();
   const ladders = useLadders();
+  const wanted = params.get("coin");
+  if (wanted && COINS.some((c) => c.symbol === wanted.toUpperCase())) return <Navigate to={`/c/${wanted.toUpperCase()}`} replace />;
   const now = useNow();
   const rows = [...(ladders.data ?? [])].sort((a, b) => ORDER[a.ladder.status] - ORDER[b.ladder.status] || Number(a.ladder.settlesAt - b.ladder.settlesAt));
   const byCoin = new Map<string, LadderRow[]>();
@@ -45,11 +48,11 @@ function CoinBlock({ coin, rounds, now }: { coin: Coin; rounds: LadderRow[]; now
   return (
     <section className="coin-block">
       <div className="coin-head">
-        <span className="coin-sym">${coin.symbol}</span>
+        <Link to={`/c/${coin.symbol}`} className="coin-sym">${coin.symbol}</Link>
         <span className="coin-anchor">⇢ {coin.anchor.name}{coin.anchor.name !== coin.anchor.symbol && <> <span className="mono">{coin.anchor.symbol}</span></>}</span>
         <span className="muted">{coin.anchor.hours === "24/7" ? "rounds any time" : `settles ${coin.anchor.hours}`} · {coin.feeBps / 100}% transfer fee on the coin</span>
         <AnchorLive coin={coin} />
-        {mintOf(coin) ? <Link to={`/new?coin=${coin.symbol}`} className="coin-new">+ round</Link> : <span className="muted small">mint pending</span>}
+        <Link to={`/c/${coin.symbol}`} className="coin-new">rounds →</Link>
       </div>
       {open.length === 0 && rounds.length === 0 && <p className="muted small">No rounds yet.</p>}
       <ul className="cards">{rounds.map((r) => <RoundCard key={r.pubkey.toBase58()} r={r} now={now} />)}</ul>
