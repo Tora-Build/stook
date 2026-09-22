@@ -45,20 +45,19 @@ p{margin:0 0 1rem}
 .floor .wrap{position:relative;padding:2rem 20px 2.5rem}
 .board{background:var(--board);color:var(--boardtxt);border:4px solid #3a3f4c;box-shadow:inset 0 0 0 3px #000,6px 6px 0 #000;padding:.9rem 1rem;font-family:var(--px);font-size:.55rem;line-height:2;display:flex;flex-wrap:wrap;gap:.2rem 2rem;justify-content:space-between;margin-bottom:2rem;text-shadow:0 0 6px rgba(94,240,160,.6)}
 .board .dim{color:#2f8a5c}
-.posts{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:2rem 1.5rem;justify-items:center}
-.post{display:flex;flex-direction:column;align-items:center;width:100%;max-width:260px}
-.post .screen{width:78%}
-.post svg.crowd{display:block;width:100%;height:auto;margin-top:.6rem;image-rendering:pixelated}
-.screen{aspect-ratio:1;border-radius:50%;background:radial-gradient(circle at 35% 30%,#1c2436,#0b1120 70%);border:6px solid #3a3f4c;box-shadow:inset 0 0 0 4px #000,0 0 0 4px #1a1f2b,8px 10px 0 #000;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:12%;position:relative}
+.posts{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:2.5rem 1.5rem;justify-items:center;padding:1.5rem 0 .5rem}
+.post{width:100%;max-width:230px;text-decoration:none;color:inherit;display:block;position:relative}
+.post:hover .screen{border-color:var(--taxi)}
+/* the table, from above: a round top with the coin's numbers on it, and the traders who work it standing around the rim */
+.table{position:relative;width:100%;aspect-ratio:1}
+.table svg.rim{position:absolute;inset:-14%;width:128%;height:128%;image-rendering:pixelated;pointer-events:none}
+.screen{position:absolute;inset:0;border-radius:50%;background:radial-gradient(circle at 35% 30%,#1c2436,#0b1120 70%);border:6px solid #3a3f4c;box-shadow:inset 0 0 0 4px #000,0 0 0 4px #1a1f2b,8px 10px 0 #000;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:14%}
 .screen::after{content:"";position:absolute;inset:6%;border-radius:50%;border:2px solid rgba(94,240,160,.12);pointer-events:none}
-.screen::before{content:"";position:absolute;top:-38px;left:50%;width:6px;height:38px;background:#3a3f4c;transform:translateX(-50%)}
-.screen .coin{font-family:var(--px);font-size:clamp(.55rem,1.4vw,.85rem);color:var(--taxi);margin-bottom:.5rem}
-.screen .arrow{font-family:var(--px);font-size:.45rem;color:#8d8670;margin-bottom:.3rem}
-.screen .anchor{font-family:var(--px);font-size:clamp(.45rem,1.1vw,.65rem);color:#f4e9c8;margin-bottom:.6rem}
-.screen .price{font-family:var(--mono);font-size:clamp(1rem,2.4vw,1.6rem);color:var(--boardtxt);text-shadow:0 0 8px rgba(94,240,160,.5)}
-.screen .hours{font-family:var(--mono);font-size:.7rem;color:#8d8670;margin-top:.4rem}
-.screen.pending{opacity:.55}
-.floor-cap{text-align:center;font-family:var(--px);font-size:.45rem;color:#8d8670;margin-top:2rem;line-height:2}
+.screen .coin{font-family:var(--px);font-size:clamp(.6rem,1.3vw,.8rem);color:var(--taxi);margin-bottom:.55rem;white-space:nowrap}
+.screen .anchor{font-family:var(--px);font-size:.45rem;color:#c9bfa4;margin-bottom:.6rem;white-space:nowrap}
+.screen .price{font-family:var(--mono);font-size:clamp(1rem,2.2vw,1.5rem);color:var(--boardtxt);text-shadow:0 0 8px rgba(94,240,160,.5);white-space:nowrap}
+.screen .chg{font-family:var(--mono);font-size:.75rem;margin-top:.3rem;color:#8d8670}
+.screen .chg.up{color:#5ef0a0}.screen .chg.down{color:#e0605a}
 /* how */
 .how{padding:3.5rem 0 2rem}
 .tiles{display:grid;grid-template-columns:repeat(3,1fr);gap:1.25rem}
@@ -75,7 +74,7 @@ p{margin:0 0 1rem}
 .strip dt{color:var(--fg2)}.strip dd{margin:0;word-break:break-all}
 footer{padding:1.5rem 0 2.5rem;font-size:.85rem;color:var(--fg2);border-top:3px solid var(--taxi)}
 footer .px{font-size:.5rem}
-@media(max-width:860px){.posts{grid-template-columns:1fr 1fr}.tiles{grid-template-columns:1fr}.hero{min-height:70vh}.board{font-size:.45rem}}
+@media(max-width:860px){.posts{grid-template-columns:1fr 1fr;gap:2rem 1rem}.tiles{grid-template-columns:1fr}.hero{min-height:70vh}.board{font-size:.45rem}}
 @media(prefers-reduced-motion:reduce){*{animation:none!important}}
 </style>
 </head>
@@ -100,7 +99,6 @@ footer .px{font-size:.5rem}
       <span>STOOK STREET · THE BOARD</span><span class="dim">ROUNDS ON THE ANCHOR · PAID IN THE COIN</span><span id="clock" class="dim">--:--:-- NY</span>
     </div>
     <div class="posts" id="posts"></div>
-    <p class="floor-cap" id="floor-cap"></p>
   </div>
 </section>
 
@@ -130,7 +128,7 @@ footer .px{font-size:.5rem}
   </div>
 </section>
 
-<footer><div class="wrap"><span class="px">STOOK STREET</span> · built on Solana · prices by Pyth · rounds opened by the team, one coin at a time · <a href="https://github.com/Tora-Build/stook">source</a></div></footer>
+<footer><div class="wrap"><span class="px">STOOK STREET</span> · built on Solana · prices by Pyth · <a href="https://github.com/Tora-Build/stook">source</a></div></footer>
 
 <script>
 // ── the street: one fixed skyline, lit for night or day. The layout is
@@ -194,6 +192,7 @@ let saved='night';try{saved=localStorage.getItem('stook-theme')||'night'}catch{}
 setTheme(saved,false);let rt;addEventListener('resize',()=>{clearTimeout(rt);rt=setTimeout(drawCity,120)});
 
 // ── the floor: one post per coin, the anchor's live price from Pyth ──
+const APP='https://app.stooks.xyz';
 const COINS=[
   {coin:'$STOOK',anchor:'S&P 500',sym:'SPYx',feed:'2817b78438c769357182c04346fddaad1178c82f4048828fe0997c3c64624e14',hours:'24/7',dp:2},
   {coin:'$ZCAT',anchor:'Zcash',sym:'ZEC',feed:'be9b59d178f0d6a97ab4c343bff2aa69caa1eaae3e9048a65788c529b125bb24',hours:'24/7',dp:2},
@@ -209,28 +208,28 @@ function person(x,y,flip){ // a 6×14 pixel trader; suits and skins vary, arms s
   return r(1,0,4,2,hair)+r(1,2,4,3,skin)+r(0,5,6,6,suit)+r(2,5,2,4,'#f4e9c8')+r(2,7,2,1,'#a8412f')+r(1,11,2,3,suit)+r(3,11,2,3,suit)+r(1,14,2,1,'#0b1120')+r(3,14,2,1,'#0b1120')
     +(up?r(-1,1,1,5,suit)+r(-1,0,1,1,skin):phone?r(-1,4,1,3,suit)+r(-1,3,1,1,'#0b1120'):r(-1,6,1,4,suit)+r(-1,10,1,1,skin))+r(6,6,1,4,suit)+r(6,10,1,1,skin);
 }
-function crowd(){ // a round table, five traders around it
-  let g='';
-  g+='<ellipse cx="40" cy="38" rx="26" ry="8" fill="#5a4a3a"/><ellipse cx="40" cy="36" rx="26" ry="8" fill="#8a7256"/><ellipse cx="40" cy="36" rx="20" ry="5" fill="#0f7a4d"/>';
-  g+='<rect x="30" y="52" width="4" height="1" fill="#0b1120" opacity=".4"/>';
-  const back=[[22,14,false],[52,14,true]],front=[[8,26,false],[36,30,prnd()>.5],[66,26,true]];
-  for(const[x,y,f]of back)g+=person(x,y,f);
-  g+='<ellipse cx="40" cy="38" rx="26" ry="8" fill="#5a4a3a"/><ellipse cx="40" cy="36" rx="26" ry="8" fill="#8a7256"/><ellipse cx="40" cy="36" rx="20" ry="5" fill="#0f7a4d"/>';
-  for(const[x,y,f]of front)g+=person(x,y,f);
-  return `<svg class="crowd" viewBox="0 0 80 48" shape-rendering="crispEdges" aria-hidden="true">${g}</svg>`;
+function rim(){ // traders standing around the table, seen from above: heads and shoulders on the rim
+  const suits=['#1b2a47','#3b2a22','#7d2f22','#2f4d7c','#3a3f4c'],skins=['#f1c9a5','#d9a173','#a86f45','#6b4a2e'],hairs=['#0b1120','#5a3a1a','#c9bfa4','#a8412f'];
+  let g='';const n=6+Math.floor(prnd()*3);
+  for(let i=0;i<n;i++){const a=(i/n)*Math.PI*2+prnd()*.3,cx=50+Math.cos(a)*44,cy=50+Math.sin(a)*44;
+    const suit=suits[Math.floor(prnd()*5)],skin=skins[Math.floor(prnd()*4)],hair=hairs[Math.floor(prnd()*4)];
+    const x=Math.round(cx)-3,y=Math.round(cy)-3;
+    g+=`<rect x="${x-2}" y="${y+1}" width="10" height="5" fill="${suit}"/>`;      // shoulders
+    g+=`<rect x="${x}" y="${y-1}" width="6" height="6" fill="${skin}"/>`;         // head
+    g+=`<rect x="${x}" y="${y-2}" width="6" height="3" fill="${hair}"/>`;         // hair, from above
+    if(prnd()>.6)g+=`<rect x="${x+7}" y="${y+2}" width="2" height="3" fill="#f4e9c8"/>`; // a sheet of paper
+  }
+  return `<svg class="rim" viewBox="0 0 100 100" shape-rendering="crispEdges" aria-hidden="true">${g}</svg>`;
 }
 const posts=document.getElementById('posts');
-posts.innerHTML=COINS.map((k,i)=>`<div class="post"><div class="screen" id="s${i}"><div class="coin">${k.coin}</div><div class="arrow">FOLLOWS</div><div class="anchor">${k.anchor}${k.sym?' · '+k.sym:''}</div><div class="price">—</div><div class="hours">${k.hours}</div></div>${crowd()}</div>`).join('');
-document.getElementById('floor-cap').textContent=`${COINS.length} POSTS · ONE PER COIN · EACH FOLLOWS ONE ASSET · PRICES FROM PYTH`;
+posts.innerHTML=COINS.map((k,i)=>`<a class="post" href="${APP}/?coin=${k.coin.slice(1)}"><div class="table">${rim()}<div class="screen" id="s${i}"><div class="coin">${k.coin}</div><div class="anchor">${k.anchor}</div><div class="price">—</div><div class="chg"></div></div></div></a>`).join('');
 (async()=>{
-  // /prices: the anchors' latest prints from Pyth's on-chain accounts, read by the Worker.
+  // /prices: each anchor's latest quote (market data, cached a minute by the Worker).
   try{
     const j=await (await fetch('/prices')).json();
-    for(const k of COINS){const p=j[k.feed];if(!p)continue;
-      // The on-chain copy is refreshed on demand, so it can be hours old. Show it only while it is recent; a stale print would be a lie in a big green font.
-      const age=Date.now()/1000-p.publishTime;if(age>6*3600)continue;
-      const el=document.getElementById('s'+COINS.indexOf(k));el.querySelector('.price').textContent=(Number(p.price)*10**p.expo).toLocaleString('en-US',{minimumFractionDigits:k.dp,maximumFractionDigits:k.dp});
-      if(age>600)el.querySelector('.hours').textContent=k.hours+' · '+Math.round(age/60)+' min ago';}
+    COINS.forEach((k,i)=>{const p=j[k.coin.slice(1)];if(!p)return;const el=document.getElementById('s'+i);
+      el.querySelector('.price').textContent=p.price.toLocaleString('en-US',{minimumFractionDigits:k.dp,maximumFractionDigits:k.dp});
+      const ch=el.querySelector('.chg');if(p.change24h!=null){ch.textContent=(p.change24h>=0?'+':'')+p.change24h.toFixed(2)+'% 24h';ch.className='chg '+(p.change24h>=0?'up':'down')}});
   }catch{}
 })();
 // NY clock on the board

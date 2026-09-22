@@ -7,3 +7,4 @@ test-ledger
 .env.local
 .env.*.local
 dist
+apps/stook/dist

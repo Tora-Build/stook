@@ -1,0 +1,6 @@
+# app.stooks.xyz — the trading app (devnet), static build served from a Worker.
+#   pnpm -F @stook/app build && cd apps/stook && npx wrangler deploy
+name = "stook-app"
+compatibility_date = "2026-08-01"
+assets = { directory = "./dist", not_found_handling = "single-page-application" }
+routes = [{ pattern = "app.stooks.xyz", custom_domain = true }]

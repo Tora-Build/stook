@@ -1,44 +1,69 @@
-// stooks.xyz: static assets, plus /prices — the four anchors' latest prices
-// from Pyth's on-chain push accounts, read server-side (the public RPC
-// refuses browser origins) and cached for a minute.
-// Solana's own public RPC refuses Cloudflare's egress; a keyless public node
-// serves it, or a provider URL set as the MAINNET_RPC secret takes over.
-const FALLBACK_RPC = "https://solana-rpc.publicnode.com";
-const ACCOUNTS = {
-  "2817b78438c769357182c04346fddaad1178c82f4048828fe0997c3c64624e14": "jf8MarLKgBte4f3NWufbNpGRCuBfJLhuZPuFigvSQR2",
-  be9b59d178f0d6a97ab4c343bff2aa69caa1eaae3e9048a65788c529b125bb24: "HzdKMXqocYWqy7mh8AKDoZFJinjeGMfBKmGAxGbasc28",
-  f68272be1240150c36b54dce26a9b75f62f507a94f49f43533a5050c77e07049: "EFQLA1wV7z55SM9scT4A5U5xpQbfRPBpRzN7M3q2gjo4",
-  e7d1138d0083368634087268c64b7bea0b4101a6365f83915cba9e76a8364b96: "FMGx9GMRAsAnFciE4HPHSMoWVZ6UgzmFJZ1nXdKVGH6e",
+// stooks.xyz: static assets, plus two small data routes the page and the app
+// read. Market data for display comes from public sources (Yahoo, CoinGecko,
+// GeckoTerminal); settlement on chain is Pyth and only Pyth. Cached at the
+// edge so the sources see one request a minute, not one per visitor.
+const COINS = {
+  STOOK: { kind: "yahoo", symbol: "SPY" },
+  ZCAT: { kind: "yahoo", symbol: "ZEC-USD" },   // CoinGecko rate-limits Cloudflare egress; Yahoo carries ZEC 24/7
+  KNOTS: { kind: "geckoterminal", pool: "7a8xxAJBELDo6P9dikSYctdw6ce8F4mWr3ahcAD8Ao49" }, // STONK/SOL on Raydium
+  GP: { kind: "yahoo", symbol: "GLD" },
 };
-const hexBytes = (h) => Uint8Array.from(h.match(/.{2}/g).map((b) => parseInt(b, 16)));
+const UA = { "user-agent": "Mozilla/5.0 stook-street" };
+
+/** [ [unix seconds, price], … ] over roughly the last day, oldest first. */
+async function series(src) {
+  if (src.kind === "yahoo") {
+    const j = await (await fetch(`https://query1.finance.yahoo.com/v8/finance/chart/${src.symbol}?range=1d&interval=5m`, { headers: UA })).json();
+    const r = j.chart.result[0]; const close = r.indicators.quote[0].close;
+    return r.timestamp.map((t, i) => [t, close[i]]).filter((p) => p[1] != null);
+  }
+  if (src.kind === "coingecko") {
+    const j = await (await fetch(`https://api.coingecko.com/api/v3/coins/${src.id}/market_chart?vs_currency=usd&days=1`, { headers: UA })).json();
+    return j.prices.map(([ms, p]) => [Math.floor(ms / 1000), p]);
+  }
+  if (src.kind === "geckoterminal") {
+    const j = await (await fetch(`https://api.geckoterminal.com/api/v2/networks/solana/pools/${src.pool}/ohlcv/minute?aggregate=15&limit=96`, { headers: UA })).json();
+    return j.data.attributes.ohlcv_list.map(([t, , , , close]) => [t, close]).reverse();
+  }
+  return [];
+}
 
 export default {
   async fetch(request, env, ctx) {
     const url = new URL(request.url);
-    if (url.pathname !== "/prices") return env.ASSETS.fetch(request);
+    if (url.pathname !== "/prices" && url.pathname !== "/chart") return env.ASSETS.fetch(request);
     const cache = caches.default;
-    const hit = await cache.match(request);
+    const key = new Request(url.origin + url.pathname + (url.pathname === "/chart" ? `?coin=${url.searchParams.get("coin")}` : ""));
+    const hit = await cache.match(key);
     if (hit) return hit;
-    const feeds = Object.keys(ACCOUNTS);
-    const body = { jsonrpc: "2.0", id: 1, method: "getMultipleAccounts", params: [Object.values(ACCOUNTS), { encoding: "base64" }] };
-    const out = {};
-    let j = {};
-    try {
-      const r = await fetch(env.MAINNET_RPC || FALLBACK_RPC, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
-      j = await r.json();
-    } catch (e) { out.error = String(e).slice(0, 120); }
-    (j.result?.value ?? []).forEach((a, i) => {
-      if (!a) return;
-      const d = Uint8Array.from(atob(a.data[0]), (c) => c.charCodeAt(0));
-      const id = hexBytes(feeds[i]);
-      let at = -1;
-      for (let p = 0; p <= d.length - 32 && at < 0; p++) { let ok = true; for (let k = 0; k < 32; k++) if (d[p + k] !== id[k]) { ok = false; break; } if (ok) at = p; }
-      if (at < 0) return;
-      const dv = new DataView(d.buffer);
-      out[feeds[i]] = { price: dv.getBigInt64(at + 32, true).toString(), expo: dv.getInt32(at + 48, true), publishTime: Number(dv.getBigInt64(at + 52, true)) };
-    });
-    const res = new Response(JSON.stringify(out), { headers: { "content-type": "application/json", "cache-control": "public, max-age=60", "access-control-allow-origin": "*" } });
-    ctx.waitUntil(cache.put(request, res.clone()));
+
+    let body, maxAge;
+    if (url.pathname === "/chart") {
+      const coin = COINS[url.searchParams.get("coin")];
+      if (!coin) return new Response("unknown coin", { status: 404 });
+      try { body = { points: await series(coin) }; } catch (e) { body = { points: [], error: String(e).slice(0, 100) }; }
+      maxAge = 300;
+    } else {
+      // Each source hiccups on its own schedule; a coin whose source fails
+      // keeps its last good quote (kept for an hour) instead of going dark.
+      body = {};
+      await Promise.all(Object.entries(COINS).map(async ([sym, src]) => {
+        const qkey = new Request(`${url.origin}/q/${sym}`);
+        try {
+          const pts = await series(src);
+          const last = pts[pts.length - 1], first = pts[0];
+          if (!last) throw new Error("empty");
+          body[sym] = { price: last[1], at: last[0], change24h: first ? (last[1] / first[1] - 1) * 100 : null };
+          ctx.waitUntil(cache.put(qkey, new Response(JSON.stringify(body[sym]), { headers: { "cache-control": "public, max-age=3600" } })));
+        } catch {
+          const old = await cache.match(qkey);
+          if (old) body[sym] = { ...(await old.json()), stale: true };
+        }
+      }));
+      maxAge = 60;
+    }
+    const res = new Response(JSON.stringify(body), { headers: { "content-type": "application/json", "cache-control": `public, max-age=${maxAge}`, "access-control-allow-origin": "*" } });
+    ctx.waitUntil(cache.put(key, res.clone()));
     return res;
   },
 };
