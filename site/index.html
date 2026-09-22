@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Stook Street</title>
-<meta name="description" content="A corner of the financial district for memecoins anchored to stocks. Draw a line where the price lands. $STOOK trades on StonkFun, paired with SPY.">
+<meta name="description" content="A corner of the financial district for memecoins anchored to stocks. Your coin follows a stock; here you bet on where that stock lands, in your coin. First up: $STOOK on the S&amp;P 500.">
 <link rel="icon" href="stook-coin.svg">
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=IBM+Plex+Sans:wght@400;600&family=IBM+Plex+Mono:wght@500&display=swap" rel="stylesheet">
@@ -62,7 +62,7 @@ body.banner main,body.banner footer,body.banner .tape,body.banner .cta{display:n
   <div class="wrap">
     <div class="brand"><img src="stook-coin.svg" alt=""><span>STOOK STREET</span></div>
     <h1>Where will it land?</h1>
-    <p class="lede">A corner of the financial district for memecoins anchored to stocks. Pick a ticker, draw a line where you think the price will be, and get paid by how close you were. Then go be the house for the next one.</p>
+    <p class="lede">A corner of the financial district for memecoins anchored to stocks. Your coin follows a stock. Here you draw a line where you think that stock will land, in your coin, and get paid by how close you were. Then go be the house for the next round.</p>
     <div>
       <a class="cta" href="#stook">$STOOK on StonkFun</a>
       <a class="cta alt" href="#how">How the street works</a>
@@ -76,9 +76,9 @@ body.banner main,body.banner footer,body.banner .tape,body.banner .cta{display:n
 <section id="street">
   <span class="sign">CORNER OF STOOK &amp; WALL</span>
   <h2>What this place is</h2>
-  <p>StonkFun launches memecoins that are pegged to real stocks — a coin for the NVDA crowd, a coin for the SPY crowd. Those coins have communities and no game to play together. Stook Street is the game.</p>
-  <p>Every market here is a bet on <em>where a stock will be</em> at a set time, quoted in the community's own coin. Not yes-or-no. You draw a line at the price you expect and buy it. If the price lands on your line you're paid the most; a band or two away, less; miss by a mile, nothing. The whole crowd's guesses sit on one chart, so you can see what the street believes before you bet against it.</p>
-  <p>Markets are opened by us, for coins we've brought onto the street. Nobody can paste a random mint and spam a hundred markets. Tokens get added one at a time, starting with our own.</p>
+  <p>StonkFun launches memecoins anchored to real stocks. Each coin has a community and a stock it lives and dies by — and no game to play together. Stook Street is the game.</p>
+  <p>Every round here is a bet on <em>where the coin's stock will be</em> at a set time, quoted in the coin. $STOOK is anchored to the S&amp;P 500, so $STOOK rounds ask where the S&amp;P lands: at Friday's close, at noon tomorrow, in an hour. Not yes-or-no. You draw a line at the level you expect and buy it. Land on your line and you're paid the most; a band or two away, less; miss by a mile, nothing. The whole crowd's lines sit on one chart, so you can see what the street believes before you bet against it.</p>
+  <p>Rounds are opened by us, for coins we've brought onto the street. Nobody can paste a mint and spam a hundred markets. Coins get added one at a time, and the first is our own.</p>
 </section>
 
 <section id="how">
@@ -86,10 +86,10 @@ body.banner main,body.banner footer,body.banner .tape,body.banner .cta{display:n
   <div class="two">
     <div>
       <ol class="steps">
-        <li><strong>Pick a market.</strong> NVDA at Friday's close, SPY at noon tomorrow, BTC in an hour. Each one has 64 price bands laid out around where the price is when it opens.</li>
+        <li><strong>Pick a round.</strong> The S&amp;P at Friday's close, at noon tomorrow, in an hour. Each round has 64 price bands laid out around where the index is when it opens.</li>
         <li><strong>Draw a line.</strong> Click the band you expect. A line pays most on that band and one less for every band it misses by. Want a plain bet? Drag a range instead — it pays the same anywhere inside.</li>
         <li><strong>Buy it, or sell out early.</strong> The price of a share is exactly what the crowd's odds say your payout profile is worth. Change your mind before the lock and sell at the current odds.</li>
-        <li><strong>Settlement is a number, not a vote.</strong> At the settlement second the market reads the Pyth price — one specific update, chosen by a rule, so nobody picks it. It lands in a band. That band pays.</li>
+        <li><strong>Settlement is a number, not a vote.</strong> At the settlement second the market reads the stock's Pyth price — one specific update, chosen by a rule, so nobody picks it. It lands in a band. That band pays. The coin's own price is never part of it.</li>
         <li><strong>Or be the house.</strong> Put your coin into a market's pool any time before it locks. You earn 80% of every fee from then on, you pay out when the crowd is right, and you can never lose more than you put in.</li>
       </ol>
     </div>
@@ -105,8 +105,8 @@ body.banner main,body.banner footer,body.banner .tape,body.banner .cta{display:n
         </g>
         <rect x="163" y="60" width="2" height="30" fill="#f4e9c8"/>
         <text x="166" y="58" fill="#f4e9c8" font-family="Press Start 2P" font-size="7">your line</text>
-        <text x="12" y="16" fill="#35c4c4" font-family="Press Start 2P" font-size="7">NVDA · settles 16:00</text>
-        <text x="12" y="176" fill="#c9bfa4" font-family="IBM Plex Mono" font-size="7">180  185  190  195  200  205  210  215  220  225</text>
+        <text x="12" y="16" fill="#35c4c4" font-family="Press Start 2P" font-size="7">S&amp;P 500 · settles 16:00</text>
+        <text x="12" y="176" fill="#c9bfa4" font-family="IBM Plex Mono" font-size="7">6400  6450  6500  6550  6600  6650  6700  6750  6800</text>
       </svg>
       <p class="small" style="margin-top:.8rem">Every number on a market page is the program's own. The site quotes with the same maths the chain uses, to the last unit.</p>
     </div>
@@ -118,18 +118,19 @@ body.banner main,body.banner footer,body.banner .tape,body.banner .cta{display:n
   <h2>The street's own coin</h2>
   <div class="two">
     <div>
-      <p>$STOOK launches on StonkFun, paired with SPY — the index, because the street trades everything. It's the first coin markets here are quoted in: you buy lines with it, you provide liquidity with it, winners are paid in it, and every fee a market collects is paid out in it.</p>
-      <p>That's the whole utility and we'd rather say it plainly: the coin is what the games on this street are played with. More coins join as we bring their communities in — one at a time, by us, not by whoever shows up with a mint address.</p>
+      <p>$STOOK is live on StonkFun, anchored to SPY. Its rounds are on the S&amp;P 500, and everything in them is in $STOOK: you buy lines with it, you provide liquidity with it, winners are paid in it, and every fee a round collects is paid out in it.</p>
+      <p>That's the whole utility and we'd rather say it plainly: the coin is what the games on this street are played with. More coins join as we bring their communities in — each with the stock it's anchored to, one at a time, by us, not by whoever shows up with a mint address.</p>
       <p class="small">Nothing here is investment advice. Lines can lose. Pools can lose. Read <a href="#how">how it works</a> before you buy anything.</p>
     </div>
     <div class="block">
       <dl>
         <dt>ticker</dt><dd>STOOK</dd>
-        <dt>launch</dt><dd>StonkFun, Solana</dd>
+        <dt>mint</dt><dd style="word-break:break-all">GWrd84X5QxdRPAiNUFyiBaNoVZs85oHyWHtonJdd4wqu</dd>
+        <dt>launched on</dt><dd>StonkFun, Solana</dd>
         <dt>anchor</dt><dd>SPY</dd>
         <dt>used for</dt><dd>buying lines, providing liquidity, fees, settlement bounties</dd>
-        <dt>markets</dt><dd>opened by the team; assets from Pyth's 24/7 feeds (NVDA, TSLA, SPY, BTC, …)</dd>
-        <dt>settlement</dt><dd>Pyth price at the settlement second, on-chain, no committee</dd>
+        <dt>rounds</dt><dd>on the S&amp;P 500, opened by the team</dd>
+        <dt>settlement</dt><dd>the S&amp;P's Pyth price at the settlement second, on-chain, no committee</dd>
         <dt>program</dt><dd>open source, Solana</dd>
       </dl>
     </div>
@@ -149,8 +150,8 @@ body.banner main,body.banner footer,body.banner .tape,body.banner .cta{display:n
   <h2>What's open, what's next</h2>
   <ol class="steps">
     <li><strong>Now.</strong> The program and the trading site run on Solana devnet. Markets open and settle themselves from Pyth; the keeper that does it is public and paid a bounty.</li>
-    <li><strong>$STOOK launch.</strong> StonkFun, paired with SPY. First markets quoted in it: NVDA, TSLA, SPY, BTC — hourly and daily rounds.</li>
-    <li><strong>More corners of the street.</strong> Other stock-anchored coins, brought in with their communities. Each gets its own markets, quoted in its own coin.</li>
+    <li><strong>$STOOK is live</strong> on StonkFun, anchored to SPY. Next: the first S&amp;P rounds quoted in it — hourly and daily.</li>
+    <li><strong>More corners of the street.</strong> Other stock-anchored coins, brought in with their communities. Each gets rounds on its own stock, quoted in its own coin.</li>
     <li><strong>Rolling rounds.</strong> Markets that create themselves on a schedule, so there's always a next one.</li>
   </ol>
 </section>
@@ -200,8 +201,7 @@ if(location.search.includes('banner'))document.body.classList.add('banner');
   draw();let t;addEventListener('resize',()=>{clearTimeout(t);t=setTimeout(draw,120)});
 })();
 // ticker tape: the assets the street trades, no made-up prices
-(function(){const names=['NVDA','TSLA','SPY','AAPL','MSFT','META','AMZN','GOOGL','PLTR','HOOD','COIN','MSTR','SPCX','OPENAI','BTC','ETH','SOL'];
-  const one=names.map(n=>`<span><b>${n}</b> <i>where will it land?</i></span>`).join('');document.getElementById('tape').innerHTML=one+one;})();
+(function(){const one=Array.from({length:8},()=>`<span><b>$STOOK</b> ⇢ <i>S&amp;P 500</i> · where will it land?</span><span><i>one coin · one stock · one street</i></span>`).join('');document.getElementById('tape').innerHTML=one+one;})();
 </script>
 </body>
 </html>

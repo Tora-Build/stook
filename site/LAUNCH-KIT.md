@@ -16,10 +16,10 @@ Files in this folder, for the StonkFun launch form and socials:
 **Anchor / pair:** SPY
 
 **Short description (under 200 chars):**
-The coin you play Stook Street with. Draw a line where a stock will land, get paid by how close you were, or be the house. Markets settle on Pyth. Built on Solana.
+The coin you play Stook Street with. Draw a line where the S&P will land, get paid by how close you were, or be the house. Rounds settle on Pyth. Built on Solana.
 
 **Longer description:**
-Stook Street is a corner of the financial district for memecoins anchored to stocks. Every market is a bet on where a stock will be at a set time — NVDA at Friday's close, SPY at noon — quoted in the community's own coin. You draw a line at the price you expect and buy it: land on it and you're paid the most, a band or two off pays less, a mile off pays nothing. Or take the other side: put your coin in a market's pool, earn 80% of its fees, and never risk more than you put in. Settlement is the Pyth price at the settlement second, on-chain, no committee. $STOOK is the first coin the street's markets are quoted in. Markets are opened by the team, one coin at a time, no open spam.
+Stook Street is a corner of the financial district for memecoins anchored to stocks. Each coin's community bets on the stock its coin is anchored to, in the coin. $STOOK is anchored to SPY, so $STOOK rounds ask where the S&P 500 will be at a set time — Friday's close, noon tomorrow — You draw a line at the price you expect and buy it: land on it and you're paid the most, a band or two off pays less, a mile off pays nothing. Or take the other side: put your coin in a market's pool, earn 80% of its fees, and never risk more than you put in. Settlement is the Pyth price at the settlement second, on-chain, no committee. $STOOK is the first coin the street's markets are quoted in. Markets are opened by the team, one coin at a time, no open spam.
 
 **Website:** https://stooks.xyz  (Cloudflare Worker `stook-street`; redeploy with `cd site && npx wrangler deploy`)
 **Source:** https://github.com/Tora-Build/stook (private until launch)
@@ -28,6 +28,7 @@ Stook Street is a corner of the financial district for memecoins anchored to sto
 
 - "Program and trading site run on Solana devnet" — true (program `55kGEMHJ…`, four markets run end to end).
 - "Markets open and settle themselves from Pyth; the keeper is public and paid a bounty" — true (`infra/ladder-crank`, bounty in `ladder_settle`).
-- "$STOOK launches on StonkFun, paired with SPY" — planned, not done. The site says "launches", not "launched".
+- "$STOOK is live on StonkFun, anchored to SPY" — true (mint `GWrd84X5…`).
+- "Rounds on the S&P 500" — needs the Pyth key to be entitled to equity feeds; today it covers crypto only (`Not entitled` on US500/SPY/SPYX/STONK). Ask Pyth for equity access before the first real round.
 - "Markets quoted in $STOOK" — the mint `GWrd84X5QxdRPAiNUFyiBaNoVZs85oHyWHtonJdd4wqu` carries a 1% transfer fee set by StonkFun. The program handles fee-bearing mints (deposits credited by what arrives; proven against the real mint bytes). On mainnet the protocol authority must `approve_quote_mint` it once.
 - Nothing on the site quotes a price, a market cap, a supply or an APY. Keep it that way until there are real numbers.
