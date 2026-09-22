@@ -1,17 +1,21 @@
-// The market as a picture: 64 bars, one per price band, each as tall as the
-// crowd's belief. Draw on it — a click is a line (a tent centred there), a
-// drag is a range (a band) — and the shape you would be buying is laid over
-// the bars, with the payout it makes at every band.
+// The market as a picture, the way a trader reads one: price up the side,
+// time along the bottom. The last day of the anchor's price runs left to
+// right up to now; the settlement moment sits at the right edge. The 64 bands
+// are horizontal stripes across it all, and on the right the crowd's odds
+// for each band are drawn as bars. Click a price level to draw a line there;
+// drag up or down to draw a range. The shape you would buy is laid over the
+// bars, at the payout it makes on every band.
 
 import { useMemo, useRef, useState, type PointerEvent } from "react";
 import { stook } from "@sooth/sdk-solana";
-import { fmtPrice, pct } from "../lib/format";
+import { pct } from "../lib/format";
 
 const { BINS } = stook;
-const W = 960, H = 320, PAD = { l: 8, r: 8, t: 28, b: 34 };
-const plotW = W - PAD.l - PAD.r, plotH = H - PAD.t - PAD.b;
-const bw = plotW / BINS;
-const xOf = (i: number) => PAD.l + i * bw;
+const W = 960, H = 440, PAD = { l: 8, r: 70, t: 14, b: 26 };
+const SPLIT = 0.66;                                  // share of width for the history
+const plotH = H - PAD.t - PAD.b, plotW = W - PAD.l - PAD.r;
+const histW = plotW * SPLIT, oddsX = PAD.l + histW + 6, oddsW = plotW - histW - 6;
+const VISIBLE = 22;                                  // bands drawn at once
 
 export type DrawMode = "line" | "range";
 
@@ -26,14 +30,12 @@ export interface ChartProps {
   mode: DrawMode;
   height: number;
   live?: { price: bigint } | null;
+  /** [unix seconds, price in display units] over the last day. */
+  history?: [number, number][];
+  settlesAt: bigint;
+  now: number;
   settledBin?: number | null;
   disabled?: boolean;
-}
-
-/** Fractional x of a raw price on the log grid. */
-function xOfPrice(price: bigint, p0: bigint, stepBps: number): number {
-  const k = Math.log(Number(price) / Number(p0)) / (stepBps / 10_000);
-  return PAD.l + Math.min(BINS, Math.max(0, BINS / 2 + k)) * bw;
 }
 
 export function Chart(p: ChartProps) {
@@ -43,104 +45,80 @@ export function Chart(p: ChartProps) {
 
   const probs = useMemo(() => Array.from({ length: BINS }, (_, i) => stook.price(p.curve, i)), [p.curve]);
   const maxProb = useMemo(() => probs.reduce((a, b) => (b > a ? b : a), 0n), [probs]);
-  const yOf = (prob: bigint) => PAD.t + plotH - (maxProb > 0n ? (Number(prob) / Number(maxProb)) * plotH : 0);
+  const scale = 10 ** p.expo;
+  const step = p.stepBps / 10_000;
+  const p0 = Number(p.p0) * scale;
 
-  const binAt = (e: PointerEvent<SVGSVGElement>): number => {
-    const r = svg.current!.getBoundingClientRect();
-    const x = ((e.clientX - r.left) / r.width) * W;
-    return Math.min(BINS - 1, Math.max(0, Math.floor((x - PAD.l) / bw)));
-  };
+  // The window of bands on screen: centred on where the price is now (or the
+  // settled band), widened to include the drawn shape.
+  const centreBin = p.settledBin ?? (p.live ? stook.binFor(p.live.price, p.p0, p.stepBps) : 32);
+  let lo = Math.max(0, centreBin - VISIBLE / 2), hi = Math.min(BINS - 1, lo + VISIBLE - 1);
+  if (p.shape) { const [a, z] = stook.shapeBins(p.shape); lo = Math.min(lo, a); hi = Math.max(hi, z); }
+  const nVis = hi - lo + 1, bh = plotH / nVis;
+  // log-price → y: band i spans [edge(i), edge(i+1)), equal height each
+  const edge = (i: number) => p0 * Math.exp((i - BINS / 2) * step);
+  const yOfBin = (i: number) => PAD.t + (hi - i) * bh;                       // top of band i
+  const yOfPrice = (v: number) => { if (v <= 0 || !p0) return PAD.t + plotH; const k = Math.log(v / p0) / step + BINS / 2; return PAD.t + (hi + 1 - Math.min(hi + 1, Math.max(lo, k))) * bh; };
+  const binAtY = (y: number) => Math.min(hi, Math.max(lo, hi - Math.floor((y - PAD.t) / bh)));
 
+  const at = (e: PointerEvent<SVGSVGElement>) => { const r = svg.current!.getBoundingClientRect(); return { x: ((e.clientX - r.left) / r.width) * W, y: ((e.clientY - r.top) / r.height) * H }; };
   const down = (e: PointerEvent<SVGSVGElement>) => {
     if (p.disabled) return;
-    const i = binAt(e);
-    svg.current!.setPointerCapture(e.pointerId);
+    const i = binAtY(at(e).y); svg.current!.setPointerCapture(e.pointerId);
     if (p.mode === "line") { p.onShape(stook.tent(i, p.height)); return; }
-    setAnchor(i);
-    p.onShape(stook.band(i, i));
+    setAnchor(i); p.onShape(stook.band(i, i));
   };
-  const move = (e: PointerEvent<SVGSVGElement>) => {
-    const i = binAt(e);
-    setHover(i);
-    if (anchor !== null) p.onShape(stook.band(Math.min(anchor, i), Math.max(anchor, i)));
-  };
+  const move = (e: PointerEvent<SVGSVGElement>) => { const i = binAtY(at(e).y); setHover(i); if (anchor !== null) p.onShape(stook.band(Math.min(anchor, i), Math.max(anchor, i))); };
   const up = () => setAnchor(null);
 
   const s = p.shape;
   const levels = s ? Array.from({ length: BINS }, (_, i) => stook.level(s, i)) : null;
-  const inShape = (i: number) => !!levels && levels[i]! > 0;
 
-  // Tick every 8 bins, labelled with the band's lower edge.
-  const ticks = [0, 8, 16, 24, 32, 40, 48, 56, 63];
-  const label = (i: number) => {
-    const [lo] = stook.binBounds(i, p.p0, p.stepBps);
-    return i === 0 ? "…" : fmtPrice(lo, p.expo, p.dp);
-  };
+  // History: last day on the left, then the gap to settlement on the right.
+  const hist = p.history ?? [];
+  const t0 = hist.length ? hist[0]![0] : p.now - 86_400, tEnd = Math.max(Number(p.settlesAt), p.now + 60);
+  const xOfT = (t: number) => PAD.l + ((t - t0) / (tEnd - t0)) * histW;
+  const path = hist.length > 1 ? hist.map((q, i) => `${i ? "L" : "M"}${xOfT(q[0]).toFixed(1)},${yOfPrice(q[1]).toFixed(1)}`).join(" ") : "";
+  const livePrice = p.live ? Number(p.live.price) * scale : hist.length ? hist[hist.length - 1]![1] : null;
 
-  const hoverBox = hover !== null ? (() => {
-    const [lo, hi] = stook.binBounds(hover, p.p0, p.stepBps);
-    const range = hover === 0 ? `below ${fmtPrice(hi, p.expo, p.dp)}` : hover === BINS - 1 ? `above ${fmtPrice(lo, p.expo, p.dp)}` : `${fmtPrice(lo, p.expo, p.dp)} – ${fmtPrice(hi, p.expo, p.dp)}`;
-    return { range, prob: pct(probs[hover]!), pays: levels ? levels[hover]! : null };
-  })() : null;
+  const fmt = (v: number) => v.toLocaleString("en-US", { minimumFractionDigits: p.dp, maximumFractionDigits: p.dp });
+  const labelEvery = nVis > 16 ? 2 : 1;
+  const hoverBox = hover !== null ? { range: hover === 0 ? `below ${fmt(edge(1))}` : hover === BINS - 1 ? `above ${fmt(edge(BINS - 1))}` : `${fmt(edge(hover))} – ${fmt(edge(hover + 1))}`, prob: pct(probs[hover]!), pays: levels ? levels[hover]! : null } : null;
 
   return (
     <div className="chart-wrap">
-      <svg
-        ref={svg}
-        viewBox={`0 0 ${W} ${H}`}
-        className={`chart ${p.disabled ? "chart-disabled" : `chart-${p.mode}`}`}
-        onPointerDown={down}
-        onPointerMove={move}
-        onPointerUp={up}
-        onPointerLeave={() => { setHover(null); up(); }}
-        role="img"
-        aria-label="Probability of each price band"
-      >
-        {/* bars */}
-        {probs.map((prob, i) => (
-          <rect
-            key={i}
-            x={xOf(i) + 1}
-            y={yOf(prob)}
-            width={bw - 2}
-            height={PAD.t + plotH - yOf(prob)}
-            className={`bar ${inShape(i) ? "bar-in" : ""} ${p.settledBin === i ? "bar-settled" : ""} ${hover === i ? "bar-hover" : ""}`}
-          />
-        ))}
-        {/* the shape's payout profile, as a stepped line over the bars */}
-        {levels && s && (
-          <path
-            className="shape-line"
-            d={levels.map((lv, i) => {
-              const y = PAD.t + plotH - (lv / p.height) * plotH * 0.9;
-              return `${i === 0 ? "M" : "L"}${xOf(i)},${lv ? y : PAD.t + plotH} L${xOf(i + 1)},${lv ? y : PAD.t + plotH}`;
-            }).join(" ")}
-          />
-        )}
-        {/* centre and live price */}
-        <line x1={xOf(32)} x2={xOf(32)} y1={PAD.t} y2={PAD.t + plotH} className="line-p0" />
-        <text x={xOf(32)} y={PAD.t - 10} className="lbl lbl-p0" textAnchor="middle">opened at {fmtPrice(p.p0, p.expo, p.dp)}</text>
-        {p.live && (
-          <g>
-            <line x1={xOfPrice(p.live.price, p.p0, p.stepBps)} x2={xOfPrice(p.live.price, p.p0, p.stepBps)} y1={PAD.t} y2={PAD.t + plotH} className="line-live" />
-            <text x={xOfPrice(p.live.price, p.p0, p.stepBps)} y={PAD.t + plotH + 30} className="lbl lbl-live" textAnchor="middle">now {fmtPrice(p.live.price, p.expo, p.dp)}</text>
-          </g>
-        )}
-        {/* axis */}
-        {ticks.map((i) => (
-          <text key={i} x={xOf(i)} y={PAD.t + plotH + 16} className="lbl" textAnchor={i === 0 ? "start" : i === 63 ? "end" : "middle"}>{label(i)}</text>
-        ))}
+      <svg ref={svg} viewBox={`0 0 ${W} ${H}`} className={`chart ${p.disabled ? "chart-disabled" : `chart-${p.mode}`}`}
+        onPointerDown={down} onPointerMove={move} onPointerUp={up} onPointerLeave={() => { setHover(null); up(); }} role="img" aria-label="Price history with the crowd's odds per band">
+        {/* band stripes */}
+        {Array.from({ length: nVis }, (_, k) => { const i = lo + k; const inS = levels ? levels[i]! > 0 : false; return (
+          <g key={i}>
+            <rect x={PAD.l} y={yOfBin(i)} width={plotW} height={bh} className={`stripe ${i % 2 ? "stripe-alt" : ""} ${inS ? "stripe-in" : ""} ${p.settledBin === i ? "stripe-settled" : ""} ${hover === i ? "stripe-hover" : ""}`} />
+            {(i - lo) % labelEvery === 0 && <text x={W - PAD.r + 6} y={yOfBin(i) + bh + 3} className="lbl">{fmt(edge(i))}</text>}
+          </g>); })}
+        {/* odds bars, right */}
+        {Array.from({ length: nVis }, (_, k) => { const i = lo + k; const w = maxProb > 0n ? (Number(probs[i]!) / Number(maxProb)) * oddsW : 0; return (
+          <rect key={"b" + i} x={oddsX} y={yOfBin(i) + 1} width={Math.max(1, w)} height={Math.max(1, bh - 2)} className={`bar ${levels && levels[i]! > 0 ? "bar-in" : ""} ${p.settledBin === i ? "bar-settled" : ""}`} />); })}
+        {/* the shape's payout, as amber ticks on the odds panel */}
+        {levels && s && Array.from({ length: nVis }, (_, k) => { const i = lo + k, lv = levels[i]!; if (!lv) return null; return (
+          <rect key={"s" + i} x={oddsX} y={yOfBin(i) + 1} width={(lv / s.h) * oddsW} height={Math.max(1, bh - 2)} className="shape-bar" />); })}
+        {/* history */}
+        <line x1={oddsX - 3} x2={oddsX - 3} y1={PAD.t} y2={PAD.t + plotH} className="line-p0" />
+        {path && <path d={path} className="line-hist" />}
+        {livePrice !== null && <>
+          <line x1={PAD.l} x2={W - PAD.r} y1={yOfPrice(livePrice)} y2={yOfPrice(livePrice)} className="line-live" />
+          <text x={PAD.l + 4} y={yOfPrice(livePrice) - 4} className="lbl lbl-live">now {fmt(livePrice)}</text>
+        </>}
+        {p0 > 0 && <text x={oddsX - 8} y={yOfPrice(p0) + 12} textAnchor="end" className="lbl lbl-p0">opened at {fmt(p0)}</text>}
+        {/* time axis */}
+        <line x1={xOfT(p.now)} x2={xOfT(p.now)} y1={PAD.t} y2={PAD.t + plotH} className="line-now" />
+        <text x={PAD.l} y={H - 8} className="lbl">{new Date(t0 * 1000).toLocaleTimeString("en-US", { hour: "numeric" })}</text>
+        <text x={xOfT(p.now)} y={H - 8} className="lbl" textAnchor="middle">now</text>
+        <text x={PAD.l + histW} y={H - 8} className="lbl lbl-live" textAnchor="end">settles {new Date(Number(p.settlesAt) * 1000).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })}</text>
+        <text x={oddsX + oddsW / 2} y={H - 8} className="lbl" textAnchor="middle">the crowd's odds</text>
       </svg>
       <div className="chart-hover">
-        {hoverBox ? (
-          <>
-            <span className="mono">{hoverBox.range}</span>
-            <span>{hoverBox.prob} chance</span>
-            {hoverBox.pays !== null && <span className="amber">{hoverBox.pays ? `pays ${hoverBox.pays}×` : "pays nothing"}</span>}
-          </>
-        ) : (
-          <span className="muted">{p.disabled ? "Trading is closed." : p.mode === "line" ? "Click where the price will land." : "Drag across the range you expect."}</span>
-        )}
+        {hoverBox ? (<><span className="mono">{hoverBox.range}</span><span>{hoverBox.prob} chance</span>{hoverBox.pays !== null && <span className="amber">{hoverBox.pays ? `pays ${hoverBox.pays}×` : "pays nothing"}</span>}</>)
+          : (<span className="muted">{p.disabled ? "Trading is closed." : p.mode === "line" ? "Click the price you expect at settlement." : "Drag up or down across the range you expect."}</span>)}
       </div>
     </div>
   );

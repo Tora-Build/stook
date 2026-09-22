@@ -14,6 +14,7 @@ import { fmtAmount, fmtPrice, fmtWhen, untilText, short } from "../lib/format";
 import { EXPLORER } from "../lib/config";
 import { Live } from "../components/Live";
 import { coinByMint } from "../lib/coins";
+import { useQuery } from "@tanstack/react-query";
 
 export function Market() {
   const { id } = useParams();
@@ -28,6 +29,8 @@ export function Market() {
   const [mode, setMode] = useState<DrawMode>("line");
   const [height, setHeight] = useState(4);
   const live = useLivePrice(l?.feedId ?? null);
+  const feedSym = l ? feedByHex(feedHex(l.feedId)).symbol : null;
+  const history = useQuery({ queryKey: ["hist", feedSym], queryFn: async () => (await fetch(`https://stooks.xyz/chart?sym=${feedSym}`)).json() as Promise<{ points: [number, number][] }>, enabled: !!feedSym, refetchInterval: 300_000 });
   const voidIt = useSend("Void");
 
   if (!key) return <p className="page muted">Not a market address.</p>;
@@ -64,6 +67,9 @@ export function Market() {
         mode={mode}
         height={height}
         live={live.data && live.data.price > 0n ? { price: live.data.price } : null}
+        history={history.data?.points}
+        settlesAt={l.settlesAt}
+        now={now}
         settledBin={l.settledBin}
         disabled={!tradeable}
       />

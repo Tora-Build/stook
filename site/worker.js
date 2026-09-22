@@ -5,7 +5,7 @@
 const COINS = {
   STOOK: { kind: "yahoo", symbol: "SPY" },
   ZCAT: { kind: "yahoo", symbol: "ZEC-USD" },   // CoinGecko rate-limits Cloudflare egress; Yahoo carries ZEC 24/7
-  KNOTS: { kind: "geckoterminal", pool: "7a8xxAJBELDo6P9dikSYctdw6ce8F4mWr3ahcAD8Ao49" }, // STONK/SOL on Raydium
+  KNOTS: { kind: "geckoterminal", pool: "7a8xxAJBELDo6P9dikSYctdw6ce8F4mWr3ahcAD8Ao49", quoteFallback: "dexscreener" }, // STONK/SOL on Raydium
   GP: { kind: "yahoo", symbol: "GLD" },
 };
 const UA = { "user-agent": "Mozilla/5.0 stook-street" };
@@ -33,13 +33,17 @@ export default {
     const url = new URL(request.url);
     if (url.pathname !== "/prices" && url.pathname !== "/chart") return env.ASSETS.fetch(request);
     const cache = caches.default;
-    const key = new Request(url.origin + url.pathname + (url.pathname === "/chart" ? `?coin=${url.searchParams.get("coin")}` : ""));
+    const key = new Request(url.origin + url.pathname + (url.pathname === "/chart" ? `?coin=${url.searchParams.get("coin")}&sym=${url.searchParams.get("sym")}` : ""));
     const hit = await cache.match(key);
     if (hit) return hit;
 
     let body, maxAge;
     if (url.pathname === "/chart") {
-      const coin = COINS[url.searchParams.get("coin")];
+      // by coin (its anchor), or by a plain symbol Yahoo carries — used for
+      // the devnet stand-in feeds and for custom rounds
+      const SYMS = { BTC: "BTC-USD", ETH: "ETH-USD", SOL: "SOL-USD", DOGE: "DOGE-USD", XRP: "XRP-USD", BNB: "BNB-USD", ZEC: "ZEC-USD", SPY: "SPY", GLDx: "GLD", GLD: "GLD", SPYx: "SPY" };
+      const sym = url.searchParams.get("sym");
+      const coin = sym ? (SYMS[sym] ? { kind: "yahoo", symbol: SYMS[sym] } : sym === "STONK" ? COINS.KNOTS : null) : COINS[url.searchParams.get("coin")];
       if (!coin) return new Response("unknown coin", { status: 404 });
       try { body = { points: await series(coin) }; } catch (e) { body = { points: [], error: String(e).slice(0, 100) }; }
       maxAge = 300;
@@ -56,6 +60,14 @@ export default {
           body[sym] = { price: last[1], at: last[0], change24h: first ? (last[1] / first[1] - 1) * 100 : null };
           ctx.waitUntil(cache.put(qkey, new Response(JSON.stringify(body[sym]), { headers: { "cache-control": "public, max-age=3600" } })));
         } catch {
+          // GeckoTerminal drops requests now and then; DexScreener has the same pool's spot price.
+          if (src.quoteFallback === "dexscreener") {
+            try {
+              const j = await (await fetch(`https://api.dexscreener.com/latest/dex/pairs/solana/${src.pool}`, { headers: UA })).json();
+              const p = j.pairs?.[0] ?? j.pair;
+              if (p?.priceUsd) { body[sym] = { price: Number(p.priceUsd), at: Math.floor(Date.now() / 1000), change24h: p.priceChange?.h24 ?? null }; return; }
+            } catch {}
+          }
           const old = await cache.match(qkey);
           if (old) body[sym] = { ...(await old.json()), stale: true };
         }

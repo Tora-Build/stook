@@ -98,8 +98,8 @@ export function TradePanel(p: Props) {
       </div>
       <p className="explain">
         {p.mode === "line"
-          ? <>Click the band you expect. Pays <b>{p.height}×</b> if the price lands there, one less for each band it misses by, nothing beyond {p.height - 1} band{p.height === 2 ? "" : "s"} away.</>
-          : <>Drag across a low and a high. Pays <b>1×</b> anywhere inside, nothing outside.</>}
+          ? <>Click the band you expect. Reach is how wide the bet is spread: reach 1 is all on one band; reach {p.height} is a hill over {2 * p.height - 1} bands that pays most at the centre. A wider reach costs more per share, so it does not change what a dollar can win — it changes <b>where</b> it wins.</>
+          : <>Drag across a low and a high. Pays the same anywhere inside, nothing outside. The wider the range, the more it costs and the less it returns.</>}
         {" "}<Link to="/how">How it works</Link>
       </p>
 
@@ -107,19 +107,25 @@ export function TradePanel(p: Props) {
 
       {s && odds && (
         <table className="ladder-table">
-          <thead><tr><th>If it lands</th><th>chance</th><th>you get</th></tr></thead>
+          <thead><tr><th>If it lands</th><th>chance</th><th>you get back</th><th>on your stake</th></tr></thead>
           <tbody>
-            {odds.byLevel.map(([lv, pr]) => (
-              <tr key={lv}>
-                <td>{s.h === 1 ? "inside the range" : lv === s.h ? "on your band" : `${s.h - lv} band${s.h - lv > 1 ? "s" : ""} off`}</td>
-                <td className="mono">{(Number(pr) / 1e16).toFixed(1)}%</td>
-                <td className="mono amber">{lv}× {shares && side === "buy" ? `= ${fmtAmount(shares * BigInt(lv), dec)}` : ""}</td>
-              </tr>
-            ))}
-            <tr className="muted"><td>anywhere else</td><td className="mono">{(100 - Number(odds.any) / 1e16).toFixed(1)}%</td><td className="mono">0</td></tr>
+            {odds.byLevel.map(([lv, pr]) => {
+              const back = shares ? shares * BigInt(lv) : 0n;
+              const x = q && side === "buy" && q.total > 0n ? Number(back) / Number(q.total) : null;
+              return (
+                <tr key={lv}>
+                  <td>{s.h === 1 ? "inside the range" : lv === s.h ? "on your band" : `${s.h - lv} band${s.h - lv > 1 ? "s" : ""} off`}</td>
+                  <td className="mono">{(Number(pr) / 1e16).toFixed(1)}%</td>
+                  <td className="mono">{shares ? fmtAmount(back, dec) : `${lv}×`}</td>
+                  <td className={`mono ${x !== null && x < 1 ? "down" : "amber"}`}>{x !== null ? `${x.toFixed(2)}×` : ""}</td>
+                </tr>
+              );
+            })}
+            <tr className="muted"><td>anywhere else</td><td className="mono">{(100 - Number(odds.any) / 1e16).toFixed(1)}%</td><td className="mono">0</td><td className="mono">0×</td></tr>
           </tbody>
         </table>
       )}
+      {q && side === "buy" && odds && (() => { const best = shares ? Number(shares * BigInt(s!.h)) / Number(q.total) : 0; return best <= 1.02 ? <p className="warn">This shape pays back about what it costs even when it lands. Narrow it, or pick a band the crowd doubts.</p> : null; })()}
 
       <div className="seg">
         <button className={side === "buy" ? "on" : ""} onClick={() => setSide("buy")}>Buy</button>

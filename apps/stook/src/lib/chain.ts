@@ -77,24 +77,29 @@ export async function fetchLivePrice(c: Connection, feedId: Uint8Array): Promise
 }
 
 export async function send(c: Connection, wallet: WalletContextState, ixs: TransactionInstruction[], computeUnits = 120_000): Promise<string> {
-  if (!wallet.publicKey || !wallet.sendTransaction) throw new Error("connect a wallet first");
-  // A blockhash lives ~60–90 s. The wallet's own approval can eat most of
-  // that, so the blockhash is taken as late as possible and a transaction
-  // that still expires is rebuilt and sent once more.
+  if (!wallet.publicKey || !wallet.signTransaction) throw new Error("connect a wallet first");
+  // The wallet only signs. Broadcasting and confirming are done here: the
+  // signed bytes are re-sent every two seconds until the network confirms
+  // them or the blockhash dies — devnet drops transactions freely, and a
+  // single send with a websocket wait is what produced "expired" for users.
+  // If the blockhash does die, the transaction is rebuilt and signed again.
   for (let attempt = 0; ; attempt++) {
-    const tx = new Transaction().add(...stook.withHeap(ixs, computeUnits, 20_000));
+    const tx = new Transaction().add(...stook.withHeap(ixs, computeUnits, 50_000));
     tx.feePayer = wallet.publicKey;
     const { blockhash, lastValidBlockHeight } = await c.getLatestBlockhash("confirmed");
     tx.recentBlockhash = blockhash;
-    const sig = await wallet.sendTransaction(tx, c, { maxRetries: 5, preflightCommitment: "confirmed" });
-    try {
-      const conf = await c.confirmTransaction({ signature: sig, blockhash, lastValidBlockHeight }, "confirmed");
-      if (conf.value.err) throw new Error(`transaction failed: ${JSON.stringify(conf.value.err)}`);
-      return sig;
-    } catch (e) {
-      const expired = e instanceof Error && /expired|block height exceeded/i.test(e.message);
-      if (!expired || attempt >= 1) throw e;
+    const signed = await wallet.signTransaction(tx);
+    const raw = signed.serialize();
+    const sig = await c.sendRawTransaction(raw, { skipPreflight: false, preflightCommitment: "confirmed", maxRetries: 0 });
+    for (;;) {
+      await new Promise((r) => setTimeout(r, 2000));
+      const st = (await c.getSignatureStatuses([sig])).value[0];
+      if (st?.err) throw new Error(`transaction failed: ${JSON.stringify(st.err)}`);
+      if (st && (st.confirmationStatus === "confirmed" || st.confirmationStatus === "finalized")) return sig;
+      if ((await c.getBlockHeight("confirmed")) > lastValidBlockHeight) break;
+      await c.sendRawTransaction(raw, { skipPreflight: true, maxRetries: 0 }).catch(() => {});
     }
+    if (attempt >= 1) throw new Error("The network did not include the transaction in time, twice. Try again in a moment.");
   }
 }
 

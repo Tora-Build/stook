@@ -74,21 +74,21 @@ export function Coin() {
       <section className="slots">
         <h3>Rounds</h3>
         <p className="explain">One round a day, settling at 4:00 PM New York. An empty day is a round nobody has funded yet: <b>start it</b> and you are its first liquidity — even odds, earning fees on every trade from the first one. Once started, everyone else joins the same round. <Link to="/how">How it works</Link></p>
-        <ul className="slot-list">
+        <ul className="day-grid">
           {slots.map((s) => {
-            const r = s.round;
+            const r = s.round, d = new Date(s.at * 1000);
+            const status = r ? (r.ladder.status === "open" ? (now < Number(r.ladder.locksAt) ? "trading" : "locked") : r.ladder.status === "seeding" ? "opening" : r.ladder.status) : "empty";
+            const inner = (
+              <>
+                <div className="day-top"><span className="day-dow">{d.toLocaleDateString("en-US", { weekday: "short" })}</span><span className="day-num">{d.getDate()}</span><span className="day-mon">{d.toLocaleDateString("en-US", { month: "short" })}</span></div>
+                <div className="day-when">{d.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })} · closes in {untilText(BigInt(s.at), now)}</div>
+                <div className={`pill pill-${r ? r.ladder.status : "empty"}`}>{status}</div>
+                {r ? <div className="mono day-pool">pool {fmtAmount(r.ladder.depositTotal, r.ladder.decimals, 0)} ${coin.symbol}<br />{r.ladder.curveSeq.toString()} trades</div> : <div className="day-empty">nobody has started this one</div>}
+              </>
+            );
             return (
-              <li key={s.at} className={`slot ${r ? `slot-${r.ladder.status}` : "slot-empty"}`}>
-                <span className="mono slot-time">{when(s.at)}</span>
-                {r ? (
-                  <Link to={`/m/${r.pubkey.toBase58()}`} className="slot-link">
-                    <span className={`pill pill-${r.ladder.status}`}>{r.ladder.status === "open" ? (now < Number(r.ladder.locksAt) ? "trading" : "locked") : r.ladder.status === "seeding" ? "opening" : r.ladder.status}</span>
-                    <span className="mono muted">pool {fmtAmount(r.ladder.depositTotal, r.ladder.decimals, 0)} ${coin.symbol} · {r.ladder.curveSeq.toString()} trades</span>
-                    <span className="muted">{r.ladder.status === "open" && now < Number(r.ladder.locksAt) ? `locks in ${untilText(r.ladder.locksAt, now)}` : ""}</span>
-                  </Link>
-                ) : (
-                  <button className="small" onClick={() => start(s.at)} disabled={!mint}>Start this round</button>
-                )}
+              <li key={s.at} className={`day-card ${r ? `day-${r.ladder.status}` : "day-empty-card"}`}>
+                {r ? <Link to={`/m/${r.pubkey.toBase58()}`} className="day-link">{inner}</Link> : <div className="day-link">{inner}<button className="small" onClick={() => start(s.at)} disabled={!mint}>Start this round</button></div>}
               </li>
             );
           })}

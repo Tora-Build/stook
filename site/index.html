@@ -180,7 +180,7 @@ function drawCity(){
 }
 let anim=null;
 function setTheme(t,animate){
-  const target=t==='day'?1:0;btn.textContent=t==='day'?'☀ DAY':'☾ NIGHT';try{localStorage.setItem('stook-theme',t)}catch{}
+  const target=t==='day'?1:0;btn.textContent=t==='day'?'☀ DAY':'☾ NIGHT';try{localStorage.setItem('stook-theme',t);document.cookie=`stook-theme=${t};domain=.stooks.xyz;path=/;max-age=31536000;samesite=lax`}catch{}
   const reduce=matchMedia('(prefers-reduced-motion: reduce)').matches;
   if(!animate||reduce){T=target;root.dataset.theme=t;drawCity();return}
   const from=T,start=performance.now(),dur=1400;cancelAnimationFrame(anim);
@@ -188,7 +188,7 @@ function setTheme(t,animate){
   anim=requestAnimationFrame(step);
 }
 btn.onclick=()=>setTheme(root.dataset.theme==='day'?'night':'day',true);
-let saved='night';try{saved=localStorage.getItem('stook-theme')||'night'}catch{}
+let saved='night';try{saved=(document.cookie.match(/stook-theme=(day|night)/)||[])[1]||localStorage.getItem('stook-theme')||'night'}catch{}
 setTheme(saved,false);let rt;addEventListener('resize',()=>{clearTimeout(rt);rt=setTimeout(drawCity,120)});
 
 // ── the floor: one post per coin, the anchor's live price from Pyth ──

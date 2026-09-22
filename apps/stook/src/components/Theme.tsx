@@ -7,13 +7,15 @@ const Ctx = createContext<Theme>({ name: "night", t: 0, toggle: () => {} });
 export const useTheme = () => useContext(Ctx);
 
 export function ThemeProvider({ children }: { children: ReactNode }) {
-  const [name, setName] = useState<"night" | "day">(() => { try { return (localStorage.getItem("stook-theme") as "night" | "day") || "night"; } catch { return "night"; } });
+  // Shared with stooks.xyz through a cookie on the parent domain, so the
+  // choice made on the street carries into the app.
+  const [name, setName] = useState<"night" | "day">(() => { try { return ((document.cookie.match(/stook-theme=(day|night)/) ?? [])[1] as "night" | "day") || (localStorage.getItem("stook-theme") as "night" | "day") || "night"; } catch { return "night"; } });
   const [t, setT] = useState(name === "day" ? 1 : 0);
   const anim = useRef(0);
   useEffect(() => { document.documentElement.dataset.theme = name; }, [name]);
   const toggle = useCallback(() => {
     const next = name === "day" ? "night" : "day", target = next === "day" ? 1 : 0, from = t;
-    setName(next); try { localStorage.setItem("stook-theme", next); } catch {}
+    setName(next); try { localStorage.setItem("stook-theme", next); document.cookie = `stook-theme=${next};domain=.stooks.xyz;path=/;max-age=31536000;samesite=lax`; } catch {}
     if (matchMedia("(prefers-reduced-motion: reduce)").matches) { setT(target); return; }
     const start = performance.now(), dur = 1400; cancelAnimationFrame(anim.current);
     const step = (now: number) => { const u = Math.min(1, (now - start) / dur), e = u < 0.5 ? 2 * u * u : 1 - Math.pow(-2 * u + 2, 2) / 2; setT(from + (target - from) * e); if (u < 1) anim.current = requestAnimationFrame(step); };
