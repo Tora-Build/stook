@@ -23,10 +23,14 @@
 
 import { readFileSync } from "node:fs";
 import { homedir } from "node:os";
+import { createRequire } from "node:module";
 import { Connection, Keypair, ComputeBudgetProgram } from "@solana/web3.js";
 import { Wallet } from "@coral-xyz/anchor";
-import { PythSolanaReceiver } from "@pythnetwork/pyth-solana-receiver";
 import { stook, SOOTH_CORE_PROGRAM_ID } from "@sooth/sdk-solana";
+
+// The receiver's ESM build imports `jito-ts/dist/sdk/block-engine/types`
+// without an extension, which Node's ESM loader refuses. Its CJS build is fine.
+const { PythSolanaReceiver } = createRequire(import.meta.url)("@pythnetwork/pyth-solana-receiver");
 
 const args = new Set(process.argv.slice(2));
 const RPC_URL = process.env.RPC_URL ?? "https://api.devnet.solana.com";
@@ -50,15 +54,16 @@ async function hermes(path, feedId) {
 }
 
 /** Post `vaas`, run `ix` against the posted account, close the account. */
-async function postAndConsume(vaas, makeIx) {
+async function postAndConsume(vaas, feedHex, makeIx) {
   const receiver = new PythSolanaReceiver({ connection, wallet: new Wallet(payer) });
   const builder = receiver.newTransactionBuilder({ closeUpdateAccounts: true });
   if (FULL) await builder.addPostPriceUpdates(vaas);
   else await builder.addPostPartiallyVerifiedPriceUpdates(vaas);
-  await builder.addPriceConsumerInstructions(async (priceUpdateAccount) => [
+  // The builder keys posted accounts by "0x"-prefixed feed id.
+  await builder.addPriceConsumerInstructions(async (getPriceUpdateAccount) => [
     // sooth_core's allocator assumes a 256 KB heap on every transaction.
     { instruction: ComputeBudgetProgram.requestHeapFrame({ bytes: 256 * 1024 }), signers: [] },
-    { instruction: makeIx(priceUpdateAccount), signers: [] },
+    { instruction: makeIx(getPriceUpdateAccount(`0x${feedHex}`)), signers: [] },
   ]);
   const txs = await builder.buildVersionedTransactions({ computeUnitPriceMicroLamports: 50_000 });
   return receiver.provider.sendAll(txs, { skipPreflight: false });
@@ -93,8 +98,12 @@ async function pass() {
         continue;
       }
       const feed = hex(ladder.feedId);
+      // For an open, the update from a few seconds ago rather than "latest":
+      // Hermes stamps ahead of a lagging machine or cluster clock, and the
+      // program refuses a price from the future. 15s is well inside the 60s
+      // the program allows.
       const { parsed, vaas } = step === "open"
-        ? await hermes("/v2/updates/price/latest", feed)
+        ? await hermes(`/v2/updates/price/${Number(now) - 15}`, feed)
         : await hermes(`/v2/updates/price/${ladder.settlesAt}`, feed);
       if (!parsed) { console.log(tag, "hermes returned no update"); continue; }
 
@@ -104,7 +113,7 @@ async function pass() {
       if (problem) { console.log(tag, "skipped:", problem); continue; }
 
       const build = step === "open" ? stook.openLadderIx : stook.settleLadderIx;
-      console.log(tag, await postAndConsume(vaas, (price) => build(refs, payer.publicKey, price)));
+      console.log(tag, await postAndConsume(vaas, feed, (price) => build(refs, payer.publicKey, price)));
     } catch (e) {
       console.error(tag, "failed:", e?.message ?? e);
     }
