@@ -7,7 +7,7 @@ import { useState } from "react";
 import { Link } from "react-router-dom";
 import { stook } from "@sooth/sdk-solana";
 import type { LadderRow } from "../lib/chain";
-import { fmtAmount, fmtPrice } from "../lib/format";
+import { fmtAmount, fmtPrice, untilText } from "../lib/format";
 
 interface Props {
   rounds: LadderRow[];
@@ -54,14 +54,17 @@ export function WallCalendar(p: Props) {
           const r = byDay.get(key), at = p.settleOf(m0.getFullYear(), m0.getMonth(), d);
           const past = at - p.now < p.minLeadSecs && !r, isToday = key === todayKey;
           const l = r?.ladder;
-          const state = !l ? (past ? "" : "start") : l.status === "open" ? (p.now < Number(l.locksAt) ? "trading" : "locked") : l.status === "seeding" ? "opening" : l.status;
+          const state = !l ? "" : l.status === "open" ? (p.now < Number(l.locksAt) ? "trading" : "locked") : l.status === "seeding" ? "opening" : l.status;
+          const thisMonth = offset === 0, closesIn = thisMonth && at > p.now && (!l || l.status === "open" || l.status === "seeding") ? untilText(BigInt(at), p.now) : null;
           const landed = l && l.status === "settled" && l.settledBin !== null ? stook.binBounds(l.settledBin, l.p0, l.stepBps) : null;
           const body = (
             <>
               <div className="wc-top"><span className="wc-num">{d}</span>{state && <span className={`wc-state wc-state-${state}`}>{state}</span>}</div>
               {l && landed && <div className="wc-info"><span className="mono">{fmtPrice(landed[0], l.p0Expo, p.dp)}</span><span className="wc-sub">landed</span></div>}
               {l && !landed && <div className="wc-info"><span className="mono">{fmtAmount(l.depositTotal, l.decimals, 0)} {p.coinSymbol}</span><span className="wc-sub">{l.curveSeq.toString()} trades</span></div>}
-              {!l && !past && <div className="wc-info wc-empty">nobody yet</div>}
+              {!l && !past && <div className="wc-info wc-empty">Start it</div>}
+              {past && !l && <span className="wc-stamp">passed</span>}
+              {closesIn && <div className="wc-left">closes in {closesIn.replace(/ (d|h|min)\b/g, "$1")}</div>}
             </>
           );
           const cls = `wc-cell ${isToday ? "wc-today" : ""} ${l ? `wc-${l.status}` : past ? "wc-past" : "wc-open-slot"}`;

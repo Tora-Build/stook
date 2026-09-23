@@ -1,7 +1,7 @@
 import { useWallet } from "@solana/wallet-adapter-react";
 import { stook } from "@sooth/sdk-solana";
 import { fmtAmount, fmtPrice } from "../lib/format";
-import { ataOf } from "../lib/chain";
+import { ataOf, ensureAta } from "../lib/chain";
 import { usePositions, useSend } from "../hooks/useChain";
 
 interface Props { refs: stook.LadderRefs; ladder: stook.LadderAccount; dp: number; quoteSymbol: string; onPick: (s: stook.Shape) => void }
@@ -34,7 +34,7 @@ export function Positions(p: Props) {
                 <button
                   className="small"
                   disabled={redeem.isPending}
-                  onClick={() => redeem.mutate([stook.redeemLadderIx(p.refs, publicKey, ataOf(p.ladder.quoteMint, publicKey, p.refs.tokenProgram), s)])}
+                  onClick={() => redeem.mutate([ensureAta(p.ladder.quoteMint, publicKey, p.refs.tokenProgram), stook.redeemLadderIx(p.refs, publicKey, ataOf(p.ladder.quoteMint, publicKey, p.refs.tokenProgram), s)])}
                 >
                   {p.ladder.status === "void" ? "Refund" : owed ? `Collect ${fmtAmount(owed, p.ladder.decimals)}` : "Close"}
                 </button>

@@ -3,7 +3,7 @@ import { Link } from "react-router-dom";
 import { useWallet } from "@solana/wallet-adapter-react";
 import { stook } from "@sooth/sdk-solana";
 import { fmtAmount, parseAmount, fmtPrice } from "../lib/format";
-import { ataOf } from "../lib/chain";
+import { ataOf, ensureAta } from "../lib/chain";
 import { useBalance, useSend } from "../hooks/useChain";
 import type { DrawMode } from "./Chart";
 
@@ -63,7 +63,7 @@ export function TradePanel(p: Props) {
 
   const submit = () => {
     if (!q || !s || !shares || !publicKey) return;
-    send.mutate({ computeUnits: stook.tradeComputeUnits(s), ixs: [stook.tradeLadderIx(p.refs, {
+    send.mutate({ computeUnits: stook.tradeComputeUnits(s), ixs: [ensureAta(l.quoteMint, publicKey, p.refs.tokenProgram), stook.tradeLadderIx(p.refs, {
       user: publicKey,
       userToken: ataOf(l.quoteMint, publicKey, p.refs.tokenProgram),
       shape: s,

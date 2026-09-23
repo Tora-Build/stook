@@ -67,7 +67,7 @@ export function Coin() {
       {!note && <Chart24 points={chart.data?.points ?? []} dp={coin.anchor.dp} />}
 
       <section className="slots">
-        <p className="explain">One round a day, settling at 4:00 PM New York. A day with a round opens it; an empty day can be <b>started</b> by you — you become its first liquidity, everyone after adds to the same round. Past days keep where the price landed. <Link to="/how">How it works</Link></p>
+        <p className="explain">One round a day, closing 4:00 PM New York. Click a day to trade it — or to start it. <Link to="/how">How it works</Link></p>
         <WallCalendar rounds={mine} now={now} settleOf={settleOf} minLeadSecs={MIN_LEAD_SECS} dp={anchor.dp} coinSymbol={coin.symbol} canStart={!!mint} onStart={setStarting} />
       </section>
       {starting !== null && <StartRound coin={coin} settlesAt={starting} onClose={() => setStarting(null)} />}

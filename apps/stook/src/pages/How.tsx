@@ -57,7 +57,7 @@ export function How() {
           <Px pal={P} rows={["..........", ".gggggggg.", ".g......g.", ".g.cccc.g.", ".g.c..c.g.", ".g.cccc.g.", ".g......g.", ".gggggggg.", ".ss....ss."]} />
           <div>
             <h2>The house</h2>
-            <p>Someone takes the other side of every line: the round's pool. Anyone can put coin into it until the lock. You earn <b>80% of every fee</b> from then on, in proportion to the depth you add. You pay when the crowd was right. You can never lose more than you put in, and no one's loss ever lands on another depositor.</p>
+            <p>Someone takes the other side of every line: the round's pool. Anyone can put coin into it until the lock. You earn <b>80% of every fee</b> from then on, in proportion to the depth you add. You pay when the crowd was right. Each deposit stands on its own: no one's loss ever lands on another depositor.</p>
             <p className="stop-num">Fees are 1% of each trade: 80% to the pool, 10% to whoever started the round, 10% to the protocol — half of which goes to whoever rings the bell.</p>
           </div>
         </li>

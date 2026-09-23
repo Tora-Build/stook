@@ -6,7 +6,7 @@ import { useNavigate } from "react-router-dom";
 import { useWallet } from "@solana/wallet-adapter-react";
 import { stook } from "@sooth/sdk-solana";
 import { anchorOf, feedHexToBytes, mintOf, type Coin } from "../lib/coins";
-import { ataOf } from "../lib/chain";
+import { ataOf, ensureAta } from "../lib/chain";
 import { useBalance, useMint, useSend } from "../hooks/useChain";
 import { fmtAmount, parseAmount } from "../lib/format";
 
@@ -29,7 +29,7 @@ export function StartRound({ coin, settlesAt, onClose }: { coin: Coin; settlesAt
   const start = () => {
     if (!publicKey || !mintKey || !mint.data || !seed) return;
     const key = { feedId: feedHexToBytes(anchor.feedId), settlesAt: BigInt(settlesAt), quoteMint: mintKey, tier: TIER };
-    send.mutate([stook.createLadderIx({ ...key, creator: publicKey, creatorToken: ataOf(mintKey, publicKey, mint.data.tokenProgram), tokenProgram: mint.data.tokenProgram, seed, issuerTrusted: mint.data.report.verdict === "issuer-trusted" })],
+    send.mutate([ensureAta(mintKey, publicKey, mint.data.tokenProgram), stook.createLadderIx({ ...key, creator: publicKey, creatorToken: ataOf(mintKey, publicKey, mint.data.tokenProgram), tokenProgram: mint.data.tokenProgram, seed, issuerTrusted: mint.data.report.verdict === "issuer-trusted" })],
       { onSuccess: () => nav(`/m/${stook.deriveLadderPda(key).toBase58()}`) });
   };
 
@@ -37,7 +37,7 @@ export function StartRound({ coin, settlesAt, onClose }: { coin: Coin; settlesAt
     <div className="sheet-back" onClick={onClose}>
       <section className="panel sheet" onClick={(e) => e.stopPropagation()}>
         <h3>Start ${coin.symbol}'s round for {when}</h3>
-        <p className="explain">Your seed is the round's first liquidity: it buys depth at even odds across 64 bands of 1% around the {anchor.name} price when the round opens, earns 80% of every fee from the first trade, and the most it can lose is itself. Everyone after you adds to this same round.</p>
+        <p className="explain">Your seed is the round's first liquidity: even odds across 64 bands of 1% around the {anchor.name} price at the open, earning 80% of every fee from the first trade. Everyone after you adds to this same round.</p>
         <label className="field"><span>Seed ({coin.symbol})</span>
           <input value={text} onChange={(e) => setText(e.target.value)} inputMode="decimal" autoFocus />
           <span className="hint">balance {balance.data !== undefined ? fmtAmount(balance.data, dec) : "—"}{gross && seed && gross !== seed ? ` · your wallet sends ${fmtAmount(gross, dec)} (the coin's ${coin.feeBps / 100}% transfer fee)` : ""}</span>

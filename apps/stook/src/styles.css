@@ -359,3 +359,8 @@ a.wc-cell:hover { text-decoration: none; border-color: var(--taxi); }
 .stop-num { font-family: var(--mono); font-size: .82rem; color: var(--cream-3); border-left: 3px solid var(--line); padding-left: .8rem; }
 .cta-row { margin-top: 2.5rem; font-family: var(--px); font-size: .55rem; }
 @media (max-width: 640px) { .stop { grid-template-columns: 1fr; } .stop-art { width: 90px; } }
+
+.wc-stamp { font-family: "Caveat", cursive; font-size: 1.15rem; color: var(--bad); transform: rotate(-12deg); opacity: .8; align-self: center; margin-top: .2rem; }
+.wc-left { font-family: var(--mono); font-size: .66rem; color: var(--teal); margin-top: auto; }
+.wc-open-slot:hover .wc-empty { color: var(--taxi); }
+.wc-empty { font-family: var(--px); font-size: .42rem; color: var(--cream-3); }

@@ -2,7 +2,7 @@
 // adapter with the heap frame prepended (`stook.withHeap`).
 
 import { Connection, PublicKey, Transaction, type TransactionInstruction } from "@solana/web3.js";
-import { AccountLayout, TOKEN_2022_PROGRAM_ID, TOKEN_PROGRAM_ID, getAssociatedTokenAddressSync } from "@solana/spl-token";
+import { AccountLayout, TOKEN_2022_PROGRAM_ID, TOKEN_PROGRAM_ID, createAssociatedTokenAccountIdempotentInstruction, getAssociatedTokenAddressSync } from "@solana/spl-token";
 import { stook, SOOTH_CORE_PROGRAM_ID } from "@sooth/sdk-solana";
 import type { WalletContextState } from "@solana/wallet-adapter-react";
 import { PYTH_PUSH_ORACLE, SCAN_RPC_URL } from "./config";
@@ -63,6 +63,10 @@ export async function fetchTokenBalance(c: Connection, mint: PublicKey, owner: P
 
 export const ataOf = (mint: PublicKey, owner: PublicKey, tokenProgram: PublicKey) => getAssociatedTokenAddressSync(mint, owner, false, tokenProgram);
 
+/** Makes the wallet's token account for `mint` if it does not exist yet; a no-op otherwise. */
+export const ensureAta = (mint: PublicKey, owner: PublicKey, tokenProgram: PublicKey): TransactionInstruction =>
+  createAssociatedTokenAccountIdempotentInstruction(owner, ataOf(mint, owner, tokenProgram), owner, mint, tokenProgram);
+
 /** The live Pyth price for a feed, from the push oracle's devnet account. */
 export interface LivePrice { price: bigint; expo: number; publishTime: number; conf: bigint }
 export async function fetchLivePrice(c: Connection, feedId: Uint8Array): Promise<LivePrice | null> {
@@ -121,6 +125,7 @@ export function explain(e: unknown): string {
     UnsupportedMintExtension: "This token cannot be held in a market vault.",
     ProtocolPaused: "The protocol is paused.",
     LadderNotFinal: "The market has not settled yet.",
+    AccountNotInitialized: "An account this needs does not exist yet — usually a token account with none of the coin in it. Get test coins first.",
   };
   if (code && known[code]) return known[code]!;
   if (text.includes("User rejected")) return "Signature declined.";

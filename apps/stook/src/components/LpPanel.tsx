@@ -2,7 +2,7 @@ import { useMemo, useState } from "react";
 import { useWallet } from "@solana/wallet-adapter-react";
 import { stook } from "@sooth/sdk-solana";
 import { fmtAmount, parseAmount, short } from "../lib/format";
-import { ataOf } from "../lib/chain";
+import { ataOf, ensureAta } from "../lib/chain";
 import { useSend, useTranches } from "../hooks/useChain";
 
 interface Props { refs: stook.LadderRefs; ladder: stook.LadderAccount; quoteSymbol: string; now: number; transferFee?: stook.TransferFee }
@@ -33,7 +33,7 @@ export function LpPanel(p: Props) {
 
   const submit = () => {
     if (!deposit || !publicKey) return;
-    join.mutate([stook.joinLadderIx(p.refs, {
+    join.mutate([ensureAta(l.quoteMint, publicKey, p.refs.tokenProgram), stook.joinLadderIx(p.refs, {
       lp: publicKey,
       lpToken: ataOf(l.quoteMint, publicKey, p.refs.tokenProgram),
       index: nextIndex,
@@ -47,7 +47,7 @@ export function LpPanel(p: Props) {
       <h3>Provide liquidity</h3>
       <p className="explain">
         The pool takes the other side of every trade. <span className="mono">{fmtAmount(l.depositTotal, dec)}</span> {p.quoteSymbol} in it gives depth <span className="mono">{fmtAmount(l.b / 10n ** 12n, 6, 0)}</span>.
-        Deposit and you are the house: you earn {(l.feeBps / 100 * 0.8).toFixed(2)}% of every trade from now on, you lose when traders were right, and you can never lose more than you put in.
+        Deposit and you are the house: you earn {(l.feeBps / 100 * 0.8).toFixed(2)}% of every trade from now on, and you pay when traders were right.
       </p>
       {joinable && (
         <>
@@ -59,7 +59,6 @@ export function LpPanel(p: Props) {
             <dl className="quote">
               <div><dt>adds depth</dt><dd className="mono">{fmtAmount(depth / 10n ** 12n, 6, 1)}</dd></div>
               <div><dt>your share of fees from now</dt><dd className="mono">{(Number(depth) / (Number(l.b) + Number(depth)) * 100).toFixed(1)}%</dd></div>
-              <div><dt>worst case</dt><dd className="mono">−{fmtAmount(deposit!, dec)} (the deposit, never more)</dd></div>
               {p.transferFee && <div><dt>your wallet sends</dt><dd className="mono">{fmtAmount(stook.grossFor(deposit!, p.transferFee), dec)} (incl. the token's {(p.transferFee.bps / 100).toFixed(1)}% transfer fee)</dd></div>}
               <div><dt>longest shot right now</dt><dd className="mono">1 in {worst.toFixed(0)}</dd></div>
             </dl>
@@ -82,7 +81,7 @@ export function LpPanel(p: Props) {
                 <span>tranche #{t.index} · {short(t.owner)}</span>
                 <span className="mono">{fmtAmount(t.deposit, dec)} in · fees {fmtAmount(fees, dec)}{value !== null ? ` · worth ${fmtAmount(value, dec)}` : ""}</span>
                 {final && publicKey && (
-                  <button className="small" disabled={claim.isPending} onClick={() => claim.mutate([stook.claimLpIx(p.refs, publicKey, ataOf(l.quoteMint, publicKey, p.refs.tokenProgram), t.index)])}>
+                  <button className="small" disabled={claim.isPending} onClick={() => claim.mutate([ensureAta(l.quoteMint, publicKey, p.refs.tokenProgram), stook.claimLpIx(p.refs, publicKey, ataOf(l.quoteMint, publicKey, p.refs.tokenProgram), t.index)])}>
                     Claim
                   </button>
                 )}
