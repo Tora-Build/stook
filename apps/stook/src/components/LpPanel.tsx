@@ -5,7 +5,7 @@ import { fmtAmount, parseAmount, short as shortKey } from "../lib/format";
 import { ataOf, ensureAta } from "../lib/chain";
 import { useBalance, useSend, useTranches } from "../hooks/useChain";
 
-interface Props { refs: stook.LadderRefs; ladder: stook.LadderAccount; quoteSymbol: string; now: number; transferFee?: stook.TransferFee }
+interface Props { refs: stook.LadderRefs; ladder: stook.LadderAccount; quoteSymbol: string; now: number; transferFee?: stook.TransferFee; bare?: boolean }
 
 export function LpPanel(p: Props) {
   const { publicKey } = useWallet();
@@ -45,9 +45,10 @@ export function LpPanel(p: Props) {
     })]);
   };
 
+  const Wrap = p.bare ? "div" : "section";
   return (
-    <section className="panel">
-      <h3>Provide liquidity</h3>
+    <Wrap className={p.bare ? "" : "panel"}>
+      {!p.bare && <h3>Provide liquidity</h3>}
       <p className="explain">
         The pool takes the other side of every trade. <span className="mono">{fmtAmount(l.depositTotal, dec)}</span> {p.quoteSymbol} in it gives depth <span className="mono">{fmtAmount(l.b / 10n ** 12n, 6, 0)}</span>.
         Deposit and you are the house: you earn {(l.feeBps / 100 * 0.8).toFixed(2)}% of every trade from now on, and you pay when traders were right.
@@ -94,6 +95,6 @@ export function LpPanel(p: Props) {
           })}
         </ul>
       )}
-    </section>
+    </Wrap>
   );
 }

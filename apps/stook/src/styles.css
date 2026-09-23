@@ -437,3 +437,24 @@ a.wc-cell:hover { text-decoration: none; border-color: var(--taxi); }
 .door p { color: var(--cream-2); margin: .2rem 0 0; font-size: .95rem; max-width: 30ch; }
 .door-go { font-family: var(--px); font-size: .5rem; color: var(--taxi); margin-top: .3rem; }
 @media (max-width: 760px) { .door-row { grid-template-columns: 1fr; } }
+
+/* your lines on the chart */
+.pos-box { fill: rgba(240, 168, 58, .06); stroke: var(--taxi); stroke-width: 1.5; stroke-dasharray: 4 3; cursor: pointer; }
+.pos-sel .pos-box { fill: rgba(240, 168, 58, .16); stroke-dasharray: none; stroke-width: 2.5; }
+.pos-lv { fill: rgba(240, 168, 58, .7); pointer-events: none; }
+.pos-lbl { fill: var(--taxi); font-family: var(--px); font-size: 8px; pointer-events: none; }
+
+/* the round page: a strip, the chart, the ticket */
+.strip-head { display: flex; align-items: center; gap: 1.5rem; flex-wrap: wrap; margin-bottom: 1rem; padding: .8rem 1rem; background: var(--sky-2); border: 3px solid var(--cream); box-shadow: 6px 6px 0 var(--brick-2); }
+.strip-id { display: flex; align-items: center; gap: .9rem; flex: 1; min-width: 240px; }
+.strip-title { font-family: var(--px); font-size: .85rem; }
+.strip-coin { font-family: var(--sans); font-size: .85rem; color: var(--cream-2); }
+.strip-num { display: flex; flex-direction: column; gap: .1rem; }
+.strip-k { font-family: var(--px); font-size: .42rem; color: var(--cream-3); }
+.strip-v { font-size: 1.15rem; }
+.market-grid { display: grid; grid-template-columns: minmax(0, 1.6fr) minmax(320px, 1fr); gap: 1.25rem; align-items: start; }
+.ticket { margin: 0; position: sticky; top: 1rem; }
+.ticket-tabs { margin-bottom: .9rem; }
+.sell-slider { padding: .6rem 0; }
+.sell-slider input { width: 160px; }
+@media (max-width: 960px) { .market-grid { grid-template-columns: 1fr; } .ticket { position: static; } }
