@@ -156,7 +156,7 @@ ZEC over a day, narrower for a shorter round. The 64 bands then cover about
 
 **When a round trades.** At most the 24 hours before its close, locking a
 twenty-fourth of that before it (an hour for a daily round). It can be funded
-up to two months ahead.
+up to a month ahead.
 
 **Bands are set at open, not when a day is funded.** `ladder_open`, which the
 keeper calls at the round's opening second with the Pyth price (and anyone

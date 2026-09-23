@@ -65,7 +65,7 @@ pub const OPEN_DELAY_SECS: i64 = 60;
 /// A round must be started at least this long before it settles, and at
 /// most this long.
 pub const MIN_ROUND_SECS: i64 = 15 * 60;
-pub const MAX_LEAD_SECS: i64 = 62 * 24 * 60 * 60;
+pub const MAX_LEAD_SECS: i64 = 31 * 24 * 60 * 60;
 
 /// Oracle freshness at open, and the widest confidence interval accepted.
 pub const OPEN_MAX_AGE_SECS: i64 = 60;

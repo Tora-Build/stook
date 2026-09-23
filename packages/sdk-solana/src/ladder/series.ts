@@ -34,7 +34,7 @@ export const MIN_STEP_BPS = 20;
 export const MIN_VAR_BANDS = WAD / 4n;
 export const MAX_STEP_BPS = 2_000;
 /** How far ahead a day can be funded. Its bands are set when it opens. */
-export const MAX_LEAD_SECS = 62n * 86_400n;
+export const MAX_LEAD_SECS = 31n * 86_400n;
 
 export function isqrt(n: bigint): bigint {
   if (n < 2n) return n;
