@@ -156,8 +156,18 @@ ZEC over a day, narrower for a shorter round. The 64 bands then cover about
 
 **When a round trades.** At most the 24 hours before its close, locking a
 twenty-fourth of that before it (an hour for a daily round). It can be funded
-up to 48 hours ahead, not further, because its band width is read from the
-volatility when it is funded. Bands are at least 0.2%: the settlement price's
+up to two months ahead.
+
+**Bands are set at open, not when a day is funded.** `ladder_open`, which the
+keeper calls at the round's opening second with the Pyth price (and anyone
+may call), reads the series' volatility at that moment and the time left, and
+sets the band width, the opening bell (its width stored as `var_bands_e9`)
+and the pool's depth from every deposit made so far. A deposit made before
+open records only its size; its own depth and the odds it joined at are
+recomputed from its size and the stored bell whenever it is paid
+(`tranche_terms`), exactly as `open` computed them. So a day funded weeks
+ahead opens as fresh as one funded that morning, and nobody who funds early
+can lock in stale bands. Bands are at least 0.2%: the settlement price's
 confidence must be under half a band, and equity-token feeds print several
 basis points even when quiet.
 

@@ -15,7 +15,7 @@ use anchor_lang::prelude::*;
 
 use crate::math::calendar::{new_york_offset, DAY};
 use crate::math::lmsr::ln_wad;
-use crate::math::wad::{wad_div, wad_mul, MathError, WAD};
+use crate::math::wad::{wad_div, wad_mul, MathError};
 
 pub const SERIES_SEED: &[u8] = b"series";
 

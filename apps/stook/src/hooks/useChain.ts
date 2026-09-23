@@ -43,6 +43,12 @@ export const useSeriesRounds = (series: PublicKey | null, indices: number[]) => 
   });
 };
 
+/** Everything `owner` holds, across rounds. */
+export const useHoldings = (owner: PublicKey | null) => {
+  const { connection } = useConnection();
+  return useQuery({ queryKey: ["holdings", owner?.toBase58()], queryFn: () => chain.fetchHoldings(connection, owner!), enabled: !!owner, refetchInterval: 20_000 });
+};
+
 export const usePositions = (ladder: PublicKey | null) => {
   const { connection } = useConnection();
   const { publicKey } = useWallet();

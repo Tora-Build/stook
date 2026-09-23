@@ -51,11 +51,11 @@ export function StartRound({ coin, seriesKey, series, index, onClose }: { coin: 
         <h3>Fund ${coin.symbol}'s round for {when}</h3>
         <dl className="quote terms">
           <div><dt>trading</dt><dd className="mono">{opens} to {locks}</dd></div>
-          <div><dt>bands</dt><dd className="mono">{band.toFixed(2)}% each, from −{down.toFixed(0)}% to +{up.toFixed(0)}% around the open</dd></div>
+          <div><dt>bands</dt><dd className="mono">set when it opens; at today's volatility {band.toFixed(2)}% each, from −{down.toFixed(0)}% to +{up.toFixed(0)}% around the open</dd></div>
           <div><dt>because {anchor.symbol} moves</dt><dd className="mono">about {dailyMove.toFixed(1)}% a day lately</dd></div>
         </dl>
         <p className="hint">Your wallet also shows about 0.019 SOL{isDevnet ? " (devnet SOL: set your wallet to devnet)" : ""}. That is account rent for the round, not a payment: 0.007 comes back when you claim your deposit, the rest when the round closes.</p>
-        <p className="explain">Your seed is the house for this round. It opens on the {anchor.name} price at {opens}, with the odds of an ordinary day already priced in. The pool keeps 90% of every trade's fee: 2%, rising to 5% over the last six hours, when the sharpest trading happens. It is shared by depth with everyone who adds to it. If the close lands far from the open, the winners are paid from your seed, and it can lose all of it. Anyone can add to the same round.</p>
+        <p className="explain">Your seed is the house for this round. It opens on the {anchor.name} price at {opens}, with bands sized to how {anchor.name} is moving then and the odds of an ordinary day already priced in. The pool keeps 90% of every trade's fee: 2%, rising to 5% over the last six hours, when the sharpest trading happens. It is shared by depth with everyone who adds to it. If the close lands far from the open, the winners are paid from your seed, and it can lose all of it. Anyone can add to the same round.</p>
         <label className="field"><span>Seed ({coin.symbol})</span>
           <input value={text} onChange={(e) => setText(e.target.value)} inputMode="decimal" autoFocus />
           <span className="hint">balance {balance.data !== undefined ? fmtAmount(balance.data, dec) : "—"}{gross && seed && gross !== seed ? ` · your wallet sends ${fmtAmount(gross, dec)} (the coin's ${coin.feeBps / 100}% transfer fee)` : ""}</span>

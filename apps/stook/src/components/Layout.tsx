@@ -17,6 +17,7 @@ export function Layout() {
         <Link to="/" className="brand"><img src="/stook-coin.svg" alt="" width={30} height={30} /> STOOK STREET</Link>
         <nav>
           <NavLink to="/#floor" className={({ isActive }) => (isActive && location.hash === "#floor" ? "active" : "")}>Markets</NavLink>
+          <NavLink to="/yours">Yours</NavLink>
           <NavLink to="/how">How it works</NavLink>
         </nav>
         <div className="top-right">

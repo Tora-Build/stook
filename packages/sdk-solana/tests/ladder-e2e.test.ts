@@ -119,14 +119,14 @@ function market(e: Env, settlesAt: bigint) {
     tranche: (o: PublicKey, index = 0) => L.decodeLadderTranche(raw(trancheOf(o, index))),
     position: (lo: number, hi: number, h: number) => L.decodeLadderPosition(raw(posOf(e.trader.kp.publicKey, lo, hi, h))),
     curveSeq: () => state().curveSeq,
-    depthOf: (o: PublicKey, index = 0) => L.decodeLadderTranche(raw(trancheOf(o, index))).b,
+    depthOf: (o: PublicKey, index = 0) => L.trancheTerms(L.decodeLadder(raw(ladder)), L.decodeLadderTranche(raw(trancheOf(o, index)))).b,
     create: (seed: bigint) => L.createLadderIx({
       ...key, quoteMint: e.mint, creator: e.creator.kp.publicKey, creatorToken: e.creator.token, tokenProgram: TOKEN_PROGRAM_ID,
       seed, programId: PROGRAM,
     }),
     join: (w: Env["lp2"], amount: bigint, seq: bigint, index = 0) =>
       L.joinLadderIx(refs, { lp: w.kp.publicKey, lpToken: w.token, index, deposit: amount, expectedSeq: seq }),
-    open: (price: PublicKey) => L.openLadderIx(refs, e.trader.kp.publicKey, price),
+    open: (price: PublicKey) => L.openLadderIx(refs, e.trader.kp.publicKey, price, ser.series),
     trade: (lo: number, hi: number, h: number, shares: bigint, limit: bigint) => tradeAs(e.trader, lo, hi, h, shares, limit),
     settle: (price: PublicKey) => L.settleLadderIx(refs, ser.series, e.trader.kp.publicKey, price, e.trader.token),
     voidIt: () => L.voidLadderIx(refs, e.trader.kp.publicKey),
@@ -151,14 +151,14 @@ describe("ladder end to end", () => {
     // ── Seeding: the creator, then a second LP ─────────────────────────────
     warpClockTo(e.ctx, PUBLISH_TIME - 1000n);
     const create = await ok(e, m.create(5_000_000_000n), e.creator.kp);
-    // The round's times, band width and opening odds are what the SDK
-    // predicts from the series, to the unit.
+    // The round's times are what the SDK predicts from the series. Its bands
+    // are not set yet: a deposit before open records only its size.
     const terms = L.roundTerms(m.seriesState(), m.index, PUBLISH_TIME - 1000n);
     expect(terms.settlesAt).toBe(settlesAt);
     expect(m.state().opensAt).toBe(terms.opensAt);
     expect(m.state().locksAt).toBe(terms.locksAt);
-    expect(m.state().stepBps).toBe(terms.stepBps);
-    expect(m.state().curve).toEqual(terms.curve);
+    expect(m.state().stepBps).toBe(0);
+    expect(m.state().b).toBe(0n);
     expect(m.state().openTranches).toBe(1);
     await ok(e, m.join(e.lp2, 2_500_000_000n, 0n), e.lp2.kp);
     expect(balance(e, m.vault)).toBe(7_500_000_000n);
@@ -167,6 +167,16 @@ describe("ladder end to end", () => {
     warpClockTo(e.ctx, PUBLISH_TIME + 10n);
     await refused(e, m.trade(31, 31, 1, 1_000_000n, BIG), e.trader.kp);           // not open yet
     const open = await ok(e, m.open(e.priceAccount(NVDA_UPDATE)), e.trader.kp);
+    // At open the band width and odds come from the series' volatility now,
+    // over the time left, exactly as the SDK predicts; the early deposits'
+    // depths, recomputed from their sizes, add up to the pool's.
+    const opening = L.openingTerms(m.seriesState().varWad, settlesAt, PUBLISH_TIME + 10n);
+    expect(m.state().stepBps).toBe(opening.stepBps);
+    expect(m.state().varBandsE9).toBe(opening.varBandsE9);
+    expect(m.state().curve).toEqual(opening.curve);
+    expect(m.state().b).toBe(L.liquidityForDeposit(opening.curve, 7_500_000_000n, 6));
+    const seeded = m.depthOf(e.creator.kp.publicKey) + m.depthOf(e.lp2.kp.publicKey);
+    expect(m.state().b - seeded >= 0n && m.state().b - seeded <= 2n).toBe(true);
     // The band the settlement price below will land in, at this round's width.
     const W = L.binFor(22_460_000n, m.state().p0, m.state().stepBps);
     expect(W).toBeGreaterThan(33);

@@ -7,7 +7,8 @@
 import { PublicKey, SystemProgram, TransactionInstruction } from "@solana/web3.js";
 import { SOOTH_CORE_PROGRAM_ID } from "../program.js";
 import { expWad, WAD } from "../math/lmsr.js";
-import { BINS, fresh, roundTimes, type Curve } from "./math.js";
+import { BINS, fresh, liquidityForDeposit, roundTimes, type Curve } from "./math.js";
+import type { LadderAccount, LadderTrancheAccount } from "./accounts.js";
 
 const enc = new TextEncoder();
 const SEED_SERIES = enc.encode("series");
@@ -32,7 +33,8 @@ export const PRIOR_PEAK_LN = 7n * WAD;
 export const MIN_STEP_BPS = 20;
 export const MIN_VAR_BANDS = WAD / 4n;
 export const MAX_STEP_BPS = 2_000;
-export const MAX_LEAD_SECS = 48n * 3_600n;
+/** How far ahead a day can be funded. Its bands are set when it opens. */
+export const MAX_LEAD_SECS = 62n * 86_400n;
 
 export function isqrt(n: bigint): bigint {
   if (n < 2n) return n;
@@ -170,7 +172,32 @@ export interface RoundTerms {
   fundableFrom: bigint;
 }
 
-/** Exactly what `ladder_create` would write for `index` if funded at `now`. */
+/**
+ * A deposit's depth and the odds it joined at (`tranche_terms`): stored for
+ * one made while trading, recomputed for one made before open from its size
+ * and the bell the round opened on.
+ */
+export function trancheTerms(l: Pick<LadderAccount, "varBandsE9" | "decimals">, t: Pick<LadderTrancheAccount, "b" | "deposit" | "join">): { b: bigint; join: Curve } {
+  if (t.b !== 0n || l.varBandsE9 === 0n) return { b: t.b, join: t.join };
+  const curve = prior(l.varBandsE9 * 1_000_000_000n);
+  return { b: liquidityForDeposit(curve, t.deposit, l.decimals), join: curve };
+}
+
+/** What `ladder_open` does to the bands and odds (`band_width`, then the
+ *  bell truncated to 1e-9 bands², as stored), opening at `openAt`. */
+export function openingTerms(varWad: bigint, settlesAt: bigint, openAt: bigint): { stepBps: number; varBandsE9: bigint; curve: Curve } {
+  const { stepBps, varBands } = bandWidth(varWad, settlesAt - openAt);
+  let e9 = varBands / 1_000_000_000n;
+  if (e9 < 1n) e9 = 1n;
+  return { stepBps, varBandsE9: e9, curve: prior(e9 * 1_000_000_000n) };
+}
+
+/**
+ * When a round for `index` funded at `now` would open and lock, whether it
+ * can be funded now, and the bands and odds it would open with if the
+ * volatility stayed where it is (they are set at open, from the volatility
+ * then).
+ */
 export function roundTerms(s: SeriesAccount, index: number, now: bigint): RoundTerms {
   const settlesAt = closeOf(s, index);
   const { opensAt, locksAt } = roundTimes(now, settlesAt);
@@ -178,8 +205,8 @@ export function roundTerms(s: SeriesAccount, index: number, now: bigint): RoundT
   // A day that has passed (or is too close) has no window to size bands for:
   // say so rather than throw, since a calendar asks about every day.
   if (settlesAt <= opensAt) return { settlesAt, opensAt, locksAt, stepBps: 0, varBands: 0n, curve: fresh(), fundable: false, fundableFrom: settlesAt - MAX_LEAD_SECS };
-  const { stepBps, varBands } = bandWidth(s.varWad, settlesAt - opensAt);
-  return { settlesAt, opensAt, locksAt, stepBps, varBands, curve: prior(varBands), fundable, fundableFrom: settlesAt - MAX_LEAD_SECS };
+  const o = openingTerms(s.varWad, settlesAt, opensAt);
+  return { settlesAt, opensAt, locksAt, stepBps: o.stepBps, varBands: o.varBandsE9 * 1_000_000_000n, curve: o.curve, fundable, fundableFrom: settlesAt - MAX_LEAD_SECS };
 }
 
 // ── addresses and builders ───────────────────────────────────────────────────

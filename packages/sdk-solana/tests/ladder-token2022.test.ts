@@ -121,7 +121,7 @@ describe("a ladder quoted in a real xStock", () => {
 
     // ── the same market, at 8 decimals ──────────────────────────────────────
     warpClockTo(e.ctx, PUBLISH_TIME + 10n);
-    await ok(e, L.openLadderIx(refs, e.trader.kp.publicKey, e.priceAccount(NVDA_UPDATE)), e.trader.kp);
+    await ok(e, L.openLadderIx(refs, e.trader.kp.publicKey, e.priceAccount(NVDA_UPDATE), ser.series), e.trader.kp);
     const W = L.binFor(22_460_000n, state().p0, state().stepBps);
 
     const quoted = async (shape: L.Shape, shares: bigint) => {

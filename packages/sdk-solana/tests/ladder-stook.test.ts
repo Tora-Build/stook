@@ -100,7 +100,7 @@ describe("a ladder quoted in $STOOK, a 1% transfer-fee mint", () => {
     expect(raw(e, vault).data.length).toBe(178);                          // base + type + TransferFeeAmount
 
     warpClockTo(e.ctx, PUBLISH_TIME + 10n);
-    await ok(e, L.openLadderIx(refs, e.trader.kp.publicKey, e.priceAccount(NVDA_UPDATE)), e.trader.kp);
+    await ok(e, L.openLadderIx(refs, e.trader.kp.publicKey, e.priceAccount(NVDA_UPDATE), ser.series), e.trader.kp);
     const W = L.binFor(22_460_000n, state().p0, state().stepBps);
 
     // ── a buy: the quote is the net; the wallet pays gross ─────────────────

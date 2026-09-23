@@ -7,7 +7,7 @@ import { stook } from "@sooth/sdk-solana";
 import { Chart, type DrawMode } from "../components/Chart";
 import { Ticket } from "../components/Ticket";
 import { Address } from "../components/Address";
-import { useLadder, useLivePrice, useMint, usePositions, useRefs, useSend, useTranches } from "../hooks/useChain";
+import { useLadder, useLivePrice, useMint, usePositions, useRefs, useSend, useSeries, useTranches } from "../hooks/useChain";
 import { useNow } from "../hooks/useNow";
 import { feedByHex, feedHex } from "../lib/feeds";
 import { coinByMint } from "../lib/coins";
@@ -32,11 +32,16 @@ export function Market() {
   const positions = usePositions(key);
   const tranches = useTranches(key, true);
   const voidIt = useSend("Void");
+  const series = useSeries(l?.series ?? null);
 
   if (!key) return <p className="page muted">Not a round address.</p>;
   if (ladder.isLoading) return <p className="page muted">Reading the round…</p>;
   if (!l || !refs) return <p className="page muted">{l === null ? "No round at this address." : "Reading the quote token…"}</p>;
 
+  // A round that has not opened has no bands yet: they are set at open from
+  // the volatility then. Show the ones it would get if it opened now.
+  const preview = l.status === "seeding" && l.b === 0n && series.data ? stook.openingTerms(series.data.varWad, l.settlesAt, BigInt(Math.max(now, Number(l.opensAt)))) : null;
+  const shown: stook.LadderAccount = preview ? { ...l, curve: preview.curve, stepBps: preview.stepBps } : l;
   const feed = feedByHex(feedHex(l.feedId));
   const coin = coinByMint(l.quoteMint);
   const quoteSymbol = coin ? coin.symbol : mint.data?.decimals === 6 ? "USDC" : "tokens";
@@ -60,7 +65,7 @@ export function Market() {
           {coin && <div className="logos"><img src={coin.logo} alt="" className="logo-coin" /><img src={coin.anchor.logo} alt="" className="logo-anchor" /></div>}
           <div>
             <div className="strip-title">{feed.name} <span className="sym">{feed.symbol}</span>{coin && <span className="strip-coin"> · in ${coin.symbol}</span>}</div>
-            <div className="muted small">closes {new Date(Number(l.settlesAt) * 1000).toLocaleString("en-US", { weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })} · bands of {(l.stepBps / 100).toFixed(2)}%{coin && <> · <Address label={`${coin.anchor.symbol}`} value={coin.anchor.mint} /></>}</div>
+            <div className="muted small">closes {new Date(Number(l.settlesAt) * 1000).toLocaleString("en-US", { weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })} · {preview ? <>bands about {(preview.stepBps / 100).toFixed(2)}%, set when it opens</> : <>bands of {(l.stepBps / 100).toFixed(2)}%</>}{coin && <> · <Address label={`${coin.anchor.symbol}`} value={coin.anchor.mint} /></>}</div>
           </div>
         </div>
         <div className="strip-num"><span className="strip-k">price</span><span className="mono strip-v">{livePrice !== null ? `$${fmtPrice(BigInt(Math.round(livePrice / 10 ** live.data!.expo)), live.data!.expo, feed.dp)}` : "—"}</span></div>
@@ -70,14 +75,14 @@ export function Market() {
 
       <div className="market-grid">
         <Chart
-          curve={l.curve} p0={l.p0 || (live.data?.price ?? 1n)} expo={l.p0Expo || (live.data?.expo ?? -8)} stepBps={l.stepBps} dp={feed.dp}
+          curve={shown.curve} p0={l.p0 || (live.data?.price ?? 1n)} expo={l.p0Expo || (live.data?.expo ?? -8)} stepBps={shown.stepBps || 100} dp={feed.dp}
           shape={shape} onShape={setShape} mode={mode} height={height}
           live={live.data && live.data.price > 0n ? { price: live.data.price } : null} history={history.data?.points} settlesAt={l.settlesAt} now={now}
           settledBin={l.settledBin} disabled={!tradeable}
           positions={mine.map((r) => ({ key: r.pubkey.toBase58(), shape: r.position.shape, shares: r.position.shares, label: `${fmtAmount(r.position.shares, l.decimals, 0)} sh` }))}
           selected={selected} onSelect={setSelected}
         />
-        <Ticket refs={refs} ladder={l} shape={shape} selected={sel} onSelect={(r) => { setSelected(r.pubkey.toBase58()); setShape(r.position.shape); }} onDeselect={() => { setSelected(null); setShape(null); }} mode={mode} setMode={setMode} height={height} setHeight={setHeightAndShape}
+        <Ticket refs={refs} ladder={shown} shape={shape} selected={sel} onSelect={(r) => { setSelected(r.pubkey.toBase58()); setShape(r.position.shape); }} onDeselect={() => { setSelected(null); setShape(null); }} mode={mode} setMode={setMode} height={height} setHeight={setHeightAndShape}
           symbol={feed.symbol} dp={feed.dp} quoteSymbol={quoteSymbol} tradeable={tradeable} final={final} positions={mine} tranches={tranches.data ?? []} transferFee={mint.data?.report.transferFee} now={now} />
       </div>
       {step === "void" && publicKey && <p className="hint"><button className="link" onClick={() => voidIt.mutate([stook.voidLadderIx(refs, publicKey)])} disabled={voidIt.isPending}>This round cannot finish. Void it and refund everyone</button></p>}

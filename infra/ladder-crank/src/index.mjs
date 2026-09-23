@@ -130,7 +130,7 @@ async function pass() {
       if (problem) { console.log(tag, "skipped:", problem); continue; }
 
       if (step === "open") {
-        console.log(tag, await postAndConsume(vaas, feed, (price) => [stook.openLadderIx(refs, payer.publicKey, price)]));
+        console.log(tag, await postAndConsume(vaas, feed, (price) => [stook.openLadderIx(refs, payer.publicKey, price, ladder.series)]));
       } else {
         // The settler is paid in the market's quote token. The token account is
         // made in its own transaction first: adding it beside the settle

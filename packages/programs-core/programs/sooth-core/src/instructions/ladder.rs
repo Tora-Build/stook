@@ -65,7 +65,7 @@ pub const OPEN_DELAY_SECS: i64 = 60;
 /// A round must be started at least this long before it settles, and at
 /// most this long.
 pub const MIN_ROUND_SECS: i64 = 15 * 60;
-pub const MAX_LEAD_SECS: i64 = 48 * 60 * 60;
+pub const MAX_LEAD_SECS: i64 = 62 * 24 * 60 * 60;
 
 /// Oracle freshness at open, and the widest confidence interval accepted.
 pub const OPEN_MAX_AGE_SECS: i64 = 60;
@@ -113,6 +113,21 @@ pub fn basis_released(net_paid: u64, sold: u64, held: u64) -> u64 {
 
 fn math<T>(r: core::result::Result<T, crate::math::MathError>) -> Result<T> {
     r.map_err(|_| error!(SoothCoreError::MathOverflow))
+}
+
+/// A tranche's depth and the odds it joined at: stored for a deposit made
+/// while trading, recomputed for one made before open from its size and the
+/// bell the round opened on (the same function, the same inputs, the same
+/// result as `open` used). Returns `(b, w_join[k], sum_join)`.
+pub fn tranche_terms(l: &Ladder, t: &LadderTranche, k: usize) -> Result<(i128, i128, i128)> {
+    if t.b_wad() != 0 || l.var_bands_e9 == 0 {
+        return Ok((t.b_wad(), t.join_weight(k), t.join_sum()));
+    }
+    let (w, sum) = math(prior(l.var_bands()))?;
+    let deposit_wad = (t.deposit as i128)
+        .checked_mul(scalar_for(l.quote_decimals) as i128)
+        .ok_or(SoothCoreError::MathOverflow)?;
+    Ok((math(liquidity_for_deposit(&w, sum, deposit_wad))?, w[k], sum))
 }
 
 /// A round's trading window, fixed by its close and the moment it was
@@ -169,6 +184,17 @@ fn pull<'info>(
 /// Price a deposit against the curve as it stands, and book it: the tranche
 /// records what it joined at, the market gains its cash and its depth.
 fn join(l: &mut Ladder, t: &mut LadderTranche, deposit: u64) -> Result<()> {
+    // Before a round opens its odds are not set yet, so a deposit records only
+    // its size; `open` sizes the pool and each early deposit's depth follows
+    // from its size (`tranche_terms`). A round funded under the earlier rule
+    // already has depth while seeding and takes the path below.
+    if l.status == STATUS_SEEDING && l.b_wad() == 0 {
+        t.deposit = deposit;
+        t.record_join(0, &[0; crate::math::ladder::BINS], 0, 0);
+        l.cash = l.cash.checked_add(deposit).ok_or(SoothCoreError::MathOverflow)?;
+        l.deposit_total = l.deposit_total.checked_add(deposit).ok_or(SoothCoreError::MathOverflow)?;
+        return Ok(());
+    }
     let deposit_wad = (deposit as i128)
         .checked_mul(scalar_for(l.quote_decimals) as i128)
         .ok_or(SoothCoreError::MathOverflow)?;
@@ -282,7 +308,6 @@ pub struct LadderCreated {
     pub creator: Pubkey,
     pub series: Pubkey,
     pub index: u32,
-    pub step_bps: u16,
     pub opens_at: i64,
     pub locks_at: i64,
     pub settles_at: i64,
@@ -295,6 +320,7 @@ pub struct LadderOpened {
     pub p0: i64,
     pub exponent: i32,
     pub b: u128,
+    pub step_bps: u16,
 }
 
 #[event]
@@ -316,14 +342,13 @@ pub fn create_handler(ctx: Context<LadderCreate>, args: LadderCreateArgs) -> Res
     let now = Clock::get()?.unix_timestamp;
     require!(ctx.accounts.series.has_round(args.index), SoothCoreError::LadderBadTimes);
     let settles_at = ctx.accounts.series.close_of(args.index);
-    // Not so soon that nobody can trade it; not so far ahead that the band
-    // width, read from the volatility now, is stale by the time it opens.
+    // Not so soon that nobody can trade it. Far ahead is fine: the band width
+    // is read from the volatility when the round opens, not now.
     require!(
         now + MIN_ROUND_SECS <= settles_at && settles_at <= now + MAX_LEAD_SECS,
         SoothCoreError::LadderBadTimes
     );
     let (opens_at, locks_at) = round_times(now, settles_at);
-    let (step_bps, var_bands) = math(band_width(ctx.accounts.series.var_wad, settles_at - opens_at))?;
 
     // At least one whole quote token. Below that `b` rounds to nothing and a
     // single small trade moves a bin from 2% to 80%.
@@ -343,7 +368,6 @@ pub fn create_handler(ctx: Context<LadderCreate>, args: LadderCreateArgs) -> Res
     l.opens_at = opens_at;
     l.locks_at = locks_at;
     l.settles_at = settles_at;
-    l.step_bps = step_bps;
     l.index = args.index;
     l.series = ctx.accounts.series.key();
     l.fee_bps = LADDER_FEE_BPS;
@@ -356,7 +380,8 @@ pub fn create_handler(ctx: Context<LadderCreate>, args: LadderCreateArgs) -> Res
     } else {
         args.sponsor
     };
-    let (w, sum) = math(prior(var_bands))?;
+    // A placeholder until open sets the real odds; nothing trades before.
+    let (w, sum) = crate::math::ladder::fresh();
     l.store_curve(&w, sum);
     l.status = STATUS_SEEDING;
     l.settled_bin = NO_BIN;
@@ -378,7 +403,6 @@ pub fn create_handler(ctx: Context<LadderCreate>, args: LadderCreateArgs) -> Res
         creator: ctx.accounts.creator.key(),
         series: ctx.accounts.series.key(),
         index: args.index,
-        step_bps,
         opens_at,
         locks_at,
         settles_at,
@@ -400,6 +424,10 @@ pub struct LadderOpen<'info> {
     /// CHECK: a Pyth `PriceUpdateV2`. Ownership, layout, feed, freshness,
     /// signatures and confidence are all checked in `oracle`.
     pub price_update: UncheckedAccount<'info>,
+
+    /// The round's series: its volatility sets the band width, now.
+    #[account(address = ladder.load()?.series @ SoothCoreError::LadderWrongAccount)]
+    pub series: Box<Account<'info, Series>>,
 }
 
 pub fn open_handler(ctx: Context<LadderOpen>) -> Result<()> {
@@ -425,13 +453,31 @@ pub fn open_handler(ctx: Context<LadderOpen>) -> Result<()> {
     l.p0 = price.price;
     l.p0_expo = price.exponent;
 
-    // Depth was bought by the tranches that joined during Seeding, each at
-    // b = 0.9999 · deposit / ln(1/p_min) under the prior — the most its
-    // deposit fully covers.
+    // The band width and the opening odds, from the anchor's volatility at
+    // this moment over the time left: nothing about them was read earlier,
+    // so a round funded weeks ahead opens as fresh as one funded today. The
+    // deposits made while seeding buy their depth now, all at these odds:
+    // b = 0.9999 · deposits / ln(1/p_min), the most they fully cover.
+    // (A round funded under the earlier rule already has both.)
+    if l.b_wad() == 0 {
+        let (step_bps, var_bands) = math(band_width(ctx.accounts.series.var_wad, l.settles_at - now))?;
+        let var_bands_e9 = (var_bands / 1_000_000_000).max(1) as u64;
+        l.step_bps = step_bps;
+        l.var_bands_e9 = var_bands_e9;
+        let (w, sum) = math(prior(l.var_bands()))?;
+        l.store_curve(&w, sum);
+        let deposits_wad = (l.deposit_total as i128)
+            .checked_mul(scalar_for(l.quote_decimals) as i128)
+            .ok_or(SoothCoreError::MathOverflow)?;
+        let b = math(liquidity_for_deposit(&w, sum, deposits_wad))?;
+        require!(b > 0, SoothCoreError::LadderSeedTooSmall);
+        require!(b as u128 <= crate::math::wad::MAX_WAD_DIVISOR, SoothCoreError::LadderTooDeep);
+        l.set_b_wad(b);
+    }
     require!(l.b_wad() > 0, SoothCoreError::LadderSeedTooSmall);
 
     l.status = STATUS_OPEN;
-    emit!(LadderOpened { ladder: ctx.accounts.ladder.key(), p0: l.p0, exponent: l.p0_expo, b: l.b_wad() as u128 });
+    emit!(LadderOpened { ladder: ctx.accounts.ladder.key(), p0: l.p0, exponent: l.p0_expo, b: l.b_wad() as u128, step_bps: l.step_bps });
     Ok(())
 }
 
@@ -1202,20 +1248,15 @@ pub fn claim_lp_handler(ctx: Context<LadderClaimLp>) -> Result<()> {
         let (principal, fees) = match l.status {
             STATUS_SETTLED => {
                 let k = l.settled_bin as usize;
-                let pnl = math(tranche_pnl(
-                    t.b_wad(),
-                    t.join_weight(k),
-                    t.join_sum(),
-                    l.weight(k),
-                    l.sum_wad(),
-                ))?;
+                let (b, join_k, join_sum) = tranche_terms(&l, &t, k)?;
+                let pnl = math(tranche_pnl(b, join_k, join_sum, l.weight(k), l.sum_wad()))?;
                 // Both are drawn from pots that only shrink, so rounding that
                 // sums a unit high is absorbed here, never by the vault.
                 let principal = tranche_principal(t.deposit, pnl, l.quote_decimals)
                     .ok_or(SoothCoreError::MathOverflow)?
                     .min(l.lp_pool);
                 let fees = tranche_fees(
-                    Ladder::b_units(t.b_wad(), l.quote_decimals),
+                    Ladder::b_units(b, l.quote_decimals),
                     l.acc_fee(),
                     t.fee_snap(),
                 )
@@ -1673,6 +1714,35 @@ mod tests {
         assert_eq!(void_pots(5_150, 5_000, 0), (5_150, 0));
         // a seller who realised a loss leaves a surplus: it goes to open lines
         assert_eq!(void_pots(5_000 + 500 + 150, 5_000, 500), (5_000, 650));
+    }
+
+    /// Deposits made before open buy their depth at open. Each one's depth,
+    /// recomputed from its size and the stored bell, adds up to the depth the
+    /// pool opened with, to rounding; each is sized to cover itself.
+    #[test]
+    fn early_deposits_recompute_the_depth_the_pool_opened_with() {
+        use bytemuck::Zeroable;
+        let mut l = Ladder::zeroed();
+        l.quote_decimals = 6;
+        let (_, vb) = band_width(625_000_000_000_000, 86_400).unwrap();
+        l.var_bands_e9 = (vb / 1_000_000_000) as u64;
+        let (w, sum) = prior(l.var_bands()).unwrap();
+        let deposits = [3_000_000_000u64, 2_000_000_000, 17_000_000];
+        let total: u64 = deposits.iter().sum();
+        let pool = liquidity_for_deposit(&w, sum, total as i128 * 1_000_000_000_000).unwrap();
+        let mut sum_b = 0i128;
+        for d in deposits {
+            let mut t = LadderTranche::zeroed();
+            t.deposit = d;
+            let (b, jk, js) = tranche_terms(&l, &t, 31).unwrap();
+            assert_eq!((jk, js), (w[31], sum), "joined at the opening odds");
+            sum_b += b;
+        }
+        assert!(pool - sum_b >= 0 && pool - sum_b <= 3, "{pool} vs {sum_b}");
+        // a deposit made while trading keeps what it stored
+        let mut t = LadderTranche::zeroed();
+        t.record_join(42, &w, sum, 0);
+        assert_eq!(tranche_terms(&l, &t, 0).unwrap().0, 42);
     }
 
     #[test]

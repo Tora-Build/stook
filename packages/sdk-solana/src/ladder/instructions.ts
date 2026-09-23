@@ -184,8 +184,9 @@ export function revokeQuoteMintIx(authority: PublicKey, mint: PublicKey, program
 }
 
 /** Centre the grid on the oracle price and start trading. Anyone may call it. */
-export const openLadderIx = (r: LadderRefs, cranker: PublicKey, priceUpdate: PublicKey) =>
-  ix(r, pack(DISC.open), [signer(cranker, false), rw(r.ladder), ro(priceUpdate)]);
+/** `series`: the round's series, whose volatility sets the band width at open. */
+export const openLadderIx = (r: LadderRefs, cranker: PublicKey, priceUpdate: PublicKey, series: PublicKey) =>
+  ix(r, pack(DISC.open), [signer(cranker, false), rw(r.ladder), ro(priceUpdate), ro(series)]);
 
 export interface TradeLadderArgs {
   user: PublicKey;

@@ -15,6 +15,7 @@ import { Markets } from "./pages/Markets";
 import { Market } from "./pages/Market";
 import { How } from "./pages/How";
 import { Coin } from "./pages/Coin";
+import { Yours } from "./pages/Yours";
 
 const qc = new QueryClient({ defaultOptions: { queries: { retry: 1, refetchOnWindowFocus: false } } });
 
@@ -36,6 +37,7 @@ function App() {
                     <Route path="/m/:id" element={<Market />} />
                     <Route path="/how" element={<How />} />
                     <Route path="/c/:symbol" element={<Coin />} />
+                    <Route path="/yours" element={<Yours />} />
                   </Route>
                 </Routes>
               </BrowserRouter>

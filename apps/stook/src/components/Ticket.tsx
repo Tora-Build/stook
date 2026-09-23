@@ -12,7 +12,7 @@ import { chance, fmtAmount, parseAmount, fmtPrice } from "../lib/format";
 const WAD_ONE = 10n ** 18n;
 
 /** A band by what it covers: its floor, or "below …" / "above …" for the two open-ended tails. */
-function bandName(l: stook.LadderAccount, i: number, dp: number): string {
+export function bandName(l: stook.LadderAccount, i: number, dp: number): string {
   const [lo, hi] = stook.binBounds(Math.min(Math.max(i, 0), 63), l.p0, l.stepBps);
   if (i <= 0) return `below ${fmtPrice(hi, l.p0Expo, dp)}`;
   if (i >= 63) return `above ${fmtPrice(lo, l.p0Expo, dp)}`;
@@ -171,7 +171,7 @@ function Collect(p: Props) {
   const lands = (book: bigint) => stook.netOf(book, p.transferFee);
   // A void pays depositors first, then open lines share what is left.
   const owed = p.positions.map((r) => ({ r, amount: lands(l.status === "settled" && l.settledBin !== null ? r.position.shares * BigInt(stook.level(r.position.shape, l.settledBin)) : l.status === "void" ? stook.voidShare(r.position.netPaid, l.voidTraderPot, l.basisTotal) : 0n) }));
-  const lp = p.tranches.map((t) => { const k = l.settledBin; const v = lands(l.status === "settled" && k !== null ? stook.tranchePrincipal(t.tranche.deposit, stook.tranchePnl(t.tranche.b, t.tranche.join.w[k]!, t.tranche.join.sum, l.curve.w[k]!, l.curve.sum), dec) + stook.trancheFees(t.tranche.b, dec, l.accFee, t.tranche.feeSnap) : stook.voidShare(t.tranche.deposit, l.voidLpPot, l.depositTotal)); return { t, v }; });
+  const lp = p.tranches.map((t) => { const k = l.settledBin; const tt = stook.trancheTerms(l, t.tranche); const v = lands(l.status === "settled" && k !== null ? stook.tranchePrincipal(t.tranche.deposit, stook.tranchePnl(tt.b, tt.join.w[k]!, tt.join.sum, l.curve.w[k]!, l.curve.sum), dec) + stook.trancheFees(tt.b, dec, l.accFee, t.tranche.feeSnap) : stook.voidShare(t.tranche.deposit, l.voidLpPot, l.depositTotal)); return { t, v }; });
   const total = owed.reduce((a, x) => a + x.amount, 0n) + lp.reduce((a, x) => a + x.v, 0n);
   const linesPct = l.status === "void" && l.basisTotal > 0n ? (Number(l.voidTraderPot) / Number(l.basisTotal)) * 100 : null;
   const nothing = p.positions.length === 0 && p.tranches.length === 0;

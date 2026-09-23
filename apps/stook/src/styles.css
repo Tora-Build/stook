@@ -464,3 +464,48 @@ a.wc-cell:hover { text-decoration: none; border-color: var(--taxi); }
 .sell-slider { padding: .6rem 0; }
 .sell-slider input { width: 160px; }
 @media (max-width: 960px) { .market-grid { grid-template-columns: 1fr; } .ticket { position: static; } }
+
+/* Yours: a statement of account from the house on the street */
+.statement { max-width: 980px; }
+.stmt-head { display: flex; justify-content: space-between; align-items: flex-end; gap: 1rem; flex-wrap: wrap; border-bottom: 3px double var(--cream); padding-bottom: .8rem; margin-bottom: 1.2rem; }
+.stmt-firm { font-family: var(--px); font-size: .5rem; letter-spacing: .12em; color: var(--taxi); margin-bottom: .5rem; }
+.stmt-head h1 { margin: 0; }
+.stmt-meta { display: grid; grid-template-columns: auto auto; gap: .15rem 1rem; margin: 0; font-size: .85rem; }
+.stmt-meta div { display: contents; }
+.stmt-meta dt { color: var(--cream-3); text-transform: uppercase; font-size: .7rem; letter-spacing: .08em; align-self: center; }
+.stmt-meta dd { margin: 0; }
+.stmt-empty { padding: 2rem 0; color: var(--cream-2); }
+.tote { display: grid; grid-template-columns: repeat(3, 1fr); gap: 0; border: 3px solid var(--cream); background: var(--ink); margin-bottom: 1.6rem; }
+.tote-cell { padding: .9rem 1rem; }
+.tote-cell + .tote-cell { border-left: 3px solid var(--cream); }
+.tote-k { font-family: var(--px); font-size: .45rem; color: var(--cream-3); letter-spacing: .06em; margin-bottom: .55rem; text-transform: uppercase; }
+.tote-v { font-size: 1.35rem; color: var(--cream); line-height: 1.25; }
+.tote-ready .tote-v { color: var(--taxi); }
+.tote-c { font-size: .8rem; color: var(--cream-2); }
+.stmt-h { font-family: var(--px); font-size: .6rem; font-weight: 400; color: var(--teal); margin: 1.4rem 0 .7rem; }
+.stmt-round { background: var(--sky-2); border: 3px solid var(--cream); box-shadow: 6px 6px 0 var(--brick-2); margin-bottom: 1.1rem; }
+.stmt-round.stage-settled, .stmt-round.stage-void { box-shadow: 6px 6px 0 var(--taxi-2); }
+.stmt-round-head { display: flex; align-items: center; gap: .8rem; padding: .75rem 1rem; border-bottom: 1px dashed var(--line); }
+.stmt-round-id { flex: 1; min-width: 0; }
+.stmt-round-name { color: var(--cream); font-weight: 600; }
+.stamp { font-family: var(--px); font-size: .45rem; text-transform: uppercase; padding: .35rem .5rem; border: 2px solid currentColor; transform: rotate(-4deg); letter-spacing: .08em; white-space: nowrap; }
+.stamp-trading { color: var(--good); } .stamp-funded, .stamp-opening { color: var(--teal); }
+.stamp-locked, .stamp-settling { color: var(--cream-2); } .stamp-settled { color: var(--taxi); } .stamp-void { color: var(--bad); }
+.ledger { width: 100%; border-collapse: collapse; font-size: .9rem; }
+.ledger th { text-align: right; font-weight: 400; color: var(--cream-3); font-size: .7rem; text-transform: uppercase; letter-spacing: .06em; padding: .5rem 1rem .3rem; }
+.ledger th:first-child, .ledger td:first-child { text-align: left; }
+.ledger td { text-align: right; padding: .45rem 1rem; border-top: 1px solid var(--line); vertical-align: top; }
+.ledger-note { font-size: .75rem; color: var(--cream-3); margin-top: .15rem; }
+.chip-k { font-family: var(--px); font-size: .4rem; padding: .15rem .3rem; margin-right: .35rem; vertical-align: 1px; }
+.chip-k.line { background: var(--crowd-2); color: #f4e9c8; } .chip-k.house { background: var(--green); color: #f4e9c8; }
+.stmt-round-foot { padding: .7rem 1rem; display: flex; justify-content: flex-end; border-top: 1px dashed var(--line); }
+.stmt-foot { font-size: .8rem; color: var(--cream-3); margin-top: 1.4rem; max-width: 70ch; }
+@media (max-width: 720px) {
+  .tote { grid-template-columns: 1fr; } .tote-cell + .tote-cell { border-left: 0; border-top: 3px solid var(--cream); }
+  .ledger th:nth-child(2), .ledger td:nth-child(2), .ledger th:nth-child(3), .ledger td:nth-child(3) { display: none; }
+}
+.ledger { table-layout: fixed; }
+.ledger th:nth-child(1) { width: 40%; } .ledger th:nth-child(2), .ledger th:nth-child(3), .ledger th:nth-child(4), .ledger th:nth-child(5) { width: 15%; }
+:root[data-theme="day"] .tote-ready .tote-v, :root[data-theme="day"] .stmt-firm, :root[data-theme="day"] .stmt-round-foot a { color: var(--taxi-2); }
+:root[data-theme="day"] .stmt-h { color: #1c7f7f; }
+:root[data-theme="day"] .stamp-trading { color: #1f7a4d; } :root[data-theme="day"] .stamp-funded, :root[data-theme="day"] .stamp-opening { color: #1c7f7f; } :root[data-theme="day"] .stamp-settled { color: var(--taxi-2); }

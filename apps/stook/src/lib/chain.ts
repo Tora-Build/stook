@@ -62,6 +62,35 @@ export async function fetchTranches(_c: Connection, ladder: PublicKey, owner?: P
   return accounts.map((a) => ({ pubkey: a.pubkey, tranche: stook.decodeLadderTranche(a.account.data) }));
 }
 
+/** One round a wallet is in: its lines and its deposits there. */
+export interface Holding { pubkey: PublicKey; ladder: stook.LadderAccount; positions: PositionRow[]; tranches: TrancheRow[] }
+
+/**
+ * Everything `owner` holds, in every round: two scans (positions and
+ * deposits by owner), then the rounds they are in. Rounds in a layout this
+ * program no longer reads are left out.
+ */
+export async function fetchHoldings(c: Connection, owner: PublicKey): Promise<Holding[]> {
+  const [pos, trs] = await Promise.all([
+    scanner.getProgramAccounts(SOOTH_CORE_PROGRAM_ID, { filters: [
+      { memcmp: { offset: 0, bytes: base58(stook.POSITION_DISCRIMINATOR) } },
+      { memcmp: { offset: 40, bytes: owner.toBase58() } },
+    ] }),
+    scanner.getProgramAccounts(SOOTH_CORE_PROGRAM_ID, { filters: [
+      { dataSize: stook.TRANCHE_SIZE },
+      { memcmp: { offset: 0, bytes: base58(stook.TRANCHE_DISCRIMINATOR) } },
+      { memcmp: { offset: 48, bytes: owner.toBase58() } },
+    ] }),
+  ]);
+  const by = new Map<string, { positions: PositionRow[]; tranches: TrancheRow[] }>();
+  const slot = (k: PublicKey) => { const key = k.toBase58(); if (!by.has(key)) by.set(key, { positions: [], tranches: [] }); return by.get(key)!; };
+  for (const a of pos) { const p = stook.decodeLadderPosition(a.account.data); slot(p.ladder).positions.push({ pubkey: a.pubkey, position: p }); }
+  for (const a of trs) { const t = stook.decodeLadderTranche(a.account.data); slot(t.ladder).tranches.push({ pubkey: a.pubkey, tranche: t }); }
+  const keys = [...by.keys()].map((k) => new PublicKey(k));
+  const ladders = await fetchLaddersAt(c, keys);
+  return keys.filter((k) => ladders.has(k.toBase58())).map((k) => ({ pubkey: k, ladder: ladders.get(k.toBase58())!, ...by.get(k.toBase58())! }));
+}
+
 export interface MintInfo { decimals: number; tokenProgram: PublicKey; report: stook.MintReport }
 export async function fetchMint(c: Connection, mint: PublicKey): Promise<MintInfo | null> {
   const a = await c.getAccountInfo(mint);

@@ -58,7 +58,7 @@ if (cmd === "create") {
     if (age > 55) { console.log(`push oracle ${age}s old, waiting for a fresh one`); await new Promise((r) => setTimeout(r, 10_000)); continue; }
     const refs = { ladder: ladderKey, quoteMint: l.quoteMint, tokenProgram: (await c.getAccountInfo(l.quoteMint)).owner };
     try {
-      console.log("opened", await send([stook.openLadderIx(refs, payer.publicKey, pda)]));
+      console.log("opened", await send([stook.openLadderIx(refs, payer.publicKey, pda, l.series)]));
       break;
     } catch (e) { console.log("open failed:", e.message.slice(0, 200)); await new Promise((r) => setTimeout(r, 5000)); }
   }

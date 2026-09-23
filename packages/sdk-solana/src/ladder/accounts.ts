@@ -59,6 +59,9 @@ export interface LadderAccount {
   status: LadderStatus;
   settledBin: number | null;
   decimals: number;
+  /** The opening bell's width, 1e-9 bands², fixed at open. 0 before open (and
+   *  on rounds whose bands were set when funded). */
+  varBandsE9: bigint;
 }
 
 class Reader {
@@ -99,6 +102,8 @@ export function decodeLadder(data: Uint8Array): LadderAccount {
   const b = r.i128(), accFee = r.u128(), sum = r.i128();
   const w = Array.from({ length: BINS }, () => r.i128());
   const status = r.u8(), settledBin = r.u8(); r.u8(); const decimals = r.u8();
+  r.u8(); r.u8(); r.u8(); r.u8(); // bump, authority bump, vault bump, pad
+  const varBandsE9 = r.u64();
   return {
     opensAt, locksAt, settlesAt, p0, p0Expo, cash, depositTotal, curveSeq,
     feesLp, feesCreator, feesProtocol, basisTotal, lpPool, voidLpPot, voidTraderPot,
@@ -106,7 +111,7 @@ export function decodeLadder(data: Uint8Array): LadderAccount {
     b, accFee, curve: { w, sum },
     status: STATUS[status] ?? "void",
     settledBin: settledBin === NO_BIN ? null : settledBin,
-    decimals,
+    decimals, varBandsE9,
   };
 }
 

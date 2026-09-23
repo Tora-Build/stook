@@ -157,11 +157,20 @@ pub struct Ladder {
     pub vault_bump: u8,
     pub _pad: u8,
 
-    pub _reserved: [u8; 8],
+    /// The opening bell's width, in 1e-9 bands², fixed at open with the band
+    /// width. Deposits made before open recompute their depth and the odds
+    /// they joined at from it. Zero before open, and on rounds whose bands
+    /// were set when they were funded (the earlier rule).
+    pub var_bands_e9: u64,
 }
 
 impl Ladder {
     pub const SPACE: usize = 8 + core::mem::size_of::<Ladder>();
+
+    /// The opening bell's width, bands² (WAD), exactly as the curve was built.
+    pub fn var_bands(&self) -> i128 {
+        self.var_bands_e9 as i128 * 1_000_000_000
+    }
 
     pub fn b_wad(&self) -> i128 {
         i128::from_le_bytes(self.b)
