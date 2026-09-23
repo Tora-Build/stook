@@ -144,7 +144,7 @@
       raf = requestAnimationFrame(step);
       if (!visible || now - last < 33) return; // ~30 fps
       const dt = Math.min(0.1, (now - last) / 1000); last = now;
-      if (Math.random() < dt / 1.2) plan();      // a new trip every ~1.2 s on average
+      if (Math.random() < dt / 2) plan();        // a new trip every ~2 s on average
 
       for (const a of agents) {
         if (a.state === "walk" || a.state === "back") {
