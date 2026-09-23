@@ -25,34 +25,34 @@ export function How() {
         <div className="placard-text">
           {i === 0 && <>
             <h2>The tables</h2>
-            <p>Every coin on the street has a table, and every coin follows one asset: its <b>anchor</b>. The screen shows the anchor's live price. Everything at a table — bets, the pool, payouts — is in that coin. Coins are added one at a time by the street, never by pasting a mint.</p>
-            <p className="try">Try it: pick a table.</p>
+            <p>Every coin has a table and follows one asset, its <b>anchor</b>. Everything at the table is paid in that coin.</p>
+            <p className="try">Pick a table.</p>
           </>}
           {i === 1 && <>
             <h2>The calendar</h2>
-            <p>One round a day per coin, closing at <b>4:00 PM New York</b>. A day nobody has funded is empty. Whoever funds it first <b>starts</b> it and is its first liquidity; everyone after joins the same round. Trading runs from the moment it opens until two minutes before the close.</p>
-            <p className="try">Try it: start a day.</p>
+            <p>One round a day, closing <b>4:00 PM New York</b>. Whoever funds a day first starts it; everyone after joins that round.</p>
+            <p className="try">Start a day.</p>
           </>}
           {i === 2 && <>
             <h2>The line</h2>
-            <p>The round is 64 price bands, 1% wide, around the anchor's price at the open. Click the band you expect at the close: that's your <b>line</b>. It pays most on that band and one step less for each band it misses by, out to its <b>reach</b>. A <b>range</b> pays the same anywhere inside it. A share costs what the crowd's odds say its payouts are worth — so reach changes <i>where</i> a dollar wins, not how much it can. Sell any time before the lock.</p>
-            <p className="try">Try it: click a band, change the reach.</p>
+            <p>64 bands of 1% around the opening price. Click the one you expect at the close: your <b>line</b>. It pays most there, one step less per band it misses by, out to its <b>reach</b>. A <b>range</b> pays the same anywhere inside. Price is the crowd's odds. Sell any time before the lock.</p>
+            <p className="try">Click a band. Change the reach.</p>
           </>}
           {i === 3 && <>
             <h2>The bell</h2>
-            <p>At the closing second the round reads the anchor's <b>Pyth price</b> on chain — the first update at or after that instant, a rule, so nobody chooses it. It lands in a band; that band's shares pay out; every other share pays nothing. If no usable price arrives within 24 hours the round is <b>void</b> and everyone gets back exactly what they paid.</p>
-            <p className="try">Try it: ring it.</p>
+            <p>At the close, the anchor's <b>Pyth price</b> on chain — one update, picked by a rule — lands in a band. That band pays; the rest pay nothing. No price within 24 hours: the round is <b>void</b>, everyone refunded.</p>
+            <p className="try">Ring it.</p>
           </>}
           {i === 4 && <>
             <h2>The house</h2>
-            <p>The pool takes the other side of every line. Anyone can add to it until the lock. Every trade pays a <b>1% fee</b>: 80% to the pool, split by depth, only for trades after you joined; 10% to whoever started the round; 10% to the protocol, half of which goes to whoever rings the bell. At the close the pool pays the winning band and keeps the rest. Each deposit stands alone — a late one is valued from the odds it joined at.</p>
-            <p className="try">Try it: move the deposit.</p>
+            <p>The pool takes the other side of every line; anyone can add to it until the lock. Trades pay a <b>1% fee</b>: 80% to the pool by depth, 10% to the round's starter, 10% to the protocol. At the close the pool pays the winning band and keeps the rest.</p>
+            <p className="try">Move the deposit.</p>
           </>}
           {i === 5 && <>
             <h2>The fine print</h2>
-            <p>Some coins on the street take a <b>transfer fee</b> on every move (their launchpad set it). The round books exactly what arrives; your wallet sends a little more. The app shows both numbers.</p>
-            <p>Rounds settle on the <b>tokenized</b> asset's Pyth feed — SPYx, GLDx — not the NYSE ticker, so the price on the table is the one the round settles on.</p>
-            <p>Every number on a round page is the program's own maths, run in your browser to the last unit.</p>
+            <p>Some coins take a <b>transfer fee</b> on every move; the app shows what your wallet sends and what the round books.</p>
+            <p>Rounds settle on the <b>tokenized</b> asset's feed (SPYx, GLDx), the same price the table shows.</p>
+            <p>Every quote is the program's own maths, exact to the unit.</p>
           </>}
           <div className="placard-nav">
             <button className="small" onClick={() => go(i - 1)} disabled={i === 0}>‹ back</button>
@@ -73,7 +73,7 @@ function Tables() {
   return (
     <div className="scene">
       <div className="scene-tables">{COINS.map((x, n) => <button key={x.symbol} className={`scene-table ${n === k ? "on" : ""}`} onClick={() => setK(n)}><img src={x.logo} alt="" /><span>${x.symbol}</span></button>)}</div>
-      <div className="scene-caption"><img src={c.anchor.logo} alt="" className="scene-anchor" /> <b>${c.symbol}</b> follows <b>{c.anchor.name}{c.anchor.name !== c.anchor.symbol ? ` (${c.anchor.symbol})` : ""}</b>. Bets here are paid in ${c.symbol}.</div>
+      <div className="scene-caption"><img src={c.anchor.logo} alt="" className="scene-anchor" /> <b>${c.symbol}</b> → <b>{c.anchor.name}{c.anchor.name !== c.anchor.symbol ? ` (${c.anchor.symbol})` : ""}</b></div>
     </div>
   );
 }
@@ -89,7 +89,7 @@ function Calendar() {
           return <button key={n} className={`scene-day ${on ? "on" : ""} ${today ? "today" : ""}`} onClick={() => setStarted(new Set(started).add(n))}>{on ? (today ? "trading" : "started") : "start"}</button>;
         })}
       </div>
-      <div className="scene-caption">{started.size > 1 ? `You started ${started.size - 1} day${started.size > 2 ? "s" : ""}. You'd be their first liquidity; others add to the same rounds.` : "Wednesday is trading. The rest are waiting for someone to start them."}<br /><span className="muted">A model — nothing here is real. The real calendar is on each coin's page.</span></div>
+      <div className="scene-caption muted">A model.</div>
     </div>
   );
 }
@@ -109,9 +109,9 @@ function Line() {
       </svg>
       <div className="scene-row">
         <label className="height">reach <input type="range" min={1} max={6} value={reach} onChange={(e) => setReach(Number(e.target.value))} /><span className="mono">{reach}</span></label>
-        {band !== null && <span className="mono">1 share ≈ {cost.toFixed(2)} · pays {reach} on the band, 1 at the edge</span>}
+        {band !== null && <span className="mono">1 share ≈ {cost.toFixed(2)}</span>}
       </div>
-      <div className="scene-caption">{band === null ? "Bars are the crowd's odds. Click the band you expect." : `Land on your band and a share pays ${reach}; that costs ${cost.toFixed(2)}, so it returns ${(reach / cost).toFixed(1)}× your stake. Widen the reach and the price rises with it.`}</div>
+      <div className="scene-caption">{band === null ? "Bars are the crowd's odds." : `Pays ${reach} for ${cost.toFixed(2)}: ${(reach / cost).toFixed(1)}× your stake.`}</div>
     </div>
   );
 }
@@ -127,7 +127,7 @@ function Bell() {
         {rung && <><line x1={hit * 18 + 10} x2={hit * 18 + 10} y1={2} y2={62} className="line-live" /><text x={hit * 18 + 14} y={10} className="lbl lbl-live lbl-xs">Pyth: here</text></>}
       </svg>
       <div className="scene-row"><button className="small" onClick={() => setRung(true)} disabled={rung}>ring the bell</button>{rung && <button className="link" onClick={() => setRung(false)}>again</button>}</div>
-      <div className="scene-caption">{rung ? "One Pyth update at the closing second picked this band. Shares on it pay; the rest pay nothing. No committee, no vote." : "Trading locked two minutes ago. The close is now."}<br /><span className="muted">A model.</span></div>
+      <div className="scene-caption muted">{rung ? "That band pays. A model." : "A model."}</div>
     </div>
   );
 }
@@ -143,7 +143,7 @@ function House() {
         <div className="scene-bar"><div className="scene-fill" style={{ width: `${share * 100}%` }} /></div>
         <div className="scene-legend"><span>your share of the pool <b className="mono">{(share * 100).toFixed(0)}%</b></span><span>of {fees} in fees today <b className="mono">{(fees * 0.8 * share).toFixed(0)}</b> is yours</span></div>
       </div>
-      <div className="scene-caption">Others hold {others.toLocaleString()} in this pool. Fees split by depth, from the moment you join. At the close the pool pays the winning band and keeps whatever the losing lines paid in. <span className="muted">A model with made-up numbers.</span></div>
+      <div className="scene-caption muted">Others hold {others.toLocaleString()}. A model.</div>
     </div>
   );
 }
@@ -156,7 +156,7 @@ function FinePrint() {
         {[20, 27, 34, 41, 48].map((y, n) => <rect key={y} x="20" y={y} width={n === 4 ? 40 : 110 - n * 8} height="2" fill="#8d8670" />)}
         <rect x="112" y="40" width="18" height="12" fill="#a8412f" /><rect x="115" y="43" width="12" height="6" fill="#f4e9c8" />
       </svg>
-      <div className="scene-caption">Read once. Then never think about it again.</div>
+      <div className="scene-caption muted">Read once.</div>
     </div>
   );
 }
