@@ -159,6 +159,11 @@ button.link { background: none; border: 0; color: var(--taxi); font: inherit; cu
 /* trade panel */
 .seg-row { display: flex; align-items: center; gap: .5rem; flex-wrap: wrap; }
 .held-side { margin-top: .4rem; }
+.mine { display: flex; flex-wrap: wrap; gap: .35rem; align-items: center; margin-bottom: .7rem; }
+.mine-k { font-family: var(--px); font-size: .45rem; color: var(--cream-3); margin-right: .2rem; }
+.chip { background: transparent; color: var(--cream-2); border: 1.5px dashed var(--taxi); padding: .25rem .5rem; font: inherit; font-size: .8rem; cursor: pointer; }
+.chip.on { background: var(--taxi); color: var(--ink); border-style: solid; }
+.chip .mono { opacity: .8; margin-left: .2rem; }
 .explain b { color: var(--cream); }
 .ladder-table { width: 100%; border-collapse: collapse; font-size: .85rem; margin: 0 0 .75rem; }
 .ladder-table th { text-align: left; font-family: var(--px); font-weight: 400; color: var(--cream-3); font-size: .45rem; padding: .3rem 0; }

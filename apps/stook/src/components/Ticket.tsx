@@ -18,6 +18,7 @@ interface Props {
   ladder: stook.LadderAccount;
   shape: stook.Shape | null;
   selected: PositionRow | null;
+  onSelect: (r: PositionRow) => void;
   onDeselect: () => void;
   mode: DrawMode; setMode: (m: DrawMode) => void;
   height: number; setHeight: (h: number) => void;
@@ -36,8 +37,25 @@ export function Ticket(p: Props) {
         <button className={tab === "trade" ? "on" : ""} onClick={() => setTab("trade")}>Trade</button>
         <button className={tab === "house" ? "on" : ""} onClick={() => setTab("house")}>House</button>
       </div>
-      {tab === "house" ? <LpPanel refs={p.refs} ladder={p.ladder} quoteSymbol={p.quoteSymbol} now={p.now} transferFee={p.transferFee} bare /> : p.final ? <Collect {...p} /> : p.selected ? <Held {...p} pos={p.selected} /> : <Buy {...p} />}
+      {tab === "house" ? <LpPanel refs={p.refs} ladder={p.ladder} quoteSymbol={p.quoteSymbol} now={p.now} transferFee={p.transferFee} bare /> : p.final ? <Collect {...p} /> : (
+        <>
+          {p.positions.length > 0 && <Mine {...p} />}
+          {p.selected ? <Held {...p} pos={p.selected} /> : <Buy {...p} />}
+        </>
+      )}
     </section>
+  );
+}
+
+// ── your lines in this round, as chips: pick one to add to it or sell it ─────
+function Mine(p: Props) {
+  const dec = p.ladder.decimals, l = p.ladder;
+  const name = (s: stook.Shape) => s.h > 1 ? `${fmtPrice(stook.binBounds((s.lo + s.hi) / 2, l.p0, l.stepBps)[0], l.p0Expo, p.dp)} ·${s.h}` : `${fmtPrice(stook.binBounds(Math.max(s.lo, 0), l.p0, l.stepBps)[0], l.p0Expo, p.dp)}–${stook.binBounds(Math.min(s.hi, 63), l.p0, l.stepBps)[1] === Infinity ? "∞" : fmtPrice(stook.binBounds(Math.min(s.hi, 63), l.p0, l.stepBps)[1], l.p0Expo, p.dp)}`;
+  return (
+    <div className="mine">
+      <span className="mine-k">yours</span>
+      {p.positions.map((r) => { const on = p.selected?.pubkey.equals(r.pubkey); return <button key={r.pubkey.toBase58()} className={`chip ${on ? "on" : ""}`} onClick={() => (on ? p.onDeselect() : p.onSelect(r))}>{name(r.position.shape)} <span className="mono">{fmtAmount(r.position.shares, dec, 0)} sh</span></button>; })}
+    </div>
   );
 }
 
@@ -92,6 +110,7 @@ function Buy(p: Props & { held?: boolean }) {
           </tbody>
         </table>
       )}
+      {s && s.h > 1 && <p className="hint">A share pays {s.h} on your band and one less per band away — that is the reach, the same wherever you draw. What the crowd charges for it is the last column: the longer the odds, the more on stake.</p>}
       <label className="field"><span>Shares</span><input value={text} onChange={(e) => setText(e.target.value)} inputMode="decimal" /><span className="hint">balance {balance.data !== undefined ? fmtAmount(balance.data, dec) : "—"} {p.quoteSymbol}</span></label>
       {q && pays !== null && limit !== null && <dl className="quote"><div><dt>You pay</dt><dd className="mono">{fmtAmount(pays, dec)} {p.quoteSymbol}</dd></div>{pays !== q.total && <div><dt>of which the coin's transfer fee</dt><dd className="mono">{fmtAmount(pays - q.total, dec)}</dd></div>}<div><dt>at most, if the odds move first</dt><dd className="mono muted">{fmtAmount(stook.grossFor(limit, p.transferFee), dec)}</dd></div><div><dt>best case</dt><dd className="mono amber">{fmtAmount(lands(q.maxPayout), dec)} ({(Number(lands(q.maxPayout)) / Number(pays)).toFixed(1)}×)</dd></div></dl>}
       {short && <p className="warn">You hold {fmtAmount(balance.data!, dec)} {p.quoteSymbol}; this costs {fmtAmount(pays!, dec)}.</p>}

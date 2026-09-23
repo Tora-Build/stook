@@ -46,6 +46,8 @@ export function Chart(p: ChartProps) {
   const svg = useRef<SVGSVGElement>(null);
   const [anchor, setAnchor] = useState<number | null>(null);
   const [hover, setHover] = useState<number | null>(null);
+  // A press on one of your lines: a click selects it, a drag draws over it.
+  const pressed = useRef<{ key: string; bin: number } | null>(null);
 
   const probs = useMemo(() => Array.from({ length: BINS }, (_, i) => stook.price(p.curve, i)), [p.curve]);
   const maxProb = useMemo(() => probs.reduce((a, b) => (b > a ? b : a), 0n), [probs]);
@@ -66,22 +68,27 @@ export function Chart(p: ChartProps) {
   const binAtY = (y: number) => Math.min(hi, Math.max(lo, hi - Math.floor((y - PAD.t) / bh)));
 
   const at = (e: PointerEvent<SVGSVGElement>) => { const r = svg.current!.getBoundingClientRect(); return { x: ((e.clientX - r.left) / r.width) * W, y: ((e.clientY - r.top) / r.height) * H }; };
+  const draw = (i: number) => { p.onSelect?.(null); if (p.mode === "line") p.onShape(stook.tent(i, p.height)); else { setAnchor(i); p.onShape(stook.band(i, i)); } };
   const down = (e: PointerEvent<SVGSVGElement>) => {
     const { x, y } = at(e); const i = binAtY(y);
-    // On the odds panel, a click on one of your own lines selects it: the ticket
-    // then offers to add to it or sell it, and the shape it shows is that line's.
-    if (x >= oddsX && p.positions?.length) {
-      const hit = p.positions.find((q) => stook.level(q.shape, i) > 0);
-      if (hit) { p.onSelect?.(hit.key); p.onShape(hit.shape); return; }
-    }
     if (p.disabled) return;
-    p.onSelect?.(null);
     svg.current!.setPointerCapture(e.pointerId);
-    if (p.mode === "line") { p.onShape(stook.tent(i, p.height)); return; }
-    setAnchor(i); p.onShape(stook.band(i, i));
+    // On the odds panel, pressing one of your own lines: a click selects it (the
+    // ticket offers to add to it or sell it); dragging away draws over it.
+    const hit = x >= oddsX ? p.positions?.find((q) => stook.level(q.shape, i) > 0) : undefined;
+    if (hit) { pressed.current = { key: hit.key, bin: i }; return; }
+    pressed.current = null;
+    draw(i);
   };
-  const move = (e: PointerEvent<SVGSVGElement>) => { const i = binAtY(at(e).y); setHover(i); if (anchor !== null) p.onShape(stook.band(Math.min(anchor, i), Math.max(anchor, i))); };
-  const up = () => setAnchor(null);
+  const move = (e: PointerEvent<SVGSVGElement>) => {
+    const i = binAtY(at(e).y); setHover(i);
+    if (pressed.current && i !== pressed.current.bin) { const from = pressed.current.bin; pressed.current = null; if (p.mode === "line") draw(i); else { p.onSelect?.(null); setAnchor(from); p.onShape(stook.band(Math.min(from, i), Math.max(from, i))); } return; }
+    if (anchor !== null) p.onShape(stook.band(Math.min(anchor, i), Math.max(anchor, i)));
+  };
+  const up = () => {
+    if (pressed.current) { const hit = p.positions?.find((q) => q.key === pressed.current!.key); pressed.current = null; if (hit) { p.onSelect?.(hit.key); p.onShape(hit.shape); } }
+    setAnchor(null);
+  };
 
   const s = p.shape;
   const levels = s ? Array.from({ length: BINS }, (_, i) => stook.level(s, i)) : null;
@@ -100,7 +107,7 @@ export function Chart(p: ChartProps) {
   return (
     <div className="chart-wrap">
       <svg ref={svg} viewBox={`0 0 ${W} ${H}`} className={`chart ${p.disabled ? "chart-disabled" : `chart-${p.mode}`}`}
-        onPointerDown={down} onPointerMove={move} onPointerUp={up} onPointerLeave={() => { setHover(null); up(); }} role="img" aria-label="Price history with the crowd's odds per band">
+        onPointerDown={down} onPointerMove={move} onPointerUp={up} onPointerLeave={() => { setHover(null); pressed.current = null; setAnchor(null); }} role="img" aria-label="Price history with the crowd's odds per band">
         {/* band stripes */}
         {Array.from({ length: nVis }, (_, k) => { const i = lo + k; const inS = levels ? levels[i]! > 0 : false; return (
           <g key={i}>
@@ -136,8 +143,8 @@ export function Chart(p: ChartProps) {
         <text x={oddsX + oddsW / 2} y={H - 8} className="lbl" textAnchor="middle">the crowd's odds</text>
       </svg>
       <div className="chart-hover">
-        {hoverBox ? (<><span className="mono">{hoverBox.range}</span><span>{hoverBox.prob} chance</span>{hoverBox.pays !== null && <span className="amber">{hoverBox.pays ? `pays ${hoverBox.pays}×` : "pays nothing"}</span>}</>)
-          : (<span className="muted">{p.disabled ? "Trading is closed." : p.mode === "line" ? "Click the price you expect at settlement." : "Drag up or down across the range you expect."}</span>)}
+        {hoverBox ? (<><span className="mono">{hoverBox.range}</span><span>{hoverBox.prob} chance</span>{hoverBox.pays !== null && <span className="amber">{hoverBox.pays ? `pays ${hoverBox.pays} a share` : "pays nothing"}</span>}</>)
+          : (<span className="muted">{p.disabled ? "Trading is closed." : p.mode === "line" ? "Click the price you expect at settlement." : "Drag up or down across the range you expect."}{p.positions?.length ? " Click one of your lines to add to it or sell; drag to draw over it." : ""}</span>)}
       </div>
     </div>
   );
