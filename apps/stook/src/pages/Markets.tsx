@@ -23,22 +23,14 @@ export function Markets() {
       <div id="floor"><Floor /></div>
 
       <section className="how-tiles page">
-        <div className="tiles">
+        <div className="tiles tiles-2">
           <div className="tile tile-icon">
             <svg viewBox="0 0 24 16" shapeRendering="crispEdges" aria-hidden="true">
               <g fill="#2f5d92"><rect x="0" y="12" width="2" height="4"/><rect x="3" y="10" width="2" height="6"/><rect x="6" y="7" width="2" height="9"/><rect x="9" y="3" width="2" height="13"/><rect x="12" y="5" width="2" height="11"/><rect x="15" y="9" width="2" height="7"/><rect x="18" y="12" width="2" height="4"/><rect x="21" y="14" width="2" height="2"/></g>
               <g fill="#f0a83a"><rect x="6" y="9" width="2" height="1"/><rect x="9" y="1" width="2" height="1"/><rect x="12" y="3" width="2" height="1"/><rect x="15" y="7" width="2" height="1"/></g>
               <rect x="9.5" y="0" width="1" height="2" fill="#f4e9c8"/>
             </svg>
-            <div className="n">DRAW A LINE</div><p>Click where the price will land. Closer pays more.</p>
-          </div>
-          <div className="tile tile-icon">
-            <svg viewBox="0 0 24 16" shapeRendering="crispEdges" aria-hidden="true">
-              <g fill="#f4e9c8"><rect x="9" y="1" width="6" height="1"/><rect x="8" y="2" width="8" height="1"/><rect x="7" y="3" width="10" height="6"/><rect x="6" y="9" width="12" height="2"/><rect x="11" y="11" width="2" height="2"/></g>
-              <rect x="11" y="0" width="2" height="1" fill="#8a8f99"/><rect x="10" y="12" width="4" height="1" fill="#8a8f99"/>
-              <g fill="#5ef0a0"><rect x="1" y="6" width="3" height="1"/><rect x="20" y="6" width="3" height="1"/><rect x="2" y="9" width="2" height="1"/><rect x="20" y="9" width="2" height="1"/></g>
-            </svg>
-            <div className="n">THE BELL</div><p>At the close, Pyth's price picks the winning band.</p>
+            <div className="n">TRADE</div><p>Click where the price will close today. The closer you are, the more you're paid.</p>
           </div>
           <div className="tile tile-icon">
             <svg viewBox="0 0 24 16" shapeRendering="crispEdges" aria-hidden="true">
@@ -47,7 +39,7 @@ export function Markets() {
               <g fill="#f4e9c8"><rect x="6" y="4" width="1" height="1"/><rect x="11" y="2" width="1" height="1"/><rect x="16" y="5" width="1" height="1"/></g>
               <rect x="9" y="10" width="6" height="3" fill="#f4e9c8"/><rect x="11" y="11" width="2" height="1" fill="#0f7a4d"/>
             </svg>
-            <div className="n">BE THE HOUSE</div><p>Fund a round's pool, earn 80% of its fees.</p>
+            <div className="n">BE THE HOUSE</div><p>Fund a day's pool and take 80% of everything traders pay in fees.</p>
           </div>
         </div>
         <p className="muted small" style={{ marginTop: "1rem" }}><Link to="/how">The walk through the exchange →</Link></p>

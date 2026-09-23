@@ -393,3 +393,5 @@ a.wc-cell:hover { text-decoration: none; border-color: var(--taxi); }
 .tile-icon svg { grid-row: 1 / span 2; width: 72px; height: 48px; image-rendering: pixelated; background: var(--ink); border: 2px solid var(--line); padding: 4px; }
 .tile-icon .n { margin: 0 0 .3rem; }
 .tile-icon p { font-size: .9rem; }
+.tiles-2 { grid-template-columns: 1fr 1fr; max-width: 900px; }
+@media (max-width: 860px) { .tiles-2 { grid-template-columns: 1fr; } }
