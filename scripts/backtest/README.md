@@ -69,3 +69,27 @@ fees against a perfectly informed trader, the house needs trading volume of
 roughly 190 times its depth per round to break even on fees alone against
 that worst case. Real flow is not all perfectly informed at the lock; this is
 the ceiling on the loss, not the expectation.
+
+## Can the house make money? (`house.py`, `house-results.txt`)
+
+A whole day of trading instead of one trader at the lock: every hour a sharp
+trader moves each band to its true odds less the fee (so a higher fee means
+less of it), and regular traders buy single bands (80% near the price, 20%
+long shots) and hold. Same 4,493 rounds; house result per round after 90% of
+fees, as a share of its deposit:
+
+| fee | no regular traders | 1× | 3× | 10× the deposit in volume |
+|---|---|---|---|---|
+| flat 1% (current) | −15.9% | −12.1% | −9.2% | −3.0% |
+| flat 2% | −15.2% | −8.6% | −2.9% | +9.5% |
+| flat 3% | −14.6% | −5.7% | +2.7% | +21.5% |
+| 1% rising to 5% over the last 6 h | −15.1% | −9.9% | −5.3% | +4.4% |
+| 1% rising to 10% over the last 3 h | −14.8% | −9.7% | −5.1% | +5.2% |
+
+- Against sharp flow alone no fee saves the house; volume from regular
+  traders does. At 1% the house is a sponsor at every volume tested.
+- A rising fee lands between flat 1% and flat 2% for the house while keeping
+  1% for anyone trading more than 6 h before the close. The sharp trader here
+  trades every hour; if real sharp flow bunches near the close the rising fee
+  does better than shown.
+- The fee's level moves the result more than its shape.
