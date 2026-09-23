@@ -93,3 +93,16 @@ fees, as a share of its deposit:
   trades every hour; if real sharp flow bunches near the close the rising fee
   does better than shown.
 - The fee's level moves the result more than its shape.
+
+Starting the rise at 2% (`house-results-2pct.txt`):
+
+| fee | no regular traders | 1× | 3× | 10× |
+|---|---|---|---|---|
+| flat 2% | −15.2% | −8.6% | −2.9% | +9.5% |
+| 2% rising to 5% over the last 6 h | −14.6% | −7.1% | −0.2% | +14.9% |
+| 2% rising to 10% over the last 3 h | −14.3% | −6.7% | +0.6% | +16.6% |
+
+A rising fee from 2% beats flat 2% everywhere and breaks even at about 3×
+the deposit in daily volume (flat 1%: never, within 10×). The house wins in
+58–61% of rounds at 3× and 88–90% at 10×, and its worst 5% of rounds improve
+from −24% to about −20% at 3×.

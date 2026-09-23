@@ -46,6 +46,8 @@ FEES = {
     "flat 3%": lambda h: 0.03,
     "1% rising to 5%": lambda h: 0.01 if h >= 6 else 0.01 + (6 - h) / 5 * 0.04,
     "1% rising to 10%": lambda h: 0.01 if h >= 3 else 0.01 + (3 - h) / 2 * 0.09,
+    "2% rising to 5%": lambda h: 0.02 if h >= 6 else 0.02 + (6 - h) / 5 * 0.03,
+    "2% rising to 10%": lambda h: 0.02 if h >= 3 else 0.02 + (3 - h) / 2 * 0.08,
 }
 RETAIL = [0.0, 1.0, 3.0, 10.0]
 
@@ -186,6 +188,8 @@ if __name__ == "__main__":
     print(f"{'fee':18s} {'retail':>6s}   {'house mean':>10s} {'house p5':>9s} {'house wins':>10s} {'sharp takes':>11s} {'fees earned':>11s}")
     for retail in RETAIL:
         for name, fn in FEES.items():
+            if len(sys.argv) > 2 and name not in sys.argv[2:]:
+                continue
             allr = []
             for sym in ASSETS:
                 allr += run(sym, fn, retail)
