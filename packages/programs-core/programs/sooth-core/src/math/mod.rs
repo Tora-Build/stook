@@ -7,6 +7,7 @@
 //! - `ladder` — the 64-bin ladder as the program runs it: a shaped trade
 //!              (band or tent) costs one exp and one ln.
 
+pub mod calendar;
 pub mod ladder;
 pub mod lmsr;
 pub mod lmsr_n;

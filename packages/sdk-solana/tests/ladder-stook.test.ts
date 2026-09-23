@@ -16,6 +16,7 @@ import { LiteSVM } from "litesvm";
 import { SvmContext } from "./fixtures/svm";
 import { warpClockTo } from "./fixtures/setup";
 import * as L from "../src/ladder/index";
+import { testSeries } from "./fixtures/series";
 
 const PROGRAM = new PublicKey("55kGEMHJyNbD3qcdonCD8UPTqzM85yg2kr6M5UF5P353");
 const PYTH_RECEIVER = new PublicKey("rec5EKMGg6MxZYaMdyBfgwp4d5rB9T1VQH5pJv5LtFJ");
@@ -74,13 +75,15 @@ describe("a ladder quoted in $STOOK, a 1% transfer-fee mint", () => {
     const fee = report.transferFee!;
 
     const opensAt = PUBLISH_TIME, locksAt = PUBLISH_TIME + 3600n, settlesAt = PUBLISH_TIME + 3700n;
-    const key = { feedId: NVDA_FEED, settlesAt, quoteMint: e.mint, tier: 2 };
+    const ser = testSeries(NVDA_FEED, e.mint, settlesAt, e.admin.publicKey, PROGRAM);
+    const key = { series: ser.series, index: ser.index, quoteMint: e.mint };
     const ladder = L.deriveLadderPda(key, PROGRAM);
     const refs: L.LadderRefs = { ladder, quoteMint: e.mint, tokenProgram: TOKEN_2022_PROGRAM_ID, programId: PROGRAM };
     const vault = L.deriveLadderVault(ladder, PROGRAM);
     const state = () => L.decodeLadder(new Uint8Array(raw(e, ladder).data));
 
     warpClockTo(e.ctx, PUBLISH_TIME - 1000n);
+    await ok(e, ser.createIx(), e.admin);
     const create = (t: boolean) => L.createLadderIx({ ...key, creator: e.creator.kp.publicKey, creatorToken: e.creator.token, tokenProgram: TOKEN_2022_PROGRAM_ID, seed: 1_000n * T, issuerTrusted: t, programId: PROGRAM });
     await refused(e, create(false), e.creator.kp, "MintNeedsApproval");
     await ok(e, L.approveQuoteMintIx(e.admin.publicKey, e.mint, PROGRAM), e.admin);
@@ -98,6 +101,7 @@ describe("a ladder quoted in $STOOK, a 1% transfer-fee mint", () => {
 
     warpClockTo(e.ctx, PUBLISH_TIME + 10n);
     await ok(e, L.openLadderIx(refs, e.trader.kp.publicKey, e.priceAccount(NVDA_UPDATE)), e.trader.kp);
+    const W = L.binFor(22_460_000n, state().p0, state().stepBps);
 
     // ── a buy: the quote is the net; the wallet pays gross ─────────────────
     const buy = async (shape: L.Shape, shares: bigint) => {
@@ -109,7 +113,7 @@ describe("a ladder quoted in $STOOK, a 1% transfer-fee mint", () => {
       expect(state().curve.w).toEqual(q.curve.w);
       return q;
     };
-    await buy(L.tent(33, 4), 20n * T);
+    await buy(L.tent(W, 4), 20n * T);
     await buy(L.band(20, 44), 30n * T);
 
     // ── a sell: the vault sends the quote; the trader receives 1% less ──────
@@ -128,9 +132,9 @@ describe("a ladder quoted in $STOOK, a 1% transfer-fee mint", () => {
 
     // ── settle, collect, and the vault is left holding only withheld fees ───
     warpClockTo(e.ctx, settlesAt + 5n);
-    await ok(e, L.settleLadderIx(refs, e.trader.kp.publicKey, e.priceAccount(updateAt(22_460_000n, settlesAt, settlesAt - 1n)), e.trader.token), e.trader.kp);
-    expect(state().settledBin).toBe(33);
-    for (const s of [L.tent(33, 4), L.band(20, 44)]) await ok(e, L.redeemLadderIx(refs, e.trader.kp.publicKey, e.trader.token, s), e.trader.kp);
+    await ok(e, L.settleLadderIx(refs, ser.series, e.trader.kp.publicKey, e.priceAccount(updateAt(22_460_000n, settlesAt, settlesAt - 1n)), e.trader.token), e.trader.kp);
+    expect(state().settledBin).toBe(W);
+    for (const s of [L.tent(W, 4), L.band(20, 44)]) await ok(e, L.redeemLadderIx(refs, e.trader.kp.publicKey, e.trader.token, s), e.trader.kp);
     await ok(e, L.claimLpIx(refs, e.creator.kp.publicKey, e.creator.token), e.creator.kp);
     await ok(e, L.claimLpIx(refs, e.lp.kp.publicKey, e.lp.token), e.lp.kp);
     await ok(e, L.collectLadderFeesIx(refs, e.trader.kp.publicKey, e.creator.token, e.treasuryToken), e.trader.kp);
@@ -141,6 +145,14 @@ describe("a ladder quoted in $STOOK, a 1% transfer-fee mint", () => {
     const withheldEverywhere = [e.creator.token, e.lp.token, e.trader.token, e.treasuryToken, vault].reduce((a, k) => a + acct(e, k).withheld, 0n);
     // Nothing minted, nothing lost: what left the wallets is in the vault or withheld by the mint.
     expect(everyone + v.amount + withheldEverywhere).toBe(30_000n * T);
+
+    // ── close: the vault holds withheld fees, which Token-2022 will not let
+    // an account close over. The close harvests them to the mint first.
+    expect(v.withheld).toBeGreaterThan(0n);
+    const tBefore = balance(e, e.treasuryToken);
+    await ok(e, L.closeLadderIx(refs, e.lp.kp.publicKey, e.creator.kp.publicKey, e.treasuryToken), e.lp.kp);
+    expect(raw(e, vault)?.lamports ?? 0).toBeFalsy();
+    expect(balance(e, e.treasuryToken) - tBefore).toBe(L.netOf(v.amount, fee));      // dust, less the coin's own fee on the way
     console.log(`\n$STOOK  1% transfer fee · seed of 1,000 cost 1,010.101011 to send · vault credited exactly 1,000 · lifecycle complete · ${(Number(withheldEverywhere) / 1e6).toFixed(6)} STOOK withheld for StonkFun across all accounts\n`);
   });
 });

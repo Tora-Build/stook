@@ -60,7 +60,7 @@ export function Market() {
           {coin && <div className="logos"><img src={coin.logo} alt="" className="logo-coin" /><img src={coin.anchor.logo} alt="" className="logo-anchor" /></div>}
           <div>
             <div className="strip-title">{feed.name} <span className="sym">{feed.symbol}</span>{coin && <span className="strip-coin"> · in ${coin.symbol}</span>}</div>
-            <div className="muted small">closes {new Date(Number(l.settlesAt) * 1000).toLocaleString("en-US", { weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}{coin && <> · <Address label={`${coin.anchor.symbol}`} value={coin.anchor.mint} /></>}</div>
+            <div className="muted small">closes {new Date(Number(l.settlesAt) * 1000).toLocaleString("en-US", { weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })} · bands of {(l.stepBps / 100).toFixed(2)}%{coin && <> · <Address label={`${coin.anchor.symbol}`} value={coin.anchor.mint} /></>}</div>
           </div>
         </div>
         <div className="strip-num"><span className="strip-k">price</span><span className="mono strip-v">{livePrice !== null ? `$${fmtPrice(BigInt(Math.round(livePrice / 10 ** live.data!.expo)), live.data!.expo, feed.dp)}` : "—"}</span></div>

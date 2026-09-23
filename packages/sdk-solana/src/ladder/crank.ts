@@ -6,8 +6,9 @@
 // a transaction. The checks here mirror `oracle::check_settlement_instant` and
 // `oracle::check_policy`; the program remains the authority.
 
-import type { GetProgramAccountsFilter } from "@solana/web3.js";
-import { LADDER_DISCRIMINATOR, type LadderAccount, type LadderStatus } from "./accounts.js";
+import type { GetProgramAccountsFilter, PublicKey } from "@solana/web3.js";
+import { LADDER_DISCRIMINATOR, LADDER_SIZE, POSITION_DISCRIMINATOR, type LadderAccount, type LadderStatus } from "./accounts.js";
+import { level, type Shape } from "./math.js";
 
 export const VOID_GRACE_SECS = 86_400n;
 export const SETTLE_MAX_GAP_SECS = 30n;
@@ -83,7 +84,24 @@ function base58(bytes: Uint8Array): string {
 
 /** `getProgramAccounts` filters for every ladder in `status`. */
 export function ladderFilters(status?: LadderStatus): GetProgramAccountsFilter[] {
-  const filters: GetProgramAccountsFilter[] = [{ memcmp: { offset: 0, bytes: base58(LADDER_DISCRIMINATOR) } }];
-  if (status) filters.push({ memcmp: { offset: 8 + 1864, bytes: base58(Uint8Array.of(STATUS_BYTE[status])) } });
+  // Exact size: accounts from before the series layout are a different size
+  // and are not rounds this program can run.
+  const filters: GetProgramAccountsFilter[] = [{ dataSize: LADDER_SIZE }, { memcmp: { offset: 0, bytes: base58(LADDER_DISCRIMINATOR) } }];
+  if (status) filters.push({ memcmp: { offset: 8 + 1912, bytes: base58(Uint8Array.of(STATUS_BYTE[status])) } });
   return filters;
+}
+
+/** Every position on one round (to sweep the ones owed nothing). */
+export function positionFilters(ladder: PublicKey): GetProgramAccountsFilter[] {
+  return [
+    { memcmp: { offset: 0, bytes: base58(POSITION_DISCRIMINATOR) } },
+    { memcmp: { offset: 8, bytes: ladder.toBase58() } },
+  ];
+}
+
+/** What a finished round's position is owed, as `redemption` computes it. */
+export function owedTo(l: LadderAccount, p: { shape: Shape; shares: bigint; netPaid: bigint }): bigint {
+  if (l.status === "settled" && l.settledBin !== null) return p.shares * BigInt(level(p.shape, l.settledBin));
+  if (l.status === "void") return l.basisTotal > 0n ? (p.netPaid * l.voidTraderPot) / l.basisTotal : 0n;
+  return -1n;
 }

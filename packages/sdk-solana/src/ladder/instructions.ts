@@ -34,6 +34,8 @@ const DISC = {
   redeem: [202, 8, 83, 149, 73, 199, 152, 198],
   claimLp: [173, 17, 30, 112, 208, 75, 43, 242],
   collectFees: [255, 191, 4, 129, 247, 197, 29, 170],
+  sweep: [85, 148, 67, 229, 10, 130, 205, 62],
+  close: [20, 102, 63, 170, 152, 236, 112, 5],
   approveQuoteMint: [178, 133, 192, 90, 211, 247, 157, 214],
   revokeQuoteMint: [198, 235, 87, 238, 190, 187, 101, 33],
 } as const;
@@ -47,6 +49,7 @@ const le = (bytes: number, write: (v: DataView) => void) => {
 };
 const u8 = (v: number) => Uint8Array.of(v);
 const i16 = (v: number) => le(2, (d) => d.setInt16(0, v, true));
+const u32 = (v: number) => le(4, (d) => d.setUint32(0, v, true));
 const u64 = (v: bigint) => le(8, (d) => d.setBigUint64(0, v, true));
 const i64 = (v: bigint) => le(8, (d) => d.setBigInt64(0, v, true));
 
@@ -63,16 +66,14 @@ const signer = (pubkey: PublicKey, isWritable = true): AccountMeta => ({ pubkey,
 const find = (seeds: Uint8Array[], programId: PublicKey) => PublicKey.findProgramAddressSync(seeds, programId)[0];
 
 export interface LadderKey {
-  feedId: Uint8Array;
-  settlesAt: bigint;
-  quoteMint: PublicKey;
-  tier: number;
+  series: PublicKey;
+  /** Which day (period) of the series: for a daily series, the day number. */
+  index: number;
 }
 
-/** One round per (feed, settlement time, quote mint, tier): a slot on the street. */
+/** One round per day of a series. */
 export function deriveLadderPda(k: LadderKey, programId = SOOTH_CORE_PROGRAM_ID): PublicKey {
-  if (k.feedId.length !== 32) throw new Error("feedId must be 32 bytes");
-  return find([SEED_LADDER, k.feedId, i64(k.settlesAt), k.quoteMint.toBytes(), u8(k.tier)], programId);
+  return find([SEED_LADDER, k.series.toBytes(), u32(k.index)], programId);
 }
 export const deriveLadderAuthority = (ladder: PublicKey, programId = SOOTH_CORE_PROGRAM_ID) =>
   find([SEED_AUTHORITY, ladder.toBytes()], programId);
@@ -131,6 +132,7 @@ export function tradeComputeUnits(shape: Shape): number {
 }
 
 export interface CreateLadderArgs extends LadderKey {
+  quoteMint: PublicKey;
   creator: PublicKey;
   creatorToken: PublicKey;
   tokenProgram: PublicKey;
@@ -152,9 +154,9 @@ export function createLadderIx(a: CreateLadderArgs): TransactionInstruction {
   const ladder = deriveLadderPda(a, programId);
   return ix(
     a,
-    pack(DISC.create, a.feedId, u8(a.tier), i64(a.settlesAt), u64(a.seed), (a.sponsor ?? PublicKey.default).toBytes()),
+    pack(DISC.create, u32(a.index), u64(a.seed), (a.sponsor ?? PublicKey.default).toBytes()),
     [
-      signer(a.creator), ro(deriveConfig(programId)), rw(ladder), ro(deriveLadderAuthority(ladder, programId)),
+      signer(a.creator), ro(deriveConfig(programId)), ro(a.series), rw(ladder), ro(deriveLadderAuthority(ladder, programId)),
       ro(a.quoteMint), rw(deriveLadderVault(ladder, programId)), rw(a.creatorToken),
       rw(deriveLadderTranche(ladder, a.creator, 0, programId)), ro(a.tokenProgram), ro(SystemProgram.programId),
       // Anchor reads the program's own id as "this optional account is absent".
@@ -235,10 +237,10 @@ export function joinLadderIx(r: LadderRefs, a: JoinLadderArgs): TransactionInstr
  * Settle from the one Pyth update that is the price at `settlesAt`. Anyone;
  * the settler is paid half the protocol's fee take into `crankerToken`.
  */
-export function settleLadderIx(r: LadderRefs, cranker: PublicKey, priceUpdate: PublicKey, crankerToken: PublicKey): TransactionInstruction {
+export function settleLadderIx(r: LadderRefs, series: PublicKey, cranker: PublicKey, priceUpdate: PublicKey, crankerToken: PublicKey): TransactionInstruction {
   const programId = pid(r);
   return ix(r, pack(DISC.settle), [
-    signer(cranker, false), rw(r.ladder), ro(priceUpdate), ro(deriveLadderAuthority(r.ladder, programId)),
+    signer(cranker, false), rw(r.ladder), ro(priceUpdate), rw(series), ro(deriveLadderAuthority(r.ladder, programId)),
     ro(r.quoteMint), rw(deriveLadderVault(r.ladder, programId)), rw(crankerToken), ro(r.tokenProgram),
   ]);
 }
@@ -270,5 +272,24 @@ export function collectLadderFeesIx(r: LadderRefs, cranker: PublicKey, creatorTo
   return ix(r, pack(DISC.collectFees), [
     signer(cranker, false), ro(deriveConfig(programId)), rw(r.ladder), ro(deriveLadderAuthority(r.ladder, programId)),
     ro(r.quoteMint), rw(deriveLadderVault(r.ladder, programId)), rw(creatorToken), rw(treasuryToken), ro(r.tokenProgram),
+  ]);
+}
+
+/**
+ * Close a finished round's position that is owed nothing (a miss, or one sold
+ * to zero); its rent goes back to its owner. Anyone may.
+ */
+export const sweepPositionIx = (r: LadderRefs, cranker: PublicKey, position: PublicKey, owner: PublicKey) =>
+  ix(r, pack(DISC.sweep), [signer(cranker, false), rw(r.ladder), rw(position), rw(owner)]);
+
+/**
+ * Close a finished round once every position and deposit is paid and the fee
+ * shares are collected: dust to the treasury, rent to the funder. Anyone may.
+ */
+export function closeLadderIx(r: LadderRefs, cranker: PublicKey, creator: PublicKey, treasuryToken: PublicKey): TransactionInstruction {
+  const programId = pid(r);
+  return ix(r, pack(DISC.close), [
+    signer(cranker, false), ro(deriveConfig(programId)), rw(r.ladder), rw(creator), ro(deriveLadderAuthority(r.ladder, programId)),
+    rw(r.quoteMint), rw(deriveLadderVault(r.ladder, programId)), rw(treasuryToken), ro(r.tokenProgram),
   ]);
 }

@@ -118,50 +118,94 @@ impl Shape {
     }
 }
 
+
+/// How many bands an ordinary move spans: a round's band width is one
+/// quarter of the standard deviation of the anchor's log price over the
+/// round's window. Chosen by backtest (`scripts/backtest/`): coarser leaves a
+/// line few bands to be right on, finer pushes closes off the 64-band grid.
+pub const SIGMA_BANDS: i128 = 4;
+
+/// How much likelier the centre is than the tails at open, as a log:
+/// e^7 ≈ 1,100 to one. Tails are floored there, not driven to zero, so every
+/// band stays tradeable and a deposit's worst case stays finite. A higher
+/// floor ratio lowers the house's loss per deposit only by buying it less
+/// depth; per unit of depth the backtest found it made no difference.
+pub const PRIOR_PEAK_LN: i128 = 7 * WAD;
+
+/// Band width limits, basis points of log price.
+pub const MIN_STEP_BPS: u16 = 10;
+pub const MAX_STEP_BPS: u16 = 2_000;
+
+const DAY_SECS: i128 = 86_400;
+
+/// Integer square root, floored.
+pub fn isqrt(n: u128) -> u128 {
+    if n < 2 {
+        return n;
+    }
+    let mut x = 1u128 << ((128 - n.leading_zeros() + 1) / 2);
+    loop {
+        let y = (x + n / x) / 2;
+        if y >= x {
+            return x;
+        }
+        x = y;
+    }
+}
+
+/// A round's band width and how many bands wide its opening bell is.
+///
+/// `var_day` is the anchor's variance of daily log returns (WAD), `window`
+/// the seconds between the price the grid centres on and the close. Returns
+/// `(step_bps, var_bands)`: the width, `σ_window / SIGMA_BANDS` rounded and
+/// clamped, and the bell's variance in bands² (WAD) at that width, which is
+/// `SIGMA_BANDS²` unless a clamp or the rounding moved it. The same rule for
+/// every coin: an ordinary move over the window is about four bands, whatever
+/// the coin and whatever the window.
+pub fn band_width(var_day: i128, window: i64) -> Result<(u16, i128), MathError> {
+    if var_day <= 0 || window <= 0 {
+        return Err(MathError::Overflow);
+    }
+    let var_window = var_day.checked_mul(window as i128).ok_or(MathError::Overflow)? / DAY_SECS;
+    // σ in basis points: sqrt(var_window/WAD) · 10⁴ = sqrt(var_window · 10⁸ / WAD)
+    let sigma_bps_x100 = isqrt((var_window as u128).checked_mul(1_000_000_000_000).ok_or(MathError::Overflow)? / WAD as u128);
+    let step = ((sigma_bps_x100 as i128 + 50 * SIGMA_BANDS) / (100 * SIGMA_BANDS))
+        .clamp(MIN_STEP_BPS as i128, MAX_STEP_BPS as i128);
+    // var_bands = var_window / (step/10⁴)² = var_window · 10⁸ / step²
+    let var_bands = var_window.checked_mul(100_000_000).ok_or(MathError::Overflow)? / (step * step);
+    Ok((step as u16, var_bands.max(1)))
+}
+
 /// Every bin equally likely. Tests and the maths reference use it; a real
 /// round starts from `prior`.
 pub fn fresh() -> ([i128; BINS], i128) {
     ([WAD; BINS], WAD * BINS as i128)
 }
 
-/// Spread of the opening odds: variance in bins² per day of trading. The app
-/// picks each anchor's tier so an ordinary day moves about four bins, which
-/// makes one number right for every anchor.
-pub const PRIOR_VAR_BINS_PER_DAY: i128 = 16;
-
-/// How much likelier the centre is than the tails at open, as a log:
-/// e^7 ≈ 1,100 to one. Tails are floored there, not driven to zero, so every
-/// bin stays tradeable and a deposit's worst case stays finite.
-pub const PRIOR_PEAK_LN: i128 = 7 * WAD;
-
-const DAY_SECS: i128 = 86_400;
-
 /// The odds a round opens with: a bell centred on the opening price (the
-/// boundary between bins 31 and 32), as wide as `window_secs` of ordinary
-/// movement, with floored tails.
+/// boundary between bins 31 and 32), `var_bands` bands² wide (WAD), with
+/// floored tails.
 ///
-/// Why not flat: a flat 64-bin ladder prices every bin at 1/64, so the first
-/// trader who knows where an ordinary day ends buys the middle for a fraction
-/// of its worth, and the last one before the lock buys the answer. On a daily
-/// 1% round that handed the seed's whole deposit to whoever traded last. A
-/// prior close to the truth leaves only the genuinely unknown for traders to
-/// win, which is what the depositor is paid fees to insure.
+/// Why not flat: a flat 64-bin ladder prices every bin at 1/64, so whoever
+/// knows where an ordinary day ends buys the middle for a fraction of its
+/// worth. Replayed over two years of prices, a flat start lost the house 74%
+/// of its deposit per daily round; this bell, 16% (`scripts/backtest/`).
 ///
 /// Integer maths only, ported op for op to the SDK: the exponent is
-/// `L − (2i−63)²·DAY / (8·V·window)` (`= L − d²/2σ²` with `d = i − 31.5`,
-/// `σ² = V·window/DAY`), floored at zero, then `exp_wad`.
-pub fn prior(window_secs: i64) -> Result<([i128; BINS], i128), MathError> {
-    if window_secs <= 0 {
+/// `L − (2i−63)² · (WAD² / (8·var_bands))`, which is `L − d²/2σ²` with
+/// `d = i − 31.5`, floored at zero, then `exp_wad`.
+pub fn prior(var_bands: i128) -> Result<([i128; BINS], i128), MathError> {
+    if var_bands <= 0 {
         return Err(MathError::Overflow);
     }
-    let denom = 8 * PRIOR_VAR_BINS_PER_DAY * window_secs as i128;
+    let k = WAD * WAD / (8 * var_bands);
     let mut w = [WAD; BINS];
     // Symmetric about the centre, so each exponential serves two bins.
     for i in 0..BINS / 2 {
         let d2 = (2 * i as i128 - (BINS as i128 - 1)).pow(2);
-        let e = PRIOR_PEAK_LN - d2 * DAY_SECS * WAD / denom;
-        if e > 0 {
-            let v = exp_wad(e)?;
+        let drop = d2.checked_mul(k).unwrap_or(i128::MAX);
+        if drop < PRIOR_PEAK_LN {
+            let v = exp_wad(PRIOR_PEAK_LN - drop)?;
             w[i] = v;
             w[BINS - 1 - i] = v;
         }
@@ -377,8 +421,33 @@ mod tests {
     use crate::math::lmsr_n::cost_delta_n;
 
     #[test]
+    fn a_band_is_a_quarter_of_an_ordinary_move_for_every_coin() {
+        let var = |sigma_pct: f64| ((sigma_pct / 100.0).powi(2) * 1e18) as i128;
+        // BTC at 2.5%/day, a day's round: 62.5 bps → 63, and the bell is ~4 bands wide
+        let (step, vb) = band_width(var(2.5), 86_400).unwrap();
+        assert_eq!(step, 63);
+        assert!((vb - 16 * WAD).abs() < WAD / 2, "{vb}");
+        // SPY at 1%/day: 25 bps
+        assert_eq!(band_width(var(1.0), 86_400).unwrap().0, 25);
+        // the same BTC over four hours: narrower bands, the same four-band bell
+        let (s4, v4) = band_width(var(2.5), 4 * 3_600).unwrap();
+        assert_eq!(s4, 26);
+        assert!((v4 - 16 * WAD).abs() < WAD, "{v4}");
+        // a quiet anchor on a short round hits the floor: the bell narrows in bands instead
+        let (sf, vf) = band_width(var(0.2), 900).unwrap();
+        assert_eq!(sf, MIN_STEP_BPS);
+        assert!(vf < WAD);
+        // a wild one hits the ceiling
+        assert_eq!(band_width(var(100.0), 86_400).unwrap().0, MAX_STEP_BPS);
+        assert_eq!(isqrt(0), 0);
+        assert_eq!(isqrt(99), 9);
+        assert_eq!(isqrt(100), 10);
+        assert_eq!(isqrt(u128::MAX), u64::MAX as u128);
+    }
+
+    #[test]
     fn the_prior_is_a_symmetric_bell_with_floored_tails() {
-        let (w, sum) = prior(86_400).unwrap();
+        let (w, sum) = prior(16 * WAD).unwrap();
         assert_eq!(sum, w.iter().sum::<i128>());
         for i in 0..BINS {
             assert_eq!(w[i], w[BINS - 1 - i], "symmetric about the opening price");
@@ -386,12 +455,12 @@ mod tests {
         }
         assert!(w[31] > w[30] && w[30] > w[28]);
         assert_eq!(w[0], WAD, "tails floored, never zero");
-        // centre bins together near a fifth of the mass for a day's round
+        // centre bins together near a fifth of the mass at four bands a σ
         let p = |w: &[i128; BINS], sum: i128, i: usize| w[i] as f64 / sum as f64;
         let centre = p(&w, sum, 31) + p(&w, sum, 32);
         assert!(centre > 0.17 && centre < 0.23, "{centre}");
-        // a shorter round is more certain of its centre
-        let (s, t) = prior(3_600).unwrap();
+        // a narrower bell is more certain of its centre
+        let (s, t) = prior(WAD).unwrap();
         assert!(p(&s, t, 31) + p(&s, t, 32) > 2.0 * centre);
     }
 
@@ -408,7 +477,7 @@ mod tests {
             -tranche_pnl(b, w[k], sum, pushed, fin).unwrap()
         };
         let (fw, fs) = fresh();
-        let (pw, ps) = prior(86_400).unwrap();
+        let (pw, ps) = prior(16 * WAD).unwrap();
         let flat = lose(fw, fs, 33);
         let bell = lose(pw, ps, 33);
         assert!(flat > 99 * deposit / 100, "flat: the seed is gone");

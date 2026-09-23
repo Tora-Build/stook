@@ -2,5 +2,6 @@ packages:
   - "packages/*"
   - "apps/*"
   - "scripts/devnet"
+  - "scripts/backtest"
   - "infra/ladder-crank"
   - "infra/tape"

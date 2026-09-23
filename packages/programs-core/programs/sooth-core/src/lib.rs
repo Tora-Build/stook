@@ -174,4 +174,29 @@ pub mod sooth_core {
     pub fn ladder_collect_fees(ctx: Context<LadderCollectFees>) -> Result<()> {
         ladder::collect_fees_handler(ctx)
     }
+
+    /// Close a finished round's position that is owed nothing; its rent
+    /// goes to its owner. Permissionless.
+    pub fn ladder_sweep(ctx: Context<LadderSweep>) -> Result<()> {
+        ladder::sweep_handler(ctx)
+    }
+
+    /// Close a finished round once everything is paid: dust to the treasury,
+    /// rent to whoever funded it. Permissionless.
+    pub fn ladder_close(ctx: Context<LadderClose>) -> Result<()> {
+        ladder::close_handler(ctx)
+    }
+
+    // ── Series ───────────────────────────────────────────────────────────────
+
+    /// Open a coin's series of rounds. Protocol authority.
+    pub fn series_create(ctx: Context<SeriesCreate>, args: SeriesCreateArgs) -> Result<()> {
+        series::series_create_handler(ctx, args)
+    }
+
+    /// Pause or resume a series' new rounds, or reset its volatility.
+    /// Protocol authority.
+    pub fn series_set(ctx: Context<SeriesSet>, active: Option<bool>, var_wad: Option<i128>) -> Result<()> {
+        series::series_set_handler(ctx, active, var_wad)
+    }
 }

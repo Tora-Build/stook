@@ -23,6 +23,22 @@ export async function fetchLadder(c: Connection, pubkey: PublicKey): Promise<sto
   return a ? stook.decodeLadder(a.data) : null;
 }
 
+export async function fetchSeries(c: Connection, key: PublicKey): Promise<stook.SeriesAccount | null> {
+  const a = await c.getAccountInfo(key);
+  return a ? stook.decodeSeries(a.data) : null;
+}
+
+/** The rounds at these addresses, by address; absent ones are simply missing. */
+export async function fetchLaddersAt(c: Connection, keys: PublicKey[]): Promise<Map<string, stook.LadderAccount>> {
+  const out = new Map<string, stook.LadderAccount>();
+  for (let i = 0; i < keys.length; i += 100) {
+    const chunk = keys.slice(i, i + 100);
+    const infos = await c.getMultipleAccountsInfo(chunk);
+    infos.forEach((a, n) => { if (a && a.data.length === stook.LADDER_SIZE) out.set(chunk[n]!.toBase58(), stook.decodeLadder(a.data)); });
+  }
+  return out;
+}
+
 export interface PositionRow { pubkey: PublicKey; position: stook.LadderPositionAccount }
 export async function fetchPositions(_c: Connection, ladder: PublicKey, owner: PublicKey): Promise<PositionRow[]> {
   const accounts = await scanner.getProgramAccounts(SOOTH_CORE_PROGRAM_ID, {

@@ -17,12 +17,16 @@ describe("ladder sdk", () => {
       ["ladder_open", L.openLadderIx(refs, k, k).data],
       ["ladder_trade", L.tradeLadderIx(refs, { user: k, userToken: k, shape, shares: 1n, limit: 1n }).data],
       ["ladder_lp_join", L.joinLadderIx(refs, { lp: k, lpToken: k, index: 0, deposit: 1n, expectedSeq: 0n }).data],
-      ["ladder_settle", L.settleLadderIx(refs, k, k, k).data],
+      ["ladder_settle", L.settleLadderIx(refs, k, k, k, k).data],
+      ["ladder_sweep", L.sweepPositionIx(refs, k, k, k).data],
+      ["ladder_close", L.closeLadderIx(refs, k, k, k).data],
+      ["series_create", L.createSeriesIx({ authority: k, feedId: new Uint8Array(32), quoteMint: k, closeSecs: 0, clock: 0, varWad: 1n }).data],
+      ["series_set", L.setSeriesIx(k, k, {}).data],
       ["ladder_void", L.voidLadderIx(refs, k).data],
       ["ladder_redeem", L.redeemLadderIx(refs, k, k, shape).data],
       ["ladder_claim_lp", L.claimLpIx(refs, k, k).data],
       ["ladder_collect_fees", L.collectLadderFeesIx(refs, k, k, k).data],
-      ["ladder_create", L.createLadderIx({ creator: k, feedId: new Uint8Array(32), settlesAt: 3n, quoteMint: k, tier: 0, creatorToken: k, tokenProgram: k, seed: 1n }).data],
+      ["ladder_create", L.createLadderIx({ creator: k, series: k, index: 3, quoteMint: k, creatorToken: k, tokenProgram: k, seed: 1n }).data],
     ];
     built.push(["approve_quote_mint", L.approveQuoteMintIx(k, k).data], ["revoke_quote_mint", L.revokeQuoteMintIx(k, k).data]);
     built.push(["initialize_protocol", L.initializeProtocolIx(k, k).data], ["set_paused", L.setPausedIx(k, true).data], ["set_treasury", L.setTreasuryIx(k, k).data],
@@ -32,6 +36,32 @@ describe("ladder sdk", () => {
     expect([...L.POSITION_DISCRIMINATOR]).toEqual(disc("account", "LadderPosition"));
     expect([...L.TRANCHE_DISCRIMINATOR]).toEqual(disc("account", "LadderTranche"));
     expect([...L.CONFIG_DISCRIMINATOR]).toEqual(disc("account", "ProtocolConfig"));
+    expect([...L.SERIES_DISCRIMINATOR]).toEqual(disc("account", "Series"));
+  });
+
+  it("puts every day's close at 4 PM New York, as the timezone database does, 2024 to 2035", () => {
+    const ny = new Intl.DateTimeFormat("en-US", { timeZone: "America/New_York", year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hourCycle: "h23" });
+    const s = { periodSecs: 0, closeSecs: 16 * 3600, clock: L.CLOCK_NEW_YORK };
+    for (let day = L.daysFromCivil(2024, 1, 1); day <= L.daysFromCivil(2035, 12, 31); day++) {
+      const [y, m, d] = L.civilFromDays(day);
+      const at = L.closeOf(s, day);
+      const want = `${String(m).padStart(2, "0")}/${String(d).padStart(2, "0")}/${y}, 16:00`;
+      expect(ny.format(new Date(Number(at) * 1000)), `${y}-${m}-${d}`).toBe(want);
+    }
+  });
+
+  it("sizes a band to a quarter of an ordinary move, for any coin and window", () => {
+    // BTC 2.5%/day over a day: 63 bps and a bell ~4 bands wide; SPY 1%: 25 bps
+    const btc = L.bandWidth(L.varFromSigma(0.025), 86_400n);
+    expect(btc.stepBps).toBe(63);
+    expect(Number(btc.varBands) / 1e18).toBeCloseTo(15.75, 1);
+    expect(L.bandWidth(L.varFromSigma(0.01), 86_400n).stepBps).toBe(25);
+    expect(L.bandWidth(L.varFromSigma(0.025), 4n * 3600n).stepBps).toBe(26);
+    expect(L.bandWidth(L.varFromSigma(0.002), 900n).stepBps).toBe(L.MIN_STEP_BPS);
+    for (const n of [0n, 1n, 99n, 100n, 10n ** 30n + 7n, (1n << 128n) - 1n]) {
+      const r = L.isqrt(n);
+      expect(r * r <= n && (r + 1n) * (r + 1n) > n).toBe(true);
+    }
   });
 
   it("tapers a tent from its centre, even when the taper runs off the ladder", () => {

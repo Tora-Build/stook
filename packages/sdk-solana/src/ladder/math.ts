@@ -103,30 +103,6 @@ export interface Curve {
 /** Every bin equally likely. Tests use it; a real round starts from `prior`. */
 export const fresh = (): Curve => ({ w: Array<bigint>(BINS).fill(WAD), sum: WAD * BigInt(BINS) });
 
-export const PRIOR_VAR_BINS_PER_DAY = 16n;
-export const PRIOR_PEAK_LN = 7n * WAD;
-const DAY_SECS = 86_400n;
-
-/**
- * The odds a round opens with, exactly as `ladder_create` writes them: a bell
- * centred on the opening price, as wide as `windowSecs` of ordinary movement,
- * tails floored at 1/1,100 of the peak. Op for op with `math::ladder::prior`.
- */
-export function prior(windowSecs: bigint): Curve {
-  if (windowSecs <= 0n) fail("prior: bad window");
-  const denom = 8n * PRIOR_VAR_BINS_PER_DAY * windowSecs;
-  const w: bigint[] = [];
-  let sum = 0n;
-  for (let i = 0; i < BINS; i++) {
-    const d = 2n * BigInt(i) - BigInt(BINS - 1);
-    const e = PRIOR_PEAK_LN - (d * d * DAY_SECS * WAD) / denom;
-    const wi = e > 0n ? expWad(e) : WAD;
-    w.push(wi);
-    sum += wi;
-  }
-  return { w, sum };
-}
-
 export const ROUND_SECS = 86_400n;
 export const LOCK_GAP_MIN_SECS = 120n;
 export const LOCK_GAP_MAX_SECS = 3_600n;

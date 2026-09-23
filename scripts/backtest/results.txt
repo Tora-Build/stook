@@ -1,0 +1,26 @@
+coin      rule                    loss/D      p5     KL depth/D off-grid   band rounds
+BTC-USD   flat 1%                 -79.4%  -95.9%   3.30   0.240     0.0%  100bp 685
+BTC-USD   fixed band per coin     -16.5%  -41.0%   1.54   0.107     0.0%   50bp 685
+BTC-USD   volatility (on chain)   -16.1%  -35.4%   1.50   0.107     0.0%   55bp 685
+ETH-USD   flat 1%                 -71.8%  -90.6%   2.99   0.240     0.0%  100bp 685
+ETH-USD   fixed band per coin     -16.7%  -32.4%   1.56   0.107     0.0%  100bp 685
+ETH-USD   volatility (on chain)   -16.6%  -35.1%   1.55   0.107     0.0%   90bp 685
+SOL-USD   flat 1%                 -68.7%  -88.8%   2.86   0.240     0.0%  100bp 685
+SOL-USD   fixed band per coin     -16.5%  -32.6%   1.54   0.107     0.0%  100bp 685
+SOL-USD   volatility (on chain)   -16.4%  -33.8%   1.53   0.107     0.0%   95bp 685
+DOGE-USD  flat 1%                 -68.0%  -89.0%   2.83   0.240     0.0%  100bp 685
+DOGE-USD  fixed band per coin     -17.3%  -41.3%   1.61   0.107     0.0%  100bp 685
+DOGE-USD  volatility (on chain)   -16.8%  -35.2%   1.56   0.107     0.0%  111bp 685
+ZEC-USD   flat 1%                 -60.3%  -80.6%   2.51   0.240     0.3%  100bp 685
+ZEC-USD   fixed band per coin     -19.8%  -70.7%   1.84   0.107     0.3%  100bp 685
+ZEC-USD   volatility (on chain)   -17.0%  -34.8%   1.59   0.107     0.0%  151bp 685
+SPY       flat 1%                 -87.3% -100.0%   3.63   0.240     0.0%  100bp 534
+SPY       fixed band per coin     -13.2%  -30.1%   1.23   0.107     0.2%   25bp 534
+SPY       volatility (on chain)   -13.1%  -34.4%   1.22   0.107     0.0%   19bp 534
+GLD       flat 1%                 -92.5%  -99.9%   3.85   0.240     0.0%  100bp 534
+GLD       fixed band per coin     -21.2%  -50.2%   1.97   0.107     0.2%   25bp 534
+GLD       volatility (on chain)   -19.9%  -37.9%   1.85   0.107     0.0%   25bp 534
+
+ALL       flat                    -74.5%  -99.5%   3.10   0.240     0.0%        4493
+ALL       fixed                   -17.3%  -41.0%   1.61   0.107     0.1%        4493
+ALL       vol                     -16.6%  -35.1%   1.54   0.107     0.0%        4493

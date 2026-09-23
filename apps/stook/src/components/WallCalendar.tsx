@@ -1,34 +1,34 @@
 // A wall calendar, the kind that hangs by the door of an office on the
 // street: rings at the top, the month in large type, one page per month, and
-// a page that turns. Each day is a round. The current month opens by
-// default; the next month can be started early; past months keep what
-// landed.
-import { useState } from "react";
+// a page that turns. Each day is one round of the coin's series; its address
+// is derived from the series and the day, so the calendar reads exactly the
+// month's rounds instead of scanning for them. A day can be funded from 48
+// hours before its close; past days keep what landed.
+import { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
+import type { PublicKey } from "@solana/web3.js";
 import { stook } from "@sooth/sdk-solana";
-import type { LadderRow } from "../lib/chain";
+import { useSeriesRounds } from "../hooks/useChain";
 import { fmtAmount, fmtPrice, untilText } from "../lib/format";
 import { nyDate } from "../lib/time";
 
 interface Props {
-  rounds: LadderRow[];
+  seriesKey: PublicKey;
+  series: stook.SeriesAccount;
   now: number;
-  /** Unix seconds of the settlement for a New York calendar day (y, m0, d). */
-  settleOf: (y: number, m0: number, d: number) => number;
   minLeadSecs: number;
-  /** The tier this app starts rounds at; a day's round at that tier is the one shown. */
-  tier: number;
   dp: number;
   coinSymbol: string;
   canStart: boolean;
-  onStart: (settlesAt: number) => void;
+  onStart: (index: number) => void;
 }
 
 export function WallCalendar(p: Props) {
-  const nyNow = new Date(new Date().toLocaleString("en-US", { timeZone: "America/New_York" }));
+  const [ty, tm, td] = nyDate(p.now).split("-").map(Number) as [number, number, number];
   const [offset, setOffset] = useState(0);            // months from the current one; −∞..+1
   const [turning, setTurning] = useState<{ dir: 1 | -1; phase: "out" | "in" } | null>(null);
-  const m0 = new Date(nyNow.getFullYear(), nyNow.getMonth() + offset, 1);
+  const m0 = new Date(Date.UTC(ty, tm - 1 + offset, 1));
+  const year = m0.getUTCFullYear(), month = m0.getUTCMonth() + 1;
   // A wall calendar's page lifts up over the rings and folds away; the new
   // page is underneath and settles as the old one clears.
   const turn = (dir: 1 | -1) => {
@@ -37,53 +37,54 @@ export function WallCalendar(p: Props) {
     setTimeout(() => { setOffset((o) => o + dir); setTurning({ dir, phase: "in" }); setTimeout(() => setTurning(null), 320); }, 300);
   };
 
-  // More than one round can exist for a day (another tier, another hour, one
-  // started by hand). Show the one this app would start, else the deepest.
-  const byDay = new Map<string, LadderRow>();
-  const rank = (r: LadderRow) => (r.ladder.tier === p.tier ? 1n << 64n : 0n) + r.ladder.depositTotal;
-  for (const r of p.rounds) {
-    const k = nyDate(Number(r.ladder.settlesAt)), had = byDay.get(k);
-    if (!had || rank(r) > rank(had)) byDay.set(k, r);
-  }
-  const todayKey = nyDate(p.now);
-  const daysIn = new Date(m0.getFullYear(), m0.getMonth() + 1, 0).getDate();
-  const cells: (number | null)[] = Array(new Date(m0.getFullYear(), m0.getMonth(), 1).getDay()).fill(null);
+  const daysIn = new Date(Date.UTC(year, month, 0)).getUTCDate();
+  const first = stook.daysFromCivil(year, month, 1);
+  const indices = useMemo(() => Array.from({ length: daysIn }, (_, i) => first + i), [first, daysIn]);
+  const rounds = useSeriesRounds(p.seriesKey, indices);
+  const today = stook.daysFromCivil(ty, tm, td);
+  const cells: (number | null)[] = Array((first + 4) % 7).fill(null);
   for (let d = 1; d <= daysIn; d++) cells.push(d);
   while (cells.length % 7) cells.push(null);
+  const now = BigInt(p.now);
 
   return (
     <div className={`wallcal ${turning ? `turn-${turning.phase}-${turning.dir > 0 ? "fwd" : "back"}` : ""}`}>
       <div className="wc-rings" aria-hidden="true">{Array.from({ length: 9 }, (_, i) => <span key={i} />)}</div>
       <header className="wc-head">
         <button className="wc-arrow" onClick={() => turn(-1)} aria-label="Previous month">‹</button>
-        <div className="wc-month"><span className="wc-mname">{m0.toLocaleDateString("en-US", { month: "long" })}</span><span className="wc-year">{m0.getFullYear()}</span></div>
+        <div className="wc-month"><span className="wc-mname">{m0.toLocaleDateString("en-US", { month: "long", timeZone: "UTC" })}</span><span className="wc-year">{year}</span></div>
         <button className="wc-arrow" onClick={() => turn(1)} disabled={offset >= 1} aria-label="Next month">›</button>
       </header>
       <div className="wc-grid">
         {["SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT"].map((w) => <div key={w} className="wc-dow">{w}</div>)}
         {cells.map((d, i) => {
           if (!d) return <div key={"b" + i} className="wc-cell wc-blank" />;
-          const key = `${m0.getFullYear()}-${String(m0.getMonth() + 1).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
-          const r = byDay.get(key), at = p.settleOf(m0.getFullYear(), m0.getMonth(), d);
-          const past = at - p.now < p.minLeadSecs && !r, isToday = key === todayKey;
+          const index = first + d - 1;
+          const r = rounds.data?.get(index);
+          const terms = stook.roundTerms(p.series, index, now);
+          const at = Number(terms.settlesAt);
+          const past = at - p.now < p.minLeadSecs && !r, isToday = index === today;
+          const early = !r && !past && !terms.fundable;
           const l = r?.ladder;
           const state = !l ? "" : l.status === "open" ? (p.now < Number(l.locksAt) ? "trading" : "locked") : l.status === "seeding" ? (p.now < Number(l.opensAt) ? "funded" : "opening") : l.status;
-          const thisMonth = offset === 0, closesIn = thisMonth && at > p.now && (!l || l.status === "open" || l.status === "seeding") ? untilText(BigInt(at), p.now) : null;
+          const closesIn = offset === 0 && at > p.now && (!l || l.status === "open" || l.status === "seeding") && !early ? untilText(BigInt(at), p.now) : null;
           const landed = l && l.status === "settled" && l.settledBin !== null ? stook.binBounds(l.settledBin, l.p0, l.stepBps) : null;
           const body = (
             <>
               <div className="wc-top"><span className="wc-num">{d}</span>{state && <span className={`wc-state wc-state-${state}`}>{state}</span>}</div>
               {l && landed && <div className="wc-info"><span className="mono">{fmtPrice(landed[0], l.p0Expo, p.dp)}</span><span className="wc-sub">landed</span></div>}
               {l && !landed && <div className="wc-info"><span className="mono">{fmtAmount(l.depositTotal, l.decimals, 0)} {p.coinSymbol}</span><span className="wc-sub">{l.curveSeq.toString()} trades</span></div>}
-              {!l && !past && <div className="wc-info wc-empty">Fund it</div>}
+              {!l && !past && !early && <div className="wc-info wc-empty">Fund it</div>}
+              {early && <div className="wc-info wc-sub">from {new Date(Number(terms.fundableFrom) * 1000).toLocaleDateString("en-US", { weekday: "short" })}</div>}
               {past && !l && <span className="wc-stamp">passed</span>}
               {closesIn && <div className="wc-left">closes in {closesIn.replace(/ (d|h|min)\b/g, "$1")}</div>}
             </>
           );
-          const cls = `wc-cell ${isToday ? "wc-today" : ""} ${l ? `wc-${l.status}` : past ? "wc-past" : "wc-open-slot"}`;
+          const cls = `wc-cell ${isToday ? "wc-today" : ""} ${l ? `wc-${l.status}` : past || early ? "wc-past" : "wc-open-slot"}`;
+          const key = `${year}-${month}-${d}`;
           if (r) return <Link key={key} to={`/m/${r.pubkey.toBase58()}`} className={cls}>{body}</Link>;
-          if (past) return <div key={key} className={cls}>{body}</div>;
-          return <button key={key} className={cls} onClick={() => p.onStart(at)} disabled={!p.canStart}>{body}</button>;
+          if (past || early) return <div key={key} className={cls}>{body}</div>;
+          return <button key={key} className={cls} onClick={() => p.onStart(index)} disabled={!p.canStart}>{body}</button>;
         })}
       </div>
     </div>

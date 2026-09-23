@@ -6,7 +6,7 @@
 import { PublicKey } from "@solana/web3.js";
 import { BINS, type Curve, type Shape } from "./math.js";
 
-export const LADDER_SIZE = 8 + 1880;
+export const LADDER_SIZE = 8 + 1928;
 export const TRANCHE_SIZE = 8 + 1152;
 
 export const LADDER_DISCRIMINATOR = Uint8Array.from([125, 146, 35, 254, 42, 7, 204, 222]);
@@ -38,20 +38,26 @@ export interface LadderAccount {
   voidTraderPot: bigint;
   /** What the pool owes if each bin settles, base units. */
   payout: bigint[];
+  /** Band width, basis points of log price: set from the series' volatility. */
   stepBps: number;
   feeBps: number;
+  /** Which day (or period) of its series. */
+  index: number;
+  /** Positions and deposits not yet paid out; the round closes at zero. */
+  openPositions: number;
+  openTranches: number;
   feedId: Uint8Array;
   quoteMint: PublicKey;
   vault: PublicKey;
   creator: PublicKey;
   sponsor: PublicKey;
+  series: PublicKey;
   /** Total depth `B = Σ bⱼ`, WAD. */
   b: bigint;
   accFee: bigint;
   curve: Curve;
   status: LadderStatus;
   settledBin: number | null;
-  tier: number;
   decimals: number;
 }
 
@@ -61,6 +67,7 @@ class Reader {
     this.view = new DataView(data.buffer, data.byteOffset, data.byteLength);
   }
   u8() { return this.view.getUint8(this.at++); }
+  u32() { const v = this.view.getUint32(this.at, true); this.at += 4; return v; }
   u16() { const v = this.view.getUint16(this.at, true); this.at += 2; return v; }
   i16() { const v = this.view.getInt16(this.at, true); this.at += 2; return v; }
   i32() { const v = this.view.getInt32(this.at, true); this.at += 4; return v; }
@@ -86,19 +93,20 @@ export function decodeLadder(data: Uint8Array): LadderAccount {
   const basisTotal = r.u64(), lpPool = r.u64(), voidLpPot = r.u64(), voidTraderPot = r.u64();
   const payout = Array.from({ length: BINS }, () => r.u64());
   const p0Expo = r.i32(), stepBps = r.u16(), feeBps = r.u16();
+  const index = r.u32(), openPositions = r.u32(), openTranches = r.u32(); r.u32();
   const feedId = r.bytes(32);
-  const quoteMint = r.key(), vault = r.key(), creator = r.key(), sponsor = r.key();
+  const quoteMint = r.key(), vault = r.key(), creator = r.key(), sponsor = r.key(), series = r.key();
   const b = r.i128(), accFee = r.u128(), sum = r.i128();
   const w = Array.from({ length: BINS }, () => r.i128());
-  const status = r.u8(), settledBin = r.u8(), tier = r.u8(), decimals = r.u8();
+  const status = r.u8(), settledBin = r.u8(); r.u8(); const decimals = r.u8();
   return {
     opensAt, locksAt, settlesAt, p0, p0Expo, cash, depositTotal, curveSeq,
     feesLp, feesCreator, feesProtocol, basisTotal, lpPool, voidLpPot, voidTraderPot,
-    payout, stepBps, feeBps, feedId, quoteMint, vault, creator, sponsor,
+    payout, stepBps, feeBps, index, openPositions, openTranches, feedId, quoteMint, vault, creator, sponsor, series,
     b, accFee, curve: { w, sum },
     status: STATUS[status] ?? "void",
     settledBin: settledBin === NO_BIN ? null : settledBin,
-    tier, decimals,
+    decimals,
   };
 }
 

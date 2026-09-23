@@ -35,7 +35,7 @@ export function How() {
           </>}
           {i === 2 && <>
             <h2>The line</h2>
-            <p>64 bands around the opening price. Click the one you expect at the close: your <b>line</b>. It pays most there, one step less per band it misses by, out to its <b>reach</b>. A <b>range</b> pays the same anywhere inside. Price is the crowd's odds; a round opens with an ordinary day already priced in. Sell any time before the lock.</p>
+            <p>64 bands around the opening price, each a quarter of an ordinary day's move for that coin, learned from its own recent closes: thin for a quiet one, wide for a wild one. Click the one you expect at the close: your <b>line</b>. It pays most there, one step less per band it misses by, out to its <b>reach</b>. A <b>range</b> pays the same anywhere inside. Price is the crowd's odds; a round opens with an ordinary day already priced in. Sell any time before the lock.</p>
             <p className="try">Click a band. Change the reach.</p>
           </>}
           {i === 3 && <>

@@ -1,4 +1,4 @@
-//! A Stook market: one price ladder per (feed, settlement time, quote mint, tier).
+//! A Stook market: one price ladder per day (or period) of a series.
 //!
 //! # Lifecycle
 //!
@@ -46,18 +46,6 @@ pub const VOID_GRACE_SECS: i64 = 24 * 60 * 60;
 
 /// The latest the settlement update may be published after `settles_at`.
 pub const SETTLE_MAX_GAP_SECS: i64 = 30;
-
-/// Log-price step per bin, in basis points, by tier.
-///
-/// A preset table rather than a free parameter, and part of the market's PDA
-/// seeds: the first creator of a (feed, time) slot must not be able to squat it
-/// with a useless step. The tier is chosen for the asset's volatility — at 1% a
-/// +60% move on a memecoin collapses into the top bin and the market resolves
-/// to "above", which is a worse product than a coarser grid that still
-/// distinguishes +45% from +75%.
-///
-/// 64 bins at tier 0 span ±8%; at tier 5, roughly ×0.08 to ×13.
-pub const STEP_BPS: [u16; 6] = [25, 50, 100, 200, 400, 800];
 
 pub const STATUS_SEEDING: u8 = 0;
 pub const STATUS_OPEN: u8 = 1;
@@ -124,8 +112,18 @@ pub struct Ladder {
     pub payout: [u64; BINS],
 
     pub p0_expo: i32,
+    /// Band width, basis points of log price. Set at creation from the
+    /// series' volatility (`math::ladder::band_width`).
     pub step_bps: u16,
     pub fee_bps: u16,
+
+    /// Which day (or period) of its series this round is.
+    pub index: u32,
+    /// Positions and tranches not yet paid out and closed. A finished round
+    /// can be closed (`ladder_close`) once both are zero.
+    pub open_positions: u32,
+    pub open_tranches: u32,
+    pub _pad2: u32,
 
     /// The Pyth feed this market committed to. Settlement accepts no other.
     pub feed_id: [u8; 32],
@@ -136,6 +134,8 @@ pub struct Ladder {
     /// community sponsoring a market on its own asset sets it to itself. Purely
     /// attribution — it grants no authority.
     pub sponsor: Pubkey,
+    /// The series this round belongs to; its address seeds the round's.
+    pub series: Pubkey,
 
     /// Total LMSR liquidity `B = Σ bⱼ` over active tranches, WAD, LE i128.
     pub b: [u8; 16],
@@ -150,7 +150,7 @@ pub struct Ladder {
 
     pub status: u8,
     pub settled_bin: u8,
-    pub tier: u8,
+    pub _pad1: u8,
     pub quote_decimals: u8,
     pub bump: u8,
     pub authority_bump: u8,
@@ -324,9 +324,9 @@ mod tests {
     /// tell us the size changed. Rent is paid on this number.
     #[test]
     fn the_account_has_the_size_the_layout_comment_claims() {
-        assert_eq!(core::mem::size_of::<Ladder>(), 1880);
+        assert_eq!(core::mem::size_of::<Ladder>(), 1928);
         assert_eq!(core::mem::size_of::<Ladder>() % 8, 0);
-        assert_eq!(Ladder::SPACE, 1888);
+        assert_eq!(Ladder::SPACE, 1936);
         assert_eq!(core::mem::size_of::<LadderTranche>(), 1152);
         assert_eq!(core::mem::size_of::<LadderTranche>() % 8, 0);
     }

@@ -16,6 +16,7 @@ import { LiteSVM } from "litesvm";
 import { SvmContext } from "./fixtures/svm";
 import { warpClockTo } from "./fixtures/setup";
 import * as L from "../src/ladder/index";
+import { testSeries } from "./fixtures/series";
 
 const PROGRAM = new PublicKey("55kGEMHJyNbD3qcdonCD8UPTqzM85yg2kr6M5UF5P353");
 const PYTH_RECEIVER = new PublicKey("rec5EKMGg6MxZYaMdyBfgwp4d5rB9T1VQH5pJv5LtFJ");
@@ -85,7 +86,8 @@ describe("a ladder quoted in a real xStock", () => {
   it("is refused until the protocol authority accepts the issuer, then runs to an empty vault", async () => {
     const e = boot();
     const opensAt = PUBLISH_TIME, locksAt = PUBLISH_TIME + 3600n, settlesAt = PUBLISH_TIME + 3700n;
-    const key = { feedId: NVDA_FEED, settlesAt, quoteMint: e.mint, tier: 2 };
+    const ser = testSeries(NVDA_FEED, e.mint, settlesAt, e.admin.publicKey, PROGRAM);
+    const key = { series: ser.series, index: ser.index, quoteMint: e.mint };
     const ladder = L.deriveLadderPda(key, PROGRAM);
     const refs: L.LadderRefs = { ladder, quoteMint: e.mint, tokenProgram: TOKEN_2022_PROGRAM_ID, programId: PROGRAM };
     const vault = L.deriveLadderVault(ladder, PROGRAM);
@@ -103,6 +105,7 @@ describe("a ladder quoted in a real xStock", () => {
 
     // ── the trust decision is the authority's, and nobody else's ────────────
     warpClockTo(e.ctx, PUBLISH_TIME - 1000n);
+    await ok(e, ser.createIx(), e.admin);
     await refused(e, create(false), e.creator.kp, "MintNeedsApproval");
     await refused(e, create(true), e.creator.kp, "AccountNotInitialized");               // claiming an approval that does not exist
     await refused(e, L.approveQuoteMintIx(e.creator.kp.publicKey, e.mint, PROGRAM), e.creator.kp, "Unauthorized");
@@ -119,6 +122,7 @@ describe("a ladder quoted in a real xStock", () => {
     // ── the same market, at 8 decimals ──────────────────────────────────────
     warpClockTo(e.ctx, PUBLISH_TIME + 10n);
     await ok(e, L.openLadderIx(refs, e.trader.kp.publicKey, e.priceAccount(NVDA_UPDATE)), e.trader.kp);
+    const W = L.binFor(22_460_000n, state().p0, state().stepBps);
 
     const quoted = async (shape: L.Shape, shares: bigint) => {
       const m = state(), had = balance(e, e.trader.token);
@@ -128,7 +132,7 @@ describe("a ladder quoted in a real xStock", () => {
       expect(state().curve.w).toEqual(q.curve.w);
       return r;
     };
-    const tent = await quoted(L.tent(33, 4), 10n * TOKENS);
+    const tent = await quoted(L.tent(W, 4), 10n * TOKENS);
     await quoted(L.band(20, 44), 20n * TOKENS);
     await quoted(L.tent(10, 3), 5n * TOKENS);
     await quoted(L.tent(10, 3), -5n * TOKENS);
@@ -136,11 +140,11 @@ describe("a ladder quoted in a real xStock", () => {
     const join = await ok(e, L.joinLadderIx(refs, { lp: e.lp.kp.publicKey, lpToken: e.lp.token, index: 0, deposit: 250n * TOKENS, expectedSeq: state().curveSeq }), e.lp.kp);
 
     warpClockTo(e.ctx, settlesAt + 5n);
-    await ok(e, L.settleLadderIx(refs, e.trader.kp.publicKey, e.priceAccount(updateAt(22_460_000n, settlesAt, settlesAt - 1n)), e.trader.token), e.trader.kp);
-    expect(state().settledBin).toBe(33);
+    await ok(e, L.settleLadderIx(refs, ser.series, e.trader.kp.publicKey, e.priceAccount(updateAt(22_460_000n, settlesAt, settlesAt - 1n)), e.trader.token), e.trader.kp);
+    expect(state().settledBin).toBe(W);
 
     const pre = balance(e, e.trader.token);
-    await ok(e, L.redeemLadderIx(refs, e.trader.kp.publicKey, e.trader.token, L.tent(33, 4)), e.trader.kp);
+    await ok(e, L.redeemLadderIx(refs, e.trader.kp.publicKey, e.trader.token, L.tent(W, 4)), e.trader.kp);
     expect(balance(e, e.trader.token) - pre).toBe(40n * TOKENS);                          // centre of a height-4 tent
     await ok(e, L.redeemLadderIx(refs, e.trader.kp.publicKey, e.trader.token, L.band(20, 44)), e.trader.kp);
     await ok(e, L.redeemLadderIx(refs, e.trader.kp.publicKey, e.trader.token, L.tent(10, 3)), e.trader.kp);
@@ -155,7 +159,7 @@ describe("a ladder quoted in a real xStock", () => {
 
     // ── revoking stops the next market, not this one ────────────────────────
     await ok(e, L.revokeQuoteMintIx(e.admin.publicKey, e.mint, PROGRAM), e.admin);
-    const next = L.createLadderIx({ ...key, settlesAt: settlesAt + 86_400n, creator: e.creator.kp.publicKey, creatorToken: e.creator.token,
+    const next = L.createLadderIx({ ...key, index: ser.indexOf(settlesAt + 86_400n), creator: e.creator.kp.publicKey, creatorToken: e.creator.token,
       tokenProgram: TOKEN_2022_PROGRAM_ID, seed: 500n * TOKENS, issuerTrusted: true, programId: PROGRAM });
     await refused(e, next, e.creator.kp, "AccountNotInitialized");
 

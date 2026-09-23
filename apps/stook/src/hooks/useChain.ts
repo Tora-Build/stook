@@ -21,6 +21,28 @@ export const useLadder = (pubkey: PublicKey | null) => {
   });
 };
 
+export const useSeries = (key: PublicKey | null) => {
+  const { connection } = useConnection();
+  return useQuery({ queryKey: ["series", key?.toBase58()], queryFn: () => chain.fetchSeries(connection, key!), enabled: !!key, refetchInterval: 60_000 });
+};
+
+/** A month of a series' rounds, read by address: day index → round. */
+export const useSeriesRounds = (series: PublicKey | null, indices: number[]) => {
+  const { connection } = useConnection();
+  const keys = useMemo(() => (series ? indices.map((index) => stook.deriveLadderPda({ series, index })) : []), [series, indices.join(",")]);
+  return useQuery({
+    queryKey: ["series-rounds", series?.toBase58(), indices[0], indices.length],
+    queryFn: async () => {
+      const found = await chain.fetchLaddersAt(connection, keys);
+      const byIndex = new Map<number, chain.LadderRow>();
+      indices.forEach((index, n) => { const l = found.get(keys[n]!.toBase58()); if (l) byIndex.set(index, { pubkey: keys[n]!, ladder: l }); });
+      return byIndex;
+    },
+    enabled: !!series && indices.length > 0,
+    refetchInterval: 15_000,
+  });
+};
+
 export const usePositions = (ladder: PublicKey | null) => {
   const { connection } = useConnection();
   const { publicKey } = useWallet();

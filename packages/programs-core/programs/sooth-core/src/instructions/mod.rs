@@ -5,6 +5,8 @@
 
 pub mod ladder;
 pub mod protocol;
+pub mod series;
 
 pub use ladder::*;
 pub use protocol::*;
+pub use series::*;

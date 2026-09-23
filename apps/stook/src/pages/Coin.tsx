@@ -9,14 +9,11 @@ import { StartRound } from "../components/StartRound";
 import { WallCalendar } from "../components/WallCalendar";
 import { Address } from "../components/Address";
 import { useQuery } from "@tanstack/react-query";
-import { COINS, anchorOf, coinByMint, feedHexToBytes, mintOf, standInNote } from "../lib/coins";
-import { useLadders } from "../hooks/useChain";
+import { COINS, anchorOf, mintOf, seriesOf, standInNote } from "../lib/coins";
+import { useSeries } from "../hooks/useChain";
 import { useNow } from "../hooks/useNow";
-import { nyAt } from "../lib/time";
 
 const DATA = "";
-/** Rounds settle at 16:00 New York, the close, every day (the anchors are 24/7 feeds). */
-const SETTLE_HOUR_NY = 16;
 /** A slot can be started until this long before it settles: the program's
  *  fifteen minutes, plus time to sign and for the cluster clock to differ. */
 const MIN_LEAD_SECS = 15 * 60 + 90;
@@ -26,24 +23,18 @@ export function Coin() {
   const coin = COINS.find((c) => c.symbol === symbol?.toUpperCase());
   const now = useNow();
   const [starting, setStarting] = useState<number | null>(null);
-  const ladders = useLadders();
+  const seriesKey = useMemo(() => (coin ? seriesOf(coin) : null), [coin]);
+  const series = useSeries(seriesKey);
   const chart = useQuery({ queryKey: ["chart", coin?.symbol], queryFn: async () => (await fetch(`${DATA}/chart?coin=${coin!.symbol}`)).json() as Promise<{ points: [number, number][] }>, enabled: !!coin, refetchInterval: 300_000 });
   const quote = useQuery({ queryKey: ["quote", coin?.symbol], queryFn: async () => (await fetch(`${DATA}/prices`)).json(), enabled: !!coin, refetchInterval: 60_000 });
 
   const anchor = coin ? anchorOf(coin) : null;
-  const mine = useMemo(() => {
-    if (!coin || !anchor) return [];
-    const feed = feedHexToBytes(anchor.feedId);
-    return (ladders.data ?? []).filter((r) => coinByMint(r.ladder.quoteMint)?.symbol === coin.symbol && r.ladder.feedId.every((b, i) => b === feed[i]));
-  }, [ladders.data, coin, anchor]);
 
   if (!coin || !anchor) return <p className="page muted">No such coin on the street.</p>;
   const note = standInNote(coin);
   const q = quote.data?.[coin.symbol] as { price: number; change24h: number | null } | undefined;
   const mint = mintOf(coin);
 
-  // Settlement for a New York calendar day: 16:00 that day, New York.
-  const settleOf = (y: number, m0: number, d: number) => nyAt(y, m0, d, SETTLE_HOUR_NY);
   return (
     <div className="page">
       <header className="market-head">
@@ -64,10 +55,11 @@ export function Coin() {
       {!note && <Chart24 points={chart.data?.points ?? []} dp={coin.anchor.dp} />}
 
       <section className="slots">
-        <p className="explain">One round a day. It trades from 4 PM the day before until 3 PM, and the bell rings at the 4 PM New York close. Click a day to trade it, or to fund it. <Link to="/how">How it works</Link></p>
-        <WallCalendar rounds={mine} now={now} settleOf={settleOf} minLeadSecs={MIN_LEAD_SECS} tier={anchor.tier} dp={anchor.dp} coinSymbol={coin.symbol} canStart={!!mint} onStart={setStarting} />
+        <p className="explain">One round a day. It trades from 4 PM the day before until 3 PM, and the bell rings at the 4 PM New York close. Its bands are as wide as {anchor.name} has been moving lately. Click a day to trade it, or to fund it. <Link to="/how">How it works</Link></p>
+        {series.data && seriesKey ? <WallCalendar seriesKey={seriesKey} series={series.data} now={now} minLeadSecs={MIN_LEAD_SECS} dp={anchor.dp} coinSymbol={coin.symbol} canStart={!!mint && series.data.active} onStart={setStarting} />
+          : <p className="muted">{series.isLoading ? "Reading the calendar…" : "This coin's rounds have not been opened on this network yet."}</p>}
       </section>
-      {starting !== null && <StartRound coin={coin} settlesAt={starting} onClose={() => setStarting(null)} />}
+      {starting !== null && series.data && seriesKey && <StartRound coin={coin} seriesKey={seriesKey} series={series.data} index={starting} onClose={() => setStarting(null)} />}
     </div>
   );
 }

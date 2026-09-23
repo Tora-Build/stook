@@ -1,8 +1,8 @@
 #!/usr/bin/env node
 // Devnet market operations from the CLI wallet.
 //
-//   node market.mjs create BTC [--settles-in 1800] [--seed 2000] [--tier 2] [--coin STOOK]
-//     --coin: quote the round in a street coin's devnet twin, on that coin's anchor (feed argument ignored)
+//   node market.mjs create --coin STOOK [--day YYYY-MM-DD | --hourly] [--seed 2000]
+//     a round of the coin's series, in its devnet twin: tomorrow's by default
 //   node market.mjs open <ladder>      open from Pyth's push-oracle account, once it is fresh
 //   node market.mjs list
 
@@ -27,21 +27,24 @@ const send = (ixs, signers = [payer]) => sendAndConfirmTransaction(c, new Transa
 const hex = (h) => Uint8Array.from(h.match(/.{2}/g).map((b) => parseInt(b, 16)));
 
 if (cmd === "create") {
-  const coinArg = rest.includes("--coin") ? rest[rest.indexOf("--coin") + 1].toUpperCase() : null;
-  const sym = rest[0]?.toUpperCase();
-  const feed = coinArg ? STREET[coinArg][0] : FEEDS[sym] ?? (/^[0-9a-f]{64}$/i.test(sym ?? "") ? sym.toLowerCase() : null);
-  if (!feed) throw new Error(`unknown asset ${sym}; one of ${Object.keys(FEEDS).join(", ")} or a feed id`);
-  const quote = coinArg ? new PublicKey(TWINS[coinArg]) : QUOTE;
-  const dec = coinArg ? STREET[coinArg][1] : 6;
-  const tokenProgram = coinArg ? TOKEN_2022_PROGRAM_ID : TOKEN_PROGRAM_ID;
+  // A round of a coin's series: tomorrow's by default, `--day YYYY-MM-DD` for
+  // another, or `--hourly` for the next hour of its hourly test series.
+  const coin = (rest.includes("--coin") ? rest[rest.indexOf("--coin") + 1] : rest[0] ?? "").toUpperCase();
+  if (!STREET[coin]) throw new Error(`--coin one of ${Object.keys(STREET).join(", ")}`);
+  const [feed, dec] = STREET[coin];
+  const quote = new PublicKey(TWINS[coin]);
+  const hourly = rest.includes("--hourly");
+  const series = stook.deriveSeries(hex(feed), quote, hourly ? 3600 : 0);
   const now = BigInt(Math.floor(Date.now() / 1000));
-  const settlesAt = now + BigInt(flag("settles-in", 1800));
-  const key = { feedId: hex(feed), settlesAt, quoteMint: quote, tier: flag("tier", 2) };
+  const dayArg = rest.includes("--day") ? rest[rest.indexOf("--day") + 1] : new Date(Date.now() + 86_400_000).toISOString().slice(0, 10);
+  const index = hourly ? Number(now / 3600n) + (now % 3600n > 2400n ? 2 : 1) : stook.daysFromCivil(...dayArg.split("-").map(Number));
+  const s = stook.decodeSeries((await c.getAccountInfo(series)).data);
+  const t = stook.roundTerms(s, index, now);
   const sig = await send([stook.createLadderIx({
-    ...key, creator: payer.publicKey, creatorToken: getAssociatedTokenAddressSync(quote, payer.publicKey, false, tokenProgram),
-    tokenProgram, seed: BigInt(flag("seed", 2000)) * 10n ** BigInt(dec), issuerTrusted: !!coinArg,
+    series, index, quoteMint: quote, creator: payer.publicKey, creatorToken: getAssociatedTokenAddressSync(quote, payer.publicKey, false, TOKEN_2022_PROGRAM_ID),
+    tokenProgram: TOKEN_2022_PROGRAM_ID, seed: BigInt(flag("seed", 2000)) * 10n ** BigInt(dec), issuerTrusted: true,
   })]);
-  console.log("started", stook.deriveLadderPda(key).toBase58(), "settles", new Date(Number(settlesAt) * 1000).toISOString(), sig);
+  console.log("started", stook.deriveLadderPda({ series, index }).toBase58(), `settles ${new Date(Number(t.settlesAt) * 1000).toISOString()} · bands ${(t.stepBps / 100).toFixed(2)}% · opens ${new Date(Number(t.opensAt) * 1000).toISOString()}`, sig);
 } else if (cmd === "open") {
   const ladderKey = new PublicKey(rest[0]);
   const l = stook.decodeLadder((await c.getAccountInfo(ladderKey)).data);

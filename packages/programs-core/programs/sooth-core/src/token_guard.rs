@@ -188,6 +188,30 @@ pub fn transfer_fee(data: &[u8], epoch: u64) -> Option<(u16, u64)> {
     None
 }
 
+/// Transfer fees withheld in a Token-2022 token account (its
+/// `TransferFeeAmount` extension). An account cannot be closed while this is
+/// non-zero; anyone may harvest it to the mint first.
+pub fn withheld_in_account(data: &[u8]) -> u64 {
+    const ACCOUNT_TYPE_ACCOUNT: u8 = 2;
+    const TRANSFER_FEE_AMOUNT: u16 = 2;
+    if data.len() < TLV_START || data[ACCOUNT_TYPE_OFFSET] != ACCOUNT_TYPE_ACCOUNT {
+        return 0;
+    }
+    let mut at = TLV_START;
+    while at + 4 <= data.len() {
+        let ty = u16::from_le_bytes([data[at], data[at + 1]]);
+        let len = u16::from_le_bytes([data[at + 2], data[at + 3]]) as usize;
+        if ty == 0 {
+            break;
+        }
+        if ty == TRANSFER_FEE_AMOUNT && len == 8 {
+            return data.get(at + 4..at + 12).map(|v| u64::from_le_bytes(v.try_into().unwrap())).unwrap_or(0);
+        }
+        at += 4 + len;
+    }
+    0
+}
+
 /// The smallest amount to send so that at least `net` arrives after a fee of
 /// `bps` capped at `max_fee`. Exact inverse of Token-2022's own rounding
 /// (fee = ceil(gross · bps / 10_000), then min with the cap).

@@ -130,34 +130,52 @@ It took three tries, and each was broken by an audit:
 Solvency after every trade, tranche P&L, fee attribution and the SDK quote
 were confirmed on the shipped binary by both audits.
 
-## A round's shape: when it trades, and what odds it opens with
+## Series: one round a day, and bands the anchor sets
 
-**Times follow the close.** A round trades for at most a day
-(`ROUND_SECS`): funded earlier, it waits in Seeding, taking deposits, and
-opens 24 hours before its close. So its centre is read at an instant the
-round fixes, not one its funder picks by choosing when to start it. It locks
-a twenty-fourth of its window before the close, between two minutes and an
-hour: an hour for a daily round, because the last hour of a day is mostly
-people trading against a price they can already see.
+**A series is one coin's rounds** (`state/series.rs`): a feed, a quote mint,
+and a close ("4 PM New York", computed on chain with the US daylight-saving
+rule). A round is addressed by `(series, day number)`, so one day has one
+round because the program says so, and a calendar derives each day's address
+instead of scanning. The protocol authority opens a series; everything after
+is permissionless.
 
-**Opening odds are a bell, not flat.** A flat 64-bin ladder prices every
-band at 1/64. On a daily round in 1% bands on an asset that moves about 1% a
-day, the close is known to within a band or two by the lock, so a flat start
-handed the seed's whole deposit to whoever traded last, in essentially every
-round: the second audit measured −0.97 of the deposit at the lock. Rounds now
-open on a discretised bell (`math::ladder::prior`): centred on the opening
-price, variance 16 bands² per day of window, tails floored at 1/1,100 of the
-peak so every band stays tradeable. Each coin's band width is chosen so an
-ordinary day moves about four bands, which is what makes one variance right
-for every anchor (SPYx and GLDx 0.25%, ZEC 1%, STONK 2%).
+**The series learns its anchor's volatility from its own settlements.** Each
+settled round's price, against the previous one, feeds an exponentially
+weighted variance of daily log returns (λ = 0.94, a memory of about two
+weeks). The starting value is measured once from three months of history.
+Nothing here is anyone's opinion: the prices are Pyth's, picked by the
+settlement rule.
 
-A deposit still buys `b = 0.9999·D / ln(1/p_min)`, now against the prior's
-cheapest tail, so a deposit buys about half the depth it bought on a flat
-ladder and its worst case is still exactly its deposit. What changes is the
-expected case: a close one band from centre costs the seed under 45% instead
-of all of it, and the end-to-end test's LPs went from −5.0% to −1.2%. A
-close far in a tail still costs the whole deposit; that is the risk the fee
-is paid for.
+**Band width follows.** A round's band is a quarter of the anchor's ordinary
+move over the round's window (`band_width`), so an ordinary move spans four
+bands for every coin and every window: 0.55% for BTC, 0.19% for SPY, 1.5% for
+ZEC over a day, narrower for a shorter round. The 64 bands then cover about
+±8 ordinary moves, and the round opens on a bell four bands wide
+(`prior`), tails floored at 1/1,100 of the peak.
+
+**When a round trades.** At most the 24 hours before its close, locking a
+twenty-fourth of that before it (an hour for a daily round). It can be funded
+up to 48 hours ahead, not further, because its band width is read from the
+volatility when it is funded.
+
+**Why, measured.** Replayed over 4,493 real daily rounds on seven assets
+against a trader who knows the price at the lock (`scripts/backtest/`):
+flat 1% bands lost the house 74.5% of its deposit per round; a bell with a
+fixed width per coin, 17.3% (41% in the worst 5%); volatility-sized bands,
+16.6% (35%). What carries the result is calibration; the bell's exact shape
+and its tail floor barely matter per unit of depth. The remaining loss is the
+cost of the day's information, which no opening curve removes; fees pay it.
+
+## Clearing up
+
+Every position and tranche is counted on the round. A position owed nothing
+(a miss, a line sold to zero) can be swept by anyone, its rent to its owner
+(`ladder_sweep`). Once none are left and the fee shares are collected,
+anyone can close the round (`ladder_close`): dust to the treasury, the
+round's and the vault's rent (about 0.016 SOL) to whoever funded it. A
+Token-2022 vault holds the transfer fees it was charged; the close harvests
+them to the mint first, since Token-2022 will not close an account over
+them. The keeper does all of this for finished rounds.
 
 ## Continuous UI over banded state
 
@@ -261,14 +279,6 @@ Ranked by the second audit (`design-review/audit-round-2-2026-09-23.md`):
   Pyth updates only) and run the keeper with `FULL_VERIFICATION=1`.
   `initialize_protocol` is first-come: initialise in the same breath as the
   deploy, or bind it to the upgrade authority.
-- **Canonical rounds are still a client convention.** Any `settles_at` and
-  tier makes a valid round; the calendar shows one per day (the app's tier,
-  else the deepest). A `Series` account per coin (feed, mint, tier, close
-  hour, period) seeding rounds by day index would make one round per day a
-  rule of the program and let the calendar derive addresses instead of
-  scanning. About two days.
-- **No `ladder_close`.** A finished round keeps ~0.016 SOL of rent and a few
-  base units of rounding dust forever.
 - **LP joins are exact-sequence.** A busy round, or a bot trading dust every
   slot, makes a join retry indefinitely. A bound on depth received
   (`min_b`) would keep the sandwich refused without the retry.
@@ -279,5 +289,3 @@ Ranked by the second audit (`design-review/audit-round-2-2026-09-23.md`):
   opener picks the centre from a minute of prints. Now that `opens_at` is
   fixed by the round, open should use the settlement rule
   (`prev < opens_at ≤ publish`).
-- Rounding dust (a few base units per market) stays in the vault after all
-  claims; nothing sweeps it.

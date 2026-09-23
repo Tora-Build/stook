@@ -1,0 +1,8 @@
+{
+  "name": "@stook/backtest",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "@sooth/sdk-solana": "workspace:*"
+  }
+}

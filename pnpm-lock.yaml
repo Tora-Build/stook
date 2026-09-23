@@ -121,6 +121,12 @@ importers:
         specifier: ^2.0.5
         version: 2.1.9(@types/node@20.19.39)(happy-dom@15.11.7)(terser@5.46.2)
 
+  scripts/backtest:
+    dependencies:
+      '@sooth/sdk-solana':
+        specifier: workspace:*
+        version: link:../../packages/sdk-solana
+
   scripts/devnet:
     dependencies:
       '@solana/spl-token':

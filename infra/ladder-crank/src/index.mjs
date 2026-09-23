@@ -142,7 +142,7 @@ async function pass() {
           await sendAndConfirmTransaction(connection, new Transaction().add(
             createAssociatedTokenAccountIdempotentInstruction(payer.publicKey, ata, payer.publicKey, ladder.quoteMint, mint.owner)), [payer]);
         }
-        console.log(tag, await postAndConsume(vaas, feed, (price) => [stook.settleLadderIx(refs, payer.publicKey, price, ata)]));
+        console.log(tag, await postAndConsume(vaas, feed, (price) => [stook.settleLadderIx(refs, ladder.series, payer.publicKey, price, ata)]));
       }
     } catch (e) {
       console.error(tag, "failed:", e?.message ?? e);
@@ -150,8 +150,57 @@ async function pass() {
   }
 }
 
+// A finished round keeps its rent and a few base units of dust until it is
+// closed, and it can close only once nothing in it is owed. Winners collect
+// their own; the positions nobody would bother to collect (a miss, a line
+// sold to zero) are swept, rent to their owners; the fee shares are sent to
+// their fixed homes; then the round closes, dust to the treasury, rent to
+// whoever funded it. Every step is permissionless and pays nobody here.
+async function clearUp() {
+  const config = stook.decodeProtocolConfig((await connection.getAccountInfo(stook.deriveProtocolConfig())).data);
+  for (const status of ["settled", "void"]) {
+    const rounds = await scanner.getProgramAccounts(SOOTH_CORE_PROGRAM_ID, { filters: stook.ladderFilters(status) });
+    for (const { pubkey, account } of rounds) {
+      const l = stook.decodeLadder(account.data);
+      const tag = `${pubkey.toBase58().slice(0, 8)} clear`;
+      try {
+        const mint = await connection.getAccountInfo(l.quoteMint);
+        const refs = { ladder: pubkey, quoteMint: l.quoteMint, tokenProgram: mint.owner };
+        let open = l.openPositions;
+        if (open > 0) {
+          const positions = await scanner.getProgramAccounts(SOOTH_CORE_PROGRAM_ID, { filters: stook.positionFilters(pubkey) });
+          for (const p of positions) {
+            const pos = stook.decodeLadderPosition(p.account.data);
+            if (stook.owedTo(l, pos) !== 0n) continue;
+            await sendPlain(stook.sweepPositionIx(refs, payer.publicKey, p.pubkey, pos.owner));
+            open--;
+            console.log(tag, "swept", p.pubkey.toBase58().slice(0, 8));
+          }
+        }
+        if (open > 0 || l.openTranches > 0) continue;
+        const { Transaction, sendAndConfirmTransaction } = await import("@solana/web3.js");
+        const treasuryToken = getAssociatedTokenAddressSync(l.quoteMint, config.treasury, true, mint.owner);
+        const creatorToken = getAssociatedTokenAddressSync(l.quoteMint, l.creator, true, mint.owner);
+        await sendAndConfirmTransaction(connection, new Transaction().add(
+          createAssociatedTokenAccountIdempotentInstruction(payer.publicKey, treasuryToken, config.treasury, l.quoteMint, mint.owner),
+          ...(l.feesCreator + l.feesProtocol > 0n ? [createAssociatedTokenAccountIdempotentInstruction(payer.publicKey, creatorToken, l.creator, l.quoteMint, mint.owner)] : [])), [payer]);
+        if (l.feesCreator + l.feesProtocol > 0n) await sendPlain(stook.collectLadderFeesIx(refs, payer.publicKey, creatorToken, treasuryToken));
+        console.log(tag, "closed", await sendPlain(stook.closeLadderIx(refs, payer.publicKey, l.creator, treasuryToken)));
+      } catch (e) {
+        console.error(tag, "failed:", e?.message ?? e);
+      }
+    }
+  }
+}
+
 if (args.has("--watch")) {
-  for (;;) { await pass().catch((e) => console.error("pass failed:", e?.message ?? e)); await new Promise((r) => setTimeout(r, INTERVAL)); }
+  for (let n = 0; ; n++) {
+    await pass().catch((e) => console.error("pass failed:", e?.message ?? e));
+    // finished rounds are not urgent: every ten passes
+    if (n % 10 === 0) await clearUp().catch((e) => console.error("clear-up failed:", e?.message ?? e));
+    await new Promise((r) => setTimeout(r, INTERVAL));
+  }
 } else {
   await pass();
+  if (args.has("--clear-up")) await clearUp();
 }

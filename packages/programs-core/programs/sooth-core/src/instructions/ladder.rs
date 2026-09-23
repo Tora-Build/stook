@@ -11,11 +11,11 @@ use anchor_spl::token_interface::{
 };
 
 use crate::error::SoothCoreError;
-use crate::math::ladder::{apply_trade, bin_for, liquidity_for_deposit, prior, tranche_pnl, Shape};
+use crate::math::ladder::{apply_trade, band_width, bin_for, liquidity_for_deposit, prior, tranche_pnl, Shape};
 use crate::math::{scalar_for, wad_to_amount_ceil, wad_to_amount_floor};
 use crate::oracle::{check_settlement_instant, read_price_update, read_settlement_price, OraclePolicy};
 use crate::state::ladder::*;
-use crate::state::{require_not_paused, ProtocolConfig, PROTOCOL_CONFIG_SEED};
+use crate::state::{require_not_paused, ProtocolConfig, Series, PROTOCOL_CONFIG_SEED};
 
 /// The fee every round charges. Fixed rather than chosen, so a round's address
 /// implies its terms and the first funder cannot poison a slot for everyone.
@@ -37,8 +37,10 @@ pub const LOCK_GAP_MAX_SECS: i64 = 60 * 60;
 /// post the price the grid centres on.
 pub const OPEN_DELAY_SECS: i64 = 60;
 
-/// A round must be started at least this long before it settles.
+/// A round must be started at least this long before it settles, and at
+/// most this long.
 pub const MIN_ROUND_SECS: i64 = 15 * 60;
+pub const MAX_LEAD_SECS: i64 = 48 * 60 * 60;
 
 /// Oracle freshness at open, and the widest confidence interval accepted.
 pub const OPEN_MAX_AGE_SECS: i64 = 60;
@@ -164,11 +166,10 @@ fn join(l: &mut Ladder, t: &mut LadderTranche, deposit: u64) -> Result<()> {
 
 #[derive(AnchorSerialize, AnchorDeserialize, Clone, Debug)]
 pub struct LadderCreateArgs {
-    pub feed_id: [u8; 32],
-    pub tier: u8,
-    /// The round's settlement instant. Everything else about its timing
-    /// follows (`round_times`).
-    pub settles_at: i64,
+    /// Which day (or period) of the series. The series turns it into the
+    /// settlement second; everything else about the round follows from that
+    /// and from the series' volatility.
+    pub index: u32,
     /// The starter's deposit, in quote base units — the round's first liquidity.
     pub seed: u64,
     /// Who the round is presented as funded by. Attribution only.
@@ -184,22 +185,21 @@ pub struct LadderCreate<'info> {
     #[account(seeds = [PROTOCOL_CONFIG_SEED], bump = config.bump)]
     pub config: Box<Account<'info, ProtocolConfig>>,
 
-    /// One round per (feed, settlement time, quote mint, tier): a slot on the
-    /// street. Whoever funds it first starts it; everyone after adds
-    /// liquidity to the same round. A slot cannot be poisoned by its starter
-    /// because nothing about a round is the starter's choice — the fee is
-    /// fixed and the times derive from `settles_at`.
+    #[account(
+        constraint = series.active @ SoothCoreError::SeriesInactive,
+        constraint = series.quote_mint == quote_mint.key() @ SoothCoreError::LadderWrongAccount,
+    )]
+    pub series: Box<Account<'info, Series>>,
+
+    /// One round per day of a series. Whoever funds it first starts it;
+    /// everyone after adds liquidity to the same round. Nothing about a
+    /// round is its starter's choice: the fee is fixed, the times follow the
+    /// series' close, the band width follows the series' volatility.
     #[account(
         init,
         payer = creator,
         space = Ladder::SPACE,
-        seeds = [
-            LADDER_SEED,
-            args.feed_id.as_ref(),
-            &args.settles_at.to_le_bytes(),
-            quote_mint.key().as_ref(),
-            &[args.tier],
-        ],
+        seeds = [LADDER_SEED, series.key().as_ref(), &args.index.to_le_bytes()],
         bump,
     )]
     pub ladder: AccountLoader<'info, Ladder>,
@@ -253,9 +253,9 @@ pub struct LadderCreate<'info> {
 pub struct LadderCreated {
     pub ladder: Pubkey,
     pub creator: Pubkey,
-    pub feed_id: [u8; 32],
-    pub quote_mint: Pubkey,
-    pub tier: u8,
+    pub series: Pubkey,
+    pub index: u32,
+    pub step_bps: u16,
     pub opens_at: i64,
     pub locks_at: i64,
     pub settles_at: i64,
@@ -286,10 +286,16 @@ pub fn create_handler(ctx: Context<LadderCreate>, args: LadderCreateArgs) -> Res
         ctx.accounts.mint_approval.is_some(),
     )?;
 
-    require!((args.tier as usize) < STEP_BPS.len(), SoothCoreError::LadderBadTier);
     let now = Clock::get()?.unix_timestamp;
-    require!(now + MIN_ROUND_SECS <= args.settles_at, SoothCoreError::LadderBadTimes);
-    let (opens_at, locks_at) = round_times(now, args.settles_at);
+    let settles_at = ctx.accounts.series.close_of(args.index);
+    // Not so soon that nobody can trade it; not so far ahead that the band
+    // width, read from the volatility now, is stale by the time it opens.
+    require!(
+        now + MIN_ROUND_SECS <= settles_at && settles_at <= now + MAX_LEAD_SECS,
+        SoothCoreError::LadderBadTimes
+    );
+    let (opens_at, locks_at) = round_times(now, settles_at);
+    let (step_bps, var_bands) = math(band_width(ctx.accounts.series.var_wad, settles_at - opens_at))?;
 
     // At least one whole quote token. Below that `b` rounds to nothing and a
     // single small trade moves a bin from 2% to 80%.
@@ -308,10 +314,12 @@ pub fn create_handler(ctx: Context<LadderCreate>, args: LadderCreateArgs) -> Res
     let mut l = ctx.accounts.ladder.load_init()?;
     l.opens_at = opens_at;
     l.locks_at = locks_at;
-    l.settles_at = args.settles_at;
-    l.step_bps = STEP_BPS[args.tier as usize];
+    l.settles_at = settles_at;
+    l.step_bps = step_bps;
+    l.index = args.index;
+    l.series = ctx.accounts.series.key();
     l.fee_bps = LADDER_FEE_BPS;
-    l.feed_id = args.feed_id;
+    l.feed_id = ctx.accounts.series.feed_id;
     l.quote_mint = ctx.accounts.quote_mint.key();
     l.vault = ctx.accounts.vault.key();
     l.creator = ctx.accounts.creator.key();
@@ -320,11 +328,10 @@ pub fn create_handler(ctx: Context<LadderCreate>, args: LadderCreateArgs) -> Res
     } else {
         args.sponsor
     };
-    let (w, sum) = math(prior(args.settles_at - opens_at))?;
+    let (w, sum) = math(prior(var_bands))?;
     l.store_curve(&w, sum);
     l.status = STATUS_SEEDING;
     l.settled_bin = NO_BIN;
-    l.tier = args.tier;
     l.quote_decimals = decimals;
     l.bump = ctx.bumps.ladder;
     l.authority_bump = ctx.bumps.authority;
@@ -336,16 +343,17 @@ pub fn create_handler(ctx: Context<LadderCreate>, args: LadderCreateArgs) -> Res
     t.index = 0;
     t.bump = ctx.bumps.tranche;
     join(&mut l, &mut t, args.seed)?;
+    l.open_tranches = 1;
 
     emit!(LadderCreated {
         ladder: ctx.accounts.ladder.key(),
         creator: ctx.accounts.creator.key(),
-        feed_id: args.feed_id,
-        quote_mint: ctx.accounts.quote_mint.key(),
-        tier: args.tier,
+        series: ctx.accounts.series.key(),
+        index: args.index,
+        step_bps,
         opens_at,
         locks_at,
-        settles_at: args.settles_at,
+        settles_at,
         seed: args.seed,
     });
     Ok(())
@@ -494,6 +502,9 @@ pub fn trade_handler(ctx: Context<LadderTrade>, args: LadderTradeArgs) -> Result
     // First touch of this shape by this wallet.
     let pos = &mut ctx.accounts.position;
     if pos.owner == Pubkey::default() {
+        let mut l = ctx.accounts.ladder.load_mut()?;
+        l.open_positions = l.open_positions.checked_add(1).ok_or(SoothCoreError::MathOverflow)?;
+        drop(l);
         pos.ladder = ladder_key;
         pos.owner = ctx.accounts.user.key();
         pos.lo = args.lo;
@@ -719,6 +730,7 @@ pub fn lp_join_handler(ctx: Context<LadderLpJoin>, args: LadderLpJoinArgs) -> Re
         t.index = args.index;
         t.bump = ctx.bumps.tranche;
         join(&mut l, &mut t, args.deposit)?;
+        l.open_tranches = l.open_tranches.checked_add(1).ok_or(SoothCoreError::MathOverflow)?;
         (t.b_wad(), l.curve_seq)
     };
 
@@ -766,6 +778,10 @@ pub struct LadderSettle<'info> {
 
     /// CHECK: a Pyth `PriceUpdateV2`; verified in `oracle`.
     pub price_update: UncheckedAccount<'info>,
+
+    /// The round's series: it learns the anchor's volatility from this price.
+    #[account(mut, address = ladder.load()?.series @ SoothCoreError::LadderWrongAccount)]
+    pub series: Box<Account<'info, Series>>,
 
     /// CHECK: PDA vault authority.
     #[account(seeds = [LADDER_AUTHORITY_SEED, ladder.key().as_ref()], bump = ladder.load()?.authority_bump)]
@@ -837,6 +853,10 @@ pub fn settle_handler(ctx: Context<LadderSettle>) -> Result<()> {
 
     let bounty = settle_bounty(l.fees_protocol);
     l.fees_protocol -= bounty;
+
+    // The price at this round's close, against the last close the series
+    // saw: tomorrow's band width is learned from it.
+    math(ctx.accounts.series.observe(p.price, p.exponent, l.settles_at))?;
 
     emit!(LadderSettled {
         ladder: ladder_key,
@@ -1009,6 +1029,7 @@ pub fn redeem_handler(ctx: Context<LadderRedeem>) -> Result<()> {
             l.payout[bin] = l.payout[bin].checked_sub(owed).ok_or(SoothCoreError::MathOverflow)?;
             l.cash = l.cash.checked_sub(owed).ok_or(SoothCoreError::MathOverflow)?;
         }
+        l.open_positions = l.open_positions.saturating_sub(1);
         (owed, l.quote_decimals, l.authority_bump)
     };
 
@@ -1151,6 +1172,7 @@ pub fn claim_lp_handler(ctx: Context<LadderClaimLp>) -> Result<()> {
             STATUS_VOID => (void_share(t.deposit, l.void_lp_pot, l.deposit_total), 0),
             _ => return err!(SoothCoreError::LadderNotFinal),
         };
+        l.open_tranches = l.open_tranches.saturating_sub(1);
         emit!(LadderLpClaimed {
             ladder: ladder_key,
             owner: t.owner,
@@ -1180,6 +1202,159 @@ pub fn claim_lp_handler(ctx: Context<LadderClaimLp>) -> Result<()> {
             decimals,
         )?;
     }
+    Ok(())
+}
+
+// ── clearing up ─────────────────────────────────────────────────────────────
+
+#[derive(Accounts)]
+pub struct LadderSweep<'info> {
+    /// Anyone: the rent goes to the position's owner, and only a position
+    /// owed nothing can be swept.
+    pub cranker: Signer<'info>,
+
+    #[account(mut)]
+    pub ladder: AccountLoader<'info, Ladder>,
+
+    #[account(
+        mut,
+        close = owner,
+        constraint = position.ladder == ladder.key() @ SoothCoreError::LadderWrongAccount,
+    )]
+    pub position: Box<Account<'info, LadderPosition>>,
+
+    /// CHECK: receives the position's rent; bound to the position's owner.
+    #[account(mut, address = position.owner @ SoothCoreError::LadderWrongAccount)]
+    pub owner: UncheckedAccount<'info>,
+}
+
+/// Close a finished round's position that is owed nothing (a line that
+/// missed, or one sold down to zero), returning its rent to its owner.
+/// Winners collect their own; this only clears what nobody would bother to,
+/// so the round itself can be closed.
+pub fn sweep_handler(ctx: Context<LadderSweep>) -> Result<()> {
+    let pos = &ctx.accounts.position;
+    let mut l = ctx.accounts.ladder.load_mut()?;
+    let owed = redemption(
+        l.status,
+        l.settled_bin,
+        Shape { lo: pos.lo, hi: pos.hi, h: pos.h },
+        pos.shares,
+        pos.net_paid,
+        l.void_trader_pot,
+        l.basis_total,
+    )
+    .ok_or(SoothCoreError::LadderNotFinal)?;
+    require!(owed == 0, SoothCoreError::LadderPositionOwed);
+    l.open_positions = l.open_positions.saturating_sub(1);
+    Ok(())
+}
+
+#[derive(Accounts)]
+pub struct LadderClose<'info> {
+    /// Anyone, once there is nothing left to pay.
+    pub cranker: Signer<'info>,
+
+    #[account(seeds = [PROTOCOL_CONFIG_SEED], bump = config.bump)]
+    pub config: Box<Account<'info, ProtocolConfig>>,
+
+    #[account(mut, close = creator)]
+    pub ladder: AccountLoader<'info, Ladder>,
+
+    /// CHECK: paid the round's and the vault's rent back; bound to the ladder.
+    #[account(mut, address = ladder.load()?.creator @ SoothCoreError::LadderWrongAccount)]
+    pub creator: UncheckedAccount<'info>,
+
+    /// CHECK: PDA vault authority.
+    #[account(seeds = [LADDER_AUTHORITY_SEED, ladder.key().as_ref()], bump = ladder.load()?.authority_bump)]
+    pub authority: UncheckedAccount<'info>,
+
+    #[account(mut, address = ladder.load()?.quote_mint)]
+    pub quote_mint: Box<InterfaceAccount<'info, Mint>>,
+
+    #[account(mut, address = ladder.load()?.vault)]
+    pub vault: Box<InterfaceAccount<'info, TokenAccount>>,
+
+    /// Where the rounding dust goes.
+    #[account(
+        mut,
+        token::mint = quote_mint,
+        token::authority = config.treasury,
+        token::token_program = token_program,
+    )]
+    pub treasury_token: Box<InterfaceAccount<'info, TokenAccount>>,
+
+    pub token_program: Interface<'info, TokenInterface>,
+}
+
+#[event]
+pub struct LadderClosed {
+    pub ladder: Pubkey,
+    pub dust: u64,
+}
+
+/// Close a finished round: every position redeemed or swept, every deposit
+/// claimed, the fee shares collected. What is left in the vault is rounding
+/// dust (a few base units); it goes to the treasury, and the round's and the
+/// vault's rent go back to whoever funded the round.
+pub fn close_handler(ctx: Context<LadderClose>) -> Result<()> {
+    let ladder_key = ctx.accounts.ladder.key();
+    let authority_bump = {
+        let l = ctx.accounts.ladder.load()?;
+        require!(l.status == STATUS_SETTLED || l.status == STATUS_VOID, SoothCoreError::LadderNotFinal);
+        require!(
+            l.open_positions == 0 && l.open_tranches == 0 && l.fees_creator == 0 && l.fees_protocol == 0,
+            SoothCoreError::LadderNotClosable
+        );
+        l.authority_bump
+    };
+    let seeds: &[&[&[u8]]] = &[&[LADDER_AUTHORITY_SEED, ladder_key.as_ref(), &[authority_bump]]];
+    let dust = ctx.accounts.vault.amount;
+    if dust > 0 {
+        token_interface::transfer_checked(
+            CpiContext::new_with_signer(
+                ctx.accounts.token_program.to_account_info(),
+                TransferChecked {
+                    from: ctx.accounts.vault.to_account_info(),
+                    mint: ctx.accounts.quote_mint.to_account_info(),
+                    to: ctx.accounts.treasury_token.to_account_info(),
+                    authority: ctx.accounts.authority.to_account_info(),
+                },
+                seeds,
+            ),
+            dust,
+            ctx.accounts.quote_mint.decimals,
+        )?;
+    }
+    // Token-2022 keeps each transfer's fee in the receiving account until
+    // someone harvests it to the mint, and refuses to close an account that
+    // still holds some. Harvesting is permissionless.
+    let withheld = crate::token_guard::withheld_in_account(&ctx.accounts.vault.to_account_info().try_borrow_data()?);
+    if withheld > 0 {
+        let ix = anchor_lang::solana_program::instruction::Instruction {
+            program_id: ctx.accounts.token_program.key(),
+            accounts: vec![
+                anchor_lang::solana_program::instruction::AccountMeta::new(ctx.accounts.quote_mint.key(), false),
+                anchor_lang::solana_program::instruction::AccountMeta::new(ctx.accounts.vault.key(), false),
+            ],
+            // TransferFeeExtension (26) · HarvestWithheldTokensToMint (4)
+            data: vec![26, 4],
+        };
+        anchor_lang::solana_program::program::invoke(
+            &ix,
+            &[ctx.accounts.quote_mint.to_account_info(), ctx.accounts.vault.to_account_info()],
+        )?;
+    }
+    token_interface::close_account(CpiContext::new_with_signer(
+        ctx.accounts.token_program.to_account_info(),
+        token_interface::CloseAccount {
+            account: ctx.accounts.vault.to_account_info(),
+            destination: ctx.accounts.creator.to_account_info(),
+            authority: ctx.accounts.authority.to_account_info(),
+        },
+        seeds,
+    ))?;
+    emit!(LadderClosed { ladder: ladder_key, dust });
     Ok(())
 }
 

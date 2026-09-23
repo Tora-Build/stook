@@ -79,4 +79,12 @@ pub enum SoothCoreError {
     LadderDepositShort,
     #[msg("This deposit would make the pool deeper than its arithmetic allows")]
     LadderTooDeep,
+    #[msg("This series is not starting new rounds")]
+    SeriesInactive,
+    #[msg("Not a series the program can run: bad clock, close or volatility")]
+    SeriesBadParams,
+    #[msg("The round still has positions or deposits to pay out")]
+    LadderNotClosable,
+    #[msg("This position is owed a payout; its owner collects it")]
+    LadderPositionOwed,
 }
