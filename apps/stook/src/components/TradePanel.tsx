@@ -146,7 +146,8 @@ export function TradePanel(p: Props) {
           {side === "buy" && <div><dt>best case</dt><dd className="mono amber">{fmtAmount(q.maxPayout, dec)} {p.quoteSymbol} ({(Number(q.maxPayout) / Number(q.total)).toFixed(1)}×)</dd></div>}
         </dl>
       )}
-      <button className="primary" disabled={!q || !p.tradeable || send.isPending || !publicKey} onClick={submit}>
+      {side === "buy" && wallet !== null && balance.data !== undefined && balance.data < wallet && <p className="warn">You hold {fmtAmount(balance.data, dec)} {p.quoteSymbol}; this costs {fmtAmount(wallet, dec)}. On devnet, use <b>Get test coins</b> in the header.</p>}
+      <button className="primary" disabled={!q || !p.tradeable || send.isPending || !publicKey || (side === "buy" && wallet !== null && balance.data !== undefined && balance.data < wallet)} onClick={submit}>
         {!publicKey ? "Connect a wallet" : !p.tradeable ? "Market closed" : send.isPending ? "Sending…" : side === "buy" ? `Buy ${text} shares` : `Sell ${text} shares`}
       </button>
     </section>

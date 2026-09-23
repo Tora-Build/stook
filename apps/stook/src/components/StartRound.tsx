@@ -42,7 +42,8 @@ export function StartRound({ coin, settlesAt, onClose }: { coin: Coin; settlesAt
           <input value={text} onChange={(e) => setText(e.target.value)} inputMode="decimal" autoFocus />
           <span className="hint">balance {balance.data !== undefined ? fmtAmount(balance.data, dec) : "—"}{gross && seed && gross !== seed ? ` · your wallet sends ${fmtAmount(gross, dec)} (the coin's ${coin.feeBps / 100}% transfer fee)` : ""}</span>
         </label>
-        <button className="primary" disabled={!publicKey || !seed || !mint.data || send.isPending} onClick={start}>
+        {balance.data !== undefined && !!seed && !!gross && balance.data < gross && <p className="warn">You hold {fmtAmount(balance.data, dec)} {coin.symbol}; this needs {fmtAmount(gross, dec)}. On devnet, use <b>Get test coins</b> in the header first.</p>}
+        <button className="primary" disabled={!publicKey || !seed || !mint.data || send.isPending || (balance.data !== undefined && !!gross && balance.data < gross)} onClick={start}>
           {!publicKey ? "Connect a wallet" : send.isPending ? "Starting…" : "Start the round"}
         </button>
         <button className="link" onClick={onClose} style={{ marginTop: ".8rem" }}>cancel</button>

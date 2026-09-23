@@ -128,6 +128,9 @@ export function explain(e: unknown): string {
     AccountNotInitialized: "An account this needs does not exist yet — usually a token account with none of the coin in it. Get test coins first.",
   };
   if (code && known[code]) return known[code]!;
+  // The token program's own errors: 0x1 is "insufficient funds".
+  if (/Token(z|kegQ)[A-Za-z0-9]* failed: custom program error: 0x1\b/.test(logs + text) || (m?.[1] === "1" && /Token/.test(logs + text))) return "Not enough of the coin in your wallet for that. On devnet, use Get test coins.";
+  if (m?.[1] === "1") return "Not enough of the coin in your wallet for that.";
   if (text.includes("User rejected")) return "Signature declined.";
   return code ? `Program refused: ${code}` : text.slice(0, 200);
 }

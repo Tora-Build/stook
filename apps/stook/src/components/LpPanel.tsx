@@ -1,9 +1,9 @@
 import { useMemo, useState } from "react";
 import { useWallet } from "@solana/wallet-adapter-react";
 import { stook } from "@sooth/sdk-solana";
-import { fmtAmount, parseAmount, short } from "../lib/format";
+import { fmtAmount, parseAmount, short as shortKey } from "../lib/format";
 import { ataOf, ensureAta } from "../lib/chain";
-import { useSend, useTranches } from "../hooks/useChain";
+import { useBalance, useSend, useTranches } from "../hooks/useChain";
 
 interface Props { refs: stook.LadderRefs; ladder: stook.LadderAccount; quoteSymbol: string; now: number; transferFee?: stook.TransferFee }
 
@@ -28,6 +28,9 @@ export function LpPanel(p: Props) {
   }, [l.curve]);
 
   const joinable = (l.status === "seeding" || l.status === "open") && p.now < Number(l.locksAt);
+  const balance = useBalance(l.quoteMint, p.refs.tokenProgram);
+  const gross = deposit ? stook.grossFor(deposit, p.transferFee) : null;
+  const short = balance.data !== undefined && gross !== null && balance.data < gross;
   const final = l.status === "settled" || l.status === "void";
   const nextIndex = (mine.data ?? []).reduce((m, r) => Math.max(m, r.tranche.index + 1), 0);
 
@@ -63,7 +66,8 @@ export function LpPanel(p: Props) {
               <div><dt>longest shot right now</dt><dd className="mono">1 in {worst.toFixed(0)}</dd></div>
             </dl>
           )}
-          <button className="primary" disabled={!depth || join.isPending || !publicKey} onClick={submit}>
+          {short && <p className="warn">You hold {fmtAmount(balance.data!, dec)} {p.quoteSymbol}; this needs {fmtAmount(gross!, dec)}. On devnet, use <b>Get test coins</b> in the header.</p>}
+          <button className="primary" disabled={!depth || join.isPending || !publicKey || short} onClick={submit}>
             {!publicKey ? "Connect a wallet" : join.isPending ? "Sending…" : `Deposit ${text} ${p.quoteSymbol}`}
           </button>
         </>
@@ -78,7 +82,7 @@ export function LpPanel(p: Props) {
             const fees = stook.trancheFees(t.b, dec, l.accFee, t.feeSnap);
             return (
               <li key={t.index}>
-                <span>tranche #{t.index} · {short(t.owner)}</span>
+                <span>tranche #{t.index} · {shortKey(t.owner)}</span>
                 <span className="mono">{fmtAmount(t.deposit, dec)} in · fees {fmtAmount(fees, dec)}{value !== null ? ` · worth ${fmtAmount(value, dec)}` : ""}</span>
                 {final && publicKey && (
                   <button className="small" disabled={claim.isPending} onClick={() => claim.mutate([ensureAta(l.quoteMint, publicKey, p.refs.tokenProgram), stook.claimLpIx(p.refs, publicKey, ataOf(l.quoteMint, publicKey, p.refs.tokenProgram), t.index)])}>
