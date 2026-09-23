@@ -97,7 +97,9 @@ function Buy(p: Props & { held?: boolean }) {
   const balance = useBalance(p.ladder.quoteMint, p.refs.tokenProgram);
   const l = p.ladder, dec = l.decimals, s = p.shape;
   const shares = parseAmount(text, dec);
-  const q = useMemo(() => { if (!s || !shares || shares <= 0n) return null; try { return stook.quoteTrade({ curve: l.curve, b: l.b, feeBps: l.feeBps, decimals: dec }, s, shares); } catch { return null; } }, [s, shares, l, dec]);
+  // The fee rises over the last six hours; quote at the rate this trade lands at.
+  const feeBps = stook.feeBpsAt(l.feeBps, BigInt(p.now), l.settlesAt);
+  const q = useMemo(() => { if (!s || !shares || shares <= 0n) return null; try { return stook.quoteTrade({ curve: l.curve, b: l.b, feeBps, decimals: dec }, s, shares); } catch { return null; } }, [s, shares, l, dec, feeBps]);
   const odds = useMemo(() => { if (!s) return []; const [a, z] = stook.shapeBins(s); const m = new Map<number, bigint>(); for (let i = a; i <= z; i++) { const lv = stook.level(s, i); if (lv) m.set(lv, (m.get(lv) ?? 0n) + stook.price(l.curve, i)); } return [...m.entries()].sort((x, y) => y[0] - x[0]); }, [s, l.curve]);
   // Wallet numbers, not book numbers: what leaves the wallet includes the
   // coin's transfer fee, and what a payout lands as is net of it again.
@@ -131,7 +133,7 @@ function Buy(p: Props & { held?: boolean }) {
       )}
       {s && s.h > 1 && <p className="hint">A share pays {s.h} on your band and one less per band away. That is the reach, and it is the same wherever you draw. What the crowd charges for it is the last column: the longer the odds, the more on stake.</p>}
       <label className="field"><span>Shares</span><input value={text} onChange={(e) => setText(e.target.value)} inputMode="decimal" /><span className="hint">balance {balance.data !== undefined ? fmtAmount(balance.data, dec) : "—"} {p.quoteSymbol}</span></label>
-      {q && pays !== null && limit !== null && <dl className="quote"><div><dt>You pay</dt><dd className="mono">{fmtAmount(pays, dec)} {p.quoteSymbol}</dd></div>{pays !== q.total && <div><dt>of which the coin's transfer fee</dt><dd className="mono">{fmtAmount(pays - q.total, dec)}</dd></div>}<div><dt>at most, if the odds move first</dt><dd className="mono muted">{fmtAmount(stook.grossFor(limit, p.transferFee), dec)}</dd></div><div><dt>best case</dt><dd className="mono amber">{fmtAmount(lands(q.maxPayout), dec)} ({(Number(lands(q.maxPayout)) / Number(pays)).toLocaleString("en-US", { maximumFractionDigits: 1 })}×)<span className="muted small"> if it closes {moveFromOpen(l, Math.floor((s!.lo + s!.hi) / 2))}</span></dd></div></dl>}
+      {q && pays !== null && limit !== null && <dl className="quote"><div><dt>You pay</dt><dd className="mono">{fmtAmount(pays, dec)} {p.quoteSymbol}</dd></div>{pays !== q.total && <div><dt>of which the coin's transfer fee</dt><dd className="mono">{fmtAmount(pays - q.total, dec)}</dd></div>}<div><dt>fee</dt><dd className="mono">{(feeBps / 100).toFixed(2)}%{feeBps < stook.FEE_PEAK_BPS ? (Number(l.settlesAt) - p.now > 6 * 3600 ? ", rising to 5% over the last 6 hours" : ", rising to 5% by the lock") : ", its highest: the close is near"}</dd></div><div><dt>at most, if the odds move first</dt><dd className="mono muted">{fmtAmount(stook.grossFor(limit, p.transferFee), dec)}</dd></div><div><dt>best case</dt><dd className="mono amber">{fmtAmount(lands(q.maxPayout), dec)} ({(Number(lands(q.maxPayout)) / Number(pays)).toLocaleString("en-US", { maximumFractionDigits: 1 })}×)<span className="muted small"> if it closes {moveFromOpen(l, Math.floor((s!.lo + s!.hi) / 2))}</span></dd></div></dl>}
       {short && <p className="warn">You hold {fmtAmount(balance.data!, dec)} {p.quoteSymbol}; this can cost up to {fmtAmount(stook.grossFor(limit!, p.transferFee), dec)}.</p>}
       <button className="primary" disabled={!q || !p.tradeable || send.isPending || !publicKey || short} onClick={submit}>{!publicKey ? "Connect a wallet" : !p.tradeable ? "Not trading" : !s ? "Draw a line first" : send.isPending ? "Sending…" : `${p.held || existing ? "Add" : "Buy"} ${text} shares`}</button>
     </>
@@ -145,7 +147,7 @@ function Sell(p: Props & { pos: PositionRow }) {
   const send = useSend("Sold");
   const l = p.ladder, dec = l.decimals, pos = p.pos.position, s = pos.shape;
   const size = (pos.shares * BigInt(pct)) / 100n;
-  const q = useMemo(() => { if (size <= 0n) return null; try { return stook.quoteTrade({ curve: l.curve, b: l.b, feeBps: l.feeBps, decimals: dec }, s, -size); } catch { return null; } }, [size, l, dec, s]);
+  const q = useMemo(() => { if (size <= 0n) return null; try { return stook.quoteTrade({ curve: l.curve, b: l.b, feeBps: stook.feeBpsAt(l.feeBps, BigInt(p.now), l.settlesAt), decimals: dec }, s, -size); } catch { return null; } }, [size, l, dec, s, p.now]);
   const get = q ? stook.netOf(q.total, p.transferFee) : null;
   const limit = q ? (q.total * 995n) / 1000n : null;
   const paidFor = size > 0n && pos.shares > 0n ? (pos.netPaid * size) / pos.shares : 0n;

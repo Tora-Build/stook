@@ -51,7 +51,7 @@ export function LpPanel(p: Props) {
       {!p.bare && <h3>Provide liquidity</h3>}
       <p className="explain">
         The pool takes the other side of every trade. <span className="mono">{fmtAmount(l.depositTotal, dec)}</span> {p.quoteSymbol} in it gives depth <span className="mono">{fmtAmount(l.b / 10n ** 12n, 6, 0)}</span>.
-        Deposit and you are the house: you earn {(l.feeBps / 100 * 0.8).toFixed(2)}% of every trade from now on, and you pay when traders were right.
+        Deposit and you are the house: the pool keeps 90% of every trade's fee from now on ({(l.feeBps / 100).toFixed(0)}%, rising to 5% over the last six hours), shared by depth, and pays when traders were right.
       </p>
       {joinable && (
         <>

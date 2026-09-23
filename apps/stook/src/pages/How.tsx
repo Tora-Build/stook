@@ -45,7 +45,7 @@ export function How() {
           </>}
           {i === 4 && <>
             <h2>The house</h2>
-            <p>The pool takes the other side of every line; anyone can add to it until the lock. Trades pay a <b>1% fee</b>: 90% to the pool by depth, 5% to whoever rings the bell, 5% to the protocol. At the close the pool pays the winning band and keeps the rest. A close far from the open can cost the pool its whole deposit; an ordinary one costs it little.</p>
+            <p>The pool takes the other side of every line; anyone can add to it until the lock. Trades pay a <b>2% fee</b>, rising to <b>5%</b> over the last six hours, when the close is nearly known: 90% to the pool by depth, 5% to whoever rings the bell, 5% to the protocol. At the close the pool pays the winning band and keeps the rest. A close far from the open can cost the pool its whole deposit; an ordinary one costs it little.</p>
             <p className="try">Move the deposit.</p>
           </>}
           {i === 5 && <>

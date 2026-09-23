@@ -15,7 +15,8 @@ and sell out any time before settlement.
   liquidity subsidy, so the bands cannot drift apart and the crowd's belief is
   readable straight off the curve.
 - **Liquidity is provided, not assumed.** Anyone can deepen a market at any
-  time before lock, and earns fees on the volume they were present for. Each
+  time before lock, and earns 90% of the fees on the volume they were present
+  for: 2% a trade, rising to 5% over a round's last six hours. Each
   deposit buys exactly the depth it can cover alone, so a market cannot pay out
   more than someone chose to underwrite, and no LP ever leans on another.
 - **Any token as the quote.** A market is denominated in whatever it names —

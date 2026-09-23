@@ -106,7 +106,7 @@ describe("a ladder quoted in $STOOK, a 1% transfer-fee mint", () => {
     // ── a buy: the quote is the net; the wallet pays gross ─────────────────
     const buy = async (shape: L.Shape, shares: bigint) => {
       const m = state(), had = balance(e, e.trader.token), vaultHad = balance(e, vault);
-      const q = L.quoteTrade({ curve: m.curve, b: m.b, feeBps: m.feeBps, decimals: m.decimals }, shape, shares);
+      const q = L.quoteTrade({ curve: m.curve, b: m.b, feeBps: L.feeBpsAt(m.feeBps, BigInt((e.svm.getClock() as any).unixTimestamp), m.settlesAt), decimals: m.decimals }, shape, shares);
       await ok(e, L.tradeLadderIx(refs, { user: e.trader.kp.publicKey, userToken: e.trader.token, shape, shares, limit: q.total }), e.trader.kp);
       expect(had - balance(e, e.trader.token)).toBe(L.grossFor(q.total, fee));
       expect(balance(e, vault) - vaultHad).toBe(q.total);
@@ -119,7 +119,7 @@ describe("a ladder quoted in $STOOK, a 1% transfer-fee mint", () => {
     // ── a sell: the vault sends the quote; the trader receives 1% less ──────
     {
       const m = state(), had = balance(e, e.trader.token);
-      const q = L.quoteTrade({ curve: m.curve, b: m.b, feeBps: m.feeBps, decimals: m.decimals }, L.band(20, 44), -10n * T);
+      const q = L.quoteTrade({ curve: m.curve, b: m.b, feeBps: L.feeBpsAt(m.feeBps, BigInt((e.svm.getClock() as any).unixTimestamp), m.settlesAt), decimals: m.decimals }, L.band(20, 44), -10n * T);
       await ok(e, L.tradeLadderIx(refs, { user: e.trader.kp.publicKey, userToken: e.trader.token, shape: L.band(20, 44), shares: -10n * T, limit: q.total }), e.trader.kp);
       expect(balance(e, e.trader.token) - had).toBe(L.netOf(q.total, fee));
     }

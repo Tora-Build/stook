@@ -100,7 +100,8 @@ function market(e: Env, settlesAt: bigint) {
   // Quote with the SDK, send with the quote as the limit, and hold the chain to it.
   const quoted = async (lo: number, hi: number, h: number, shares: bigint) => {
     const before = state(), had = balance(e, e.trader.token);
-    const q = L.quoteTrade({ curve: before.curve, b: before.b, feeBps: before.feeBps, decimals: before.decimals }, { lo, hi, h }, shares);
+    const feeBps = L.feeBpsAt(before.feeBps, BigInt((e.svm.getClock() as any).unixTimestamp), before.settlesAt);
+    const q = L.quoteTrade({ curve: before.curve, b: before.b, feeBps, decimals: before.decimals }, { lo, hi, h }, shares);
     const r = await ok(e, tradeAs(e.trader, lo, hi, h, shares, q.total), e.trader.kp);
     const moved = balance(e, e.trader.token) - had;
     expect(moved).toBe(shares > 0n ? -q.total : q.total);

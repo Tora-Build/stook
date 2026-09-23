@@ -126,7 +126,7 @@ describe("a ladder quoted in a real xStock", () => {
 
     const quoted = async (shape: L.Shape, shares: bigint) => {
       const m = state(), had = balance(e, e.trader.token);
-      const q = L.quoteTrade({ curve: m.curve, b: m.b, feeBps: m.feeBps, decimals: m.decimals }, shape, shares);
+      const q = L.quoteTrade({ curve: m.curve, b: m.b, feeBps: L.feeBpsAt(m.feeBps, BigInt((e.svm.getClock() as any).unixTimestamp), m.settlesAt), decimals: m.decimals }, shape, shares);
       const r = await ok(e, L.tradeLadderIx(refs, { user: e.trader.kp.publicKey, userToken: e.trader.token, shape, shares, limit: q.total }), e.trader.kp);
       expect(balance(e, e.trader.token) - had).toBe(shares > 0n ? -q.total : q.total);
       expect(state().curve.w).toEqual(q.curve.w);

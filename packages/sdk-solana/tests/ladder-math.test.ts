@@ -50,6 +50,15 @@ describe("ladder sdk", () => {
     }
   });
 
+  it("charges 2% most of the day and rises to 5% over the last six hours", () => {
+    const close = 1_000_000n;
+    expect(L.feeBpsAt(200, close - 86_400n, close)).toBe(200);
+    expect(L.feeBpsAt(200, close - 21_600n, close)).toBe(200);
+    expect(L.feeBpsAt(200, close - 12_600n, close)).toBe(350);
+    expect(L.feeBpsAt(200, close - 3_600n, close)).toBe(500);
+    expect(L.feeBpsAt(200, close - 120n, close)).toBe(500);
+  });
+
   it("sizes a band to a quarter of an ordinary move, for any coin and window", () => {
     // BTC 2.5%/day over a day: 63 bps and a bell ~4 bands wide; SPY 1%: 25 bps
     const btc = L.bandWidth(L.varFromSigma(0.025), 86_400n);

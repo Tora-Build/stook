@@ -211,6 +211,25 @@ export const wadToAmountCeil = (wad: bigint, decimals: number): bigint => {
 };
 export const wadToAmountFloor = (wad: bigint, decimals: number): bigint => toU64(wad / scalarFor(decimals));
 
+export const LADDER_FEE_BPS = 200;
+export const FEE_PEAK_BPS = 500;
+export const FEE_RAMP_START_SECS = 6n * 3600n;
+export const FEE_RAMP_END_SECS = 3600n;
+
+/**
+ * The fee rate for a trade at `now` (`fee_bps_at`): the round's base (2%)
+ * until six hours before the close, rising in a straight line to 5% one hour
+ * before, and no higher. Quote with this, at the clock the trade will land at.
+ */
+export function feeBpsAt(base: number, now: bigint, settlesAt: bigint): number {
+  const left = settlesAt - now;
+  const peak = BigInt(Math.max(FEE_PEAK_BPS, base));
+  if (left >= FEE_RAMP_START_SECS) return base;
+  if (left <= FEE_RAMP_END_SECS) return Number(peak);
+  const b = BigInt(base);
+  return Number(b + ((peak - b) * (FEE_RAMP_START_SECS - left)) / (FEE_RAMP_START_SECS - FEE_RAMP_END_SECS));
+}
+
 /** Never zero on a non-zero amount, never more than the amount. */
 export function feeOn(amount: bigint, feeBps: number): bigint {
   const raw = (amount * BigInt(feeBps) + 9_999n) / 10_000n;

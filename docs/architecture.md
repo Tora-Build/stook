@@ -161,8 +161,14 @@ volatility when it is funded. Bands are at least 0.2%: the settlement price's
 confidence must be under half a band, and equity-token feeds print several
 basis points even when quiet.
 
-**Fees.** 90% to the depositors by depth, 10% to the protocol, half of which
-pays whoever settles. The first funder gets nothing extra: a bonus for being
+**Fees.** 2% of every trade, rising in a straight line over the last six
+hours to 5% an hour before the close (the lock of a daily round), and no
+higher (`fee_bps_at`). The late hours are when the close is mostly known and
+trading against the house is sharpest; replayed over a whole day of trading on
+4,493 real rounds (`scripts/backtest/house.py`), this schedule broke the
+house even at about 3x its deposit in daily volume, where a flat 1% lost 9%
+and a flat 2% lost 3%. 90% to the depositors by depth, 10% to the protocol,
+half of which pays whoever settles. The first funder gets nothing extra: a bonus for being
 first could be taken with a one-token seed on every round.
 
 **Why, measured.** Replayed over 4,493 real daily rounds on seven assets

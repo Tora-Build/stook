@@ -17,9 +17,34 @@ use crate::oracle::{check_settlement_instant, read_price_update, read_settlement
 use crate::state::ladder::*;
 use crate::state::{require_not_paused, ProtocolConfig, Series, PROTOCOL_CONFIG_SEED};
 
-/// The fee every round charges. Fixed rather than chosen, so a round's address
-/// implies its terms and the first funder cannot poison a slot for everyone.
-pub const LADDER_FEE_BPS: u16 = 100;
+/// The fee every round charges for most of its day. Fixed rather than chosen,
+/// so a round's address implies its terms and the first funder cannot poison
+/// a slot for everyone.
+pub const LADDER_FEE_BPS: u16 = 200;
+
+/// The fee rises over a round's last hours, when the close is mostly known
+/// and trading against the house is sharpest: from `LADDER_FEE_BPS` six hours
+/// before the close, in a straight line, to `FEE_PEAK_BPS` one hour before
+/// (the lock of a daily round), and no higher. Replayed over 4,493 real
+/// daily rounds (`scripts/backtest/house.py`), 2% rising to 5% broke the house
+/// even at about 3x its deposit in daily volume, where a flat 1% lost 9%.
+pub const FEE_PEAK_BPS: u16 = 500;
+pub const FEE_RAMP_START_SECS: i64 = 6 * 60 * 60;
+pub const FEE_RAMP_END_SECS: i64 = 60 * 60;
+
+/// The fee rate for a trade at `now` in a round closing at `settles_at`.
+pub fn fee_bps_at(base: u16, now: i64, settles_at: i64) -> u16 {
+    let left = settles_at - now;
+    let peak = FEE_PEAK_BPS.max(base) as i64;
+    if left >= FEE_RAMP_START_SECS {
+        return base;
+    }
+    if left <= FEE_RAMP_END_SECS {
+        return peak as u16;
+    }
+    let base = base as i64;
+    (base + (peak - base) * (FEE_RAMP_START_SECS - left) / (FEE_RAMP_START_SECS - FEE_RAMP_END_SECS)) as u16
+}
 
 /// How long a round trades. A round started further ahead than this waits in
 /// Seeding (deposits welcome) and opens `ROUND_SECS` before its close, so its
@@ -542,11 +567,11 @@ pub fn trade_handler(ctx: Context<LadderTrade>, args: LadderTradeArgs) -> Result
             let pay = math(wad_to_amount_ceil(cost_wad as u128, decimals))?
                 .checked_add(1)
                 .ok_or(SoothCoreError::MathOverflow)?;
-            (pay, fee_on(pay, l.fee_bps))
+            (pay, fee_on(pay, fee_bps_at(l.fee_bps, now, l.settles_at)))
         } else {
             require!(cost_wad < 0, SoothCoreError::MathOverflow);
             let got = math(wad_to_amount_floor((-cost_wad) as u128, decimals))?.saturating_sub(1);
-            (got, fee_on(got, l.fee_bps))
+            (got, fee_on(got, fee_bps_at(l.fee_bps, now, l.settles_at)))
         };
 
         // The payout table moves with the position, per bin, by level.
@@ -1558,6 +1583,20 @@ mod tests {
     #[test]
     fn a_fee_is_never_zero_and_never_more_than_the_amount() {
         assert_eq!(fee_on(10_000, 100), 100);
+        // 2% most of the day, rising over the last six hours to 5% an hour out
+        let close = 1_000_000;
+        assert_eq!(fee_bps_at(200, close - 86_400, close), 200);
+        assert_eq!(fee_bps_at(200, close - 6 * 3600, close), 200);
+        assert_eq!(fee_bps_at(200, close - 3 * 3600 - 1800, close), 350, "halfway up");
+        assert_eq!(fee_bps_at(200, close - 3600, close), 500);
+        assert_eq!(fee_bps_at(200, close - 120, close), 500, "and no higher");
+        // it only ever rises toward the close
+        let mut last = 0;
+        for t in (close - 7 * 3600..close).step_by(60) {
+            let f = fee_bps_at(200, t, close);
+            assert!(f >= last);
+            last = f;
+        }
         assert_eq!(fee_on(10_001, 100), 101, "rounds up");
         assert_eq!(fee_on(5, 100), 1, "dust still pays");
         assert_eq!(fee_on(1, 100), 1);
