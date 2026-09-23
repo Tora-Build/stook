@@ -39,5 +39,11 @@ export function Faucet() {
       void qc.invalidateQueries({ queryKey: ["balance"] });
     } catch (e) { toast.err(explain(e)); } finally { setBusy(false); }
   };
-  return <button className="small" onClick={mint} disabled={busy} title="Devnet: 10,000 each of $STOOK, $ZCAT, $KNOTS, $GP and test USDC">{busy ? "Minting…" : "Get test coins (all 4 + USDC)"}</button>;
+  // A little pixel tap: devnet coins on demand.
+  return (
+    <button className="faucet-btn" onClick={mint} disabled={busy} title="Devnet faucet: 10,000 each of $STOOK, $ZCAT, $KNOTS, $GP and test USDC">
+      <svg viewBox="0 0 12 12" shapeRendering="crispEdges" aria-hidden="true"><g fill="#c9bfa4"><rect x="1" y="3" width="8" height="3"/><rect x="8" y="3" width="3" height="2"/><rect x="2" y="1" width="2" height="2"/><rect x="0" y="4" width="1" height="1"/><rect x="9" y="5" width="2" height="2"/></g><rect x="9" y="8" width="2" height="1" fill="#35c4c4"/><rect x="9" y="10" width="2" height="1" fill="#35c4c4"/></svg>
+      <span>{busy ? "minting…" : "test coins"}</span>
+    </button>
+  );
 }
