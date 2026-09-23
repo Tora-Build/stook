@@ -102,7 +102,20 @@ impl Series {
     /// than the last one (a round settled late) teaches nothing and is
     /// skipped; so is one on a different exponent, which only re-anchors.
     pub fn observe(&mut self, price: i64, expo: i32, at: i64) -> core::result::Result<(), MathError> {
-        if at <= self.last_at || price <= 0 {
+        if price <= 0 || at == self.last_at {
+            return Ok(());
+        }
+        // Until a series has learned one return, its only close is a starting
+        // point: an earlier close may take its place (so a backfill that lost
+        // the race to a later close can still start from the beginning).
+        // After that, closes are taken in order only.
+        if at < self.last_at {
+            if self.observations > 0 {
+                return Ok(());
+            }
+            self.last_price = price;
+            self.last_expo = expo;
+            self.last_at = at;
             return Ok(());
         }
         if self.last_price > 0 && self.last_expo == expo {
@@ -206,6 +219,13 @@ mod tests {
         let v = s.var_wad;
         s.observe(90_000, -2, 1_000).unwrap(); // older than the last: skipped
         assert_eq!(s.var_wad, v);
+        // but a series that has learned nothing yet may start earlier
+        let mut fresh = daily(CLOCK_UTC, 0);
+        fresh.observe(200, -2, 10 * DAY).unwrap();
+        fresh.observe(100, -2, 3 * DAY).unwrap();
+        assert_eq!((fresh.last_at, fresh.last_price, fresh.observations), (3 * DAY, 100, 0));
+        fresh.observe(101, -2, 4 * DAY).unwrap();
+        assert_eq!(fresh.observations, 1);
         // half a day's move counts double per day
         let mut a = daily(CLOCK_UTC, 0);
         a.var_wad = s.var_wad;

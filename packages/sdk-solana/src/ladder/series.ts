@@ -298,10 +298,13 @@ export function indexAtOrBefore(s: Pick<SeriesAccount, "periodSecs" | "closeSecs
 export function pendingObservations(s: SeriesAccount, now: bigint, max = 40, settle = 60n, backfill = WARMUP_OBSERVATIONS + 5): number[] {
   const latest = indexAtOrBefore(s, now - settle);
   const out: number[] = [];
-  let from = s.lastAt > 0n ? indexAtOrBefore(s, s.lastAt) + 1 : latest - backfill;
+  // A series that has learned nothing yet backfills from the start, even
+  // before a close it has already anchored on; after that, only newer closes.
+  const cold = s.observations === 0;
+  let from = !cold ? indexAtOrBefore(s, s.lastAt) + 1 : latest - backfill;
   // A weekday series skips weekends when counting its backfill.
-  if (s.lastAt === 0n) { let n = 0; for (from = latest; from > latest - 3 * backfill && n < backfill; from--) if (hasRound(s, from)) n++; }
-  for (let i = from; i <= latest && out.length < max; i++) if (hasRound(s, i) && closeOf(s, i) > s.lastAt) out.push(i);
+  if (cold) { let n = 0; for (from = latest; from > latest - 3 * backfill && n < backfill; from--) if (hasRound(s, from)) n++; }
+  for (let i = from; i <= latest && out.length < max; i++) if (hasRound(s, i) && (cold ? closeOf(s, i) !== s.lastAt : closeOf(s, i) > s.lastAt)) out.push(i);
   return out;
 }
 

@@ -148,7 +148,9 @@ pub fn series_observe_handler(ctx: Context<SeriesObserve>, index: u32) -> Result
     let s = &mut ctx.accounts.series;
     require!(s.has_round(index), SoothCoreError::LadderBadTimes);
     let at = s.close_of(index);
-    require!(at > s.last_at, SoothCoreError::SeriesAlreadyObserved);
+    // In order, except that a series which has learned nothing yet may start
+    // from an earlier close (`Series::observe`).
+    require!(at > s.last_at || (s.observations == 0 && at != s.last_at), SoothCoreError::SeriesAlreadyObserved);
     let p = read_price_update(&ctx.accounts.price_update.to_account_info())?;
     // Confidence under 1% of the price: this price only measures a move.
     check_settlement_instant(&p, &s.feed_id, ORACLE_MIN_SIGNATURES, at, SETTLE_MAX_GAP_SECS, 200)?;
