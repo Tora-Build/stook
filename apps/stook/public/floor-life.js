@@ -25,10 +25,10 @@
     "Bell's in a few hours. Lines in, mouths shut.", "{anchor} at {price} and you're calling it a top? Fuck outta here.", "I don't care what the crowd thinks, {anchor}'s going to {far}.", "Some asshole started the {coin} round with 10 coins. Ten.",
     "You want the edge on {anchor}? Draw where it hurts.", "Screw the range. Line at {level}, reach 3, done.", "{coin} pool paid me lunch. Twice.", "If {anchor} closes at {near} I'm quitting this floor.", "The tape's the tape. {price}. Deal with it.", "{anchor} {chg} and you're still on the fence?", "I've got 2,000 {coin} on {level}. Say something.", "Whoever's the house on {coin} today owes me a drink.", "Somebody's sitting on the {coin} pool like a hen.",
     "{anchor} moved {abs}% today. That's {bands} bands.", "A band on {anchor} is about {band} wide right now.", "{anchor} needs {abs}% to get back where it started.", "If {anchor} holds {price} into the close, my line pays.",
-    "{coin} pool's paying fees. Somebody's trading.", "{anchor} at {price} — that's the middle band, nobody wins big there.", "Two bands up on {anchor} is {far}. I'd take it.", "{anchor} {chg} and the crowd hasn't moved. Odd.",
+    "{coin} pool's paying fees. Somebody's trading.", "{anchor} at {price}. Middle band. Nobody wins big there.", "Two bands up on {anchor} is {far}. I'd take it.", "{anchor} {chg} and the crowd hasn't moved. Odd.",
     "Sold my {coin} line, buying it back lower.", "Is the {coin} round started yet?", "Whoever seeded {coin} today is up on fees already.", "Range on {anchor}: {near} to {far}. Sleep easy.",
     "{anchor} at {price}.", "{anchor}'s {chg} today.", "Seen {anchor}? {price}.", "{coin} crowd's quiet.", "Who's starting {coin}'s round?",
-    "{anchor} {up} — you in?", "I've got a line at {level}.", "Anyone above {far}? Madness.", "{near} by the close, I'd say.", "Bands are tight on {coin}.",
+    "{anchor} {up}. You in?", "I've got a line at {level}.", "Anyone above {far}? Madness.", "{near} by the close, I'd say.", "Bands are tight on {coin}.",
     "The pool on {coin} is thin.", "{anchor} hasn't moved since lunch.", "Coffee? Then {coin}.", "Odds on {anchor} look wrong to me.", "Where does {anchor} land? {level}?",
     "I'm the house on {coin} today.", "{anchor} {chg}. Line's holding.", "Sold out of {coin} at the top.", "{price} on {anchor}, printed a minute ago.", "Reach 8 on {coin}. Don't tell anyone.",
     "Pyth says {price}.", "{anchor}: {chg}. Boring. Good.", "Close is at four. Get your line in.", "Whoever starts Friday's {coin} round eats the fees.", "Range {near}–{far}? Coward's bet.",
@@ -47,7 +47,7 @@
   // The floor has moods. What the anchor did today picks the pool of lines.
   const HOT = [ // up hard
     "{anchor} ripping. {chg}. Holy shit.", "Told you {anchor} was going. {price}, and it's not fucking done.", "Whoever shorted {coin} today is getting their face ripped off.", "{chg} on {anchor}! Ring the goddamn bell already.", "Bands can't keep up with {anchor}. Every line's out of range.",
-    "Buy {level}. No — buy {far}. Fuck it, buy both.", "Pool on {coin} is getting drained, someone drew the right line.", "{anchor} at {price}. I've been long since breakfast, kiss my ass.", "Reach 8 on {coin} and I'm still not wide enough.",
+    "Buy {level}. No, buy {far}. Fuck it, buy both.", "Pool on {coin} is getting drained, someone drew the right line.", "{anchor} at {price}. I've been long since breakfast, kiss my ass.", "Reach 8 on {coin} and I'm still not wide enough.",
   ];
   const COLD = [ // down hard
     "{anchor}'s getting fucking murdered. {chg}.", "Who drew a line at {far}? Jesus. It's {price}.", "Every long on {coin} is toast. Every single one.", "{anchor} {chg}. The pool's eating well today.", "Stop the bleeding on {anchor}. Sell, then think.",

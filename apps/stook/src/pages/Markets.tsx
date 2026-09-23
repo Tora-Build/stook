@@ -16,7 +16,7 @@ export function Markets() {
         <Skyline hero ticker={ticker} />
         <div className="hero-copy">
           <h1>Where will it land?</h1>
-          <p className="lede">Memecoins anchored to stocks. Draw a line where the stock closes — in your coin. The closer you are, the more it pays.</p>
+          <p className="lede">Memecoins anchored to stocks. Draw a line where the stock closes, in your coin. The closer you are, the more it pays.</p>
           <div><Link className="cta" to="/#floor">Walk onto the floor</Link><Link className="cta alt" to="/how">How it works</Link></div>
         </div>
       </div>
