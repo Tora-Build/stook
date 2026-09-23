@@ -1,78 +1,162 @@
-// How the street works, told as the tour you'd get walking through the
-// exchange: stop by stop, one thing at each, with the one number that
-// matters. Minimal on purpose; the full arithmetic is in the last stop.
+// The walk through the exchange: one stop at a time, a scene on the left you
+// can poke at, the words on the right. Everything a trader or a depositor
+// needs to know is here and nothing that isn't.
 
+import { useState } from "react";
 import { Link } from "react-router-dom";
+import { COINS } from "../lib/coins";
 
-const Px = ({ rows, pal }: { rows: string[]; pal: Record<string, string> }) => (
-  <svg viewBox={`0 0 ${rows[0]!.length} ${rows.length}`} className="stop-art" shapeRendering="crispEdges" aria-hidden="true">
-    {rows.flatMap((row, y) => [...row].map((ch, x) => (ch === "." ? null : <rect key={`${x}-${y}`} x={x} y={y} width={1} height={1} fill={pal[ch]} />)))}
-  </svg>
-);
-const P = { g: "#0f7a4d", c: "#f4e9c8", a: "#f0a83a", b: "#4f8fd6", d: "#0b1120", r: "#e0605a", s: "#8a8f99", t: "#35c4c4" };
+const STOPS = ["The tables", "The calendar", "The line", "The bell", "The house", "The fine print"] as const;
 
 export function How() {
+  const [i, setI] = useState(0);
+  const go = (n: number) => setI(Math.max(0, Math.min(STOPS.length - 1, n)));
   return (
-    <div className="page how">
+    <div className="page tour-page">
       <span className="sign">A WALK THROUGH THE EXCHANGE</span>
       <h1>How the street works</h1>
-      <p className="lede-plain">Six stops. Each one is a thing you'll see on the floor.</p>
 
-      <ol className="tour">
-        <li className="stop">
-          <Px pal={P} rows={["............", ".gggggggggg.", ".g.cc.cc.cg.", ".g.cc.cc.cg.", ".gggggggggg.", "............", "....aaaa....", "....aaaa....", "............"]} />
-          <div>
+      <div className="tour-stops">
+        {STOPS.map((s, n) => <button key={s} className={`tour-stop ${n === i ? "on" : ""} ${n < i ? "done" : ""}`} onClick={() => go(n)}><span className="tour-n">{n + 1}</span><span className="tour-name">{s}</span></button>)}
+      </div>
+
+      <div className="placard" key={i}>
+        <div className="placard-scene">{[<Tables />, <Calendar />, <Line />, <Bell />, <House />, <FinePrint />][i]}</div>
+        <div className="placard-text">
+          {i === 0 && <>
             <h2>The tables</h2>
-            <p>Every coin on the street has a table, and every coin follows one asset — its anchor. The screen on the table shows the anchor's live price, and everything at that table is paid in that coin. Coins come and go as the street grows; the tables are whoever is here today.</p>
-          </div>
-        </li>
-
-        <li className="stop">
-          <Px pal={P} rows={["c.c.c.c.c.c.c", ".............", "a.....a.....a", "...a.....a...", ".....a.......", "c.c.c.c.c.c.c"]} />
-          <div>
-            <h2>The calendar by the door</h2>
-            <p>One round a day per coin, settling at <b>4:00 PM New York</b>. A day nobody has started is empty. Start it and your deposit is its first liquidity; everyone after you joins the same round. There is no other way to create one — no forms, no custom markets.</p>
-          </div>
-        </li>
-
-        <li className="stop">
-          <Px pal={P} rows={["..........", "...b......", "..bbb.....", ".bbbbb.a..", "bbbbbbbaaa", "bbbbbbbbbb", "dddddddddd"]} />
-          <div>
+            <p>Every coin on the street has a table, and every coin follows one asset: its <b>anchor</b>. The screen shows the anchor's live price. Everything at a table — bets, the pool, payouts — is in that coin. Coins are added one at a time by the street, never by pasting a mint.</p>
+            <p className="try">Try it: pick a table.</p>
+          </>}
+          {i === 1 && <>
+            <h2>The calendar</h2>
+            <p>One round a day per coin, closing at <b>4:00 PM New York</b>. A day nobody has funded is empty. Whoever funds it first <b>starts</b> it and is its first liquidity; everyone after joins the same round. Trading runs from the moment it opens until two minutes before the close.</p>
+            <p className="try">Try it: start a day.</p>
+          </>}
+          {i === 2 && <>
             <h2>The line</h2>
-            <p>The round is a price chart with 64 bands drawn across it, each 1% wide, around where the anchor was when the round opened. <b>Click the price you expect at the close</b>: that's your line. It pays most if the price lands on your band, one less for each band it misses by, nothing past your reach. Prefer a plain bet? Drag a range: same payout anywhere inside.</p>
-            <p className="stop-num">A share of a reach-4 line pays 4× on the band, 3× one off, 2× two off, 1× three off. Its price is the crowd's odds for that profile — so what a dollar can win doesn't change with reach; where it wins does.</p>
-          </div>
-        </li>
-
-        <li className="stop">
-          <Px pal={P} rows={["...cccc...", "..c....c..", ".c......c.", ".c..aa..c.", ".c..aa..c.", ".c......c.", "..c....c..", "...cccc...", "....ss....", "...ssss..."]} />
-          <div>
+            <p>The round is 64 price bands, 1% wide, around the anchor's price at the open. Click the band you expect at the close: that's your <b>line</b>. It pays most on that band and one step less for each band it misses by, out to its <b>reach</b>. A <b>range</b> pays the same anywhere inside it. A share costs what the crowd's odds say its payouts are worth — so reach changes <i>where</i> a dollar wins, not how much it can. Sell any time before the lock.</p>
+            <p className="try">Try it: click a band, change the reach.</p>
+          </>}
+          {i === 3 && <>
             <h2>The bell</h2>
-            <p>Trading locks two minutes before the close. At the closing second the round reads the anchor's <b>Pyth price</b> — one specific update, picked by a rule (the first at or after the instant), so no one on the floor chooses it. It lands in a band. That band pays. The coin's own price is never part of it.</p>
-            <p className="stop-num">If no usable price arrives within 24 hours, the round is void: everyone gets back exactly what they paid.</p>
-          </div>
-        </li>
-
-        <li className="stop">
-          <Px pal={P} rows={["..........", ".gggggggg.", ".g......g.", ".g.cccc.g.", ".g.c..c.g.", ".g.cccc.g.", ".g......g.", ".gggggggg.", ".ss....ss."]} />
-          <div>
+            <p>At the closing second the round reads the anchor's <b>Pyth price</b> on chain — the first update at or after that instant, a rule, so nobody chooses it. It lands in a band; that band's shares pay out; every other share pays nothing. If no usable price arrives within 24 hours the round is <b>void</b> and everyone gets back exactly what they paid.</p>
+            <p className="try">Try it: ring it.</p>
+          </>}
+          {i === 4 && <>
             <h2>The house</h2>
-            <p>Someone takes the other side of every line: the round's pool. Anyone can put coin into it until the lock. You earn <b>80% of every fee</b> from then on, in proportion to the depth you add. You pay when the crowd was right. Each deposit stands on its own: no one's loss ever lands on another depositor.</p>
-            <p className="stop-num">Fees are 1% of each trade: 80% to the pool, 10% to whoever started the round, 10% to the protocol — half of which goes to whoever rings the bell.</p>
+            <p>The pool takes the other side of every line. Anyone can add to it until the lock. Every trade pays a <b>1% fee</b>: 80% to the pool, split by depth, only for trades after you joined; 10% to whoever started the round; 10% to the protocol, half of which goes to whoever rings the bell. At the close the pool pays the winning band and keeps the rest. Each deposit stands alone — a late one is valued from the odds it joined at.</p>
+            <p className="try">Try it: move the deposit.</p>
+          </>}
+          {i === 5 && <>
+            <h2>The fine print</h2>
+            <p>Some coins on the street take a <b>transfer fee</b> on every move (their launchpad set it). The round books exactly what arrives; your wallet sends a little more. The app shows both numbers.</p>
+            <p>Rounds settle on the <b>tokenized</b> asset's Pyth feed — SPYx, GLDx — not the NYSE ticker, so the price on the table is the one the round settles on.</p>
+            <p>Every number on a round page is the program's own maths, run in your browser to the last unit.</p>
+          </>}
+          <div className="placard-nav">
+            <button className="small" onClick={() => go(i - 1)} disabled={i === 0}>‹ back</button>
+            <span className="muted mono">{i + 1} / {STOPS.length}</span>
+            {i < STOPS.length - 1 ? <button className="small" onClick={() => go(i + 1)}>next ›</button> : <Link to="/#floor" className="small as-link">to the floor ›</Link>}
           </div>
-        </li>
+        </div>
+      </div>
+    </div>
+  );
+}
 
-        <li className="stop">
-          <Px pal={P} rows={["tttttttttt", "t........t", "t.aa..aa.t", "t........t", "t.cccccc.t", "t........t", "tttttttttt"]} />
-          <div>
-            <h2>The board, with numbers</h2>
-            <p>Say the seven bands around the price sit at about 5% each. A range across them costs ~0.35 a share and pays 1: triple your money, 35% of the time. A reach-4 line on the middle band costs ~0.80 a share and pays up to 4. Buy 100 shares for ~80: land on the centre and collect 400; one band off, 300; three off, 100.</p>
-            <p className="stop-num">Every number you see on a round page is the program's own — the site quotes with the same maths the chain runs, to the last unit.</p>
-          </div>
-        </li>
-      </ol>
+// ── the scenes ───────────────────────────────────────────────────────────────
 
-      <p className="cta-row"><Link to="/#floor">Back to the floor</Link></p>
+function Tables() {
+  const [k, setK] = useState(0);
+  const c = COINS[k]!;
+  return (
+    <div className="scene">
+      <div className="scene-tables">{COINS.map((x, n) => <button key={x.symbol} className={`scene-table ${n === k ? "on" : ""}`} onClick={() => setK(n)}><img src={x.logo} alt="" /><span>${x.symbol}</span></button>)}</div>
+      <div className="scene-caption"><img src={c.anchor.logo} alt="" className="scene-anchor" /> <b>${c.symbol}</b> follows <b>{c.anchor.name}</b>. Bets here are paid in ${c.symbol}.</div>
+    </div>
+  );
+}
+
+function Calendar() {
+  const [started, setStarted] = useState<Set<number>>(new Set([2]));
+  return (
+    <div className="scene">
+      <div className="scene-cal">
+        {["M", "T", "W", "T", "F", "S", "S"].map((d, n) => <div key={n} className="scene-dow">{d}</div>)}
+        {Array.from({ length: 7 }, (_, n) => {
+          const on = started.has(n), today = n === 2;
+          return <button key={n} className={`scene-day ${on ? "on" : ""} ${today ? "today" : ""}`} onClick={() => setStarted(new Set(started).add(n))}>{on ? (today ? "trading" : "started") : "start"}</button>;
+        })}
+      </div>
+      <div className="scene-caption">{started.size > 1 ? `You started ${started.size - 1} day${started.size > 2 ? "s" : ""}. You're their first liquidity; others add to the same rounds.` : "Wednesday is trading. The rest are waiting for someone to start them."}</div>
+    </div>
+  );
+}
+
+function Line() {
+  const [band, setBand] = useState<number | null>(null);
+  const [reach, setReach] = useState(3);
+  const probs = [1, 2, 3, 5, 8, 11, 14, 16, 14, 11, 8, 5, 3, 2, 1]; // a crowd, in %
+  const level = (i: number) => (band === null ? 0 : Math.max(0, reach - Math.abs(i - band)));
+  const cost = band === null ? 0 : probs.reduce((a, p, i) => a + (p / 100) * level(i), 0);
+  return (
+    <div className="scene">
+      <svg viewBox="0 0 150 70" className="scene-svg" shapeRendering="crispEdges">
+        {probs.map((p, i) => <rect key={i} x={i * 10 + 1} y={60 - p * 3} width={8} height={p * 3} className={level(i) ? "bar-in" : "bar"} onClick={() => setBand(i)} style={{ cursor: "pointer" }} />)}
+        {band !== null && probs.map((_, i) => level(i) ? <rect key={"l" + i} x={i * 10 + 1} y={60 - (level(i) / reach) * 55} width={8} height={2} fill="#f0a83a" /> : null)}
+        <text x={2} y={68} className="lbl lbl-xs">← lower</text><text x={148} y={68} className="lbl lbl-xs" textAnchor="end">higher →</text>
+      </svg>
+      <div className="scene-row">
+        <label className="height">reach <input type="range" min={1} max={6} value={reach} onChange={(e) => setReach(Number(e.target.value))} /><span className="mono">{reach}</span></label>
+        {band !== null && <span className="mono">1 share ≈ {cost.toFixed(2)} · pays {reach} on the band, 1 at the edge</span>}
+      </div>
+      <div className="scene-caption">{band === null ? "Bars are the crowd's odds. Click the band you expect." : `Land on your band and a share pays ${reach}; that costs ${cost.toFixed(2)}, so it returns ${(reach / cost).toFixed(1)}× your stake. Widen the reach and the price rises with it.`}</div>
+    </div>
+  );
+}
+
+function Bell() {
+  const [rung, setRung] = useState(false);
+  const probs = [3, 6, 11, 16, 14, 9, 5, 3];
+  const hit = 4;
+  return (
+    <div className="scene">
+      <svg viewBox="0 0 150 70" className="scene-svg" shapeRendering="crispEdges">
+        {probs.map((p, i) => <rect key={i} x={i * 18 + 3} y={60 - p * 3} width={14} height={p * 3} className={rung ? (i === hit ? "bar-settled" : "bar") : "bar"} />)}
+        {rung && <><line x1={hit * 18 + 10} x2={hit * 18 + 10} y1={2} y2={62} className="line-live" /><text x={hit * 18 + 14} y={10} className="lbl lbl-live lbl-xs">Pyth: here</text></>}
+      </svg>
+      <div className="scene-row"><button className="small" onClick={() => setRung(true)} disabled={rung}>ring the bell</button>{rung && <button className="link" onClick={() => setRung(false)}>again</button>}</div>
+      <div className="scene-caption">{rung ? "One Pyth update at the closing second picked this band. Shares on it pay; the rest pay nothing. No committee, no vote." : "Trading locked two minutes ago. The close is now."}</div>
+    </div>
+  );
+}
+
+function House() {
+  const [dep, setDep] = useState(1000);
+  const others = 3000, fees = 400; // a day's fees at the table, for the demo
+  const share = dep / (dep + others);
+  return (
+    <div className="scene">
+      <div className="scene-row"><label className="height">deposit <input type="range" min={100} max={5000} step={100} value={dep} onChange={(e) => setDep(Number(e.target.value))} /><span className="mono">{dep.toLocaleString()}</span></label></div>
+      <div className="scene-house">
+        <div className="scene-bar"><div className="scene-fill" style={{ width: `${share * 100}%` }} /></div>
+        <div className="scene-legend"><span>your share of the pool <b className="mono">{(share * 100).toFixed(0)}%</b></span><span>of {fees} in fees today <b className="mono">{(fees * 0.8 * share).toFixed(0)}</b> is yours</span></div>
+      </div>
+      <div className="scene-caption">Others hold {others.toLocaleString()} in this pool. Fees split by depth, from the moment you join. At the close the pool pays the winning band and keeps whatever the losing lines paid in.</div>
+    </div>
+  );
+}
+
+function FinePrint() {
+  return (
+    <div className="scene">
+      <svg viewBox="0 0 150 70" className="scene-svg" shapeRendering="crispEdges">
+        <rect x="10" y="10" width="130" height="50" fill="#f4e9c8" /><rect x="14" y="14" width="122" height="42" fill="#fbf7ea" />
+        {[20, 27, 34, 41, 48].map((y, n) => <rect key={y} x="20" y={y} width={n === 4 ? 40 : 110 - n * 8} height="2" fill="#8d8670" />)}
+        <rect x="112" y="40" width="18" height="12" fill="#a8412f" /><rect x="115" y="43" width="12" height="6" fill="#f4e9c8" />
+      </svg>
+      <div className="scene-caption">Read once. Then never think about it again.</div>
     </div>
   );
 }
