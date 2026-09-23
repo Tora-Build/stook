@@ -14,6 +14,7 @@ import { fmtAmount, fmtPrice, fmtWhen, untilText, short } from "../lib/format";
 import { EXPLORER } from "../lib/config";
 import { Live } from "../components/Live";
 import { coinByMint } from "../lib/coins";
+import { Address } from "../components/Address";
 import { useQuery } from "@tanstack/react-query";
 
 export function Market() {
@@ -48,10 +49,12 @@ export function Market() {
     <div className="page market">
       <header className="market-head">
         <div>
+          {coin && <div className="logos"><img src={coin.logo} alt="" className="logo-coin" /><img src={coin.anchor.logo} alt="" className="logo-anchor" /></div>}
           {coin && <span className="sign">${coin.symbol} ROUND</span>}
           <h1>{feed.name} <span className="sym">{feed.symbol}</span></h1>
           <p className="live-row"><Live l={l} dp={feed.dp} /></p>
           <p className="muted">settles {fmtWhen(l.settlesAt)} · {l.stepBps / 100}% bands · fee {l.feeBps / 100}% · funded by {short(l.sponsor)} · <a href={EXPLORER("address", key.toBase58())} target="_blank" rel="noreferrer">account</a></p>
+          {coin && <p className="addrs"><Address label={`${coin.anchor.symbol} token`} value={coin.anchor.mint} /><Address label={`$${coin.symbol}`} value={coin.mint} dim /></p>}
         </div>
         <Status l={l} now={now} step={step} />
       </header>

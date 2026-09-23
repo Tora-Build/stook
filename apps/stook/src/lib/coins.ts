@@ -11,6 +11,9 @@ import { PublicKey } from "@solana/web3.js";
 export interface Anchor {
   symbol: string;
   name: string;
+  /** The anchor's own Solana mint — the token the coin is paired with. Shown so nobody buys a look-alike. */
+  mint: string;
+  logo: string;
   feedId: string;
   /** "24/7", or the hours a round must settle inside. */
   hours: string;
@@ -20,6 +23,7 @@ export interface Anchor {
 export interface Coin {
   symbol: string;
   name: string;
+  logo: string;
   /** Mainnet mint, on StonkFun. */
   mint: string;
   decimals: number;
@@ -30,20 +34,20 @@ export interface Coin {
 
 export const COINS: Coin[] = [
   {
-    symbol: "STOOK", name: "Stook Street", mint: "GWrd84X5QxdRPAiNUFyiBaNoVZs85oHyWHtonJdd4wqu", decimals: 6, feeBps: 100,
-    anchor: { symbol: "SPY", name: "S&P 500 (SPYx)", feedId: "2817b78438c769357182c04346fddaad1178c82f4048828fe0997c3c64624e14", hours: "24/7", dp: 2 },
+    symbol: "STOOK", name: "Stook Street", logo: "/logos/stook.png", mint: "GWrd84X5QxdRPAiNUFyiBaNoVZs85oHyWHtonJdd4wqu", decimals: 6, feeBps: 100,
+    anchor: { symbol: "SPYx", name: "S&P 500 (SPYx)", mint: "XsoCS1TfEyfFhfvj8EtZ528L3CaKBDBRqRapnBbDF2W", logo: "/logos/spyx.png", feedId: "2817b78438c769357182c04346fddaad1178c82f4048828fe0997c3c64624e14", hours: "24/7", dp: 2 },
   },
   {
-    symbol: "ZCAT", name: "Anonymous Cat", mint: "HcRLc9VDgjLeK154xDawfb1dmVJ98DoSqcwTHGqiDeJR", decimals: 9, feeBps: 300,
-    anchor: { symbol: "ZEC", name: "Zcash", feedId: "be9b59d178f0d6a97ab4c343bff2aa69caa1eaae3e9048a65788c529b125bb24", hours: "24/7", dp: 2 },
+    symbol: "ZCAT", name: "Anonymous Cat", logo: "/logos/zcat.jpg", mint: "HcRLc9VDgjLeK154xDawfb1dmVJ98DoSqcwTHGqiDeJR", decimals: 9, feeBps: 300,
+    anchor: { symbol: "ZEC", name: "Zcash", mint: "A7bdiYdS5GjqGFtxf17ppRHtDKPkkRqbKtR27dxvQXaS", logo: "/logos/zec.svg", feedId: "be9b59d178f0d6a97ab4c343bff2aa69caa1eaae3e9048a65788c529b125bb24", hours: "24/7", dp: 2 },
   },
   {
-    symbol: "KNOTS", name: "KNOTS", mint: "8RVBk8vxLiUHueLUW1f4izFVqN3nWippLhkohKg6EGkS", decimals: 6, feeBps: 300,
-    anchor: { symbol: "STONK", name: "STONK", feedId: "f68272be1240150c36b54dce26a9b75f62f507a94f49f43533a5050c77e07049", hours: "24/7", dp: 4 },
+    symbol: "KNOTS", name: "KNOTS", logo: "/logos/knots.png", mint: "8RVBk8vxLiUHueLUW1f4izFVqN3nWippLhkohKg6EGkS", decimals: 6, feeBps: 300,
+    anchor: { symbol: "STONK", name: "STONK", mint: "6GmAFSYs4gk3FDao5FzzySQpPZaWsa4rUJHacpMpUNgx", logo: "/logos/stonk.png", feedId: "f68272be1240150c36b54dce26a9b75f62f507a94f49f43533a5050c77e07049", hours: "24/7", dp: 4 },
   },
   {
-    symbol: "GP", name: "RuneScape Gold", mint: "HTmQz7My6MehV7bjhJ6jde8nDND1yvsz68d24LP7YgUQ", decimals: 6, feeBps: 300,
-    anchor: { symbol: "GLDx", name: "Gold", feedId: "e7d1138d0083368634087268c64b7bea0b4101a6365f83915cba9e76a8364b96", hours: "24/7", dp: 2 },
+    symbol: "GP", name: "RuneScape Gold", logo: "/logos/gp.jpg", mint: "HTmQz7My6MehV7bjhJ6jde8nDND1yvsz68d24LP7YgUQ", decimals: 6, feeBps: 300,
+    anchor: { symbol: "GLDx", name: "Gold (GLDx)", mint: "Xsv9hRk1z5ystj9MhnA7Lq4vjSsLwzL2nxrwmwtD3re", logo: "/logos/gldx.png", feedId: "e7d1138d0083368634087268c64b7bea0b4101a6365f83915cba9e76a8364b96", hours: "24/7", dp: 2 },
   },
 ];
 

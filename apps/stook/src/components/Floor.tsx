@@ -43,6 +43,7 @@ function Table({ coin, q }: { coin: Coin; q?: { price: number; change24h: number
     <Link to={`/c/${coin.symbol}`} className="post" title={`${coin.name} · rounds on ${anchorOf(coin).name}`}>
       <div className="table">
         <div className="screen" data-coin={coin.symbol}>
+          <div className="logos"><img src={coin.logo} alt="" className="logo-coin" /><img src={a.logo} alt="" className="logo-anchor" /></div>
           <div className="coin">${coin.symbol}</div>
           <div className="anchor">{a.name}</div>
           <div className="price">{q ? q.price.toLocaleString("en-US", { minimumFractionDigits: a.dp, maximumFractionDigits: a.dp }) : "—"}</div>

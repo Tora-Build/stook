@@ -369,3 +369,18 @@ a.wc-cell:hover { text-decoration: none; border-color: var(--taxi); }
 .wc-left { font-family: var(--mono); font-size: .66rem; color: var(--teal); margin-top: auto; }
 .wc-open-slot:hover .wc-empty { color: var(--taxi); }
 .wc-empty { font-family: var(--px); font-size: .42rem; color: var(--cream-3); }
+
+/* logos: the coin, with the anchor it follows tucked at its corner */
+.logos { position: relative; width: 44px; height: 44px; flex: none; }
+.logo-coin { width: 44px; height: 44px; border-radius: 50%; object-fit: cover; border: 2px solid #f4e9c8; background: #0b1120; image-rendering: auto; }
+.logo-anchor { position: absolute; right: -6px; bottom: -6px; width: 22px; height: 22px; border-radius: 50%; object-fit: cover; border: 2px solid #f4e9c8; background: #fff; }
+.logos-big { width: 72px; height: 72px; } .logos-big .logo-coin { width: 72px; height: 72px; } .logos-big .logo-anchor { width: 32px; height: 32px; right: -8px; bottom: -8px; }
+.screen .logos { margin-bottom: .5rem; }
+.coin-head-row { display: flex; gap: 1.2rem; align-items: flex-start; }
+.addrs { display: flex; gap: 1.2rem; flex-wrap: wrap; margin: .4rem 0 0; font-size: .8rem; }
+.addr { display: inline-flex; align-items: center; gap: .35rem; }
+.addr-label { color: var(--cream-2); }
+.addr-val { background: var(--ink); color: var(--cream); border: 2px solid var(--line); padding: .15rem .45rem; font: inherit; font-family: var(--mono); font-size: .78rem; cursor: pointer; }
+.addr-val:hover { border-color: var(--taxi); }
+.addr-link { color: var(--cream-3); font-size: .8rem; }
+.addr-dim { opacity: .55; }
