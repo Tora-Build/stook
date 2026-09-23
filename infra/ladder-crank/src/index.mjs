@@ -248,8 +248,17 @@ async function learn() {
         if (problem) { unobservable.add(key); console.log(tag, "skipped:", problem); continue; }
         console.log(tag, await postAndConsume(vaas, feed, (price) => [stook.observeSeriesIx(pubkey, payer.publicKey, price, index)]));
       } catch (e) {
+        const why = `${e?.message ?? e} ${(e?.logs ?? []).join(" ")}`;
+        // Some closes can never be verified: signed by a Wormhole guardian set
+        // the receiver no longer accepts, or not the settlement instant after
+        // all. Skip those for good; retry anything else next pass, in order.
+        if (/GuardianSetExpired|OracleNotTheSettlementInstant|OracleTooUncertain|OracleWrongFeed|SeriesAlreadyObserved/.test(why)) {
+          unobservable.add(key);
+          console.log(tag, "skipped for good:", (why.match(/Error Code: (\w+)/) ?? [])[1] ?? "unverifiable");
+          continue;
+        }
         console.error(tag, "failed:", e?.message ?? e);
-        break; // try this series again next pass, in order
+        break;
       }
     }
   }

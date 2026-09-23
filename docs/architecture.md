@@ -157,7 +157,10 @@ twenty are a plain average, after which each day counts 6% (λ = 0.94, a
 half-life of about 11 days, the RiskMetrics convention; a week and a month of
 memory did about as well in the backtest). A close across which Pyth was
 silent can never be submitted; the next one is, and its return is scaled to
-the days it spans.
+the days it spans. History reaches back only to the last Wormhole guardian
+set rotation: older Pyth updates are signed by a set the Solana receiver now
+refuses (`GuardianSetExpired`). On devnet that was 4 September 2026, so the
+daily series warmed from the closes after it.
 
 **Band width follows.** A round's band is a quarter of the anchor's ordinary
 move over the round's window (`band_width`), so an ordinary move spans four
