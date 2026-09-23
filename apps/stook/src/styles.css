@@ -337,13 +337,18 @@ a.wc-cell:hover { text-decoration: none; border-color: var(--taxi); }
 .wc-seeding { border-color: var(--taxi-2); }
 .wc-settled { background: var(--sky-3); }
 .wc-void { opacity: .5; }
-/* the page turns */
-.flip-next { animation: turn-next .38s ease-in forwards; }
-.flip-prev { animation: turn-prev .38s ease-in forwards; }
-@keyframes turn-next { to { transform: perspective(1200px) rotateX(-70deg); opacity: .2; } }
-@keyframes turn-prev { from { transform: perspective(1200px) rotateX(-70deg); opacity: .2; } to { transform: none; opacity: 1; } }
+/* the page turns: forward lifts the page up over the rings; back drops the previous page down */
+.wallcal { transform-style: preserve-3d; }
+.turn-out-fwd { animation: lift-out .3s cubic-bezier(.4, 0, 1, 1) forwards; }
+.turn-in-fwd { animation: settle-in .32s cubic-bezier(0, 0, .2, 1) both; }
+.turn-out-back { animation: settle-out .3s cubic-bezier(.4, 0, 1, 1) forwards; }
+.turn-in-back { animation: drop-in .32s cubic-bezier(0, 0, .2, 1) both; }
+@keyframes lift-out { from { transform: perspective(1400px) rotateX(0); } to { transform: perspective(1400px) rotateX(-92deg); box-shadow: 0 30px 40px rgba(0,0,0,.5); } }
+@keyframes settle-in { from { transform: translateY(-6px) scale(.985); opacity: .6; } to { transform: none; opacity: 1; } }
+@keyframes settle-out { from { transform: none; } to { transform: translateY(-6px) scale(.985); opacity: .6; } }
+@keyframes drop-in { from { transform: perspective(1400px) rotateX(-92deg); } to { transform: perspective(1400px) rotateX(0); } }
 @media (max-width: 640px) { .wc-cell { min-height: 60px; padding: .3rem; } .wc-state, .wc-sub { display: none; } .wc-info { font-size: .7rem; } }
-@media (prefers-reduced-motion: reduce) { .flip-next, .flip-prev { animation: none; } }
+@media (prefers-reduced-motion: reduce) { .turn-out-fwd, .turn-in-fwd, .turn-out-back, .turn-in-back { animation: none; } }
 .sheet-back { position: fixed; inset: 0; background: rgba(11, 17, 32, .7); display: grid; place-items: center; z-index: 40; padding: 1rem; }
 .sheet { width: min(520px, 100%); margin: 0; }
 @media (max-width: 640px) { .cal-cell { min-height: 54px; padding: .3rem; } .cal-status { display: none; } }

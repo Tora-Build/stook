@@ -26,9 +26,15 @@ const nyDate = (t: number) => new Date(t * 1000).toLocaleDateString("en-CA", { t
 export function WallCalendar(p: Props) {
   const nyNow = new Date(new Date().toLocaleString("en-US", { timeZone: "America/New_York" }));
   const [offset, setOffset] = useState(0);            // months from the current one; −∞..+1
-  const [flip, setFlip] = useState<"next" | "prev" | null>(null);
+  const [turning, setTurning] = useState<{ dir: 1 | -1; phase: "out" | "in" } | null>(null);
   const m0 = new Date(nyNow.getFullYear(), nyNow.getMonth() + offset, 1);
-  const turn = (dir: 1 | -1) => { if (offset + dir > 1) return; setFlip(dir > 0 ? "next" : "prev"); setTimeout(() => { setOffset((o) => o + dir); setFlip(null); }, 380); };
+  // A wall calendar's page lifts up over the rings and folds away; the new
+  // page is underneath and settles as the old one clears.
+  const turn = (dir: 1 | -1) => {
+    if (turning || offset + dir > 1) return;
+    setTurning({ dir, phase: "out" });
+    setTimeout(() => { setOffset((o) => o + dir); setTurning({ dir, phase: "in" }); setTimeout(() => setTurning(null), 320); }, 300);
+  };
 
   const byDay = new Map<string, LadderRow>();
   for (const r of p.rounds) byDay.set(nyDate(Number(r.ladder.settlesAt)), r);
@@ -39,7 +45,7 @@ export function WallCalendar(p: Props) {
   while (cells.length % 7) cells.push(null);
 
   return (
-    <div className={`wallcal ${flip ? `flip-${flip}` : ""}`}>
+    <div className={`wallcal ${turning ? `turn-${turning.phase}-${turning.dir > 0 ? "fwd" : "back"}` : ""}`}>
       <div className="wc-rings" aria-hidden="true">{Array.from({ length: 9 }, (_, i) => <span key={i} />)}</div>
       <header className="wc-head">
         <button className="wc-arrow" onClick={() => turn(-1)} aria-label="Previous month">‹</button>

@@ -1,7 +1,7 @@
 // Reads and writes against the program. Every write goes through the wallet
 // adapter with the heap frame prepended (`stook.withHeap`).
 
-import { Connection, PublicKey, Transaction, type TransactionInstruction } from "@solana/web3.js";
+import { Connection, Keypair, PublicKey, Transaction, type TransactionInstruction } from "@solana/web3.js";
 import { AccountLayout, TOKEN_2022_PROGRAM_ID, TOKEN_PROGRAM_ID, createAssociatedTokenAccountIdempotentInstruction, getAssociatedTokenAddressSync } from "@solana/spl-token";
 import { stook, SOOTH_CORE_PROGRAM_ID } from "@sooth/sdk-solana";
 import type { WalletContextState } from "@solana/wallet-adapter-react";
@@ -80,7 +80,7 @@ export async function fetchLivePrice(c: Connection, feedId: Uint8Array): Promise
   return { price: d.readBigInt64LE(at + 32), conf: d.readBigUInt64LE(at + 40), expo: d.readInt32LE(at + 48), publishTime: Number(d.readBigInt64LE(at + 52)) };
 }
 
-export async function send(c: Connection, wallet: WalletContextState, ixs: TransactionInstruction[], computeUnits = 120_000): Promise<string> {
+export async function send(c: Connection, wallet: WalletContextState, ixs: TransactionInstruction[], computeUnits = 120_000, extraSigners: Keypair[] = []): Promise<string> {
   if (!wallet.publicKey || !wallet.signTransaction) throw new Error("connect a wallet first");
   // The wallet only signs. Broadcasting and confirming are done here: the
   // signed bytes are re-sent every two seconds until the network confirms
@@ -92,6 +92,7 @@ export async function send(c: Connection, wallet: WalletContextState, ixs: Trans
     tx.feePayer = wallet.publicKey;
     const { blockhash, lastValidBlockHeight } = await c.getLatestBlockhash("confirmed");
     tx.recentBlockhash = blockhash;
+    if (extraSigners.length) tx.partialSign(...extraSigners);
     const signed = await wallet.signTransaction(tx);
     const raw = signed.serialize();
     const sig = await c.sendRawTransaction(raw, { skipPreflight: false, preflightCommitment: "confirmed", maxRetries: 0 });

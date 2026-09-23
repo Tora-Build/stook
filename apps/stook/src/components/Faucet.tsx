@@ -5,12 +5,12 @@
 import { useState } from "react";
 import { useConnection, useWallet } from "@solana/wallet-adapter-react";
 import { useQueryClient } from "@tanstack/react-query";
-import { Keypair, Transaction } from "@solana/web3.js";
+import { Keypair, type TransactionInstruction } from "@solana/web3.js";
 import { TOKEN_2022_PROGRAM_ID, TOKEN_PROGRAM_ID, createAssociatedTokenAccountIdempotentInstruction, createMintToInstruction, getAssociatedTokenAddressSync } from "@solana/spl-token";
 import { FAUCET_AUTHORITY_BYTES, QUOTE_MINT } from "../lib/config";
 import { COINS, mintOf } from "../lib/coins";
 import { useToast } from "./Toast";
-import { explain } from "../lib/chain";
+import { explain, send } from "../lib/chain";
 
 export function Faucet() {
   const { connection } = useConnection();
@@ -25,20 +25,16 @@ export function Faucet() {
     setBusy(true);
     try {
       const authority = Keypair.fromSecretKey(Uint8Array.from(JSON.parse(FAUCET_AUTHORITY_BYTES)));
-      const tx = new Transaction();
+      const ixs: TransactionInstruction[] = [];
       const give = (m: typeof QUOTE_MINT, program: typeof TOKEN_PROGRAM_ID, amount: bigint) => {
         if (!m) return;
         const ata = getAssociatedTokenAddressSync(m, owner, false, program);
-        tx.add(createAssociatedTokenAccountIdempotentInstruction(owner, ata, owner, m, program), createMintToInstruction(m, ata, authority.publicKey, amount, [], program));
+        ixs.push(createAssociatedTokenAccountIdempotentInstruction(owner, ata, owner, m, program), createMintToInstruction(m, ata, authority.publicKey, amount, [], program));
       };
       give(QUOTE_MINT, TOKEN_PROGRAM_ID, 10_000_000_000n);
       for (const c of COINS) { const m = mintOf(c); if (m && m.toBase58() !== c.mint) give(m, TOKEN_2022_PROGRAM_ID, 10_000n * 10n ** BigInt(c.decimals)); }
-      tx.feePayer = owner;
-      const { blockhash, lastValidBlockHeight } = await connection.getLatestBlockhash();
-      tx.recentBlockhash = blockhash;
-      tx.partialSign(authority);
-      const sig = await wallet.sendTransaction(tx, connection);
-      await connection.confirmTransaction({ signature: sig, blockhash, lastValidBlockHeight }, "confirmed");
+      // Same sender as every other transaction: sign, broadcast, rebroadcast until confirmed.
+      const sig = await send(connection, wallet, ixs, 200_000, [authority]);
       toast.ok("10,000 of each street coin, and test USDC, minted", sig);
       void qc.invalidateQueries({ queryKey: ["balance"] });
     } catch (e) { toast.err(explain(e)); } finally { setBusy(false); }
