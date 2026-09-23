@@ -246,7 +246,17 @@ async function learn() {
         const { parsed, vaas } = await hermes(`/v2/updates/price/${at}`, feed);
         const problem = parsed ? stook.settlementProblem(parsed, { feedId: s.feedId, settlesAt: at, stepBps: 200, p0Expo: parsed.price.expo }) : "hermes returned no update";
         if (problem) { unobservable.add(key); console.log(tag, "skipped:", problem); continue; }
-        console.log(tag, await postAndConsume(vaas, feed, (price) => [stook.observeSeriesIx(pubkey, payer.publicKey, price, index)]));
+        // An RPC node that has not seen the blockhash yet refuses the
+        // simulation; that clears in seconds, so try again at once.
+        for (let attempt = 0; ; attempt++) {
+          try {
+            console.log(tag, await postAndConsume(vaas, feed, (price) => [stook.observeSeriesIx(pubkey, payer.publicKey, price, index)]));
+            break;
+          } catch (e) {
+            if (attempt < 4 && /Blockhash not found|block height exceeded/i.test(String(e?.message ?? e))) { await new Promise((r) => setTimeout(r, 2500)); continue; }
+            throw e;
+          }
+        }
       } catch (e) {
         const why = `${e?.message ?? e} ${(e?.logs ?? []).join(" ")}`;
         // Some closes can never be verified: signed by a Wormhole guardian set

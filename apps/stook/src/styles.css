@@ -509,3 +509,4 @@ a.wc-cell:hover { text-decoration: none; border-color: var(--taxi); }
 :root[data-theme="day"] .tote-ready .tote-v, :root[data-theme="day"] .stmt-firm, :root[data-theme="day"] .stmt-round-foot a { color: var(--taxi-2); }
 :root[data-theme="day"] .stmt-h { color: #1c7f7f; }
 :root[data-theme="day"] .stamp-trading { color: #1f7a4d; } :root[data-theme="day"] .stamp-funded, :root[data-theme="day"] .stamp-opening { color: #1c7f7f; } :root[data-theme="day"] .stamp-settled { color: var(--taxi-2); }
+.chart24-h { margin: 1.8rem 0 .6rem; }
