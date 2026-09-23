@@ -73,7 +73,7 @@ function Tables() {
   return (
     <div className="scene">
       <div className="scene-tables">{COINS.map((x, n) => <button key={x.symbol} className={`scene-table ${n === k ? "on" : ""}`} onClick={() => setK(n)}><img src={x.logo} alt="" /><span>${x.symbol}</span></button>)}</div>
-      <div className="scene-caption"><img src={c.anchor.logo} alt="" className="scene-anchor" /> <b>${c.symbol}</b> follows <b>{c.anchor.name}</b>. Bets here are paid in ${c.symbol}.</div>
+      <div className="scene-caption"><img src={c.anchor.logo} alt="" className="scene-anchor" /> <b>${c.symbol}</b> follows <b>{c.anchor.name}{c.anchor.name !== c.anchor.symbol ? ` (${c.anchor.symbol})` : ""}</b>. Bets here are paid in ${c.symbol}.</div>
     </div>
   );
 }
@@ -89,7 +89,7 @@ function Calendar() {
           return <button key={n} className={`scene-day ${on ? "on" : ""} ${today ? "today" : ""}`} onClick={() => setStarted(new Set(started).add(n))}>{on ? (today ? "trading" : "started") : "start"}</button>;
         })}
       </div>
-      <div className="scene-caption">{started.size > 1 ? `You started ${started.size - 1} day${started.size > 2 ? "s" : ""}. You're their first liquidity; others add to the same rounds.` : "Wednesday is trading. The rest are waiting for someone to start them."}</div>
+      <div className="scene-caption">{started.size > 1 ? `You started ${started.size - 1} day${started.size > 2 ? "s" : ""}. You'd be their first liquidity; others add to the same rounds.` : "Wednesday is trading. The rest are waiting for someone to start them."}<br /><span className="muted">A model — nothing here is real. The real calendar is on each coin's page.</span></div>
     </div>
   );
 }
@@ -127,7 +127,7 @@ function Bell() {
         {rung && <><line x1={hit * 18 + 10} x2={hit * 18 + 10} y1={2} y2={62} className="line-live" /><text x={hit * 18 + 14} y={10} className="lbl lbl-live lbl-xs">Pyth: here</text></>}
       </svg>
       <div className="scene-row"><button className="small" onClick={() => setRung(true)} disabled={rung}>ring the bell</button>{rung && <button className="link" onClick={() => setRung(false)}>again</button>}</div>
-      <div className="scene-caption">{rung ? "One Pyth update at the closing second picked this band. Shares on it pay; the rest pay nothing. No committee, no vote." : "Trading locked two minutes ago. The close is now."}</div>
+      <div className="scene-caption">{rung ? "One Pyth update at the closing second picked this band. Shares on it pay; the rest pay nothing. No committee, no vote." : "Trading locked two minutes ago. The close is now."}<br /><span className="muted">A model.</span></div>
     </div>
   );
 }
@@ -143,7 +143,7 @@ function House() {
         <div className="scene-bar"><div className="scene-fill" style={{ width: `${share * 100}%` }} /></div>
         <div className="scene-legend"><span>your share of the pool <b className="mono">{(share * 100).toFixed(0)}%</b></span><span>of {fees} in fees today <b className="mono">{(fees * 0.8 * share).toFixed(0)}</b> is yours</span></div>
       </div>
-      <div className="scene-caption">Others hold {others.toLocaleString()} in this pool. Fees split by depth, from the moment you join. At the close the pool pays the winning band and keeps whatever the losing lines paid in.</div>
+      <div className="scene-caption">Others hold {others.toLocaleString()} in this pool. Fees split by depth, from the moment you join. At the close the pool pays the winning band and keeps whatever the losing lines paid in. <span className="muted">A model with made-up numbers.</span></div>
     </div>
   );
 }

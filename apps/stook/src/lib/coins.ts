@@ -35,7 +35,7 @@ export interface Coin {
 export const COINS: Coin[] = [
   {
     symbol: "STOOK", name: "Stook Street", logo: "/logos/stook.png", mint: "GWrd84X5QxdRPAiNUFyiBaNoVZs85oHyWHtonJdd4wqu", decimals: 6, feeBps: 100,
-    anchor: { symbol: "SPYx", name: "S&P 500 (SPYx)", mint: "XsoCS1TfEyfFhfvj8EtZ528L3CaKBDBRqRapnBbDF2W", logo: "/logos/spyx.png", feedId: "2817b78438c769357182c04346fddaad1178c82f4048828fe0997c3c64624e14", hours: "24/7", dp: 2 },
+    anchor: { symbol: "SPYx", name: "S&P 500", mint: "XsoCS1TfEyfFhfvj8EtZ528L3CaKBDBRqRapnBbDF2W", logo: "/logos/spyx.png", feedId: "2817b78438c769357182c04346fddaad1178c82f4048828fe0997c3c64624e14", hours: "24/7", dp: 2 },
   },
   {
     symbol: "ZCAT", name: "Anonymous Cat", logo: "/logos/zcat.jpg", mint: "HcRLc9VDgjLeK154xDawfb1dmVJ98DoSqcwTHGqiDeJR", decimals: 9, feeBps: 300,
@@ -47,7 +47,7 @@ export const COINS: Coin[] = [
   },
   {
     symbol: "GP", name: "RuneScape Gold", logo: "/logos/gp.jpg", mint: "HTmQz7My6MehV7bjhJ6jde8nDND1yvsz68d24LP7YgUQ", decimals: 6, feeBps: 300,
-    anchor: { symbol: "GLDx", name: "Gold (GLDx)", mint: "Xsv9hRk1z5ystj9MhnA7Lq4vjSsLwzL2nxrwmwtD3re", logo: "/logos/gldx.png", feedId: "e7d1138d0083368634087268c64b7bea0b4101a6365f83915cba9e76a8364b96", hours: "24/7", dp: 2 },
+    anchor: { symbol: "GLDx", name: "Gold", mint: "Xsv9hRk1z5ystj9MhnA7Lq4vjSsLwzL2nxrwmwtD3re", logo: "/logos/gldx.png", feedId: "e7d1138d0083368634087268c64b7bea0b4101a6365f83915cba9e76a8364b96", hours: "24/7", dp: 2 },
   },
 ];
 
