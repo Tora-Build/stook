@@ -7,7 +7,10 @@ use anchor_spl::token_interface::Mint;
 
 use crate::error::SoothCoreError;
 use crate::math::calendar::DAY;
-use crate::state::series::{CLOCK_NEW_YORK, CLOCK_NEW_YORK_WEEKDAYS, CLOCK_UTC, VAR_MAX, VAR_MIN};
+use crate::instructions::ladder::ORACLE_MIN_SIGNATURES;
+use crate::oracle::{check_settlement_instant, read_price_update};
+use crate::state::ladder::SETTLE_MAX_GAP_SECS;
+use crate::state::series::{CLOCK_NEW_YORK, CLOCK_NEW_YORK_WEEKDAYS, CLOCK_UTC};
 use crate::state::{ProtocolConfig, Series, PROTOCOL_CONFIG_SEED, SERIES_SEED};
 
 #[derive(AnchorSerialize, AnchorDeserialize, Clone, Debug)]
@@ -18,9 +21,6 @@ pub struct SeriesCreateArgs {
     /// Seconds after local midnight (daily) or into the period.
     pub close_secs: u32,
     pub clock: u8,
-    /// Starting variance of daily log returns, WAD: the anchor's recent
-    /// history, measured off chain once. Settlements take over from there.
-    pub var_wad: i128,
 }
 
 #[derive(Accounts)]
@@ -58,13 +58,11 @@ pub struct SeriesCreated {
     pub period_secs: u32,
     pub close_secs: u32,
     pub clock: u8,
-    pub var_wad: i128,
 }
 
 pub fn series_create_handler(ctx: Context<SeriesCreate>, args: SeriesCreateArgs) -> Result<()> {
     let daily = args.period_secs == 0;
     let ok = (args.clock == CLOCK_UTC || args.clock == CLOCK_NEW_YORK || args.clock == CLOCK_NEW_YORK_WEEKDAYS)
-        && (args.var_wad >= VAR_MIN && args.var_wad <= VAR_MAX)
         && if daily {
             // at or after 3 AM, so a close never sits on a daylight-saving switch
             (args.close_secs as i64) < DAY && (args.clock == CLOCK_UTC || args.close_secs >= 3 * 3600)
@@ -81,7 +79,7 @@ pub fn series_create_handler(ctx: Context<SeriesCreate>, args: SeriesCreateArgs)
     s.clock = args.clock;
     s.active = true;
     s.bump = ctx.bumps.series;
-    s.var_wad = args.var_wad;
+    // No volatility yet: it is learned from Pyth closes (`series_observe`).
     emit!(SeriesCreated {
         series: s.key(),
         feed_id: args.feed_id,
@@ -89,7 +87,6 @@ pub fn series_create_handler(ctx: Context<SeriesCreate>, args: SeriesCreateArgs)
         period_secs: args.period_secs,
         close_secs: args.close_secs,
         clock: args.clock,
-        var_wad: args.var_wad,
     });
     Ok(())
 }
@@ -109,17 +106,53 @@ pub struct SeriesSet<'info> {
     pub series: Box<Account<'info, Series>>,
 }
 
-/// Stop or restart new rounds, or reset the volatility after a regime the
-/// settlements have not caught up with (a listing, a halt). Rounds already
-/// created keep the band width they were created with.
-pub fn series_set_handler(ctx: Context<SeriesSet>, active: Option<bool>, var_wad: Option<i128>) -> Result<()> {
+/// Stop or restart new rounds. Running rounds are untouched. There is no way
+/// to set a series' volatility: it is learned from Pyth closes and nothing else.
+pub fn series_set_handler(ctx: Context<SeriesSet>, active: bool) -> Result<()> {
+    ctx.accounts.series.active = active;
+    Ok(())
+}
+
+// ── observe ──────────────────────────────────────────────────────────────────
+
+#[derive(Accounts)]
+#[instruction(index: u32)]
+pub struct SeriesObserve<'info> {
+    /// Anyone. Which price counts for a day is fixed by the settlement rule,
+    /// not by who submits it.
+    pub caller: Signer<'info>,
+
+    #[account(mut)]
+    pub series: Box<Account<'info, Series>>,
+
+    /// CHECK: a Pyth `PriceUpdateV2`; verified in `oracle`.
+    pub price_update: UncheckedAccount<'info>,
+}
+
+#[event]
+pub struct SeriesObserved {
+    pub series: Pubkey,
+    pub index: u32,
+    pub price: i64,
+    pub var_wad: i128,
+    pub observations: u32,
+}
+
+/// Teach a series one day's close, whether or not anyone funded a round that
+/// day: the Pyth update that is the price at `close_of(index)` under the same
+/// rule a settlement uses (the first published at or after the close, within
+/// 30 seconds). Days go in order, and missed ones can be submitted later from
+/// Pyth's history, so the series never depends on a keeper or on rounds to
+/// learn.
+pub fn series_observe_handler(ctx: Context<SeriesObserve>, index: u32) -> Result<()> {
     let s = &mut ctx.accounts.series;
-    if let Some(a) = active {
-        s.active = a;
-    }
-    if let Some(v) = var_wad {
-        require!(v >= VAR_MIN && v <= VAR_MAX, SoothCoreError::SeriesBadParams);
-        s.var_wad = v;
-    }
+    require!(s.has_round(index), SoothCoreError::LadderBadTimes);
+    let at = s.close_of(index);
+    require!(at > s.last_at, SoothCoreError::SeriesAlreadyObserved);
+    let p = read_price_update(&ctx.accounts.price_update.to_account_info())?;
+    // Confidence under 1% of the price: this price only measures a move.
+    check_settlement_instant(&p, &s.feed_id, ORACLE_MIN_SIGNATURES, at, SETTLE_MAX_GAP_SECS, 200)?;
+    s.observe(p.price, p.exponent, at).map_err(|_| error!(SoothCoreError::MathOverflow))?;
+    emit!(SeriesObserved { series: s.key(), index, price: p.price, var_wad: s.var_wad, observations: s.observations });
     Ok(())
 }

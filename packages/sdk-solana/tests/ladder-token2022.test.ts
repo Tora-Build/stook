@@ -16,7 +16,7 @@ import { LiteSVM } from "litesvm";
 import { SvmContext } from "./fixtures/svm";
 import { warpClockTo } from "./fixtures/setup";
 import * as L from "../src/ladder/index";
-import { testSeries } from "./fixtures/series";
+import { testSeries, warmCloses } from "./fixtures/series";
 
 const PROGRAM = new PublicKey("55kGEMHJyNbD3qcdonCD8UPTqzM85yg2kr6M5UF5P353");
 const PYTH_RECEIVER = new PublicKey("rec5EKMGg6MxZYaMdyBfgwp4d5rB9T1VQH5pJv5LtFJ");
@@ -106,6 +106,11 @@ describe("a ladder quoted in a real xStock", () => {
     // ── the trust decision is the authority's, and nobody else's ────────────
     warpClockTo(e.ctx, PUBLISH_TIME - 1000n);
     await ok(e, ser.createIx(), e.admin);
+    for (const c of warmCloses(ser.indexOf, ser.closeOf, PUBLISH_TIME - 1000n, 22_019_000n)) {
+      warpClockTo(e.ctx, c.at + 1n);
+      await ok(e, L.observeSeriesIx(ser.series, e.trader.kp.publicKey, e.priceAccount(updateAt(c.price, c.at, c.at - 1n)), c.index, PROGRAM), e.trader.kp);
+    }
+    warpClockTo(e.ctx, PUBLISH_TIME - 1000n);
     await refused(e, create(false), e.creator.kp, "MintNeedsApproval");
     await refused(e, create(true), e.creator.kp, "AccountNotInitialized");               // claiming an approval that does not exist
     await refused(e, L.approveQuoteMintIx(e.creator.kp.publicKey, e.mint, PROGRAM), e.creator.kp, "Unauthorized");

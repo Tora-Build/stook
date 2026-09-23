@@ -196,9 +196,15 @@ pub mod sooth_core {
         series::series_create_handler(ctx, args)
     }
 
-    /// Pause or resume a series' new rounds, or reset its volatility.
-    /// Protocol authority.
-    pub fn series_set(ctx: Context<SeriesSet>, active: Option<bool>, var_wad: Option<i128>) -> Result<()> {
-        series::series_set_handler(ctx, active, var_wad)
+    /// Pause or resume a series' new rounds. Protocol authority. There is no
+    /// way to set a series' volatility.
+    pub fn series_set(ctx: Context<SeriesSet>, active: bool) -> Result<()> {
+        series::series_set_handler(ctx, active)
+    }
+
+    /// Teach a series one day's close from Pyth, under the settlement rule.
+    /// Permissionless.
+    pub fn series_observe(ctx: Context<SeriesObserve>, index: u32) -> Result<()> {
+        series::series_observe_handler(ctx, index)
     }
 }

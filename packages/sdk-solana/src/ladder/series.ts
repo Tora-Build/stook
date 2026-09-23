@@ -18,7 +18,12 @@ export const SERIES_DISCRIMINATOR = Uint8Array.from([240, 97, 8, 183, 139, 77, 2
 const DISC = {
   create: [180, 125, 141, 219, 152, 55, 229, 81],
   set: [31, 44, 93, 106, 192, 123, 3, 29],
+  observe: [22, 211, 65, 155, 60, 45, 214, 115],
 } as const;
+
+/** Closes a series learns from before it takes a round (`WARMUP_OBSERVATIONS`). */
+export const WARMUP_OBSERVATIONS = 20;
+export const warmedUp = (s: Pick<SeriesAccount, "observations" | "varWad">) => s.observations >= WARMUP_OBSERVATIONS && s.varWad > 0n;
 
 export const CLOCK_UTC = 0;
 export const CLOCK_NEW_YORK = 1;
@@ -201,10 +206,10 @@ export function openingTerms(varWad: bigint, settlesAt: bigint, openAt: bigint):
 export function roundTerms(s: SeriesAccount, index: number, now: bigint): RoundTerms {
   const settlesAt = closeOf(s, index);
   const { opensAt, locksAt } = roundTimes(now, settlesAt);
-  const fundable = s.active && hasRound(s, index) && now + 900n <= settlesAt && settlesAt <= now + MAX_LEAD_SECS;
+  const fundable = s.active && warmedUp(s) && hasRound(s, index) && now + 900n <= settlesAt && settlesAt <= now + MAX_LEAD_SECS;
   // A day that has passed (or is too close) has no window to size bands for:
   // say so rather than throw, since a calendar asks about every day.
-  if (settlesAt <= opensAt) return { settlesAt, opensAt, locksAt, stepBps: 0, varBands: 0n, curve: fresh(), fundable: false, fundableFrom: settlesAt - MAX_LEAD_SECS };
+  if (settlesAt <= opensAt || s.varWad <= 0n) return { settlesAt, opensAt, locksAt, stepBps: 0, varBands: 0n, curve: fresh(), fundable: false, fundableFrom: settlesAt - MAX_LEAD_SECS };
   const o = openingTerms(s.varWad, settlesAt, opensAt);
   return { settlesAt, opensAt, locksAt, stepBps: o.stepBps, varBands: o.varBandsE9 * 1_000_000_000n, curve: o.curve, fundable, fundableFrom: settlesAt - MAX_LEAD_SECS };
 }
@@ -228,8 +233,6 @@ export interface CreateSeriesArgs {
   periodSecs?: number;
   closeSecs: number;
   clock: number;
-  /** Variance of daily log returns, WAD: (σ_day)² · 10¹⁸. */
-  varWad: bigint;
   programId?: PublicKey;
 }
 
@@ -238,7 +241,7 @@ export function createSeriesIx(a: CreateSeriesArgs): TransactionInstruction {
   const period = a.periodSecs ?? 0;
   return new TransactionInstruction({
     programId,
-    data: Buffer.concat([Uint8Array.from(DISC.create), a.feedId, u32(period), u32(a.closeSecs), Uint8Array.of(a.clock), i128(a.varWad)]),
+    data: Buffer.concat([Uint8Array.from(DISC.create), a.feedId, u32(period), u32(a.closeSecs), Uint8Array.of(a.clock)]),
     keys: [
       { pubkey: a.authority, isSigner: true, isWritable: true },
       { pubkey: find([SEED_CONFIG], programId), isSigner: false, isWritable: false },
@@ -249,17 +252,57 @@ export function createSeriesIx(a: CreateSeriesArgs): TransactionInstruction {
   });
 }
 
-export function setSeriesIx(authority: PublicKey, series: PublicKey, p: { active?: boolean; varWad?: bigint }, programId = SOOTH_CORE_PROGRAM_ID): TransactionInstruction {
-  const opt = (v: Uint8Array | null) => (v ? Buffer.concat([Uint8Array.of(1), v]) : Uint8Array.of(0));
+/** Protocol authority: pause or resume a series' new rounds. Nothing sets its volatility. */
+export function setSeriesIx(authority: PublicKey, series: PublicKey, active: boolean, programId = SOOTH_CORE_PROGRAM_ID): TransactionInstruction {
   return new TransactionInstruction({
     programId,
-    data: Buffer.concat([Uint8Array.from(DISC.set), opt(p.active === undefined ? null : Uint8Array.of(p.active ? 1 : 0)), opt(p.varWad === undefined ? null : i128(p.varWad))]),
+    data: Buffer.concat([Uint8Array.from(DISC.set), Uint8Array.of(active ? 1 : 0)]),
     keys: [
       { pubkey: authority, isSigner: true, isWritable: false },
       { pubkey: find([SEED_CONFIG], programId), isSigner: false, isWritable: false },
       { pubkey: series, isSigner: false, isWritable: true },
     ],
   });
+}
+
+/**
+ * Teach a series the close of day (period) `index`, from the Pyth update
+ * that is the price at that close under the settlement rule. Anyone may.
+ */
+export function observeSeriesIx(series: PublicKey, caller: PublicKey, priceUpdate: PublicKey, index: number, programId = SOOTH_CORE_PROGRAM_ID): TransactionInstruction {
+  return new TransactionInstruction({
+    programId,
+    data: Buffer.concat([Uint8Array.from(DISC.observe), u32(index)]),
+    keys: [
+      { pubkey: caller, isSigner: true, isWritable: false },
+      { pubkey: series, isSigner: false, isWritable: true },
+      { pubkey: priceUpdate, isSigner: false, isWritable: false },
+    ],
+  });
+}
+
+/** The index whose close is the latest at or before `t`. */
+export function indexAtOrBefore(s: Pick<SeriesAccount, "periodSecs" | "closeSecs" | "clock">, t: bigint): number {
+  const span = s.periodSecs > 0 ? s.periodSecs : DAY;
+  let i = Math.floor(Number(t - BigInt(s.closeSecs)) / span) + 1;
+  while (closeOf(s, i) > t) i--;
+  return i;
+}
+
+/**
+ * The closes a series has not learned yet, oldest first, up to `max`: every
+ * day (period) with a round, after the last one it saw and at least `settle`
+ * seconds in the past. A new series starts `backfill` closes back, so it can
+ * warm up from Pyth's history at once.
+ */
+export function pendingObservations(s: SeriesAccount, now: bigint, max = 40, settle = 60n, backfill = WARMUP_OBSERVATIONS + 5): number[] {
+  const latest = indexAtOrBefore(s, now - settle);
+  const out: number[] = [];
+  let from = s.lastAt > 0n ? indexAtOrBefore(s, s.lastAt) + 1 : latest - backfill;
+  // A weekday series skips weekends when counting its backfill.
+  if (s.lastAt === 0n) { let n = 0; for (from = latest; from > latest - 3 * backfill && n < backfill; from--) if (hasRound(s, from)) n++; }
+  for (let i = from; i <= latest && out.length < max; i++) if (hasRound(s, i) && closeOf(s, i) > s.lastAt) out.push(i);
+  return out;
 }
 
 /** σ_day as a fraction → the series' variance, WAD. */

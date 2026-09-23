@@ -16,7 +16,7 @@ import { LiteSVM } from "litesvm";
 import { SvmContext } from "./fixtures/svm";
 import { warpClockTo } from "./fixtures/setup";
 import * as L from "../src/ladder/index";
-import { testSeries } from "./fixtures/series";
+import { testSeries, warmCloses } from "./fixtures/series";
 
 const PROGRAM = new PublicKey("55kGEMHJyNbD3qcdonCD8UPTqzM85yg2kr6M5UF5P353");
 const PYTH_RECEIVER = new PublicKey("rec5EKMGg6MxZYaMdyBfgwp4d5rB9T1VQH5pJv5LtFJ");
@@ -84,6 +84,11 @@ describe("a ladder quoted in $STOOK, a 1% transfer-fee mint", () => {
 
     warpClockTo(e.ctx, PUBLISH_TIME - 1000n);
     await ok(e, ser.createIx(), e.admin);
+    for (const c of warmCloses(ser.indexOf, ser.closeOf, PUBLISH_TIME - 1000n, 22_019_000n)) {
+      warpClockTo(e.ctx, c.at + 1n);
+      await ok(e, L.observeSeriesIx(ser.series, e.trader.kp.publicKey, e.priceAccount(updateAt(c.price, c.at, c.at - 1n)), c.index, PROGRAM), e.trader.kp);
+    }
+    warpClockTo(e.ctx, PUBLISH_TIME - 1000n);
     const create = (t: boolean) => L.createLadderIx({ ...key, creator: e.creator.kp.publicKey, creatorToken: e.creator.token, tokenProgram: TOKEN_2022_PROGRAM_ID, seed: 1_000n * T, issuerTrusted: t, programId: PROGRAM });
     await refused(e, create(false), e.creator.kp, "MintNeedsApproval");
     await ok(e, L.approveQuoteMintIx(e.admin.publicKey, e.mint, PROGRAM), e.admin);

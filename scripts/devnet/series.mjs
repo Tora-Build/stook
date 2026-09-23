@@ -1,13 +1,10 @@
-// Open each coin's daily series (protocol authority), seeded with its
-// anchor's recent volatility.
+// Open each coin's daily series (protocol authority). A new series has no
+// volatility: the keeper backfills its last closes from Pyth (series_observe)
+// and it takes rounds once it has learned from twenty.
 //
 //   node series.mjs show                 every coin's series and what tomorrow's round would be
 //   node series.mjs create               open the daily series that do not exist yet
 //   node series.mjs create --hourly STOOK   also an hourly one, to watch a whole cycle in an hour
-//
-// The starting variance is measured the way the program will keep measuring
-// it: an EWMA (λ = 0.94) of squared daily log returns, run over the last three
-// months of daily closes. From then on every settlement updates it on chain.
 //
 // ENV: RPC_URL (default public devnet), KEYPAIR (default ~/.config/solana/id.json)
 
@@ -30,20 +27,11 @@ const COINS = {
 };
 const hexBytes = (h) => Uint8Array.from(h.match(/.{2}/g).map((b) => parseInt(b, 16)));
 
-async function sigmaDay(symbol) {
-  const r = await fetch(`https://query1.finance.yahoo.com/v8/finance/chart/${symbol}?interval=1d&range=3mo`, { headers: { "user-agent": "Mozilla/5.0" } });
-  const closes = (await r.json()).chart.result[0].indicators.quote[0].close.filter(Boolean);
-  const r2 = closes.slice(1).map((p, i) => Math.log(p / closes[i]) ** 2);
-  let v = r2.slice(0, 20).reduce((a, b) => a + b) / 20;
-  for (const x of r2.slice(20)) v = 0.94 * v + 0.06 * x;
-  return Math.sqrt(v);
-}
-
 const cmd = process.argv[2] ?? "show";
 const hourly = process.argv.includes("--hourly") ? process.argv[process.argv.indexOf("--hourly") + 1] : null;
 const now = BigInt(Math.floor(Date.now() / 1000));
 
-for (const [coin, { feed, yahoo }] of Object.entries(COINS)) {
+for (const [coin, { feed }] of Object.entries(COINS)) {
   const mint = new PublicKey(MINTS[coin]);
   const periods = [0, ...(hourly === coin ? [3600] : [])];
   for (const period of periods) {
@@ -54,17 +42,15 @@ for (const [coin, { feed, yahoo }] of Object.entries(COINS)) {
       const s = stook.decodeSeries(info.data);
       const next = period ? Number(now / 3600n) + 1 : stook.daysFromCivil(...new Date(Date.now() + 86_400_000).toISOString().slice(0, 10).split("-").map(Number));
       const t = stook.roundTerms(s, next, now);
-      console.log(label, `σ ${(Math.sqrt(Number(s.varWad) / 1e18) * 100).toFixed(2)}%/day · ${s.observations} settlements learned · next round: bands ${(t.stepBps / 100).toFixed(2)}%, grid −${((1 - Math.exp(-31 * t.stepBps / 1e4)) * 100).toFixed(0)}% to +${((Math.exp(31 * t.stepBps / 1e4) - 1) * 100).toFixed(0)}%${s.active ? "" : " · PAUSED"}`);
+      console.log(label, `σ ${(Math.sqrt(Number(s.varWad) / 1e18) * 100).toFixed(2)}%/day · ${s.observations}/${stook.WARMUP_OBSERVATIONS} closes learned · next round: bands ${(t.stepBps / 100).toFixed(2)}%, grid −${((1 - Math.exp(-31 * t.stepBps / 1e4)) * 100).toFixed(0)}% to +${((Math.exp(31 * t.stepBps / 1e4) - 1) * 100).toFixed(0)}%${s.active ? "" : " · PAUSED"}`);
       continue;
     }
     if (cmd !== "create") { console.log(label, "not created"); continue; }
-    const sigma = await sigmaDay(yahoo);
     const ix = stook.createSeriesIx({
       authority: payer.publicKey, feedId: hexBytes(feed), quoteMint: mint, periodSecs: period,
       closeSecs: period ? 0 : 16 * 3600, clock: period ? stook.CLOCK_UTC : stook.CLOCK_NEW_YORK,
-      varWad: stook.varFromSigma(sigma),
     });
     const sig = await sendAndConfirmTransaction(c, new Transaction().add(...stook.withHeap([ix])), [payer]);
-    console.log(label, `created at σ ${(sigma * 100).toFixed(2)}%/day (${yahoo}, 3 months, EWMA)`, sig);
+    console.log(label, "created; learning from Pyth closes", sig);
   }
 }

@@ -26,7 +26,8 @@ import { homedir } from "node:os";
 import { createRequire } from "node:module";
 import { Connection, Keypair, ComputeBudgetProgram } from "@solana/web3.js";
 import { createAssociatedTokenAccountIdempotentInstruction, getAssociatedTokenAddressSync } from "@solana/spl-token";
-import { Wallet } from "@coral-xyz/anchor";
+import { Wallet, utils as anchorUtils } from "@coral-xyz/anchor";
+const bs58 = (b) => anchorUtils.bytes.bs58.encode(Buffer.from(b));
 import { stook, SOOTH_CORE_PROGRAM_ID } from "@sooth/sdk-solana";
 
 // The receiver's ESM build imports `jito-ts/dist/sdk/block-engine/types`
@@ -49,6 +50,8 @@ const connection = new Connection(RPC_URL, { commitment: "confirmed", wsEndpoint
 const scanner = new Connection(process.env.SCAN_RPC_URL ?? "https://api.devnet.solana.com", "confirmed");
 const payer = Keypair.fromSecretKey(Uint8Array.from(JSON.parse(readFileSync(KEYPAIR, "utf8"))));
 const hex = (b) => Buffer.from(b).toString("hex");
+// Priority fee per compute unit. Devnet is not congested; mainnet may want more.
+const PRIORITY = Number(process.env.PRIORITY_MICROLAMPORTS ?? 1_000);
 
 async function hermes(path, feedId) {
   if (!process.env.PYTH_API_KEY) throw new Error("PYTH_API_KEY is not set; Hermes answers 401 without it");
@@ -73,12 +76,12 @@ async function postAndConsume(vaas, feedHex, makeIxs) {
   if (FULL) await builder.addPostPriceUpdates(vaas);
   else await builder.addPostPartiallyVerifiedPriceUpdates(vaas);
   const priceUpdate = builder.getPriceUpdateAccount(`0x${feedHex}`);
-  const posted = await builder.buildVersionedTransactions({ computeUnitPriceMicroLamports: 50_000 });
+  const posted = await builder.buildVersionedTransactions({ computeUnitPriceMicroLamports: PRIORITY });
   await receiver.provider.sendAll(posted, { skipPreflight: false });
 
   const { Transaction, sendAndConfirmTransaction } = await import("@solana/web3.js");
   try {
-    return await sendAndConfirmTransaction(connection, new Transaction().add(...stook.withHeap(makeIxs(priceUpdate), 200_000, 50_000)), [payer]);
+    return await sendAndConfirmTransaction(connection, new Transaction().add(...stook.withHeap(makeIxs(priceUpdate), 200_000, PRIORITY)), [payer]);
   } finally {
     // Rent back, whether or not the consume landed.
     const { instruction: close } = await receiver.buildClosePriceUpdateInstruction(priceUpdate);
@@ -217,14 +220,51 @@ async function clearUp() {
   }
 }
 
+// Every series learns from every day's close, whether or not a round ran:
+// for each close it has not seen, fetch the Pyth update that is the price at
+// that second (Hermes keeps history) and submit it. The program checks it
+// against the settlement rule, so what is submitted is not a choice. A close
+// Pyth was silent across can never be submitted; it is skipped here and the
+// series learns from the next one. A new series backfills its first closes
+// from history, so it can take rounds as soon as it has twenty.
+const unobservable = new Set();
+async function learn() {
+  const now = BigInt(Math.floor(Date.now() / 1000));
+  const all = await scanner.getProgramAccounts(SOOTH_CORE_PROGRAM_ID, { filters: [
+    { dataSize: stook.SERIES_SIZE },
+    { memcmp: { offset: 0, bytes: bs58(stook.SERIES_DISCRIMINATOR) } },
+  ] });
+  for (const { pubkey, account } of all) {
+    const s = stook.decodeSeries(account.data);
+    const feed = hex(s.feedId);
+    for (const index of stook.pendingObservations(s, now, 10)) {
+      const key = `${pubkey.toBase58()}:${index}`;
+      if (unobservable.has(key)) continue;
+      const at = stook.closeOf(s, index);
+      const tag = `${pubkey.toBase58().slice(0, 8)} observe ${new Date(Number(at) * 1000).toISOString()}`;
+      try {
+        const { parsed, vaas } = await hermes(`/v2/updates/price/${at}`, feed);
+        const problem = parsed ? stook.settlementProblem(parsed, { feedId: s.feedId, settlesAt: at, stepBps: 200, p0Expo: parsed.price.expo }) : "hermes returned no update";
+        if (problem) { unobservable.add(key); console.log(tag, "skipped:", problem); continue; }
+        console.log(tag, await postAndConsume(vaas, feed, (price) => [stook.observeSeriesIx(pubkey, payer.publicKey, price, index)]));
+      } catch (e) {
+        console.error(tag, "failed:", e?.message ?? e);
+        break; // try this series again next pass, in order
+      }
+    }
+  }
+}
+
 if (args.has("--watch")) {
   for (let n = 0; ; n++) {
     await pass().catch((e) => console.error("pass failed:", e?.message ?? e));
+    if (n % 4 === 0) await learn().catch((e) => console.error("learn failed:", e?.message ?? e));
     // finished rounds are not urgent: every ten passes
     if (n % 10 === 0) await clearUp().catch((e) => console.error("clear-up failed:", e?.message ?? e));
     await new Promise((r) => setTimeout(r, INTERVAL));
   }
 } else {
   await pass();
+  if (args.has("--learn")) await learn();
   if (args.has("--clear-up")) await clearUp();
 }

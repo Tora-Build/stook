@@ -20,8 +20,9 @@ describe("ladder sdk", () => {
       ["ladder_settle", L.settleLadderIx(refs, k, k, k, k).data],
       ["ladder_sweep", L.sweepPositionIx(refs, k, k, k).data],
       ["ladder_close", L.closeLadderIx(refs, k, k, k).data],
-      ["series_create", L.createSeriesIx({ authority: k, feedId: new Uint8Array(32), quoteMint: k, closeSecs: 0, clock: 0, varWad: 1n }).data],
-      ["series_set", L.setSeriesIx(k, k, {}).data],
+      ["series_create", L.createSeriesIx({ authority: k, feedId: new Uint8Array(32), quoteMint: k, closeSecs: 0, clock: 0 }).data],
+      ["series_set", L.setSeriesIx(k, k, true).data],
+      ["series_observe", L.observeSeriesIx(k, k, k, 1).data],
       ["ladder_void", L.voidLadderIx(refs, k).data],
       ["ladder_redeem", L.redeemLadderIx(refs, k, k, shape).data],
       ["ladder_claim_lp", L.claimLpIx(refs, k, k).data],
@@ -69,7 +70,12 @@ describe("ladder sdk", () => {
     expect(L.bandWidth(L.varFromSigma(0.002), 900n).stepBps).toBe(L.MIN_STEP_BPS);
     expect(L.bandWidth(L.varFromSigma(0.002), 900n).varBands).toBe(L.MIN_VAR_BANDS);
     // a calendar asks about past days too: no terms, no throw
-    const daily = { feedId: new Uint8Array(32), quoteMint: Keypair.generate().publicKey, periodSecs: 0, closeSecs: 16 * 3600, clock: L.CLOCK_NEW_YORK, active: true, varWad: L.varFromSigma(0.025), lastPrice: 0n, lastExpo: 0, lastAt: 0n, observations: 0 };
+    const daily = { feedId: new Uint8Array(32), quoteMint: Keypair.generate().publicKey, periodSecs: 0, closeSecs: 16 * 3600, clock: L.CLOCK_NEW_YORK, active: true, varWad: L.varFromSigma(0.025), lastPrice: 0n, lastExpo: 0, lastAt: 0n, observations: 20 };
+    // a new series asks for its last 20-odd closes, oldest first
+    const cold = L.pendingObservations({ ...daily, observations: 0, varWad: 0n }, 1_790_798_400n + 3600n);
+    expect(cold.length).toBe(L.WARMUP_OBSERVATIONS + 6);                              // 5 spare, in case Hermes misses one
+    expect(L.closeOf(daily, cold.at(-1)!)).toBe(1_790_798_400n);
+    expect(L.roundTerms({ ...daily, observations: 3 }, cold.at(-1)! + 2, 1_790_798_400n).fundable).toBe(false); // still learning
     const past = L.roundTerms(daily, L.daysFromCivil(2026, 9, 1), 1_790_000_000n);
     expect(past.fundable).toBe(false);
     expect(past.stepBps).toBe(0);

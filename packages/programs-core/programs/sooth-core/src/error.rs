@@ -89,4 +89,8 @@ pub enum SoothCoreError {
     LadderPositionOwed,
     #[msg("Only the owner can collect this until 30 days after the round's close")]
     LadderNotYours,
+    #[msg("This series has learned from fewer than 20 closes; it opens rounds once it has")]
+    SeriesWarmingUp,
+    #[msg("This close, or a later one, has already been observed")]
+    SeriesAlreadyObserved,
 }

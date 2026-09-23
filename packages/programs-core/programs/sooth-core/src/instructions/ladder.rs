@@ -341,6 +341,7 @@ pub fn create_handler(ctx: Context<LadderCreate>, args: LadderCreateArgs) -> Res
 
     let now = Clock::get()?.unix_timestamp;
     require!(ctx.accounts.series.has_round(args.index), SoothCoreError::LadderBadTimes);
+    require!(ctx.accounts.series.warmed_up(), SoothCoreError::SeriesWarmingUp);
     let settles_at = ctx.accounts.series.close_of(args.index);
     // Not so soon that nobody can trade it. Far ahead is fine: the band width
     // is read from the volatility when the round opens, not now.

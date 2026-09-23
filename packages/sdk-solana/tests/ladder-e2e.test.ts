@@ -18,7 +18,7 @@ import { LiteSVM } from "litesvm";
 import { SvmContext } from "./fixtures/svm";
 import { warpClockTo } from "./fixtures/setup";
 import * as L from "../src/ladder/index";
-import { testSeries } from "./fixtures/series";
+import { testSeries, warmCloses } from "./fixtures/series";
 
 const PROGRAM = new PublicKey("55kGEMHJyNbD3qcdonCD8UPTqzM85yg2kr6M5UF5P353");
 const PYTH_RECEIVER = new PublicKey("rec5EKMGg6MxZYaMdyBfgwp4d5rB9T1VQH5pJv5LtFJ");
@@ -114,7 +114,15 @@ function market(e: Env, settlesAt: bigint) {
 
   return {
     ladder, vault, trancheOf, posOf, state, tradeAs, quoted, series: ser.series, index: ser.index,
-    createSeries: ser.createIx,
+    createSeries: ser.createIx, indexOfClose: ser.indexOf, closeAt: ser.closeOf,
+    /** Teach the series 21 closes from Pyth-shaped updates, ending before `before`. */
+    warm: async (before: bigint) => {
+      for (const c of warmCloses(ser.indexOf, ser.closeOf, before, P0)) {
+        warpClockTo(e.ctx, c.at + 1n);
+        const r = await send(e, [L.observeSeriesIx(ser.series, e.trader.kp.publicKey, e.priceAccount(updateAt(c.price, c.at, c.at - 1n)), c.index, PROGRAM)], e.trader.kp);
+        expect(r.err, r.logs).toBeNull();
+      }
+    },
     seriesState: () => L.decodeSeries(raw(ser.series)),
     tranche: (o: PublicKey, index = 0) => L.decodeLadderTranche(raw(trancheOf(o, index))),
     position: (lo: number, hi: number, h: number) => L.decodeLadderPosition(raw(posOf(e.trader.kp.publicKey, lo, hi, h))),
@@ -145,6 +153,17 @@ describe("ladder end to end", () => {
     const m = market(e, settlesAt);
     await ok(e, L.initializeProtocolIx(e.treasury.publicKey, e.treasury.publicKey, PROGRAM), e.treasury);
     await ok(e, m.createSeries(), e.treasury);
+    // A new series has no volatility and takes no rounds until it has learned
+    // from 20 closes; nothing sets it but Pyth prices.
+    warpClockTo(e.ctx, PUBLISH_TIME - 1000n);
+    await refused(e, m.create(5_000_000_000n), e.creator.kp);
+    await m.warm(PUBLISH_TIME - 1000n);
+    const learned = m.seriesState();
+    expect(learned.observations).toBe(L.WARMUP_OBSERVATIONS);
+    expect(Math.sqrt(Number(learned.varWad) / 1e18)).toBeCloseTo(0.0493, 2);           // ±0.13% a minute is ~4.9% a day
+    const lastClose = warmCloses(m.indexOfClose, m.closeAt, PUBLISH_TIME - 1000n, P0).at(-1)!;
+    const again = await send(e, [L.observeSeriesIx(m.series, e.trader.kp.publicKey, e.priceAccount(updateAt(lastClose.price, lastClose.at, lastClose.at - 1n)), lastClose.index, PROGRAM)], e.trader.kp);
+    expect(again.logs).toContain("SeriesAlreadyObserved");                             // once per close
     await refused(e, L.initializeProtocolIx(e.treasury.publicKey, e.treasury.publicKey, PROGRAM), e.treasury); // once
     expect(L.decodeProtocolConfig(new Uint8Array((e.svm.getAccount(e.config.toBase58() as any) as any).data)).treasury.equals(e.treasury.publicKey)).toBe(true);
 
@@ -345,6 +364,7 @@ describe("ladder end to end", () => {
     const m = market(e, settlesAt);
     await ok(e, L.initializeProtocolIx(e.treasury.publicKey, e.treasury.publicKey, PROGRAM), e.treasury);
     await ok(e, m.createSeries(), e.treasury);
+    await m.warm(PUBLISH_TIME - 1000n);
 
     warpClockTo(e.ctx, PUBLISH_TIME - 1000n);
     await ok(e, m.create(5_000_000_000n), e.creator.kp);

@@ -140,12 +140,24 @@ round because the program says so, and a calendar derives each day's address
 instead of scanning. The protocol authority opens a series; everything after
 is permissionless.
 
-**The series learns its anchor's volatility from its own settlements.** Each
-settled round's price, against the previous one, feeds an exponentially
-weighted variance of daily log returns (λ = 0.94, a memory of about two
-weeks). The starting value is measured once from three months of history.
-Nothing here is anyone's opinion: the prices are Pyth's, picked by the
-settlement rule.
+**The series learns its anchor's volatility from Pyth closes, and from
+nothing else.** A program cannot read price history, so the series keeps its
+own: for every day (or period) that has a round, `series_observe` takes the
+Pyth update that is the price at that close, under the same rule a
+settlement uses (the first update published at or after the close, within
+30 seconds), and folds the day's log return into a running variance. Anyone
+may submit a close, and nobody chooses which price it is; settling a round
+submits it too. Days go in order, and a missed day can be submitted later
+from Pyth's history (Hermes keeps it), so the series learns every day whether
+or not anyone funded a round, and never depends on the keeper being up.
+Nothing else sets the number: `series_create` takes no volatility, and there
+is no reset. A new series takes no rounds until it has learned from 20 closes
+(the keeper backfills them from history when the series is created); those
+twenty are a plain average, after which each day counts 6% (λ = 0.94, a
+half-life of about 11 days, the RiskMetrics convention; a week and a month of
+memory did about as well in the backtest). A close across which Pyth was
+silent can never be submitted; the next one is, and its return is scaled to
+the days it spans.
 
 **Band width follows.** A round's band is a quarter of the anchor's ordinary
 move over the round's window (`band_width`), so an ordinary move spans four

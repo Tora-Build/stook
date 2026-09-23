@@ -63,7 +63,7 @@ export function WallCalendar(p: Props) {
           const r = rounds.data?.get(index);
           // Dates only: the opening curve is worked out when a day is picked.
           const settlesAt = stook.closeOf(p.series, index);
-          const terms = { fundable: p.series.active && stook.hasRound(p.series, index) && now + 900n <= settlesAt && settlesAt <= now + stook.MAX_LEAD_SECS, fundableFrom: settlesAt - stook.MAX_LEAD_SECS };
+          const terms = { fundable: p.series.active && stook.warmedUp(p.series) && stook.hasRound(p.series, index) && now + 900n <= settlesAt && settlesAt <= now + stook.MAX_LEAD_SECS, fundableFrom: settlesAt - stook.MAX_LEAD_SECS };
           const at = Number(settlesAt);
           const noRound = !stook.hasRound(p.series, index);
           const past = (at - p.now < p.minLeadSecs || noRound) && !r, isToday = index === today;

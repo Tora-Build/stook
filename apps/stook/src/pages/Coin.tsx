@@ -9,6 +9,7 @@ import { StartRound } from "../components/StartRound";
 import { WallCalendar } from "../components/WallCalendar";
 import { Address } from "../components/Address";
 import { useQuery } from "@tanstack/react-query";
+import { stook } from "@sooth/sdk-solana";
 import { COINS, anchorOf, mintOf, seriesOf, standInNote } from "../lib/coins";
 import { useSeries } from "../hooks/useChain";
 import { useNow } from "../hooks/useNow";
@@ -56,6 +57,7 @@ export function Coin() {
 
       <section className="slots">
         <p className="explain">One round a day. It trades from 4 PM the day before until 3 PM, and the bell rings at the 4 PM New York close. Its bands are set when it opens, as wide as {anchor.name} is moving then, so you can fund a day weeks ahead. Click a day to trade it, or to fund it. <Link to="/how">How it works</Link></p>
+        {series.data && !stook.warmedUp(series.data) && <p className="warn">This coin's rounds open once it has learned how {anchor.name} moves from {stook.WARMUP_OBSERVATIONS} daily Pyth closes: {series.data.observations} so far. The keeper backfills them from Pyth's history.</p>}
         {series.data && seriesKey ? <WallCalendar seriesKey={seriesKey} series={series.data} now={now} minLeadSecs={MIN_LEAD_SECS} dp={anchor.dp} coinSymbol={coin.symbol} canStart={!!mint && series.data.active} onStart={setStarting} />
           : <p className="muted">{series.isLoading ? "Reading the calendar…" : "This coin's rounds have not been opened on this network yet."}</p>}
       </section>
