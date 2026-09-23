@@ -28,7 +28,7 @@ export function Layout() {
       {!home && <Skyline />}
       <main className={home ? "main-street" : ""}><Outlet /></main>
       <footer className="foot">
-        <span>Devnet · settled by Pyth · every number on this page is the program's own</span>
+        <span>Stook Street · devnet</span>
         <a href="https://github.com/Tora-Build/stook" target="_blank" rel="noreferrer">source</a>
       </footer>
     </div>

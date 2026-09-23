@@ -23,7 +23,7 @@ export function How() {
           <Px pal={P} rows={["............", ".gggggggggg.", ".g.cc.cc.cg.", ".g.cc.cc.cg.", ".gggggggggg.", "............", "....aaaa....", "....aaaa....", "............"]} />
           <div>
             <h2>The tables</h2>
-            <p>Each coin on the street has a table. <b>$STOOK</b> follows the S&amp;P 500, <b>$ZCAT</b> Zcash, <b>$KNOTS</b> STONK, <b>$GP</b> gold. The screen on the table shows the anchor's live price. Everything at that table is paid in that coin.</p>
+            <p>Every coin on the street has a table, and every coin follows one asset — its anchor. The screen on the table shows the anchor's live price, and everything at that table is paid in that coin. Coins come and go as the street grows; the tables are whoever is here today.</p>
           </div>
         </li>
 

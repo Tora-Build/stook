@@ -23,13 +23,12 @@ export function Markets() {
       <div id="floor"><Floor /></div>
 
       <section className="how-tiles page">
-        <h2 className="px-h2">How the street works</h2>
         <div className="tiles">
-          <div className="tile"><div className="n">01 · DRAW A LINE</div><p>Pick the band you expect the anchor to land in. One share pays <b>most on that band</b>, one less for every band it misses by, nothing past your reach. Prefer a plain bet? Drag a range: same payout anywhere inside.</p></div>
-          <div className="tile"><div className="n">02 · SETTLE ON A NUMBER</div><p>At the settlement second the round reads the anchor's <b>Pyth price</b> — one update, chosen by a rule, so nobody picks it. It lands in a band; that band pays. The coin's own price is never part of it.</p></div>
-          <div className="tile"><div className="n">03 · OR BE THE HOUSE</div><p>Put your coin into a round's pool any time before it locks. You earn <b>80% of every fee</b> from then on, and you pay when the crowd was right.</p></div>
+          <div className="tile"><div className="n">01 · DRAW A LINE</div><p>Click where the price will land. The closer you are, the more it pays.</p></div>
+          <div className="tile"><div className="n">02 · THE BELL</div><p>At the close, Pyth's price picks the winning band. Nobody else does.</p></div>
+          <div className="tile"><div className="n">03 · OR BE THE HOUSE</div><p>Fund a round's pool and earn 80% of its fees.</p></div>
         </div>
-        <p className="muted small" style={{ marginTop: "1rem" }}><Link to="/how">The full rules, with numbers →</Link></p>
+        <p className="muted small" style={{ marginTop: "1rem" }}><Link to="/how">The walk through the exchange →</Link></p>
       </section>
 
       <section id="stook" className="strip page">
