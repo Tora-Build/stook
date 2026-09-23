@@ -15,13 +15,20 @@ Data: Yahoo hourly bars (`interval=60m&range=730d`), one `<SYMBOL>.json` of
 `[unix, close]` per asset. Run with `python3 explore.py DIR` and
 `node validate.mjs DIR`.
 
-## The house's worst counterparty
+## The counterparty
 
 Each round opens a day before its close on the price then. At the lock (an
 hour before the close) one trader knows the price at the lock and moves the
-market to where the close is really likely to land from there. The house's
-result is `b · ln(p_open[k] / q[k])` at the band `k` that settles, before
-fees. No flow is worse for the house than this one.
+market to where the close is likely to land from there, on a Gaussian belief.
+The house's result is `b · ln(p_open[k] / q[k])` at the band `k` that
+settles, before fees. This is a strongly informed trader, not the literal
+worst: the third audit found a fat-tailed belief takes about 1.1 points more,
+because a thin-tailed one occasionally hands the house a windfall.
+
+Stock anchors are replayed on weekdays only, which is what their on-chain
+series do (`CLOCK_NEW_YORK_WEEKDAYS`). Their hourly bars start on the half
+hour, so the "price at the lock" the trader sees is really 30 minutes before
+the close: that flatters the trader, not the house.
 
 ## Result (`results.txt`)
 
@@ -31,8 +38,13 @@ fees. No flow is worse for the house than this one.
 | bell, one fixed band width per coin | −17.3% | −41.0% | 0.1% |
 | **bell, band = σ/4 from on-chain volatility** | **−16.6%** | **−35.1%** | **0%** |
 
-Per coin the volatility rule matches or beats the hand-picked widths
-everywhere, and holds where they broke: when ZEC's volatility jumped, fixed
+What is and is not significant (independent replay by the third audit,
+bootstrap over rounds): the average gain over fixed widths (0.7 points) comes
+from ZEC and GLD and is not significant on the other coins; the tail gain
+(5.9 points on the worst 5%) and the gain in the weeks after a volatility
+spike are. The rule's value is robustness when an anchor changes character,
+and that it needs no per-coin table. Per coin it matches or beats the
+hand-picked widths everywhere, and holds where they broke: when ZEC's volatility jumped, fixed
 1% bands lost 71% in the worst 5% of rounds; volatility-sized bands, 35%.
 Widths it picks: BTC 0.55%, ETH 0.90%, SOL 0.95%, DOGE 1.1%, ZEC 1.5%, SPY
 0.19%, GLD 0.25%.

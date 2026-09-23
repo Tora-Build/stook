@@ -354,7 +354,7 @@ describe("ladder end to end", () => {
     const v = m.state();
     expect(v.voidLpPot).toBe(7_500_000_000n);                          // every deposit, whole
     expect(v.voidTraderPot).toBe(paid - gain);                         // short by exactly what the seller took
-    expect(L.voidPots(v.voidLpPot + v.voidTraderPot, v.depositTotal)).toEqual({ lp: v.voidLpPot, traders: v.voidTraderPot });
+    expect(L.voidPots(v.voidLpPot + v.voidTraderPot, v.depositTotal, v.basisTotal)).toEqual({ lp: v.voidLpPot, traders: v.voidTraderPot });
 
     await ok(e, m.redeem(40, 40, 1), e.trader.kp);
     await ok(e, m.redeem(28, 34, 4), e.trader.kp);

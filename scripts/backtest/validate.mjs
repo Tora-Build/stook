@@ -41,7 +41,7 @@ function closes(sym, d) {
 function observe(s, price, at) {
   if (at <= s.lastAt || price <= 0n) return;
   if (s.lastPrice > 0n) {
-    const r = lnWad(wadDiv(price * WAD, s.lastPrice * WAD));
+    const r = lnWad(wadDiv(price, s.lastPrice));
     const r2 = (wadMul(r, r) * BigInt(DAY)) / BigInt(at - s.lastAt);
     let v = (94n * s.varWad + 6n * (r2 < VAR_MAX ? r2 : VAR_MAX)) / 100n;
     s.varWad = v < VAR_MIN ? VAR_MIN : v > VAR_MAX ? VAR_MAX : v;

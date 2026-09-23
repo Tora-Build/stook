@@ -30,7 +30,8 @@ export function StartRound({ coin, seriesKey, series, index, onClose }: { coin: 
   const opens = new Date(Number(terms.opensAt) * 1000).toLocaleString("en-US", { weekday: "short", hour: "numeric", minute: "2-digit" });
   const locks = new Date(Number(terms.locksAt) * 1000).toLocaleString("en-US", { hour: "numeric", minute: "2-digit" });
   const band = terms.stepBps / 100;
-  const reach = (Math.exp((32 * terms.stepBps) / 10_000) - 1) * 100;
+  // bands 1..62 are finite; 0 and 63 are open-ended tails
+  const up = (Math.exp((31 * terms.stepBps) / 10_000) - 1) * 100, down = (1 - Math.exp((-31 * terms.stepBps) / 10_000)) * 100;
   const dailyMove = Math.sqrt(Number(series.varWad) / 1e18) * 100;
   const gross = seed && mint.data?.report.transferFee ? stook.grossFor(seed, mint.data.report.transferFee) : seed;
 
@@ -49,10 +50,10 @@ export function StartRound({ coin, seriesKey, series, index, onClose }: { coin: 
         <h3>Fund ${coin.symbol}'s round for {when}</h3>
         <dl className="quote terms">
           <div><dt>trading</dt><dd className="mono">{opens} to {locks}</dd></div>
-          <div><dt>bands</dt><dd className="mono">{band.toFixed(2)}% each, 64 of them, ±{reach.toFixed(0)}% around the open</dd></div>
+          <div><dt>bands</dt><dd className="mono">{band.toFixed(2)}% each, from −{down.toFixed(0)}% to +{up.toFixed(0)}% around the open</dd></div>
           <div><dt>because {anchor.symbol} moves</dt><dd className="mono">about {dailyMove.toFixed(1)}% a day lately</dd></div>
         </dl>
-        <p className="explain">Your seed is the house for this round. It opens on the {anchor.name} price at {opens}, with the odds of an ordinary day already priced in. You earn 80% of the 1% fee on every trade. If the close lands far from the open, the winners are paid from your seed, and it can lose all of it. Anyone can add to the same round.</p>
+        <p className="explain">Your seed is the house for this round. It opens on the {anchor.name} price at {opens}, with the odds of an ordinary day already priced in. The pool earns 90% of the 1% fee on every trade, shared by depth with everyone who adds to it. If the close lands far from the open, the winners are paid from your seed, and it can lose all of it. Anyone can add to the same round.</p>
         <label className="field"><span>Seed ({coin.symbol})</span>
           <input value={text} onChange={(e) => setText(e.target.value)} inputMode="decimal" autoFocus />
           <span className="hint">balance {balance.data !== undefined ? fmtAmount(balance.data, dec) : "—"}{gross && seed && gross !== seed ? ` · your wallet sends ${fmtAmount(gross, dec)} (the coin's ${coin.feeBps / 100}% transfer fee)` : ""}</span>

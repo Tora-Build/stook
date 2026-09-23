@@ -134,7 +134,8 @@ were confirmed on the shipped binary by both audits.
 
 **A series is one coin's rounds** (`state/series.rs`): a feed, a quote mint,
 and a close ("4 PM New York", computed on chain with the US daylight-saving
-rule). A round is addressed by `(series, day number)`, so one day has one
+rule; stock anchors use the weekday clock, which has no Saturday or Sunday
+round). A round is addressed by `(series, day number)`, so one day has one
 round because the program says so, and a calendar derives each day's address
 instead of scanning. The protocol authority opens a series; everything after
 is permissionless.
@@ -156,7 +157,13 @@ ZEC over a day, narrower for a shorter round. The 64 bands then cover about
 **When a round trades.** At most the 24 hours before its close, locking a
 twenty-fourth of that before it (an hour for a daily round). It can be funded
 up to 48 hours ahead, not further, because its band width is read from the
-volatility when it is funded.
+volatility when it is funded. Bands are at least 0.2%: the settlement price's
+confidence must be under half a band, and equity-token feeds print several
+basis points even when quiet.
+
+**Fees.** 90% to the depositors by depth, 10% to the protocol, half of which
+pays whoever settles. The first funder gets nothing extra: a bonus for being
+first could be taken with a one-token seed on every round.
 
 **Why, measured.** Replayed over 4,493 real daily rounds on seven assets
 against a trader who knows the price at the lock (`scripts/backtest/`):
@@ -168,7 +175,9 @@ cost of the day's information, which no opening curve removes; fees pay it.
 
 ## Clearing up
 
-Every position and tranche is counted on the round. A position owed nothing
+Every position and tranche is counted on the round. A round cannot close
+before its close time, so a day voided early keeps its address and cannot be
+started again on different terms. A position owed nothing
 (a miss, a line sold to zero) can be swept by anyone, its rent to its owner
 (`ladder_sweep`). Once none are left and the fee shares are collected,
 anyone can close the round (`ladder_close`): dust to the treasury, the
@@ -273,7 +282,15 @@ mint carrying the same extensions is still owed.
 
 ## Open
 
-Ranked by the second audit (`design-review/audit-round-2-2026-09-23.md`):
+Ranked by the second and third audits (`design-review/audit-round-*`):
+
+- **One unclaimed winner or deposit blocks `ladder_close`.** Only the round's
+  rent and dust are held (about 0.016 SOL); everyone else is paid. A payout
+  anyone may trigger after a grace period, to the owner's token account,
+  would release it.
+- **The band width is read when a day is funded, not bound by the funder.**
+  An expected-terms argument on `ladder_create` would let the app refuse a
+  round whose width moved between display and signature.
 
 - **Mainnet prerequisites.** Build with `--features mainnet` (Full-verified
   Pyth updates only) and run the keeper with `FULL_VERIFICATION=1`.

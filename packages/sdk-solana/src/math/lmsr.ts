@@ -58,6 +58,9 @@ export function wadMul(a: bigint, b: bigint): bigint {
 
 export function wadDiv(a: bigint, b: bigint): bigint {
   if (b === 0n) throw new LmsrMathError("division by zero");
+  // The program refuses divisors past 2^96 (its 256-bit division is exact
+  // only below that); refuse them here too, so a port fails where it does.
+  if ((b < 0n ? -b : b) > 1n << 96n) throw new LmsrMathError("wad_div: divisor out of range");
   return (a * WAD) / b;
 }
 

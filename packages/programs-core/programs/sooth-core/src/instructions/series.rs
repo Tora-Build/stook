@@ -7,7 +7,7 @@ use anchor_spl::token_interface::Mint;
 
 use crate::error::SoothCoreError;
 use crate::math::calendar::DAY;
-use crate::state::series::{CLOCK_NEW_YORK, CLOCK_UTC, VAR_MAX, VAR_MIN};
+use crate::state::series::{CLOCK_NEW_YORK, CLOCK_NEW_YORK_WEEKDAYS, CLOCK_UTC, VAR_MAX, VAR_MIN};
 use crate::state::{ProtocolConfig, Series, PROTOCOL_CONFIG_SEED, SERIES_SEED};
 
 #[derive(AnchorSerialize, AnchorDeserialize, Clone, Debug)]
@@ -63,7 +63,7 @@ pub struct SeriesCreated {
 
 pub fn series_create_handler(ctx: Context<SeriesCreate>, args: SeriesCreateArgs) -> Result<()> {
     let daily = args.period_secs == 0;
-    let ok = (args.clock == CLOCK_UTC || args.clock == CLOCK_NEW_YORK)
+    let ok = (args.clock == CLOCK_UTC || args.clock == CLOCK_NEW_YORK || args.clock == CLOCK_NEW_YORK_WEEKDAYS)
         && (args.var_wad >= VAR_MIN && args.var_wad <= VAR_MAX)
         && if daily {
             // at or after 3 AM, so a close never sits on a daylight-saving switch

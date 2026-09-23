@@ -120,8 +120,8 @@ export function roundTimes(now: bigint, settlesAt: bigint): { opensAt: bigint; l
 }
 
 /** A void's two pots: depositors up to what they put in, open lines the rest. */
-export function voidPots(vault: bigint, depositTotal: bigint): { lp: bigint; traders: bigint } {
-  const lp = vault < depositTotal ? vault : depositTotal;
+export function voidPots(vault: bigint, depositTotal: bigint, basisTotal: bigint): { lp: bigint; traders: bigint } {
+  const lp = basisTotal === 0n || vault < depositTotal ? vault : depositTotal;
   return { lp, traders: vault - lp };
 }
 
@@ -218,10 +218,10 @@ export function feeOn(amount: bigint, feeBps: number): bigint {
   return atLeastOne < amount ? atLeastOne : amount;
 }
 
+/** 90% to depositors, the rest to the protocol (half of that to the settler). */
 export function splitFee(fee: bigint): { lp: bigint; creator: bigint; protocol: bigint } {
-  const lp = (fee * 80n) / 100n;
-  const creator = (fee * 10n) / 100n;
-  return { lp, creator, protocol: fee - lp - creator };
+  const lp = (fee * 90n) / 100n;
+  return { lp, creator: 0n, protocol: fee - lp };
 }
 
 export interface TradeQuote {

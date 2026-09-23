@@ -64,13 +64,15 @@ pub fn fee_on(amount: u64, fee_bps: u16) -> u64 {
     (raw.max(1) as u64).min(amount)
 }
 
-/// 80% to LPs, 10% to the creator, the remainder to the protocol. The protocol
-/// takes the remainder rather than a computed tenth so the three always sum to
-/// the fee exactly.
+/// 90% to the depositors, the remainder to the protocol (half of which pays
+/// whoever settles). Nothing to the round's first funder: a bonus for being
+/// first could be taken with a one-token seed on every round, so the first
+/// funder is simply the first depositor. The protocol takes the remainder so
+/// the parts always sum to the fee exactly. (The middle element is the
+/// creator's share, kept at zero so the account layout does not change.)
 pub fn split_fee(fee: u64) -> (u64, u64, u64) {
-    let lp = (fee as u128 * 80 / 100) as u64;
-    let creator = (fee as u128 * 10 / 100) as u64;
-    (lp, creator, fee - lp - creator)
+    let lp = (fee as u128 * 90 / 100) as u64;
+    (lp, 0, fee - lp)
 }
 
 /// Cost basis released by selling `sold` of `held` shares. Rounds up, so the
@@ -287,6 +289,7 @@ pub fn create_handler(ctx: Context<LadderCreate>, args: LadderCreateArgs) -> Res
     )?;
 
     let now = Clock::get()?.unix_timestamp;
+    require!(ctx.accounts.series.has_round(args.index), SoothCoreError::LadderBadTimes);
     let settles_at = ctx.accounts.series.close_of(args.index);
     // Not so soon that nobody can trade it; not so far ahead that the band
     // width, read from the volatility now, is stale by the time it opens.
@@ -856,7 +859,9 @@ pub fn settle_handler(ctx: Context<LadderSettle>) -> Result<()> {
 
     // The price at this round's close, against the last close the series
     // saw: tomorrow's band width is learned from it.
-    math(ctx.accounts.series.observe(p.price, p.exponent, l.settles_at))?;
+    // A settlement must never fail because the series could not learn from
+    // it: an observation that errors is skipped, and the round settles.
+    let _ = ctx.accounts.series.observe(p.price, p.exponent, l.settles_at);
 
     emit!(LadderSettled {
         ladder: ladder_key,
@@ -919,7 +924,7 @@ pub fn void_handler(ctx: Context<LadderVoid>) -> Result<()> {
         .and_then(|v| v.checked_add(l.fees_creator))
         .and_then(|v| v.checked_add(l.fees_protocol))
         .ok_or(SoothCoreError::MathOverflow)?;
-    let (lp_pot, trader_pot) = void_pots(vault, l.deposit_total);
+    let (lp_pot, trader_pot) = void_pots(vault, l.deposit_total, l.basis_total);
     l.void_lp_pot = lp_pot;
     l.void_trader_pot = trader_pot;
     l.fees_lp = 0;
@@ -934,8 +939,9 @@ pub fn void_handler(ctx: Context<LadderVoid>) -> Result<()> {
 /// positions the remainder. The remainder is short of what traders paid by
 /// exactly the gains sellers realised before the void (and long by their
 /// losses), so those gains are paid by the traders who stayed, not the house.
-pub fn void_pots(vault: u64, deposit_total: u64) -> (u64, u64) {
-    let lp = vault.min(deposit_total);
+pub fn void_pots(vault: u64, deposit_total: u64, basis_total: u64) -> (u64, u64) {
+    // Nobody still holds a position: everything left is the depositors'.
+    let lp = if basis_total == 0 { vault } else { vault.min(deposit_total) };
     (lp, vault - lp)
 }
 
@@ -1302,6 +1308,10 @@ pub fn close_handler(ctx: Context<LadderClose>) -> Result<()> {
     let authority_bump = {
         let l = ctx.accounts.ladder.load()?;
         require!(l.status == STATUS_SETTLED || l.status == STATUS_VOID, SoothCoreError::LadderNotFinal);
+        // Not before the day's close: a round voided early must keep its
+        // address until then, or the same day could be started again on
+        // different terms.
+        require!(Clock::get()?.unix_timestamp >= l.settles_at, SoothCoreError::LadderNotClosable);
         require!(
             l.open_positions == 0 && l.open_tranches == 0 && l.fees_creator == 0 && l.fees_protocol == 0,
             SoothCoreError::LadderNotClosable
@@ -1532,7 +1542,7 @@ mod tests {
             let (lp, creator, protocol) = split_fee(fee);
             assert_eq!(lp + creator + protocol, fee, "fee {fee}");
         }
-        assert_eq!(split_fee(100), (80, 10, 10));
+        assert_eq!(split_fee(100), (90, 0, 10));
     }
 
     #[test]
@@ -1583,7 +1593,7 @@ mod tests {
     fn a_void_pays_depositors_first_and_traders_share_the_rest() {
         let (deposit, p_paid, a_gain) = (5_000u64, 8_070u64, 4_434u64);
         let vault = deposit + p_paid - a_gain;
-        let (lp, traders) = void_pots(vault, deposit);
+        let (lp, traders) = void_pots(vault, deposit, p_paid);
         assert_eq!(lp, deposit, "the house is whole");
         assert_eq!(traders, p_paid - a_gain);
         let p_back = void_share(p_paid, traders, p_paid);
@@ -1591,9 +1601,11 @@ mod tests {
         // two depositors, pro rata and never more than the pot
         assert_eq!(void_share(3_000, lp, deposit) + void_share(2_000, lp, deposit), deposit);
         // a vault short of every deposit: depositors share it, traders get nothing
-        assert_eq!(void_pots(4_000, 5_000), (4_000, 0));
+        assert_eq!(void_pots(4_000, 5_000, 1), (4_000, 0));
+        // nobody holds a line: all of it goes to the depositors
+        assert_eq!(void_pots(5_150, 5_000, 0), (5_150, 0));
         // a seller who realised a loss leaves a surplus: it goes to open lines
-        assert_eq!(void_pots(5_000 + 500 + 150, 5_000), (5_000, 650));
+        assert_eq!(void_pots(5_000 + 500 + 150, 5_000, 500), (5_000, 650));
     }
 
     #[test]

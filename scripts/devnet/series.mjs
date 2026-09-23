@@ -54,7 +54,7 @@ for (const [coin, { feed, yahoo }] of Object.entries(COINS)) {
       const s = stook.decodeSeries(info.data);
       const next = period ? Number(now / 3600n) + 1 : stook.daysFromCivil(...new Date(Date.now() + 86_400_000).toISOString().slice(0, 10).split("-").map(Number));
       const t = stook.roundTerms(s, next, now);
-      console.log(label, `σ ${(Math.sqrt(Number(s.varWad) / 1e18) * 100).toFixed(2)}%/day · ${s.observations} settlements learned · next round: bands ${(t.stepBps / 100).toFixed(2)}%, grid ±${((Math.exp(32 * t.stepBps / 1e4) - 1) * 100).toFixed(0)}%${s.active ? "" : " · PAUSED"}`);
+      console.log(label, `σ ${(Math.sqrt(Number(s.varWad) / 1e18) * 100).toFixed(2)}%/day · ${s.observations} settlements learned · next round: bands ${(t.stepBps / 100).toFixed(2)}%, grid −${((1 - Math.exp(-31 * t.stepBps / 1e4)) * 100).toFixed(0)}% to +${((Math.exp(31 * t.stepBps / 1e4) - 1) * 100).toFixed(0)}%${s.active ? "" : " · PAUSED"}`);
       continue;
     }
     if (cmd !== "create") { console.log(label, "not created"); continue; }

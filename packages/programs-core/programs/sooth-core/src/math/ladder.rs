@@ -133,10 +133,16 @@ pub const SIGMA_BANDS: i128 = 4;
 pub const PRIOR_PEAK_LN: i128 = 7 * WAD;
 
 /// Band width limits, basis points of log price.
-pub const MIN_STEP_BPS: u16 = 10;
+/// The floor matters for settlement: the price's confidence interval must be
+/// under half a band, and equity-token feeds print several basis points of
+/// confidence even when quiet.
+pub const MIN_STEP_BPS: u16 = 20;
 pub const MAX_STEP_BPS: u16 = 2_000;
 
 const DAY_SECS: i128 = 86_400;
+
+/// The narrowest opening bell, bands squared (WAD): sigma of half a band.
+pub const MIN_VAR_BANDS: i128 = WAD / 4;
 
 /// Integer square root, floored.
 pub fn isqrt(n: u128) -> u128 {
@@ -173,7 +179,9 @@ pub fn band_width(var_day: i128, window: i64) -> Result<(u16, i128), MathError> 
         .clamp(MIN_STEP_BPS as i128, MAX_STEP_BPS as i128);
     // var_bands = var_window / (step/10⁴)² = var_window · 10⁸ / step²
     let var_bands = var_window.checked_mul(100_000_000).ok_or(MathError::Overflow)? / (step * step);
-    Ok((step as u16, var_bands.max(1)))
+    // A bell narrower than half a band would floor even the centre bands and
+    // come out flat; hold it at half a band, which keeps it peaked.
+    Ok((step as u16, var_bands.max(MIN_VAR_BANDS)))
 }
 
 /// Every bin equally likely. Tests and the maths reference use it; a real
@@ -436,7 +444,9 @@ mod tests {
         // a quiet anchor on a short round hits the floor: the bell narrows in bands instead
         let (sf, vf) = band_width(var(0.2), 900).unwrap();
         assert_eq!(sf, MIN_STEP_BPS);
-        assert!(vf < WAD);
+        assert_eq!(vf, MIN_VAR_BANDS, "held peaked, not flat");
+        let (w, sum) = prior(vf).unwrap();
+        assert!(w[31] * 3 > sum, "the centre bands carry most of it");
         // a wild one hits the ceiling
         assert_eq!(band_width(var(100.0), 86_400).unwrap().0, MAX_STEP_BPS);
         assert_eq!(isqrt(0), 0);

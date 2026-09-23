@@ -47,7 +47,7 @@ export function Markets() {
               </svg>
             </div>
             <div className="door-sign">THE HOUSE</div>
-            <p>Fund a day's pool and take 80% of everything traders pay in fees.</p>
+            <p>Fund a day's pool and take 90% of everything traders pay in fees.</p>
             <span className="door-go">Fund a day ›</span>
           </Link>
         </div>

@@ -19,9 +19,12 @@ use crate::math::wad::{wad_div, wad_mul, MathError, WAD};
 
 pub const SERIES_SEED: &[u8] = b"series";
 
-/// Which wall clock a daily series closes by.
+/// Which wall clock a daily series closes by, and on which days.
 pub const CLOCK_UTC: u8 = 0;
 pub const CLOCK_NEW_YORK: u8 = 1;
+/// New York, Monday to Friday: for anchors that trade on stock-market hours.
+/// A weekend day has no round.
+pub const CLOCK_NEW_YORK_WEEKDAYS: u8 = 2;
 
 /// Weight kept on yesterday's variance each time a day is observed: a memory
 /// of about two weeks (half-life 11 days). The backtest found a week (0.90)
@@ -70,9 +73,16 @@ impl Series {
         }
         let local = index * DAY + self.close_secs as i64;
         match self.clock {
-            CLOCK_NEW_YORK => local - new_york_offset(index),
+            CLOCK_NEW_YORK | CLOCK_NEW_YORK_WEEKDAYS => local - new_york_offset(index),
             _ => local,
         }
+    }
+
+    /// Does day (or period) `index` have a round at all?
+    pub fn has_round(&self, index: u32) -> bool {
+        self.period_secs > 0
+            || self.clock != CLOCK_NEW_YORK_WEEKDAYS
+            || !matches!(crate::math::calendar::weekday(index as i64), 0 | 6)
     }
 
     /// Fold a settlement into the variance: the squared log return since the
@@ -84,7 +94,11 @@ impl Series {
             return Ok(());
         }
         if self.last_price > 0 && self.last_expo == expo {
-            let r = ln_wad(wad_div(price as i128 * WAD, self.last_price as i128 * WAD)?)?;
+            // The ratio of two raw prices on one exponent. Dividing the raw
+            // prices directly: scaling both by WAD first overflowed the divisor
+            // for any price above ~7.9e10 raw (BTC, ETH), and every settle
+            // after the first reverted.
+            let r = ln_wad(wad_div(price as i128, self.last_price as i128)?)?;
             let r2_day = wad_mul(r, r)?.checked_mul(DAY as i128).ok_or(MathError::Overflow)? / (at - self.last_at) as i128;
             let v = (VAR_KEEP_NUM * self.var_wad + (VAR_KEEP_DEN - VAR_KEEP_NUM) * r2_day.min(VAR_MAX)) / VAR_KEEP_DEN;
             self.var_wad = v.clamp(VAR_MIN, VAR_MAX);
@@ -117,6 +131,31 @@ mod tests {
         p.period_secs = 3_600;
         p.close_secs = 0;
         assert_eq!(p.close_of(500_000), 1_800_000_000);
+    }
+
+    #[test]
+    fn it_learns_from_bitcoin_scale_prices() {
+        // BTC at $110,000 with exponent -8 is 1.1e13 raw; the first version
+        // overflowed here on the second settlement.
+        let mut s = daily(CLOCK_UTC, 0);
+        s.var_wad = 625_000_000_000_000; // 2.5%/day
+        s.observe(11_000_000_000_000, -8, 1_000).unwrap();
+        s.observe(11_550_000_000_000, -8, 1_000 + DAY).unwrap(); // +5%
+        s.observe(11_000_000_000_000, -8, 1_000 + 2 * DAY).unwrap();
+        assert_eq!(s.observations, 2);
+        assert!(s.var_wad > 625_000_000_000_000, "a 5% day raises it");
+        // and at the largest raw price an i64 holds
+        s.observe(i64::MAX, -8, 1_000 + 3 * DAY).unwrap();
+    }
+
+    #[test]
+    fn a_weekday_series_has_no_weekend_rounds() {
+        let s = daily(CLOCK_NEW_YORK_WEEKDAYS, 16 * 3600);
+        let fri = days_from_civil(2026, 9, 25) as u32;
+        assert!(s.has_round(fri));
+        assert!(!s.has_round(fri + 1) && !s.has_round(fri + 2));
+        assert!(s.has_round(fri + 3));
+        assert_eq!(s.close_of(fri), daily(CLOCK_NEW_YORK, 16 * 3600).close_of(fri));
     }
 
     #[test]

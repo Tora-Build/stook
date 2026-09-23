@@ -102,6 +102,6 @@ export function positionFilters(ladder: PublicKey): GetProgramAccountsFilter[] {
 /** What a finished round's position is owed, as `redemption` computes it. */
 export function owedTo(l: LadderAccount, p: { shape: Shape; shares: bigint; netPaid: bigint }): bigint {
   if (l.status === "settled" && l.settledBin !== null) return p.shares * BigInt(level(p.shape, l.settledBin));
-  if (l.status === "void") return l.basisTotal > 0n ? (p.netPaid * l.voidTraderPot) / l.basisTotal : 0n;
+  if (l.status === "void") return l.basisTotal > 0n ? (p.netPaid * l.voidTraderPot) / l.basisTotal : 0n; // `redemption`
   return -1n;
 }

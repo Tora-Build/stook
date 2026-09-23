@@ -21,13 +21,16 @@ const DISC = {
 
 export const CLOCK_UTC = 0;
 export const CLOCK_NEW_YORK = 1;
+/** New York, Monday to Friday: no rounds on weekends. */
+export const CLOCK_NEW_YORK_WEEKDAYS = 2;
 export const DAY = 86_400;
 
 // ── the band-width rule (math::ladder) ───────────────────────────────────────
 
 export const SIGMA_BANDS = 4n;
 export const PRIOR_PEAK_LN = 7n * WAD;
-export const MIN_STEP_BPS = 10;
+export const MIN_STEP_BPS = 20;
+export const MIN_VAR_BANDS = WAD / 4n;
 export const MAX_STEP_BPS = 2_000;
 export const MAX_LEAD_SECS = 48n * 3_600n;
 
@@ -50,7 +53,7 @@ export function bandWidth(varDay: bigint, windowSecs: bigint): { stepBps: number
   if (step < BigInt(MIN_STEP_BPS)) step = BigInt(MIN_STEP_BPS);
   if (step > BigInt(MAX_STEP_BPS)) step = BigInt(MAX_STEP_BPS);
   const vb = (varWindow * 100_000_000n) / (step * step);
-  return { stepBps: Number(step), varBands: vb > 1n ? vb : 1n };
+  return { stepBps: Number(step), varBands: vb > MIN_VAR_BANDS ? vb : MIN_VAR_BANDS };
 }
 
 /** `prior`: the odds a round opens with, for a bell `varBands` bands² wide. */
@@ -143,8 +146,12 @@ export function decodeSeries(data: Uint8Array): SeriesAccount {
 export function closeOf(s: Pick<SeriesAccount, "periodSecs" | "closeSecs" | "clock">, index: number): bigint {
   if (s.periodSecs > 0) return BigInt(index) * BigInt(s.periodSecs) + BigInt(s.closeSecs);
   const local = BigInt(index) * BigInt(DAY) + BigInt(s.closeSecs);
-  return s.clock === CLOCK_NEW_YORK ? local - BigInt(newYorkOffset(index)) : local;
+  return s.clock === CLOCK_NEW_YORK || s.clock === CLOCK_NEW_YORK_WEEKDAYS ? local - BigInt(newYorkOffset(index)) : local;
 }
+
+/** `Series::has_round`: a weekday series has no round on Saturday or Sunday. */
+export const hasRound = (s: Pick<SeriesAccount, "periodSecs" | "clock">, index: number) =>
+  s.periodSecs > 0 || s.clock !== CLOCK_NEW_YORK_WEEKDAYS || ![0, 6].includes(weekday(index));
 
 /** A daily series' index for a calendar date: its day number. */
 export const dayIndex = (y: number, m1: number, d: number) => daysFromCivil(y, m1, d);
@@ -170,7 +177,7 @@ export function roundTerms(s: SeriesAccount, index: number, now: bigint): RoundT
   const { stepBps, varBands } = bandWidth(s.varWad, settlesAt - opensAt);
   return {
     settlesAt, opensAt, locksAt, stepBps, varBands, curve: prior(varBands),
-    fundable: s.active && now + 900n <= settlesAt && settlesAt <= now + MAX_LEAD_SECS,
+    fundable: s.active && hasRound(s, index) && now + 900n <= settlesAt && settlesAt <= now + MAX_LEAD_SECS,
     fundableFrom: settlesAt - MAX_LEAD_SECS,
   };
 }

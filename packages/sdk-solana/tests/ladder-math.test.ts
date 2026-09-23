@@ -58,6 +58,11 @@ describe("ladder sdk", () => {
     expect(L.bandWidth(L.varFromSigma(0.01), 86_400n).stepBps).toBe(25);
     expect(L.bandWidth(L.varFromSigma(0.025), 4n * 3600n).stepBps).toBe(26);
     expect(L.bandWidth(L.varFromSigma(0.002), 900n).stepBps).toBe(L.MIN_STEP_BPS);
+    expect(L.bandWidth(L.varFromSigma(0.002), 900n).varBands).toBe(L.MIN_VAR_BANDS);
+    // a weekday series: Friday has a round, Saturday none
+    const wk = { periodSecs: 0, clock: L.CLOCK_NEW_YORK_WEEKDAYS };
+    expect(L.hasRound(wk, L.daysFromCivil(2026, 9, 25))).toBe(true);
+    expect(L.hasRound(wk, L.daysFromCivil(2026, 9, 26))).toBe(false);
     for (const n of [0n, 1n, 99n, 100n, 10n ** 30n + 7n, (1n << 128n) - 1n]) {
       const r = L.isqrt(n);
       expect(r * r <= n && (r + 1n) * (r + 1n) > n).toBe(true);
@@ -144,8 +149,9 @@ describe("ladder sdk", () => {
 
   it("filters program accounts down to ladders in one state", () => {
     const f = L.ladderFilters("open");
-    expect(f).toHaveLength(2);
-    expect((f[1] as any).memcmp).toEqual({ offset: 1872, bytes: "2" });        // base58 of the single byte 0x01
-    expect(L.ladderFilters()).toHaveLength(1);
+    expect(f).toHaveLength(3);
+    expect((f[0] as any).dataSize).toBe(L.LADDER_SIZE);                        // this layout only
+    expect((f[2] as any).memcmp).toEqual({ offset: 8 + 1912, bytes: "2" });    // base58 of the single byte 0x01
+    expect(L.ladderFilters()).toHaveLength(2);
   });
 });
