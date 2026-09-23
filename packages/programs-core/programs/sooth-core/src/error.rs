@@ -87,4 +87,6 @@ pub enum SoothCoreError {
     LadderNotClosable,
     #[msg("This position is owed a payout; its owner collects it")]
     LadderPositionOwed,
+    #[msg("Only the owner can collect this until 30 days after the round's close")]
+    LadderNotYours,
 }

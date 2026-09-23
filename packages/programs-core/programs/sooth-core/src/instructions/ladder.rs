@@ -978,8 +978,14 @@ pub fn redemption(
 
 #[derive(Accounts)]
 pub struct LadderRedeem<'info> {
+    /// The owner, or after `CLAIM_GRACE_SECS` anyone: the payout still goes
+    /// only to the owner's token account and the rent only to the owner.
+    pub caller: Signer<'info>,
+
+    /// CHECK: bound to the position's (or tranche's) owner below; receives
+    /// the rent and, through `owner_token`, the payout.
     #[account(mut)]
-    pub owner: Signer<'info>,
+    pub owner: UncheckedAccount<'info>,
 
     #[account(mut)]
     pub ladder: AccountLoader<'info, Ladder>,
@@ -1018,8 +1024,23 @@ pub struct LadderRedeem<'info> {
     pub token_program: Interface<'info, TokenInterface>,
 }
 
+/// How long after a round's close its positions and deposits wait for their
+/// owners. After that anyone may pay them out, to the owner, so one absent
+/// winner cannot keep a finished round open forever.
+pub const CLAIM_GRACE_SECS: i64 = 30 * 24 * 60 * 60;
+
+/// The owner may always collect; anyone else only after the grace period.
+fn may_collect(caller: &Pubkey, owner: &Pubkey, settles_at: i64) -> Result<()> {
+    if caller == owner {
+        return Ok(());
+    }
+    require!(Clock::get()?.unix_timestamp >= settles_at + CLAIM_GRACE_SECS, SoothCoreError::LadderNotYours);
+    Ok(())
+}
+
 pub fn redeem_handler(ctx: Context<LadderRedeem>) -> Result<()> {
     let ladder_key = ctx.accounts.ladder.key();
+    may_collect(&ctx.accounts.caller.key(), &ctx.accounts.owner.key(), ctx.accounts.ladder.load()?.settles_at)?;
     let pos = &ctx.accounts.position;
     let shape = Shape { lo: pos.lo, hi: pos.hi, h: pos.h };
 
@@ -1093,8 +1114,14 @@ pub fn lp_share(pool: u64, deposit: u64, deposit_total: u64) -> u64 {
 
 #[derive(Accounts)]
 pub struct LadderClaimLp<'info> {
+    /// The owner, or after `CLAIM_GRACE_SECS` anyone: the payout still goes
+    /// only to the owner's token account and the rent only to the owner.
+    pub caller: Signer<'info>,
+
+    /// CHECK: bound to the position's (or tranche's) owner below; receives
+    /// the rent and, through `owner_token`, the payout.
     #[account(mut)]
-    pub owner: Signer<'info>,
+    pub owner: UncheckedAccount<'info>,
 
     #[account(mut)]
     pub ladder: AccountLoader<'info, Ladder>,
@@ -1143,6 +1170,7 @@ pub struct LadderLpClaimed {
 
 pub fn claim_lp_handler(ctx: Context<LadderClaimLp>) -> Result<()> {
     let ladder_key = ctx.accounts.ladder.key();
+    may_collect(&ctx.accounts.caller.key(), &ctx.accounts.owner.key(), ctx.accounts.ladder.load()?.settles_at)?;
     let (principal, fees, decimals, authority_bump) = {
         let mut l = ctx.accounts.ladder.load_mut()?;
         let t = ctx.accounts.tranche.load()?;

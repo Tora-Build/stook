@@ -7,10 +7,12 @@
 // `oracle::check_policy`; the program remains the authority.
 
 import type { GetProgramAccountsFilter, PublicKey } from "@solana/web3.js";
-import { LADDER_DISCRIMINATOR, LADDER_SIZE, POSITION_DISCRIMINATOR, type LadderAccount, type LadderStatus } from "./accounts.js";
+import { LADDER_DISCRIMINATOR, LADDER_SIZE, POSITION_DISCRIMINATOR, TRANCHE_DISCRIMINATOR, type LadderAccount, type LadderStatus } from "./accounts.js";
 import { level, type Shape } from "./math.js";
 
 export const VOID_GRACE_SECS = 86_400n;
+/** After this long past a close, anyone may pay out a round’s positions and deposits, to their owners. */
+export const CLAIM_GRACE_SECS = 30n * 86_400n;
 export const SETTLE_MAX_GAP_SECS = 30n;
 export const OPEN_MAX_AGE_SECS = 60n;
 export const OPEN_MAX_CONF_BPS = 100n;
@@ -96,6 +98,14 @@ export function positionFilters(ladder: PublicKey): GetProgramAccountsFilter[] {
   return [
     { memcmp: { offset: 0, bytes: base58(POSITION_DISCRIMINATOR) } },
     { memcmp: { offset: 8, bytes: ladder.toBase58() } },
+  ];
+}
+
+/** Every deposit on one round (to pay out, after the grace period, the ones never claimed). */
+export function trancheFilters(ladder: PublicKey): GetProgramAccountsFilter[] {
+  return [
+    { memcmp: { offset: 0, bytes: base58(TRANCHE_DISCRIMINATOR) } },
+    { memcmp: { offset: 16, bytes: ladder.toBase58() } },
   ];
 }
 

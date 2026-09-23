@@ -175,6 +175,12 @@ cost of the day's information, which no opening curve removes; fees pay it.
 
 ## Clearing up
 
+Thirty days after a round's close, anyone may pay out a position or deposit
+its owner never collected (`ladder_redeem` / `ladder_claim_lp` with a caller
+who is not the owner): the money goes to the owner's token account and the
+rent to the owner, so an absent winner cannot hold a finished round open.
+The keeper does it, then closes the round.
+
 Every position and tranche is counted on the round. A round cannot close
 before its close time, so a day voided early keeps its address and cannot be
 started again on different terms. A position owed nothing
@@ -284,10 +290,6 @@ mint carrying the same extensions is still owed.
 
 Ranked by the second and third audits (`design-review/audit-round-*`):
 
-- **One unclaimed winner or deposit blocks `ladder_close`.** Only the round's
-  rent and dust are held (about 0.016 SOL); everyone else is paid. A payout
-  anyone may trigger after a grace period, to the owner's token account,
-  would release it.
 - **The band width is read when a day is funded, not bound by the funder.**
   An expected-terms argument on `ladder_create` would let the app refuse a
   round whose width moved between display and signature.

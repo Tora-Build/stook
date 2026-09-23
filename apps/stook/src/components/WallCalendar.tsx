@@ -61,9 +61,12 @@ export function WallCalendar(p: Props) {
           if (!d) return <div key={"b" + i} className="wc-cell wc-blank" />;
           const index = first + d - 1;
           const r = rounds.data?.get(index);
-          const terms = stook.roundTerms(p.series, index, now);
-          const at = Number(terms.settlesAt);
-          const past = at - p.now < p.minLeadSecs && !r, isToday = index === today;
+          // Dates only: the opening curve is worked out when a day is picked.
+          const settlesAt = stook.closeOf(p.series, index);
+          const terms = { fundable: p.series.active && stook.hasRound(p.series, index) && now + 900n <= settlesAt && settlesAt <= now + stook.MAX_LEAD_SECS, fundableFrom: settlesAt - stook.MAX_LEAD_SECS };
+          const at = Number(settlesAt);
+          const noRound = !stook.hasRound(p.series, index);
+          const past = (at - p.now < p.minLeadSecs || noRound) && !r, isToday = index === today;
           const early = !r && !past && !terms.fundable;
           const l = r?.ladder;
           const state = !l ? "" : l.status === "open" ? (p.now < Number(l.locksAt) ? "trading" : "locked") : l.status === "seeding" ? (p.now < Number(l.opensAt) ? "funded" : "opening") : l.status;
@@ -76,7 +79,7 @@ export function WallCalendar(p: Props) {
               {l && !landed && <div className="wc-info"><span className="mono">{fmtAmount(l.depositTotal, l.decimals, 0)} {p.coinSymbol}</span><span className="wc-sub">{l.curveSeq.toString()} trades</span></div>}
               {!l && !past && !early && <div className="wc-info wc-empty">Fund it</div>}
               {early && <div className="wc-info wc-sub">from {new Date(Number(terms.fundableFrom) * 1000).toLocaleDateString("en-US", { weekday: "short" })}</div>}
-              {past && !l && <span className="wc-stamp">passed</span>}
+              {past && !l && <span className="wc-stamp">{noRound ? "closed" : "passed"}</span>}
               {closesIn && <div className="wc-left">closes in {closesIn.replace(/ (d|h|min)\b/g, "$1")}</div>}
             </>
           );

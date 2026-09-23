@@ -7,7 +7,7 @@
 import { PublicKey, SystemProgram, TransactionInstruction } from "@solana/web3.js";
 import { SOOTH_CORE_PROGRAM_ID } from "../program.js";
 import { expWad, WAD } from "../math/lmsr.js";
-import { BINS, roundTimes, type Curve } from "./math.js";
+import { BINS, fresh, roundTimes, type Curve } from "./math.js";
 
 const enc = new TextEncoder();
 const SEED_SERIES = enc.encode("series");
@@ -174,12 +174,12 @@ export interface RoundTerms {
 export function roundTerms(s: SeriesAccount, index: number, now: bigint): RoundTerms {
   const settlesAt = closeOf(s, index);
   const { opensAt, locksAt } = roundTimes(now, settlesAt);
+  const fundable = s.active && hasRound(s, index) && now + 900n <= settlesAt && settlesAt <= now + MAX_LEAD_SECS;
+  // A day that has passed (or is too close) has no window to size bands for:
+  // say so rather than throw, since a calendar asks about every day.
+  if (settlesAt <= opensAt) return { settlesAt, opensAt, locksAt, stepBps: 0, varBands: 0n, curve: fresh(), fundable: false, fundableFrom: settlesAt - MAX_LEAD_SECS };
   const { stepBps, varBands } = bandWidth(s.varWad, settlesAt - opensAt);
-  return {
-    settlesAt, opensAt, locksAt, stepBps, varBands, curve: prior(varBands),
-    fundable: s.active && hasRound(s, index) && now + 900n <= settlesAt && settlesAt <= now + MAX_LEAD_SECS,
-    fundableFrom: settlesAt - MAX_LEAD_SECS,
-  };
+  return { settlesAt, opensAt, locksAt, stepBps, varBands, curve: prior(varBands), fundable, fundableFrom: settlesAt - MAX_LEAD_SECS };
 }
 
 // ── addresses and builders ───────────────────────────────────────────────────

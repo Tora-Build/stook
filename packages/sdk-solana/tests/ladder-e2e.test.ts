@@ -263,10 +263,19 @@ describe("ladder end to end", () => {
     const lp3Predicted =
       L.tranchePrincipal(t3.deposit, L.tranchePnl(t3.b, t3.join.w[k]!, t3.join.sum, fin.curve.w[k]!, fin.curve.sum), 6) +
       L.trancheFees(t3.b, 6, fin.accFee, t3.feeSnap);
+    const refs0 = { ladder: m.ladder, quoteMint: e.mint, tokenProgram: TOKEN_PROGRAM_ID, programId: PROGRAM };
     const c0 = balance(e, e.creator.token), l0 = balance(e, e.lp2.token), t0 = balance(e, e.lp3.token);
     await ok(e, m.claimLp(e.lp3), e.lp3.kp);                          // claim order is free: the late LP goes first
     const claim = await ok(e, m.claimLp(e.creator), e.creator.kp);
-    await ok(e, m.claimLp(e.lp2), e.lp2.kp);
+    // lp2 never comes back. Nobody else may collect for it yet...
+    const forLp2 = () => L.claimLpIx(refs0, e.lp2.kp.publicKey, e.lp2.token, 0, e.lp3.kp.publicKey);
+    const early = await send(e, [forLp2()], e.lp3.kp);
+    expect(early.logs).toContain("LadderNotYours");
+    // ...but 30 days after the close anyone may, and the money goes to lp2, not the caller.
+    warpClockTo(e.ctx, settlesAt + L.CLAIM_GRACE_SECS);
+    const callerHad = balance(e, e.lp3.token);
+    await ok(e, forLp2(), e.lp3.kp);
+    expect(balance(e, e.lp3.token)).toBe(callerHad);
     const creatorGot = balance(e, e.creator.token) - c0, lp2Got = balance(e, e.lp2.token) - l0, lp3Got = balance(e, e.lp3.token) - t0;
     // Same prices at joining, 5,000 : 2,500 → 2 : 1, to within a base unit of flooring
     expect(creatorGot - 2n * lp2Got).toBeGreaterThanOrEqual(-3n);

@@ -249,19 +249,24 @@ export function settleLadderIx(r: LadderRefs, series: PublicKey, cranker: Public
 export const voidLadderIx = (r: LadderRefs, cranker: PublicKey) =>
   ix(r, pack(DISC.void), [signer(cranker, false), rw(r.ladder)]);
 
-export function redeemLadderIx(r: LadderRefs, owner: PublicKey, ownerToken: PublicKey, shape: Shape): TransactionInstruction {
+/**
+ * Collect a position. The owner at any time; `caller` (anyone else) 30 days
+ * after the round's close, paying the owner's token account, never the caller.
+ */
+export function redeemLadderIx(r: LadderRefs, owner: PublicKey, ownerToken: PublicKey, shape: Shape, caller: PublicKey = owner): TransactionInstruction {
   const programId = pid(r);
   return ix(r, pack(DISC.redeem), [
-    signer(owner), rw(r.ladder), ro(deriveLadderAuthority(r.ladder, programId)), ro(r.quoteMint),
+    signer(caller), rw(owner), rw(r.ladder), ro(deriveLadderAuthority(r.ladder, programId)), ro(r.quoteMint),
     rw(deriveLadderVault(r.ladder, programId)), rw(ownerToken),
     rw(deriveLadderPosition(r.ladder, owner, shape, programId)), ro(r.tokenProgram),
   ]);
 }
 
-export function claimLpIx(r: LadderRefs, owner: PublicKey, ownerToken: PublicKey, index = 0): TransactionInstruction {
+/** Collect a deposit: the owner any time, anyone (to the owner) after the grace period. */
+export function claimLpIx(r: LadderRefs, owner: PublicKey, ownerToken: PublicKey, index = 0, caller: PublicKey = owner): TransactionInstruction {
   const programId = pid(r);
   return ix(r, pack(DISC.claimLp), [
-    signer(owner), rw(r.ladder), ro(deriveLadderAuthority(r.ladder, programId)), ro(r.quoteMint),
+    signer(caller), rw(owner), rw(r.ladder), ro(deriveLadderAuthority(r.ladder, programId)), ro(r.quoteMint),
     rw(deriveLadderVault(r.ladder, programId)), rw(ownerToken),
     rw(deriveLadderTranche(r.ladder, owner, index, programId)), ro(r.tokenProgram),
   ]);

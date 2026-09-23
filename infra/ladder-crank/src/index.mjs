@@ -166,18 +166,42 @@ async function clearUp() {
       try {
         const mint = await connection.getAccountInfo(l.quoteMint);
         const refs = { ladder: pubkey, quoteMint: l.quoteMint, tokenProgram: mint.owner };
-        let open = l.openPositions;
+        // 30 days after the close, anything still uncollected is paid out to
+        // its owner: their token account, their rent. The keeper gains nothing.
+        const graceOver = BigInt(Math.floor(Date.now() / 1000)) >= l.settlesAt + stook.CLAIM_GRACE_SECS;
+        const ownerToken = async (owner) => {
+          const ata = getAssociatedTokenAddressSync(l.quoteMint, owner, true, mint.owner);
+          if (!(await connection.getAccountInfo(ata))) {
+            const { Transaction, sendAndConfirmTransaction } = await import("@solana/web3.js");
+            await sendAndConfirmTransaction(connection, new Transaction().add(createAssociatedTokenAccountIdempotentInstruction(payer.publicKey, ata, owner, l.quoteMint, mint.owner)), [payer]);
+          }
+          return ata;
+        };
+        let open = l.openPositions, tranches = l.openTranches;
         if (open > 0) {
           const positions = await scanner.getProgramAccounts(SOOTH_CORE_PROGRAM_ID, { filters: stook.positionFilters(pubkey) });
           for (const p of positions) {
             const pos = stook.decodeLadderPosition(p.account.data);
-            if (stook.owedTo(l, pos) !== 0n) continue;
-            await sendPlain(stook.sweepPositionIx(refs, payer.publicKey, p.pubkey, pos.owner));
+            if (stook.owedTo(l, pos) === 0n) {
+              await sendPlain(stook.sweepPositionIx(refs, payer.publicKey, p.pubkey, pos.owner));
+              console.log(tag, "swept", p.pubkey.toBase58().slice(0, 8));
+            } else if (graceOver) {
+              await sendPlain(stook.redeemLadderIx(refs, pos.owner, await ownerToken(pos.owner), pos.shape, payer.publicKey));
+              console.log(tag, "paid out uncollected position to", pos.owner.toBase58().slice(0, 8));
+            } else continue;
             open--;
-            console.log(tag, "swept", p.pubkey.toBase58().slice(0, 8));
           }
         }
-        if (open > 0 || l.openTranches > 0) continue;
+        if (tranches > 0 && graceOver) {
+          const ts = await scanner.getProgramAccounts(SOOTH_CORE_PROGRAM_ID, { filters: stook.trancheFilters(pubkey) });
+          for (const t of ts) {
+            const tr = stook.decodeLadderTranche(t.account.data);
+            await sendPlain(stook.claimLpIx(refs, tr.owner, await ownerToken(tr.owner), tr.index, payer.publicKey));
+            console.log(tag, "paid out unclaimed deposit to", tr.owner.toBase58().slice(0, 8));
+            tranches--;
+          }
+        }
+        if (open > 0 || tranches > 0) continue;
         const { Transaction, sendAndConfirmTransaction } = await import("@solana/web3.js");
         const treasuryToken = getAssociatedTokenAddressSync(l.quoteMint, config.treasury, true, mint.owner);
         const creatorToken = getAssociatedTokenAddressSync(l.quoteMint, l.creator, true, mint.owner);

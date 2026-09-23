@@ -59,6 +59,11 @@ describe("ladder sdk", () => {
     expect(L.bandWidth(L.varFromSigma(0.025), 4n * 3600n).stepBps).toBe(26);
     expect(L.bandWidth(L.varFromSigma(0.002), 900n).stepBps).toBe(L.MIN_STEP_BPS);
     expect(L.bandWidth(L.varFromSigma(0.002), 900n).varBands).toBe(L.MIN_VAR_BANDS);
+    // a calendar asks about past days too: no terms, no throw
+    const daily = { feedId: new Uint8Array(32), quoteMint: Keypair.generate().publicKey, periodSecs: 0, closeSecs: 16 * 3600, clock: L.CLOCK_NEW_YORK, active: true, varWad: L.varFromSigma(0.025), lastPrice: 0n, lastExpo: 0, lastAt: 0n, observations: 0 };
+    const past = L.roundTerms(daily, L.daysFromCivil(2026, 9, 1), 1_790_000_000n);
+    expect(past.fundable).toBe(false);
+    expect(past.stepBps).toBe(0);
     // a weekday series: Friday has a round, Saturday none
     const wk = { periodSecs: 0, clock: L.CLOCK_NEW_YORK_WEEKDAYS };
     expect(L.hasRound(wk, L.daysFromCivil(2026, 9, 25))).toBe(true);

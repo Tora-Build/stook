@@ -160,12 +160,14 @@ pub mod sooth_core {
         ladder::void_handler(ctx)
     }
 
-    /// Collect a position: its payout if settled, its cost basis if void.
+    /// Collect a position: its payout if settled, its cost basis if void. The
+    /// owner at any time; anyone, to the owner, 30 days after the close.
     pub fn ladder_redeem(ctx: Context<LadderRedeem>) -> Result<()> {
         ladder::redeem_handler(ctx)
     }
 
-    /// Collect an LP stake's share of what the market left.
+    /// Collect an LP stake's share of what the market left. The owner at any
+    /// time; anyone, to the owner, 30 days after the close.
     pub fn ladder_claim_lp(ctx: Context<LadderClaimLp>) -> Result<()> {
         ladder::claim_lp_handler(ctx)
     }
