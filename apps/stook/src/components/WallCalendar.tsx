@@ -78,7 +78,7 @@ export function WallCalendar(p: Props) {
               {l && landed && <div className="wc-info"><span className="mono">{fmtPrice(landed[0], l.p0Expo, p.dp)}</span><span className="wc-sub">landed</span></div>}
               {l && !landed && <div className="wc-info"><span className="mono">{fmtAmount(l.depositTotal, l.decimals, 0)} {p.coinSymbol}</span><span className="wc-sub">{l.curveSeq.toString()} trades</span></div>}
               {!l && !past && !early && <div className="wc-info wc-empty">Fund it</div>}
-              {early && <div className="wc-info wc-sub">from {new Date(Number(terms.fundableFrom) * 1000).toLocaleDateString("en-US", { weekday: "short" })}</div>}
+              {early && <div className="wc-info wc-sub" title="A day can be funded in the 48 hours before its close, so its bands are sized to how the coin is moving now.">funding opens {new Date(Number(terms.fundableFrom) * 1000).toLocaleDateString("en-US", { weekday: "short" })}</div>}
               {past && !l && <span className="wc-stamp">{noRound ? "closed" : "passed"}</span>}
               {closesIn && <div className="wc-left">closes in {closesIn.replace(/ (d|h|min)\b/g, "$1")}</div>}
             </>

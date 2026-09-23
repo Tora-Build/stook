@@ -55,7 +55,7 @@ export function Coin() {
       {!note && <Chart24 points={chart.data?.points ?? []} dp={coin.anchor.dp} />}
 
       <section className="slots">
-        <p className="explain">One round a day. It trades from 4 PM the day before until 3 PM, and the bell rings at the 4 PM New York close. Its bands are as wide as {anchor.name} has been moving lately. Click a day to trade it, or to fund it. <Link to="/how">How it works</Link></p>
+        <p className="explain">One round a day. It trades from 4 PM the day before until 3 PM, and the bell rings at the 4 PM New York close. Its bands are as wide as {anchor.name} has been moving lately, so a day can be funded only in the 48 hours before it closes. Click a day to trade it, or to fund it. <Link to="/how">How it works</Link></p>
         {series.data && seriesKey ? <WallCalendar seriesKey={seriesKey} series={series.data} now={now} minLeadSecs={MIN_LEAD_SECS} dp={anchor.dp} coinSymbol={coin.symbol} canStart={!!mint && series.data.active} onStart={setStarting} />
           : <p className="muted">{series.isLoading ? "Reading the calendar…" : "This coin's rounds have not been opened on this network yet."}</p>}
       </section>
