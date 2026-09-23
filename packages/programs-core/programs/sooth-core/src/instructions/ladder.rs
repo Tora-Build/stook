@@ -870,7 +870,9 @@ pub fn void_handler(ctx: Context<LadderVoid>) -> Result<()> {
     require!(never_opened || never_settled, SoothCoreError::LadderNotVoidable);
 
     // Fees go back into the pot: a void refunds what people PAID, fee included,
-    // so nobody keeps a fee for a market that did not happen.
+    // so nobody keeps a fee for a market that did not happen. The pot is then
+    // split among everyone still in — deposits and open positions alike — in
+    // proportion to what they put in (`void_share`).
     let vault = l
         .cash
         .checked_add(l.fees_lp)
@@ -878,7 +880,7 @@ pub fn void_handler(ctx: Context<LadderVoid>) -> Result<()> {
         .and_then(|v| v.checked_add(l.fees_protocol))
         .ok_or(SoothCoreError::MathOverflow)?;
     l.void_vault = vault;
-    l.void_basis = l.basis_total;
+    l.void_claims = l.deposit_total.checked_add(l.basis_total).ok_or(SoothCoreError::MathOverflow)?;
     l.fees_lp = 0;
     l.fees_creator = 0;
     l.fees_protocol = 0;
@@ -887,13 +889,23 @@ pub fn void_handler(ctx: Context<LadderVoid>) -> Result<()> {
     Ok(())
 }
 
+/// A claim's cut of a voided market: `claim × void_vault / void_claims`,
+/// floored. Sellers who left before the void took their proceeds with them,
+/// so the ratio is below one by exactly their realised gains — or above one
+/// by their realised losses — and everyone still in wears the same fraction.
+pub fn void_share(claim: u64, void_vault: u64, void_claims: u64) -> u64 {
+    if void_claims == 0 {
+        return 0;
+    }
+    (claim as u128 * void_vault as u128 / void_claims as u128) as u64
+}
+
 // ── redeem ───────────────────────────────────────────────────────────────────
 
 /// What a position is owed once its market is final.
 ///
 /// Settled: `shares × level(settled_bin)` — the tent's taper, read at one bin.
-/// Void: cost basis, scaled by `min(1, vault/basis)` so a shortfall — which the
-/// accounting should make impossible — would be shared rather than raced for.
+/// Void: cost basis, at the same `void_share` ratio every deposit gets.
 pub fn redemption(
     status: u8,
     settled_bin: u8,
@@ -901,17 +913,11 @@ pub fn redemption(
     shares: u64,
     net_paid: u64,
     void_vault: u64,
-    void_basis: u64,
+    void_claims: u64,
 ) -> Option<u64> {
     match status {
         STATUS_SETTLED => shares.checked_mul(shape.level(settled_bin as usize) as u64),
-        STATUS_VOID => {
-            if void_basis == 0 {
-                return Some(0);
-            }
-            let covered = void_vault.min(void_basis) as u128;
-            Some((net_paid as u128 * covered / void_basis as u128) as u64)
-        }
+        STATUS_VOID => Some(void_share(net_paid, void_vault, void_claims)),
         _ => None,
     }
 }
@@ -966,7 +972,7 @@ pub fn redeem_handler(ctx: Context<LadderRedeem>) -> Result<()> {
     let (owed, decimals, authority_bump) = {
         let mut l = ctx.accounts.ladder.load_mut()?;
         let owed = redemption(
-            l.status, l.settled_bin, shape, pos.shares, pos.net_paid, l.void_vault, l.void_basis,
+            l.status, l.settled_bin, shape, pos.shares, pos.net_paid, l.void_vault, l.void_claims,
         )
         .ok_or(SoothCoreError::LadderNotFinal)?;
 
@@ -1111,13 +1117,10 @@ pub fn claim_lp_handler(ctx: Context<LadderClaimLp>) -> Result<()> {
                 l.fees_lp -= fees;
                 (principal, fees)
             }
-            // In a void, LPs take what is left once every trader is made
-            // whole. Fees were folded back into the pot: nobody keeps a fee
-            // for a market that did not happen.
-            STATUS_VOID => (
-                lp_share(l.void_vault.saturating_sub(l.void_basis), t.deposit, l.deposit_total),
-                0,
-            ),
+            // In a void a deposit is a claim like any open position: the same
+            // fraction of the pot per unit put in. Fees were folded back into
+            // the pot: nobody keeps a fee for a market that did not happen.
+            STATUS_VOID => (void_share(t.deposit, l.void_vault, l.void_claims), 0),
             _ => return err!(SoothCoreError::LadderNotFinal),
         };
         emit!(LadderLpClaimed {
@@ -1197,10 +1200,15 @@ pub struct LadderCollectFees<'info> {
     pub token_program: Interface<'info, TokenInterface>,
 }
 
+/// Sweep the creator's and protocol's fee shares out of a settled market.
+/// Only a settled one: while the market runs, `fees_protocol` is what funds
+/// the settler's bounty and a void folds every fee back into the refund pot,
+/// so an early sweep would either starve the ending or short the refunds.
 pub fn collect_fees_handler(ctx: Context<LadderCollectFees>) -> Result<()> {
     let ladder_key = ctx.accounts.ladder.key();
     let (to_creator, to_protocol, decimals, authority_bump) = {
         let mut l = ctx.accounts.ladder.load_mut()?;
+        require!(l.status == STATUS_SETTLED, SoothCoreError::LadderNotFinal);
         let out = (l.fees_creator, l.fees_protocol, l.quote_decimals, l.authority_bump);
         l.fees_creator = 0;
         l.fees_protocol = 0;
@@ -1356,11 +1364,34 @@ mod tests {
     #[test]
     fn a_void_refunds_what_was_paid_not_what_it_was_marked_at() {
         let any = Shape::tent(10, 2);
-        // fully covered: exactly the cost basis, whatever the shares were "worth"
-        assert_eq!(redemption(STATUS_VOID, NO_BIN, any, 1_000_000, 28_076_652, 9_000_000_000, 500_000_000), Some(28_076_652));
+        // nothing left before the void: exactly the cost basis, whatever the
+        // shares were "worth" (vault == claims)
+        assert_eq!(redemption(STATUS_VOID, NO_BIN, any, 1_000_000, 28_076_652, 9_000_000_000, 9_000_000_000), Some(28_076_652));
         // a shortfall is shared, not raced for
         assert_eq!(redemption(STATUS_VOID, NO_BIN, any, 5, 1_000, 750, 1_000), Some(750));
         assert_eq!(redemption(STATUS_VOID, NO_BIN, any, 5, 0, 0, 0), Some(0));
+    }
+
+    /// The pot is `deposits + open basis − realised gains`. Whoever realised a
+    /// gain is gone; a deposit and an open position of equal size are then
+    /// short by the same amount, so the house is not the only one paying for
+    /// a market that a seller cashed out of.
+    #[test]
+    fn a_void_haircuts_deposits_and_open_lines_by_the_same_fraction() {
+        let (deposit, basis, gain) = (1_000u64, 500u64, 90u64);
+        let vault = deposit + basis - gain;
+        let claims = deposit + basis;
+        let lp = void_share(deposit, vault, claims);
+        let trader = void_share(basis, vault, claims);
+        assert_eq!(lp, 940);
+        assert_eq!(trader, 470);
+        assert!(lp + trader <= vault, "never over-pays the pot");
+        // a seller who realised a loss leaves a surplus, shared the same way
+        let vault = deposit + basis + 150;
+        assert_eq!(void_share(deposit, vault, claims), 1_100);
+        assert_eq!(void_share(basis, vault, claims), 550);
+        // nobody in: nothing out
+        assert_eq!(void_share(5, 0, 0), 0);
     }
 
     #[test]

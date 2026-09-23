@@ -102,6 +102,24 @@ fixed by the oracle rule, not by who posts it, so the bounty buys liveness
 without buying discretion. See `docs/design-review/svm-review-2026-09-22.md`
 for the reviews that led here.
 
+The creator's and protocol's fee shares can only be swept from a settled
+market. While it runs, `fees_protocol` *is* the bounty, and a void folds every
+fee back into the refund pot; an early sweep would have starved one or
+shorted the other.
+
+**What a void refunds.** Everything the vault holds — cash and every fee —
+goes back to whoever is still in: each deposit and each open position gets
+the same fraction of what it put in, `void_vault / (deposits + open basis)`.
+That fraction is below one by exactly the gains sellers realised before the
+void, and above one by their realised losses. The first version refunded
+traders at cost and gave LPs the remainder, which made a foreseeable void a
+riskless way to drain the house: buy a bin from one wallet, buy it again from
+another, sell the first into the second at a gain, and let the void refund
+the second at cost. Now the second wallet wears its share of the gain like
+everyone else. A blind audit of the economics (`docs/design-review/`) found
+both of these; everything else — solvency after every trade, tranche P&L,
+fee attribution, the SDK quote — was confirmed on the shipped binary.
+
 ## Continuous UI over banded state
 
 A line is drawn at any price; it buys the band containing it. The band must be

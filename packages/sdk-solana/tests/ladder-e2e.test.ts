@@ -158,6 +158,7 @@ describe("ladder end to end", () => {
     const tent = await m.quoted(29, 35, 4, 100_000_000n);                           // a line at bin 32
     const band = await m.quoted(20, 44, 1, 200_000_000n);                           // a wide band
     await refused(e, m.trade(29, 35, 4, 100_000_000n, 1n), e.trader.kp);            // slippage limit
+    await refused(e, m.collectFees(), e.trader.kp);                                 // fees stay in until it settles: they fund the bounty
     const sell = await m.quoted(29, 35, 4, -100_000_000n);                          // exit the first line
     await refused(e, m.trade(29, 35, 4, -1n, 0n), e.trader.kp);                     // nothing left to sell
 
@@ -279,9 +280,9 @@ describe("ladder end to end", () => {
     for (const cu of [tent.cu, band.cu, sell.cu, join.cu, settle.cu, redeem.cu, claim.cu]) expect(cu).toBeLessThan(200_000);
   });
 
-  it("voids when the settlement price never arrives: the trader gets back what they paid, the LP is made whole", async () => {
+  it("voids when the settlement price never arrives: refunds at cost, and a gain someone already cashed out is worn by everyone still in, equally", async () => {
     const e = boot();
-    const opensAt = PUBLISH_TIME, locksAt = PUBLISH_TIME + 3600n, settlesAt = PUBLISH_TIME + 3700n;
+    const settlesAt = PUBLISH_TIME + 3700n;
     const m = market(e, settlesAt);
     await ok(e, L.initializeProtocolIx(e.treasury.publicKey, e.treasury.publicKey, PROGRAM), e.treasury);
 
@@ -290,8 +291,14 @@ describe("ladder end to end", () => {
     warpClockTo(e.ctx, PUBLISH_TIME + 10n);
     await ok(e, m.open(e.priceAccount(NVDA_UPDATE)), e.trader.kp);
 
-    // Pump one bin hard — the position that a mark-to-last-price refund would overpay.
+    // lp3 (as a trader) buys bin 40 cheap; the trader then pumps it hard — the
+    // position a mark-to-last-price refund would overpay — and lp3 sells into
+    // the pump. That gain has left the vault before anything else happens.
+    await ok(e, m.tradeAs(e.lp3, 40, 40, 1, 100_000_000n, BIG), e.lp3.kp);
     await ok(e, m.trade(40, 40, 1, 800_000_000n, BIG), e.trader.kp);
+    await ok(e, m.tradeAs(e.lp3, 40, 40, 1, -100_000_000n, 0n), e.lp3.kp);
+    const gain = balance(e, e.lp3.token) - e.lp3.start;
+    expect(gain).toBeGreaterThan(0n);
     await ok(e, m.join(e.lp2, 2_500_000_000n, m.curveSeq()), e.lp2.kp);  // liquidity arrives mid-market
     await ok(e, m.trade(28, 34, 4, 60_000_000n, BIG), e.trader.kp);
     const paid = e.trader.start - balance(e, e.trader.token);
@@ -302,16 +309,27 @@ describe("ladder end to end", () => {
     warpClockTo(e.ctx, settlesAt + 24n * 3600n);
     await ok(e, m.voidIt(), e.trader.kp);
     await refused(e, m.settle(e.priceAccount(updateAt(P0, settlesAt, settlesAt - 1n))), e.trader.kp); // void is final
+    await refused(e, m.collectFees(), e.trader.kp);                    // nothing to sweep: fees went back into the pot
+
+    const v = m.state();
+    expect(v.voidClaims).toBe(7_500_000_000n + paid);                  // every deposit + every open line's cost
+    expect(v.voidVault).toBe(v.voidClaims - gain);                     // short by exactly what the seller took
 
     await ok(e, m.redeem(40, 40, 1), e.trader.kp);
     await ok(e, m.redeem(28, 34, 4), e.trader.kp);
-    expect(balance(e, e.trader.token)).toBe(e.trader.start);           // every unit back, fees included
-
     await ok(e, m.claimLp(e.lp2), e.lp2.kp);
     await ok(e, m.claimLp(e.creator), e.creator.kp);
-    expect(balance(e, e.creator.token)).toBe(e.creator.start);         // both LPs exactly whole,
-    expect(balance(e, e.lp2.token)).toBe(e.lp2.start);                 // whenever they joined
-    expect(balance(e, m.vault)).toBe(0n);
-    console.log(`\nVOID PATH  trader had paid ${(Number(paid) / 1e6).toFixed(6)}; refunded in full. Both LPs made exactly whole. Vault 0.\n`);
+    const traderBack = balance(e, e.trader.token) - (e.trader.start - paid);
+    const creatorBack = balance(e, e.creator.token) - (e.creator.start - 5_000_000_000n);
+    const lp2Back = balance(e, e.lp2.token) - (e.lp2.start - 2_500_000_000n);
+    // The same fraction for a deposit and for an open line, to a base unit of flooring.
+    const ratio = Number(v.voidVault) / Number(v.voidClaims);
+    for (const [back, put] of [[traderBack, paid], [creatorBack, 5_000_000_000n], [lp2Back, 2_500_000_000n]] as const) {
+      expect(Number(put) * ratio - Number(back)).toBeGreaterThanOrEqual(0);
+      expect(Number(put) * ratio - Number(back)).toBeLessThan(2);
+    }
+    expect(traderBack + creatorBack + lp2Back + gain).toBeGreaterThanOrEqual(7_500_000_000n + paid - 3n); // nothing minted, nothing kept
+    expect(balance(e, m.vault)).toBeLessThan(3n);
+    console.log(`\nVOID PATH  seller took ${(Number(gain) / 1e6).toFixed(6)} before the void; everyone still in got back ${(ratio * 100).toFixed(4)}% of what they put in. Vault ${balance(e, m.vault)}.\n`);
   });
 });

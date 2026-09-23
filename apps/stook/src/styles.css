@@ -158,6 +158,7 @@ button.link { background: none; border: 0; color: var(--taxi); font: inherit; cu
 
 /* trade panel */
 .seg-row { display: flex; align-items: center; gap: .5rem; flex-wrap: wrap; }
+.held-side { margin-top: .4rem; }
 .explain b { color: var(--cream); }
 .ladder-table { width: 100%; border-collapse: collapse; font-size: .85rem; margin: 0 0 .75rem; }
 .ladder-table th { text-align: left; font-family: var(--px); font-weight: 400; color: var(--cream-3); font-size: .45rem; padding: .3rem 0; }
@@ -439,9 +440,9 @@ a.wc-cell:hover { text-decoration: none; border-color: var(--taxi); }
 @media (max-width: 760px) { .door-row { grid-template-columns: 1fr; } }
 
 /* your lines on the chart */
-.pos-box { fill: rgba(240, 168, 58, .06); stroke: var(--taxi); stroke-width: 1.5; stroke-dasharray: 4 3; cursor: pointer; }
-.pos-sel .pos-box { fill: rgba(240, 168, 58, .16); stroke-dasharray: none; stroke-width: 2.5; }
-.pos-lv { fill: rgba(240, 168, 58, .7); pointer-events: none; }
+.pos-hit { fill: transparent; cursor: pointer; }
+.pos-lv { fill: rgba(240, 168, 58, .1); stroke: var(--taxi); stroke-width: 1.5; stroke-dasharray: 4 3; pointer-events: none; }
+.pos-sel .pos-lv { fill: rgba(240, 168, 58, .22); stroke-dasharray: none; stroke-width: 2; }
 .pos-lbl { fill: var(--taxi); font-family: var(--px); font-size: 8px; pointer-events: none; }
 
 /* the round page: a strip, the chart, the ticket */

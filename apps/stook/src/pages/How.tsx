@@ -40,7 +40,7 @@ export function How() {
           </>}
           {i === 3 && <>
             <h2>The bell</h2>
-            <p>At the close, the anchor's <b>Pyth price</b> on chain — one update, picked by a rule — lands in a band. That band pays; the rest pay nothing. No price within 24 hours: the round is <b>void</b>, everyone refunded.</p>
+            <p>At the close, the anchor's <b>Pyth price</b> on chain — one update, picked by a rule — lands in a band. That band pays; the rest pay nothing. No price within 24 hours: the round is <b>void</b> and everyone still in is refunded at cost.</p>
             <p className="try">Ring it.</p>
           </>}
           {i === 4 && <>

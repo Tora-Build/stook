@@ -68,10 +68,11 @@ export function Chart(p: ChartProps) {
   const at = (e: PointerEvent<SVGSVGElement>) => { const r = svg.current!.getBoundingClientRect(); return { x: ((e.clientX - r.left) / r.width) * W, y: ((e.clientY - r.top) / r.height) * H }; };
   const down = (e: PointerEvent<SVGSVGElement>) => {
     const { x, y } = at(e); const i = binAtY(y);
-    // On the odds panel, a click on one of your own lines selects it (to sell or collect).
+    // On the odds panel, a click on one of your own lines selects it: the ticket
+    // then offers to add to it or sell it, and the shape it shows is that line's.
     if (x >= oddsX && p.positions?.length) {
       const hit = p.positions.find((q) => stook.level(q.shape, i) > 0);
-      if (hit) { p.onSelect?.(hit.key); p.onShape(null); return; }
+      if (hit) { p.onSelect?.(hit.key); p.onShape(hit.shape); return; }
     }
     if (p.disabled) return;
     p.onSelect?.(null);
@@ -109,15 +110,15 @@ export function Chart(p: ChartProps) {
         {/* odds bars, right */}
         {Array.from({ length: nVis }, (_, k) => { const i = lo + k; const w = maxProb > 0n ? (Number(probs[i]!) / Number(maxProb)) * oddsW : 0; return (
           <rect key={"b" + i} x={oddsX} y={yOfBin(i) + 1} width={Math.max(1, w)} height={Math.max(1, bh - 2)} className={`bar ${levels && levels[i]! > 0 ? "bar-in" : ""} ${p.settledBin === i ? "bar-settled" : ""}`} />); })}
-        {/* the shape's payout, as amber ticks on the odds panel */}
+        {/* the shape you would buy: amber, from the left, as wide as it pays on each band */}
         {levels && s && Array.from({ length: nVis }, (_, k) => { const i = lo + k, lv = levels[i]!; if (!lv) return null; return (
           <rect key={"s" + i} x={oddsX} y={yOfBin(i) + 1} width={(lv / s.h) * oddsW} height={Math.max(1, bh - 2)} className="shape-bar" />); })}
-        {/* your lines, on the odds panel */}
+        {/* your lines: the same drawing, as a dashed outline — buying more fills it in */}
         {p.positions?.map((q) => { const [a, z] = stook.shapeBins(q.shape); if (z < lo || a > hi) return null; const top = Math.max(a, lo), bot = Math.min(z, hi); const sel = q.key === p.selected; return (
           <g key={q.key} className={`pos ${sel ? "pos-sel" : ""}`}>
-            <rect x={oddsX} y={yOfBin(bot)} width={oddsW} height={(bot - top + 1) * bh} className="pos-box" />
-            {Array.from({ length: bot - top + 1 }, (_, k) => { const i = top + k, lv = stook.level(q.shape, i); return lv ? <rect key={i} x={oddsX + oddsW - (lv / q.shape.h) * oddsW * 0.35} y={yOfBin(i) + 1} width={(lv / q.shape.h) * oddsW * 0.35} height={Math.max(1, bh - 2)} className="pos-lv" /> : null; })}
-            <text x={oddsX + oddsW - 4} y={yOfBin(bot) + 12} textAnchor="end" className="lbl pos-lbl">{q.label}</text>
+            <rect x={oddsX} y={yOfBin(bot)} width={oddsW} height={(bot - top + 1) * bh} className="pos-hit" />
+            {Array.from({ length: bot - top + 1 }, (_, k) => { const i = top + k, lv = stook.level(q.shape, i); return lv ? <rect key={i} x={oddsX + 0.75} y={yOfBin(i) + 1.75} width={(lv / q.shape.h) * oddsW - 1.5} height={Math.max(1, bh - 3.5)} className="pos-lv" /> : null; })}
+            <text x={oddsX + oddsW - 4} y={yOfBin(bot) + 12} textAnchor="end" className="lbl pos-lbl">{sel ? "yours · " : ""}{q.label}</text>
           </g>); })}
         {/* history */}
         <line x1={oddsX - 3} x2={oddsX - 3} y1={PAD.t} y2={PAD.t + plotH} className="line-p0" />

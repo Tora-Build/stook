@@ -106,12 +106,15 @@ pub struct Ladder {
     /// reserved. Tranche principal is paid from here and it only decreases, so
     /// a rounding surplus can never become an over-withdrawal.
     pub lp_pool: u64,
-    /// Fixed at void: everything the vault held, and everything owed back.
-    /// Refunds pay `net_paid × min(1, void_vault / void_basis)`, so if the
-    /// vault were ever short every holder is short by the same fraction rather
-    /// than the last to claim finding it empty.
+    /// Fixed at void: everything the vault held, and everything put in by
+    /// those still in the market — every deposit plus every open position's
+    /// cost. Money that already left with sellers cannot be recalled, so a
+    /// void pays each claim `× void_vault / void_claims`: depositors and open
+    /// lines take the same haircut (or the same surplus), and nobody can
+    /// drain the house by realising a gain against a market they know will
+    /// not finish.
     pub void_vault: u64,
-    pub void_basis: u64,
+    pub void_claims: u64,
 
     /// `payout[i]`: quote base units owed in total if bin `i` settles. Kept so
     /// solvency is a comparison, not a belief about the scoring rule.
