@@ -206,7 +206,7 @@ export function openingTerms(varWad: bigint, settlesAt: bigint, openAt: bigint):
 export function roundTerms(s: SeriesAccount, index: number, now: bigint): RoundTerms {
   const settlesAt = closeOf(s, index);
   const { opensAt, locksAt } = roundTimes(now, settlesAt);
-  const fundable = s.active && warmedUp(s) && hasRound(s, index) && now + 900n <= settlesAt && settlesAt <= now + MAX_LEAD_SECS;
+  const fundable = s.active && hasRound(s, index) && now + 900n <= settlesAt && settlesAt <= now + MAX_LEAD_SECS;
   // A day that has passed (or is too close) has no window to size bands for:
   // say so rather than throw, since a calendar asks about every day.
   if (settlesAt <= opensAt || s.varWad <= 0n) return { settlesAt, opensAt, locksAt, stepBps: 0, varBands: 0n, curve: fresh(), fundable: false, fundableFrom: settlesAt - MAX_LEAD_SECS };

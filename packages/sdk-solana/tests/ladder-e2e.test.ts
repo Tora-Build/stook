@@ -153,17 +153,6 @@ describe("ladder end to end", () => {
     const m = market(e, settlesAt);
     await ok(e, L.initializeProtocolIx(e.treasury.publicKey, e.treasury.publicKey, PROGRAM), e.treasury);
     await ok(e, m.createSeries(), e.treasury);
-    // A new series has no volatility and takes no rounds until it has learned
-    // from 20 closes; nothing sets it but Pyth prices.
-    warpClockTo(e.ctx, PUBLISH_TIME - 1000n);
-    await refused(e, m.create(5_000_000_000n), e.creator.kp);
-    await m.warm(PUBLISH_TIME - 1000n);
-    const learned = m.seriesState();
-    expect(learned.observations).toBe(L.WARMUP_OBSERVATIONS);
-    expect(Math.sqrt(Number(learned.varWad) / 1e18)).toBeCloseTo(0.0493, 2);           // ±0.13% a minute is ~4.9% a day
-    const lastClose = warmCloses(m.indexOfClose, m.closeAt, PUBLISH_TIME - 1000n, P0).at(-1)!;
-    const again = await send(e, [L.observeSeriesIx(m.series, e.trader.kp.publicKey, e.priceAccount(updateAt(lastClose.price, lastClose.at, lastClose.at - 1n)), lastClose.index, PROGRAM)], e.trader.kp);
-    expect(again.logs).toContain("SeriesAlreadyObserved");                             // once per close
     await refused(e, L.initializeProtocolIx(e.treasury.publicKey, e.treasury.publicKey, PROGRAM), e.treasury); // once
     expect(L.decodeProtocolConfig(new Uint8Array((e.svm.getAccount(e.config.toBase58() as any) as any).data)).treasury.equals(e.treasury.publicKey)).toBe(true);
 
@@ -181,6 +170,20 @@ describe("ladder end to end", () => {
     expect(m.state().openTranches).toBe(1);
     await ok(e, m.join(e.lp2, 2_500_000_000n, 0n), e.lp2.kp);
     expect(balance(e, m.vault)).toBe(7_500_000_000n);
+
+    // A new series has no volatility yet. Funding never waited for it, but a
+    // round cannot open until its series has learned from 20 closes; nothing
+    // sets that number but Pyth prices.
+    warpClockTo(e.ctx, PUBLISH_TIME + 10n);
+    const cold = await send(e, [m.open(e.priceAccount(NVDA_UPDATE))], e.trader.kp);
+    expect(cold.logs).toContain("SeriesWarmingUp");
+    await m.warm(PUBLISH_TIME - 1000n);
+    const learned = m.seriesState();
+    expect(learned.observations).toBe(L.WARMUP_OBSERVATIONS);
+    expect(Math.sqrt(Number(learned.varWad) / 1e18)).toBeCloseTo(0.0493, 2);           // ±0.13% a minute is ~4.9% a day
+    const lastClose = warmCloses(m.indexOfClose, m.closeAt, PUBLISH_TIME - 1000n, P0).at(-1)!;
+    const again = await send(e, [L.observeSeriesIx(m.series, e.trader.kp.publicKey, e.priceAccount(updateAt(lastClose.price, lastClose.at, lastClose.at - 1n)), lastClose.index, PROGRAM)], e.trader.kp);
+    expect(again.logs).toContain("SeriesAlreadyObserved");                             // once per close
 
     // ── Open, from the real update ──────────────────────────────────────────
     warpClockTo(e.ctx, PUBLISH_TIME + 10n);

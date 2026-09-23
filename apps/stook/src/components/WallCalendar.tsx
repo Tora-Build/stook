@@ -63,11 +63,10 @@ export function WallCalendar(p: Props) {
           const r = rounds.data?.get(index);
           // Dates only: the opening curve is worked out when a day is picked.
           const settlesAt = stook.closeOf(p.series, index);
-          const terms = { fundable: p.series.active && stook.warmedUp(p.series) && stook.hasRound(p.series, index) && now + 900n <= settlesAt && settlesAt <= now + stook.MAX_LEAD_SECS, fundableFrom: settlesAt - stook.MAX_LEAD_SECS };
+          const terms = { fundable: p.series.active && stook.hasRound(p.series, index) && now + 900n <= settlesAt && settlesAt <= now + stook.MAX_LEAD_SECS, fundableFrom: settlesAt - stook.MAX_LEAD_SECS };
           const at = Number(settlesAt);
           const noRound = !stook.hasRound(p.series, index);
           const past = (at - p.now < p.minLeadSecs || noRound) && !r, isToday = index === today;
-          const learning = !stook.warmedUp(p.series);
           const early = !r && !past && !terms.fundable;
           const l = r?.ladder;
           const state = !l ? "" : l.status === "open" ? (p.now < Number(l.locksAt) ? "trading" : "locked") : l.status === "seeding" ? (p.now < Number(l.opensAt) ? "funded" : "opening") : l.status;
@@ -79,9 +78,7 @@ export function WallCalendar(p: Props) {
               {l && landed && <div className="wc-info"><span className="mono">{fmtPrice(landed[0], l.p0Expo, p.dp)}</span><span className="wc-sub">landed</span></div>}
               {l && !landed && <div className="wc-info"><span className="mono">{fmtAmount(l.depositTotal, l.decimals, 0)} {p.coinSymbol}</span><span className="wc-sub">{l.curveSeq.toString()} trades</span></div>}
               {!l && !past && !early && <div className="wc-info wc-empty">Fund it</div>}
-              {early && (learning
-                ? <div className="wc-info wc-sub" title="The coin is still learning how its anchor moves from Pyth closes; days open once it has twenty.">learning</div>
-                : <div className="wc-info wc-sub" title="A day can be funded up to a month ahead.">funding opens {new Date(Number(terms.fundableFrom) * 1000).toLocaleDateString("en-US", { weekday: "short" })}</div>)}
+              {early && <div className="wc-info wc-sub" title="A day can be funded up to a month ahead.">funding opens {new Date(Number(terms.fundableFrom) * 1000).toLocaleDateString("en-US", { weekday: "short" })}</div>}
               {past && !l && <span className="wc-stamp">{noRound ? "closed" : "passed"}</span>}
               {closesIn && <div className="wc-left">closes in {closesIn.replace(/ (d|h|min)\b/g, "$1")}</div>}
             </>

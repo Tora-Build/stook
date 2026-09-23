@@ -75,7 +75,7 @@ describe("ladder sdk", () => {
     const cold = L.pendingObservations({ ...daily, observations: 0, varWad: 0n }, 1_790_798_400n + 3600n);
     expect(cold.length).toBe(L.WARMUP_OBSERVATIONS + 6);                              // 5 spare, in case Hermes misses one
     expect(L.closeOf(daily, cold.at(-1)!)).toBe(1_790_798_400n);
-    expect(L.roundTerms({ ...daily, observations: 3 }, cold.at(-1)! + 2, 1_790_798_400n).fundable).toBe(false); // still learning
+    expect(L.roundTerms({ ...daily, observations: 3 }, cold.at(-1)! + 2, 1_790_798_400n).fundable).toBe(true);  // funding never waits for learning
     const past = L.roundTerms(daily, L.daysFromCivil(2026, 9, 1), 1_790_000_000n);
     expect(past.fundable).toBe(false);
     expect(past.stepBps).toBe(0);

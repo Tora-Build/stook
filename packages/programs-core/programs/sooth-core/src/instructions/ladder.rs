@@ -341,7 +341,6 @@ pub fn create_handler(ctx: Context<LadderCreate>, args: LadderCreateArgs) -> Res
 
     let now = Clock::get()?.unix_timestamp;
     require!(ctx.accounts.series.has_round(args.index), SoothCoreError::LadderBadTimes);
-    require!(ctx.accounts.series.warmed_up(), SoothCoreError::SeriesWarmingUp);
     let settles_at = ctx.accounts.series.close_of(args.index);
     // Not so soon that nobody can trade it. Far ahead is fine: the band width
     // is read from the volatility when the round opens, not now.
@@ -461,6 +460,11 @@ pub fn open_handler(ctx: Context<LadderOpen>) -> Result<()> {
     // b = 0.9999 · deposits / ln(1/p_min), the most they fully cover.
     // (A round funded under the earlier rule already has both.)
     if l.b_wad() == 0 {
+        // The one moment the volatility is needed. Funding never waits for it:
+        // a series learns every day, so it has long finished by the time a
+        // round opens. One that has not (a new series right after a Wormhole
+        // guardian rotation) cannot open, and its round refunds after the lock.
+        require!(ctx.accounts.series.warmed_up(), SoothCoreError::SeriesWarmingUp);
         let (step_bps, var_bands) = math(band_width(ctx.accounts.series.var_wad, l.settles_at - now))?;
         let var_bands_e9 = (var_bands / 1_000_000_000).max(1) as u64;
         l.step_bps = step_bps;

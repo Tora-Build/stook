@@ -151,8 +151,9 @@ submits it too. Days go in order, and a missed day can be submitted later
 from Pyth's history (Hermes keeps it), so the series learns every day whether
 or not anyone funded a round, and never depends on the keeper being up.
 Nothing else sets the number: `series_create` takes no volatility, and there
-is no reset. A new series takes no rounds until it has learned from 20 closes
-(the keeper backfills them from history when the series is created); those
+is no reset. A new series' rounds cannot open until it has learned from 20 closes
+(the keeper backfills them from history when the series is created); funding
+never waits for it, since bands are set at open; those
 twenty are a plain average, after which each day counts 6% (λ = 0.94, a
 half-life of about 11 days, the RiskMetrics convention; a week and a month of
 memory did about as well in the backtest). A close across which Pyth was
