@@ -10,7 +10,7 @@ import { Address } from "../components/Address";
 import { useLadder, useLivePrice, useMint, usePositions, useRefs, useSend, useSeries, useTranches } from "../hooks/useChain";
 import { useNow } from "../hooks/useNow";
 import { feedByHex, feedHex } from "../lib/feeds";
-import { coinByMint } from "../lib/coins";
+import { coinByMint, standInNote } from "../lib/coins";
 import { fmtAmount, fmtPrice, untilText } from "../lib/format";
 
 export function Market() {
@@ -72,6 +72,7 @@ export function Market() {
         <div className="strip-num"><span className="strip-k">pool</span><span className="mono strip-v">{fmtAmount(l.depositTotal, l.decimals, 0)} <span className="muted">{quoteSymbol}</span></span></div>
         <div className={`status status-${l.status}`}>{stateText}</div>
       </header>
+      {coin && standInNote(coin) && <p className="warn standin">{standInNote(coin)}</p>}
 
       <div className="market-grid">
         <Chart

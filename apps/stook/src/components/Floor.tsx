@@ -4,7 +4,7 @@
 import { useEffect, useRef } from "react";
 import { Link } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
-import { COINS, anchorOf, type Coin } from "../lib/coins";
+import { COINS, type Coin } from "../lib/coins";
 import { useNow } from "../hooks/useNow";
 
 const DATA = "";
@@ -40,7 +40,7 @@ export function Floor() {
 function Table({ coin, q }: { coin: Coin; q?: { price: number; change24h: number | null } }) {
   const a = coin.anchor;
   return (
-    <Link to={`/c/${coin.symbol}`} className="post" title={`${coin.name} · rounds on ${anchorOf(coin).name}`}>
+    <Link to={`/c/${coin.symbol}`} className="post" title={`${coin.name} · rounds on ${coin.anchor.name}`}>
       <div className="table">
         <div className="screen" data-coin={coin.symbol}>
           <div className="logos"><img src={coin.logo} alt="" className="logo-coin" /><img src={a.logo} alt="" className="logo-anchor" /></div>

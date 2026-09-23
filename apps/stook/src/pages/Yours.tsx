@@ -145,7 +145,7 @@ function RoundBlock({ h, now, own }: { h: Holding; now: number; own: boolean }) 
       <header className="stmt-round-head">
         {coin && <div className="logos"><img src={coin.logo} alt="" className="logo-coin" /><img src={coin.anchor.logo} alt="" className="logo-anchor" /></div>}
         <div className="stmt-round-id">
-          <Link to={`/m/${h.pubkey.toBase58()}`} className="stmt-round-name">{feed.name} <span className="sym">{feed.symbol}</span> in {sym}</Link>
+          <Link to={`/m/${h.pubkey.toBase58()}`} className="stmt-round-name">{coin ? coin.anchor.name : feed.name} <span className="sym">{coin ? coin.anchor.symbol : feed.symbol}</span> in {sym}</Link>
           <div className="muted small">closes {new Date(Number(l.settlesAt) * 1000).toLocaleString("en-US", { weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}</div>
         </div>
         <span className={`stamp stamp-${stage}`}>{stage}</span>

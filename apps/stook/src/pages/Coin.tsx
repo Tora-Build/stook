@@ -43,21 +43,22 @@ export function Coin() {
           <div className="logos logos-big"><img src={coin.logo} alt={coin.symbol} className="logo-coin" /><img src={coin.anchor.logo} alt={coin.anchor.symbol} className="logo-anchor" /></div>
           <div>
           <span className="sign">${coin.symbol} · {coin.name.toUpperCase()}</span>
-          <h1>{anchor.name} <span className="sym">{anchor.symbol}</span></h1>
+          <h1>{coin.anchor.name} <span className="sym">{coin.anchor.symbol}</span></h1>
           <p className="live-row">
-            {q && !note ? <><span className="mono">${q.price.toLocaleString("en-US", { minimumFractionDigits: coin.anchor.dp, maximumFractionDigits: coin.anchor.dp })}</span>{q.change24h != null && <span className={`mono ${q.change24h >= 0 ? "up" : "down"}`}> {q.change24h >= 0 ? "+" : ""}{q.change24h.toFixed(2)}% 24h</span>}</> : note ? <span className="warn">{note}</span> : <span className="muted">price…</span>}
+            {q ? <><span className="mono">${q.price.toLocaleString("en-US", { minimumFractionDigits: coin.anchor.dp, maximumFractionDigits: coin.anchor.dp })}</span>{q.change24h != null && <span className={`mono ${q.change24h >= 0 ? "up" : "down"}`}> {q.change24h >= 0 ? "+" : ""}{q.change24h.toFixed(2)}% 24h</span>}</> : <span className="muted">price…</span>}
           </p>
-          <p className="muted">one round a day on {anchor.name} ({anchor.symbol}), settling at the New York close, paid in ${coin.symbol} · the coin takes {coin.feeBps / 100}% on each transfer</p>
+          {note && <p className="warn">{note}</p>}
+          <p className="muted">one round a day on {coin.anchor.name} ({coin.anchor.symbol}), settling at the New York close, paid in ${coin.symbol} · the coin takes {coin.feeBps / 100}% on each transfer</p>
           <p className="addrs"><Address label={`${coin.anchor.symbol} token`} value={coin.anchor.mint} /><Address label={`$${coin.symbol}`} value={coin.mint} dim /></p>
           </div>
         </div>
       </header>
 
-      {!note && <Chart24 points={chart.data?.points ?? []} dp={coin.anchor.dp} />}
+      <Chart24 points={chart.data?.points ?? []} dp={coin.anchor.dp} />
 
       <section className="slots">
-        <p className="explain">One round a day. It trades from 4 PM the day before until 3 PM, and the bell rings at the 4 PM New York close. Its bands are set when it opens, as wide as {anchor.name} is moving then, so you can fund a day weeks ahead. Click a day to trade it, or to fund it. <Link to="/how">How it works</Link></p>
-        {series.data && !stook.warmedUp(series.data) && <p className="warn">This coin's rounds open once it has learned how {anchor.name} moves from {stook.WARMUP_OBSERVATIONS} daily Pyth closes: {series.data.observations} so far. The keeper backfills them from Pyth's history.</p>}
+        <p className="explain">One round a day. It trades from 4 PM the day before until 3 PM, and the bell rings at the 4 PM New York close. Its bands are set when it opens, as wide as {coin.anchor.name} is moving then, so you can fund a day weeks ahead. Click a day to trade it, or to fund it. <Link to="/how">How it works</Link></p>
+        {series.data && !stook.warmedUp(series.data) && <p className="warn">This coin's rounds open once it has learned how its anchor moves from {stook.WARMUP_OBSERVATIONS} daily Pyth closes: {series.data.observations} so far. The keeper backfills them from Pyth's history.</p>}
         {series.data && seriesKey ? <WallCalendar seriesKey={seriesKey} series={series.data} now={now} minLeadSecs={MIN_LEAD_SECS} dp={anchor.dp} coinSymbol={coin.symbol} canStart={!!mint && series.data.active} onStart={setStarting} />
           : <p className="muted">{series.isLoading ? "Reading the calendar…" : "This coin's rounds have not been opened on this network yet."}</p>}
       </section>

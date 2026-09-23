@@ -8,7 +8,7 @@ import { useNavigate } from "react-router-dom";
 import { useWallet } from "@solana/wallet-adapter-react";
 import { stook } from "@sooth/sdk-solana";
 import type { PublicKey } from "@solana/web3.js";
-import { anchorOf, isDevnet, mintOf, type Coin } from "../lib/coins";
+import { anchorOf, isDevnet, mintOf, standInNote, type Coin } from "../lib/coins";
 import { ataOf, ensureAta } from "../lib/chain";
 import { useBalance, useMint, useSend } from "../hooks/useChain";
 import { fmtAmount, parseAmount } from "../lib/format";
@@ -49,6 +49,7 @@ export function StartRound({ coin, seriesKey, series, index, onClose }: { coin: 
     <div className="sheet-back" onClick={onClose}>
       <section className="panel sheet" onClick={(e) => e.stopPropagation()}>
         <h3>Fund ${coin.symbol}'s round for {when}</h3>
+        {standInNote(coin) && <p className="warn">{standInNote(coin)}</p>}
         <dl className="quote terms">
           <div><dt>trading</dt><dd className="mono">{opens} to {locks}</dd></div>
           <div><dt>bands</dt><dd className="mono">set when it opens; at today's volatility {band.toFixed(2)}% each, from −{down.toFixed(0)}% to +{up.toFixed(0)}% around the open</dd></div>
