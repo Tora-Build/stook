@@ -7,7 +7,24 @@ import { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { useWallet } from "@solana/wallet-adapter-react";
 import { stook } from "@sooth/sdk-solana";
-import { fmtAmount, parseAmount, fmtPrice } from "../lib/format";
+import { chance, fmtAmount, parseAmount, fmtPrice } from "../lib/format";
+
+const WAD_ONE = 10n ** 18n;
+
+/** A band by what it covers: its floor, or "below …" / "above …" for the two open-ended tails. */
+function bandName(l: stook.LadderAccount, i: number, dp: number): string {
+  const [lo, hi] = stook.binBounds(Math.min(Math.max(i, 0), 63), l.p0, l.stepBps);
+  if (i <= 0) return `below ${fmtPrice(hi, l.p0Expo, dp)}`;
+  if (i >= 63) return `above ${fmtPrice(lo, l.p0Expo, dp)}`;
+  return fmtPrice(lo, l.p0Expo, dp);
+}
+
+/** How far a band is from the opening price, as a move: "17% below the open". */
+function moveFromOpen(l: stook.LadderAccount, i: number): string {
+  const [lo, hi] = stook.binBounds(Math.min(Math.max(i, 0), 63), l.p0, l.stepBps);
+  const mid = i <= 0 ? hi : i >= 63 ? lo : Math.sqrt(lo * hi), m = (mid / Number(l.p0) - 1) * 100;
+  return Math.abs(m) < 0.05 ? "at the open" : `${Math.abs(m).toFixed(Math.abs(m) < 10 ? 1 : 0)}% ${m < 0 ? "below" : "above"} the open${i <= 0 || i >= 63 ? " or further" : ""}`;
+}
 import { ataOf, ensureAta, type PositionRow, type TrancheRow } from "../lib/chain";
 import { useBalance, useSend } from "../hooks/useChain";
 import type { DrawMode } from "./Chart";
@@ -50,7 +67,7 @@ export function Ticket(p: Props) {
 // ── your lines in this round, as chips: pick one to add to it or sell it ─────
 function Mine(p: Props) {
   const dec = p.ladder.decimals, l = p.ladder;
-  const name = (s: stook.Shape) => s.h > 1 ? `${fmtPrice(stook.binBounds((s.lo + s.hi) / 2, l.p0, l.stepBps)[0], l.p0Expo, p.dp)} ·${s.h}` : `${fmtPrice(stook.binBounds(Math.max(s.lo, 0), l.p0, l.stepBps)[0], l.p0Expo, p.dp)}–${stook.binBounds(Math.min(s.hi, 63), l.p0, l.stepBps)[1] === Infinity ? "∞" : fmtPrice(stook.binBounds(Math.min(s.hi, 63), l.p0, l.stepBps)[1], l.p0Expo, p.dp)}`;
+  const name = (s: stook.Shape) => s.h > 1 ? `${bandName(l, (s.lo + s.hi) / 2, p.dp)} ·${s.h}` : `${bandName(l, Math.max(s.lo, 0), p.dp)}–${stook.binBounds(Math.min(s.hi, 63), l.p0, l.stepBps)[1] === Infinity ? "∞" : fmtPrice(stook.binBounds(Math.min(s.hi, 63), l.p0, l.stepBps)[1], l.p0Expo, p.dp)}`;
   return (
     <div className="mine">
       <span className="mine-k">yours</span>
@@ -91,7 +108,7 @@ function Buy(p: Props & { held?: boolean }) {
   // between the two would pass here and fail on chain.
   const short = limit !== null && balance.data !== undefined && balance.data < stook.grossFor(limit, p.transferFee);
   const centre = s && s.h > 1 ? (s.lo + s.hi) / 2 : null;
-  const where = !s ? null : s.h === 1 ? `${fmtPrice(stook.binBounds(Math.max(s.lo, 0), l.p0, l.stepBps)[0], l.p0Expo, p.dp)} – ${stook.binBounds(Math.min(s.hi, 63), l.p0, l.stepBps)[1] === Infinity ? "∞" : fmtPrice(stook.binBounds(Math.min(s.hi, 63), l.p0, l.stepBps)[1], l.p0Expo, p.dp)}` : `${fmtPrice(stook.binBounds(centre!, l.p0, l.stepBps)[0], l.p0Expo, p.dp)}, reach ${s.h}`;
+  const where = !s ? null : s.h === 1 ? `${fmtPrice(stook.binBounds(Math.max(s.lo, 0), l.p0, l.stepBps)[0], l.p0Expo, p.dp)} – ${stook.binBounds(Math.min(s.hi, 63), l.p0, l.stepBps)[1] === Infinity ? "∞" : fmtPrice(stook.binBounds(Math.min(s.hi, 63), l.p0, l.stepBps)[1], l.p0Expo, p.dp)}` : `${bandName(l, centre!, p.dp)}, reach ${s.h}`;
   const existing = s ? p.positions.find((r) => r.position.shape.lo === s.lo && r.position.shape.hi === s.hi && r.position.shape.h === s.h) : null;
   const submit = () => { if (!q || !s || !shares || !publicKey || limit === null) return; send.mutate({ computeUnits: stook.tradeComputeUnits(s), ixs: [ensureAta(l.quoteMint, publicKey, p.refs.tokenProgram), stook.tradeLadderIx(p.refs, { user: publicKey, userToken: ataOf(l.quoteMint, publicKey, p.refs.tokenProgram), shape: s, shares, limit })] }); };
 
@@ -107,14 +124,14 @@ function Buy(p: Props & { held?: boolean }) {
         <table className="ladder-table">
           <thead><tr><th>If it lands</th><th>chance</th><th>you get back</th><th>on stake</th></tr></thead>
           <tbody>
-            {odds.map(([lv, pr]) => { const back = shares ? lands(shares * BigInt(lv)) : 0n, x = pays && pays > 0n ? Number(back) / Number(pays) : null; return <tr key={lv}><td>{s.h === 1 ? "inside" : lv === s.h ? "on your band" : `${s.h - lv} off`}</td><td className="mono">{(Number(pr) / 1e16).toFixed(1)}%</td><td className="mono">{fmtAmount(back, dec)}</td><td className={`mono ${x !== null && x < 1 ? "down" : "amber"}`}>{x !== null ? `${x.toFixed(2)}×` : ""}</td></tr>; })}
-            <tr className="muted"><td>elsewhere</td><td className="mono">{(100 - odds.reduce((a, [, pr]) => a + Number(pr) / 1e16, 0)).toFixed(1)}%</td><td className="mono">0</td><td className="mono">0×</td></tr>
+            {odds.map(([lv, pr]) => { const back = shares ? lands(shares * BigInt(lv)) : 0n, x = pays && pays > 0n ? Number(back) / Number(pays) : null; return <tr key={lv}><td>{s.h === 1 ? "inside" : lv === s.h ? "on your band" : `${s.h - lv} off`}</td><td className="mono">{chance(pr)}</td><td className="mono">{fmtAmount(back, dec)}</td><td className={`mono ${x !== null && x < 1 ? "down" : "amber"}`}>{x !== null ? `${x.toFixed(2)}×` : ""}</td></tr>; })}
+            <tr className="muted"><td>elsewhere</td><td className="mono">{chance(WAD_ONE - odds.reduce((a, [, pr]) => a + pr, 0n))}</td><td className="mono">0</td><td className="mono">0×</td></tr>
           </tbody>
         </table>
       )}
       {s && s.h > 1 && <p className="hint">A share pays {s.h} on your band and one less per band away. That is the reach, and it is the same wherever you draw. What the crowd charges for it is the last column: the longer the odds, the more on stake.</p>}
       <label className="field"><span>Shares</span><input value={text} onChange={(e) => setText(e.target.value)} inputMode="decimal" /><span className="hint">balance {balance.data !== undefined ? fmtAmount(balance.data, dec) : "—"} {p.quoteSymbol}</span></label>
-      {q && pays !== null && limit !== null && <dl className="quote"><div><dt>You pay</dt><dd className="mono">{fmtAmount(pays, dec)} {p.quoteSymbol}</dd></div>{pays !== q.total && <div><dt>of which the coin's transfer fee</dt><dd className="mono">{fmtAmount(pays - q.total, dec)}</dd></div>}<div><dt>at most, if the odds move first</dt><dd className="mono muted">{fmtAmount(stook.grossFor(limit, p.transferFee), dec)}</dd></div><div><dt>best case</dt><dd className="mono amber">{fmtAmount(lands(q.maxPayout), dec)} ({(Number(lands(q.maxPayout)) / Number(pays)).toFixed(1)}×)</dd></div></dl>}
+      {q && pays !== null && limit !== null && <dl className="quote"><div><dt>You pay</dt><dd className="mono">{fmtAmount(pays, dec)} {p.quoteSymbol}</dd></div>{pays !== q.total && <div><dt>of which the coin's transfer fee</dt><dd className="mono">{fmtAmount(pays - q.total, dec)}</dd></div>}<div><dt>at most, if the odds move first</dt><dd className="mono muted">{fmtAmount(stook.grossFor(limit, p.transferFee), dec)}</dd></div><div><dt>best case</dt><dd className="mono amber">{fmtAmount(lands(q.maxPayout), dec)} ({(Number(lands(q.maxPayout)) / Number(pays)).toLocaleString("en-US", { maximumFractionDigits: 1 })}×)<span className="muted small"> if it closes {moveFromOpen(l, Math.floor((s!.lo + s!.hi) / 2))}</span></dd></div></dl>}
       {short && <p className="warn">You hold {fmtAmount(balance.data!, dec)} {p.quoteSymbol}; this can cost up to {fmtAmount(stook.grossFor(limit!, p.transferFee), dec)}.</p>}
       <button className="primary" disabled={!q || !p.tradeable || send.isPending || !publicKey || short} onClick={submit}>{!publicKey ? "Connect a wallet" : !p.tradeable ? "Not trading" : !s ? "Draw a line first" : send.isPending ? "Sending…" : `${p.held || existing ? "Add" : "Buy"} ${text} shares`}</button>
     </>
