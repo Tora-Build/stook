@@ -14,7 +14,7 @@ import { stook, SOOTH_CORE_PROGRAM_ID } from "@sooth/sdk-solana";
 
 const FEEDS = Object.fromEntries(JSON.parse(readFileSync(new URL("../../apps/stook/src/lib/feeds.json", import.meta.url), "utf8")).map((f) => [f.symbol, f.id]));
 const PUSH = new PublicKey("pythWSnswVUd12oZpeFP8e9CVaEqJg25g1Vtc2biRsT");
-const c = new Connection(process.env.RPC_URL ?? "https://soo-rpc.zak-a35.workers.dev", "confirmed");
+const c = new Connection(process.env.RPC_URL ?? "https://soo-rpc.zak-a35.workers.dev", { commitment: "confirmed", wsEndpoint: process.env.WS_URL ?? "wss://api.devnet.solana.com/" });
 const payer = Keypair.fromSecretKey(Uint8Array.from(JSON.parse(readFileSync(process.env.KEYPAIR ?? `${homedir()}/.config/solana/id.json`, "utf8"))));
 const env = readFileSync(new URL("../../apps/stook/.env.local", import.meta.url), "utf8");
 const QUOTE = new PublicKey(env.match(/^VITE_QUOTE_MINT=(\S+)/m)[1]);
@@ -23,7 +23,7 @@ const STREET = { // devnet stand-in feeds (see apps/stook/src/lib/coins.ts): BTC
 STOOK: ["e62df6c8b4a85fe1a67db44dc12de5db330f7ac66b72dc658afedf0f4a415b43", 6], ZCAT: ["ff61491a931112ddf1bd8147cd1b641375f79f5825126d665480874634fd0ace", 9], KNOTS: ["ef0d8b6fda2ceba41da15d4095d1da392a0d2f8ed0c6c7bc0f4cfac8c280b56d", 6], GP: ["dcef50dd0a4cd2dcc17e45df1676dcb336a11a61c69df7a0299b0150c672d25c", 6] };
 const [cmd, ...rest] = process.argv.slice(2);
 const flag = (name, dflt) => { const i = rest.indexOf(`--${name}`); return i >= 0 ? Number(rest[i + 1]) : dflt; };
-const send = (ixs, signers = [payer]) => sendAndConfirmTransaction(c, new Transaction().add(...stook.withHeap(ixs)), signers);
+const send = (ixs, signers = [payer]) => sendAndConfirmTransaction(c, new Transaction().add(...stook.withHeap(ixs, 250_000)), signers);
 const hex = (h) => Uint8Array.from(h.match(/.{2}/g).map((b) => parseInt(b, 16)));
 
 if (cmd === "create") {

@@ -11,7 +11,7 @@ use anchor_spl::token_interface::{
 };
 
 use crate::error::SoothCoreError;
-use crate::math::ladder::{apply_trade, bin_for, fresh, liquidity_for_deposit, tranche_pnl, Shape};
+use crate::math::ladder::{apply_trade, bin_for, liquidity_for_deposit, prior, tranche_pnl, Shape};
 use crate::math::{scalar_for, wad_to_amount_ceil, wad_to_amount_floor};
 use crate::oracle::{check_settlement_instant, read_price_update, read_settlement_price, OraclePolicy};
 use crate::state::ladder::*;
@@ -21,11 +21,19 @@ use crate::state::{require_not_paused, ProtocolConfig, PROTOCOL_CONFIG_SEED};
 /// implies its terms and the first funder cannot poison a slot for everyone.
 pub const LADDER_FEE_BPS: u16 = 100;
 
-/// The gap between the last trade and the settlement read. Nobody should be
-/// able to trade against a price they can already watch forming.
-pub const LOCK_GAP_SECS: i64 = 120;
+/// How long a round trades. A round started further ahead than this waits in
+/// Seeding (deposits welcome) and opens `ROUND_SECS` before its close, so its
+/// centre is read at an instant fixed by the round, not by whoever started it.
+pub const ROUND_SECS: i64 = 24 * 60 * 60;
 
-/// A round opens this long after it is started: enough for the keeper to
+/// The gap between the last trade and the settlement read: a twenty-fourth of
+/// the trading window, between two minutes and an hour. Nobody should trade
+/// against a price they can already watch forming, and the last hour of a day
+/// is mostly that.
+pub const LOCK_GAP_MIN_SECS: i64 = 120;
+pub const LOCK_GAP_MAX_SECS: i64 = 60 * 60;
+
+/// The earliest a round opens after it is started: enough for the keeper to
 /// post the price the grid centres on.
 pub const OPEN_DELAY_SECS: i64 = 60;
 
@@ -76,6 +84,15 @@ pub fn basis_released(net_paid: u64, sold: u64, held: u64) -> u64 {
 
 fn math<T>(r: core::result::Result<T, crate::math::MathError>) -> Result<T> {
     r.map_err(|_| error!(SoothCoreError::MathOverflow))
+}
+
+/// A round's trading window, fixed by its close and the moment it was
+/// started: `(opens_at, locks_at)`. Pure so the SDK and the calendar can
+/// predict it.
+pub fn round_times(now: i64, settles_at: i64) -> (i64, i64) {
+    let opens_at = (now + OPEN_DELAY_SECS).max(settles_at - ROUND_SECS);
+    let gap = ((settles_at - opens_at) / 24).clamp(LOCK_GAP_MIN_SECS, LOCK_GAP_MAX_SECS);
+    (opens_at, settles_at - gap)
 }
 
 /// The least a tranche may deposit: one whole quote token. Below that `b`
@@ -133,7 +150,11 @@ fn join(l: &mut Ladder, t: &mut LadderTranche, deposit: u64) -> Result<()> {
     t.deposit = deposit;
     t.record_join(b, &w, sum, l.acc_fee());
 
-    l.set_b_wad(l.b_wad().checked_add(b).ok_or(SoothCoreError::MathOverflow)?);
+    // Every trade divides by B; `wad_div` is exact only up to 2^96. A pool
+    // deeper than that would refuse every trade until it settled.
+    let deeper = l.b_wad().checked_add(b).ok_or(SoothCoreError::MathOverflow)?;
+    require!(deeper as u128 <= crate::math::wad::MAX_WAD_DIVISOR, SoothCoreError::LadderTooDeep);
+    l.set_b_wad(deeper);
     l.cash = l.cash.checked_add(deposit).ok_or(SoothCoreError::MathOverflow)?;
     l.deposit_total = l.deposit_total.checked_add(deposit).ok_or(SoothCoreError::MathOverflow)?;
     Ok(())
@@ -146,7 +167,7 @@ pub struct LadderCreateArgs {
     pub feed_id: [u8; 32],
     pub tier: u8,
     /// The round's settlement instant. Everything else about its timing
-    /// follows: it opens a minute from now and locks `LOCK_GAP_SECS` before.
+    /// follows (`round_times`).
     pub settles_at: i64,
     /// The starter's deposit, in quote base units — the round's first liquidity.
     pub seed: u64,
@@ -267,9 +288,8 @@ pub fn create_handler(ctx: Context<LadderCreate>, args: LadderCreateArgs) -> Res
 
     require!((args.tier as usize) < STEP_BPS.len(), SoothCoreError::LadderBadTier);
     let now = Clock::get()?.unix_timestamp;
-    let opens_at = now + OPEN_DELAY_SECS;
-    let locks_at = args.settles_at - LOCK_GAP_SECS;
     require!(now + MIN_ROUND_SECS <= args.settles_at, SoothCoreError::LadderBadTimes);
+    let (opens_at, locks_at) = round_times(now, args.settles_at);
 
     // At least one whole quote token. Below that `b` rounds to nothing and a
     // single small trade moves a bin from 2% to 80%.
@@ -300,7 +320,7 @@ pub fn create_handler(ctx: Context<LadderCreate>, args: LadderCreateArgs) -> Res
     } else {
         args.sponsor
     };
-    let (w, sum) = fresh();
+    let (w, sum) = math(prior(args.settles_at - opens_at))?;
     l.store_curve(&w, sum);
     l.status = STATUS_SEEDING;
     l.settled_bin = NO_BIN;
@@ -370,7 +390,8 @@ pub fn open_handler(ctx: Context<LadderOpen>) -> Result<()> {
     l.p0_expo = price.exponent;
 
     // Depth was bought by the tranches that joined during Seeding, each at
-    // b = 0.9999 · deposit / ln 64 — the most its deposit fully covers.
+    // b = 0.9999 · deposit / ln(1/p_min) under the prior — the most its
+    // deposit fully covers.
     require!(l.b_wad() > 0, SoothCoreError::LadderSeedTooSmall);
 
     l.status = STATUS_OPEN;
@@ -870,17 +891,17 @@ pub fn void_handler(ctx: Context<LadderVoid>) -> Result<()> {
     require!(never_opened || never_settled, SoothCoreError::LadderNotVoidable);
 
     // Fees go back into the pot: a void refunds what people PAID, fee included,
-    // so nobody keeps a fee for a market that did not happen. The pot is then
-    // split among everyone still in — deposits and open positions alike — in
-    // proportion to what they put in (`void_share`).
+    // so nobody keeps a fee for a market that did not happen. Depositors are
+    // made whole first; open positions share what is left (see `Ladder`).
     let vault = l
         .cash
         .checked_add(l.fees_lp)
         .and_then(|v| v.checked_add(l.fees_creator))
         .and_then(|v| v.checked_add(l.fees_protocol))
         .ok_or(SoothCoreError::MathOverflow)?;
-    l.void_vault = vault;
-    l.void_claims = l.deposit_total.checked_add(l.basis_total).ok_or(SoothCoreError::MathOverflow)?;
+    let (lp_pot, trader_pot) = void_pots(vault, l.deposit_total);
+    l.void_lp_pot = lp_pot;
+    l.void_trader_pot = trader_pot;
     l.fees_lp = 0;
     l.fees_creator = 0;
     l.fees_protocol = 0;
@@ -889,15 +910,22 @@ pub fn void_handler(ctx: Context<LadderVoid>) -> Result<()> {
     Ok(())
 }
 
-/// A claim's cut of a voided market: `claim × void_vault / void_claims`,
-/// floored. Sellers who left before the void took their proceeds with them,
-/// so the ratio is below one by exactly their realised gains — or above one
-/// by their realised losses — and everyone still in wears the same fraction.
-pub fn void_share(claim: u64, void_vault: u64, void_claims: u64) -> u64 {
-    if void_claims == 0 {
+/// Split a voided market's vault: depositors up to what they put in, open
+/// positions the remainder. The remainder is short of what traders paid by
+/// exactly the gains sellers realised before the void (and long by their
+/// losses), so those gains are paid by the traders who stayed, not the house.
+pub fn void_pots(vault: u64, deposit_total: u64) -> (u64, u64) {
+    let lp = vault.min(deposit_total);
+    (lp, vault - lp)
+}
+
+/// One claim's cut of a pot, pro rata and floored: `claim × pot / claims`.
+/// Floors make the result independent of claim order and never overdraw.
+pub fn void_share(claim: u64, pot: u64, claims: u64) -> u64 {
+    if claims == 0 {
         return 0;
     }
-    (claim as u128 * void_vault as u128 / void_claims as u128) as u64
+    (claim as u128 * pot as u128 / claims as u128) as u64
 }
 
 // ── redeem ───────────────────────────────────────────────────────────────────
@@ -905,19 +933,19 @@ pub fn void_share(claim: u64, void_vault: u64, void_claims: u64) -> u64 {
 /// What a position is owed once its market is final.
 ///
 /// Settled: `shares × level(settled_bin)` — the tent's taper, read at one bin.
-/// Void: cost basis, at the same `void_share` ratio every deposit gets.
+/// Void: cost basis, as a share of the traders' pot.
 pub fn redemption(
     status: u8,
     settled_bin: u8,
     shape: Shape,
     shares: u64,
     net_paid: u64,
-    void_vault: u64,
-    void_claims: u64,
+    trader_pot: u64,
+    basis_total: u64,
 ) -> Option<u64> {
     match status {
         STATUS_SETTLED => shares.checked_mul(shape.level(settled_bin as usize) as u64),
-        STATUS_VOID => Some(void_share(net_paid, void_vault, void_claims)),
+        STATUS_VOID => Some(void_share(net_paid, trader_pot, basis_total)),
         _ => None,
     }
 }
@@ -972,7 +1000,7 @@ pub fn redeem_handler(ctx: Context<LadderRedeem>) -> Result<()> {
     let (owed, decimals, authority_bump) = {
         let mut l = ctx.accounts.ladder.load_mut()?;
         let owed = redemption(
-            l.status, l.settled_bin, shape, pos.shares, pos.net_paid, l.void_vault, l.void_claims,
+            l.status, l.settled_bin, shape, pos.shares, pos.net_paid, l.void_trader_pot, l.basis_total,
         )
         .ok_or(SoothCoreError::LadderNotFinal)?;
 
@@ -1117,10 +1145,10 @@ pub fn claim_lp_handler(ctx: Context<LadderClaimLp>) -> Result<()> {
                 l.fees_lp -= fees;
                 (principal, fees)
             }
-            // In a void a deposit is a claim like any open position: the same
-            // fraction of the pot per unit put in. Fees were folded back into
-            // the pot: nobody keeps a fee for a market that did not happen.
-            STATUS_VOID => (void_share(t.deposit, l.void_vault, l.void_claims), 0),
+            // In a void a deposit comes back from the depositors' pot, which
+            // is whole unless the vault itself is short of every deposit.
+            // Fees were folded back into the pot.
+            STATUS_VOID => (void_share(t.deposit, l.void_lp_pot, l.deposit_total), 0),
             _ => return err!(SoothCoreError::LadderNotFinal),
         };
         emit!(LadderLpClaimed {
@@ -1372,26 +1400,40 @@ mod tests {
         assert_eq!(redemption(STATUS_VOID, NO_BIN, any, 5, 0, 0, 0), Some(0));
     }
 
-    /// The pot is `deposits + open basis − realised gains`. Whoever realised a
-    /// gain is gone; a deposit and an open position of equal size are then
-    /// short by the same amount, so the house is not the only one paying for
-    /// a market that a seller cashed out of.
+    /// The attack the second audit measured: A buys a bin cheap, P pumps it,
+    /// A sells into P, P holds into a void it saw coming. The vault is short
+    /// by A's gain. Depositors must still get their deposit back; P wears
+    /// A's gain, so the pair nets nothing from the house.
     #[test]
-    fn a_void_haircuts_deposits_and_open_lines_by_the_same_fraction() {
-        let (deposit, basis, gain) = (1_000u64, 500u64, 90u64);
-        let vault = deposit + basis - gain;
-        let claims = deposit + basis;
-        let lp = void_share(deposit, vault, claims);
-        let trader = void_share(basis, vault, claims);
-        assert_eq!(lp, 940);
-        assert_eq!(trader, 470);
-        assert!(lp + trader <= vault, "never over-pays the pot");
-        // a seller who realised a loss leaves a surplus, shared the same way
-        let vault = deposit + basis + 150;
-        assert_eq!(void_share(deposit, vault, claims), 1_100);
-        assert_eq!(void_share(basis, vault, claims), 550);
-        // nobody in: nothing out
-        assert_eq!(void_share(5, 0, 0), 0);
+    fn a_void_pays_depositors_first_and_traders_share_the_rest() {
+        let (deposit, p_paid, a_gain) = (5_000u64, 8_070u64, 4_434u64);
+        let vault = deposit + p_paid - a_gain;
+        let (lp, traders) = void_pots(vault, deposit);
+        assert_eq!(lp, deposit, "the house is whole");
+        assert_eq!(traders, p_paid - a_gain);
+        let p_back = void_share(p_paid, traders, p_paid);
+        assert_eq!(p_back + a_gain, p_paid, "the pair nets zero");
+        // two depositors, pro rata and never more than the pot
+        assert_eq!(void_share(3_000, lp, deposit) + void_share(2_000, lp, deposit), deposit);
+        // a vault short of every deposit: depositors share it, traders get nothing
+        assert_eq!(void_pots(4_000, 5_000), (4_000, 0));
+        // a seller who realised a loss leaves a surplus: it goes to open lines
+        assert_eq!(void_pots(5_000 + 500 + 150, 5_000), (5_000, 650));
+    }
+
+    #[test]
+    fn a_round_trades_for_at_most_a_day_and_locks_a_twenty_fourth_before_its_close() {
+        let close = 1_000_000_000;
+        // started a week ahead: opens a day before its close, locks an hour before
+        assert_eq!(round_times(close - 7 * 86_400, close), (close - 86_400, close - 3_600));
+        // started at noon for a 4pm close: opens in a minute, locks 10 minutes before
+        let (o, l) = round_times(close - 4 * 3_600, close);
+        assert_eq!(o, close - 4 * 3_600 + 60);
+        assert_eq!(l, close - (4 * 3_600 - 60) / 24);
+        // the shortest round still locks two minutes before
+        let (o, l) = round_times(close - MIN_ROUND_SECS, close);
+        assert!(o < l);
+        assert_eq!(close - l, LOCK_GAP_MIN_SECS);
     }
 
     #[test]

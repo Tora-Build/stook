@@ -33,8 +33,9 @@ export interface LadderAccount {
   feesProtocol: bigint;
   basisTotal: bigint;
   lpPool: bigint;
-  voidVault: bigint;
-  voidClaims: bigint;
+  /** Fixed at void: what depositors share, and what open positions share. */
+  voidLpPot: bigint;
+  voidTraderPot: bigint;
   /** What the pool owes if each bin settles, base units. */
   payout: bigint[];
   stepBps: number;
@@ -82,7 +83,7 @@ export function decodeLadder(data: Uint8Array): LadderAccount {
   const opensAt = r.i64(), locksAt = r.i64(), settlesAt = r.i64(), p0 = r.i64();
   const cash = r.u64(), depositTotal = r.u64(), curveSeq = r.u64();
   const feesLp = r.u64(), feesCreator = r.u64(), feesProtocol = r.u64();
-  const basisTotal = r.u64(), lpPool = r.u64(), voidVault = r.u64(), voidClaims = r.u64();
+  const basisTotal = r.u64(), lpPool = r.u64(), voidLpPot = r.u64(), voidTraderPot = r.u64();
   const payout = Array.from({ length: BINS }, () => r.u64());
   const p0Expo = r.i32(), stepBps = r.u16(), feeBps = r.u16();
   const feedId = r.bytes(32);
@@ -92,7 +93,7 @@ export function decodeLadder(data: Uint8Array): LadderAccount {
   const status = r.u8(), settledBin = r.u8(), tier = r.u8(), decimals = r.u8();
   return {
     opensAt, locksAt, settlesAt, p0, p0Expo, cash, depositTotal, curveSeq,
-    feesLp, feesCreator, feesProtocol, basisTotal, lpPool, voidVault, voidClaims,
+    feesLp, feesCreator, feesProtocol, basisTotal, lpPool, voidLpPot, voidTraderPot,
     payout, stepBps, feeBps, feedId, quoteMint, vault, creator, sponsor,
     b, accFee, curve: { w, sum },
     status: STATUS[status] ?? "void",

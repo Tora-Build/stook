@@ -8,6 +8,7 @@ import { Link } from "react-router-dom";
 import { stook } from "@sooth/sdk-solana";
 import type { LadderRow } from "../lib/chain";
 import { fmtAmount, fmtPrice, untilText } from "../lib/format";
+import { nyDate } from "../lib/time";
 
 interface Props {
   rounds: LadderRow[];
@@ -15,13 +16,13 @@ interface Props {
   /** Unix seconds of the settlement for a New York calendar day (y, m0, d). */
   settleOf: (y: number, m0: number, d: number) => number;
   minLeadSecs: number;
+  /** The tier this app starts rounds at; a day's round at that tier is the one shown. */
+  tier: number;
   dp: number;
   coinSymbol: string;
   canStart: boolean;
   onStart: (settlesAt: number) => void;
 }
-
-const nyDate = (t: number) => new Date(t * 1000).toLocaleDateString("en-CA", { timeZone: "America/New_York" });
 
 export function WallCalendar(p: Props) {
   const nyNow = new Date(new Date().toLocaleString("en-US", { timeZone: "America/New_York" }));
@@ -36,8 +37,14 @@ export function WallCalendar(p: Props) {
     setTimeout(() => { setOffset((o) => o + dir); setTurning({ dir, phase: "in" }); setTimeout(() => setTurning(null), 320); }, 300);
   };
 
+  // More than one round can exist for a day (another tier, another hour, one
+  // started by hand). Show the one this app would start, else the deepest.
   const byDay = new Map<string, LadderRow>();
-  for (const r of p.rounds) byDay.set(nyDate(Number(r.ladder.settlesAt)), r);
+  const rank = (r: LadderRow) => (r.ladder.tier === p.tier ? 1n << 64n : 0n) + r.ladder.depositTotal;
+  for (const r of p.rounds) {
+    const k = nyDate(Number(r.ladder.settlesAt)), had = byDay.get(k);
+    if (!had || rank(r) > rank(had)) byDay.set(k, r);
+  }
   const todayKey = nyDate(p.now);
   const daysIn = new Date(m0.getFullYear(), m0.getMonth() + 1, 0).getDate();
   const cells: (number | null)[] = Array(new Date(m0.getFullYear(), m0.getMonth(), 1).getDay()).fill(null);
@@ -60,7 +67,7 @@ export function WallCalendar(p: Props) {
           const r = byDay.get(key), at = p.settleOf(m0.getFullYear(), m0.getMonth(), d);
           const past = at - p.now < p.minLeadSecs && !r, isToday = key === todayKey;
           const l = r?.ladder;
-          const state = !l ? "" : l.status === "open" ? (p.now < Number(l.locksAt) ? "trading" : "locked") : l.status === "seeding" ? "opening" : l.status;
+          const state = !l ? "" : l.status === "open" ? (p.now < Number(l.locksAt) ? "trading" : "locked") : l.status === "seeding" ? (p.now < Number(l.opensAt) ? "funded" : "opening") : l.status;
           const thisMonth = offset === 0, closesIn = thisMonth && at > p.now && (!l || l.status === "open" || l.status === "seeding") ? untilText(BigInt(at), p.now) : null;
           const landed = l && l.status === "settled" && l.settledBin !== null ? stook.binBounds(l.settledBin, l.p0, l.stepBps) : null;
           const body = (
@@ -68,7 +75,7 @@ export function WallCalendar(p: Props) {
               <div className="wc-top"><span className="wc-num">{d}</span>{state && <span className={`wc-state wc-state-${state}`}>{state}</span>}</div>
               {l && landed && <div className="wc-info"><span className="mono">{fmtPrice(landed[0], l.p0Expo, p.dp)}</span><span className="wc-sub">landed</span></div>}
               {l && !landed && <div className="wc-info"><span className="mono">{fmtAmount(l.depositTotal, l.decimals, 0)} {p.coinSymbol}</span><span className="wc-sub">{l.curveSeq.toString()} trades</span></div>}
-              {!l && !past && <div className="wc-info wc-empty">Start it</div>}
+              {!l && !past && <div className="wc-info wc-empty">Fund it</div>}
               {past && !l && <span className="wc-stamp">passed</span>}
               {closesIn && <div className="wc-left">closes in {closesIn.replace(/ (d|h|min)\b/g, "$1")}</div>}
             </>

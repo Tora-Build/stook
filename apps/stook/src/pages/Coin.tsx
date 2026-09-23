@@ -12,21 +12,14 @@ import { useQuery } from "@tanstack/react-query";
 import { COINS, anchorOf, coinByMint, feedHexToBytes, mintOf, standInNote } from "../lib/coins";
 import { useLadders } from "../hooks/useChain";
 import { useNow } from "../hooks/useNow";
+import { nyAt } from "../lib/time";
 
 const DATA = "";
-/** Rounds settle at 16:00 New York — the close — every day, including weekends for 24/7 anchors. */
+/** Rounds settle at 16:00 New York, the close, every day (the anchors are 24/7 feeds). */
 const SETTLE_HOUR_NY = 16;
-/** A slot can be started until this long before it settles: trading needs time to happen. */
-const MIN_LEAD_SECS = 15 * 60;
-
-/** Unix seconds of 16:00 New York on the day `offset` days from today (New York). */
-function nyClose(offset: number): number {
-  const now = new Date();
-  const ny = new Date(now.toLocaleString("en-US", { timeZone: "America/New_York" }));
-  const target = new Date(ny); target.setDate(ny.getDate() + offset); target.setHours(SETTLE_HOUR_NY, 0, 0, 0);
-  // the offset between this machine's zone and New York, applied back
-  return Math.floor((target.getTime() - (ny.getTime() - now.getTime())) / 1000);
-}
+/** A slot can be started until this long before it settles: the program's
+ *  fifteen minutes, plus time to sign and for the cluster clock to differ. */
+const MIN_LEAD_SECS = 15 * 60 + 90;
 
 export function Coin() {
   const { symbol } = useParams();
@@ -50,8 +43,7 @@ export function Coin() {
   const mint = mintOf(coin);
 
   // Settlement for a New York calendar day: 16:00 that day, New York.
-  const nyNow = new Date(new Date().toLocaleString("en-US", { timeZone: "America/New_York" }));
-  const settleOf = (y: number, m0: number, d: number) => nyClose(Math.round((new Date(y, m0, d).getTime() - new Date(nyNow.getFullYear(), nyNow.getMonth(), nyNow.getDate()).getTime()) / 86_400_000));
+  const settleOf = (y: number, m0: number, d: number) => nyAt(y, m0, d, SETTLE_HOUR_NY);
   return (
     <div className="page">
       <header className="market-head">
@@ -72,8 +64,8 @@ export function Coin() {
       {!note && <Chart24 points={chart.data?.points ?? []} dp={coin.anchor.dp} />}
 
       <section className="slots">
-        <p className="explain">One round a day, closing 4:00 PM New York. Click a day to trade it, or to start it. <Link to="/how">How it works</Link></p>
-        <WallCalendar rounds={mine} now={now} settleOf={settleOf} minLeadSecs={MIN_LEAD_SECS} dp={anchor.dp} coinSymbol={coin.symbol} canStart={!!mint} onStart={setStarting} />
+        <p className="explain">One round a day. It trades from 4 PM the day before until 3 PM, and the bell rings at the 4 PM New York close. Click a day to trade it, or to fund it. <Link to="/how">How it works</Link></p>
+        <WallCalendar rounds={mine} now={now} settleOf={settleOf} minLeadSecs={MIN_LEAD_SECS} tier={anchor.tier} dp={anchor.dp} coinSymbol={coin.symbol} canStart={!!mint} onStart={setStarting} />
       </section>
       {starting !== null && <StartRound coin={coin} settlesAt={starting} onClose={() => setStarting(null)} />}
     </div>

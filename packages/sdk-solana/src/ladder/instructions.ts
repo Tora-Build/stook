@@ -118,14 +118,16 @@ export function withHeap(ixs: TransactionInstruction[], computeUnits = 120_000, 
 }
 
 /**
- * Compute to request for a trade of `shape`. Cost grows with the bins
- * touched; measured 45K for a 7-bin tent and 109K for all 64 bins on a
- * grown market, and per-bin cost doubles once weights pass ~340. Requesting
- * more than is used costs nothing but priority fee, so this errs generous.
+ * Compute to request for a trade of `shape`, with room for an idempotent
+ * create-ATA and a Token-2022 transfer in the same transaction. Per-bin cost
+ * is ~1.2K normally and ~2.4K once a bin's weight passes ~340 (the 256-bit
+ * multiply); measured worst case 188.6K for a 64-bin h=8 shape on a fully
+ * grown Token-2022 market. Requesting more than is used costs nothing but
+ * priority fee, so this errs generous.
  */
 export function tradeComputeUnits(shape: Shape): number {
   const bins = Math.min(shape.hi, BINS - 1) - Math.max(shape.lo, 0) + 1;
-  return 60_000 + bins * 2_000;
+  return 50_000 + bins * 2_600 + (shape.h > 1 ? 5_000 : 0);
 }
 
 export interface CreateLadderArgs extends LadderKey {

@@ -118,9 +118,56 @@ impl Shape {
     }
 }
 
-/// A freshly opened ladder: every bin equally likely.
+/// Every bin equally likely. Tests and the maths reference use it; a real
+/// round starts from `prior`.
 pub fn fresh() -> ([i128; BINS], i128) {
     ([WAD; BINS], WAD * BINS as i128)
+}
+
+/// Spread of the opening odds: variance in bins² per day of trading. The app
+/// picks each anchor's tier so an ordinary day moves about four bins, which
+/// makes one number right for every anchor.
+pub const PRIOR_VAR_BINS_PER_DAY: i128 = 16;
+
+/// How much likelier the centre is than the tails at open, as a log:
+/// e^7 ≈ 1,100 to one. Tails are floored there, not driven to zero, so every
+/// bin stays tradeable and a deposit's worst case stays finite.
+pub const PRIOR_PEAK_LN: i128 = 7 * WAD;
+
+const DAY_SECS: i128 = 86_400;
+
+/// The odds a round opens with: a bell centred on the opening price (the
+/// boundary between bins 31 and 32), as wide as `window_secs` of ordinary
+/// movement, with floored tails.
+///
+/// Why not flat: a flat 64-bin ladder prices every bin at 1/64, so the first
+/// trader who knows where an ordinary day ends buys the middle for a fraction
+/// of its worth, and the last one before the lock buys the answer. On a daily
+/// 1% round that handed the seed's whole deposit to whoever traded last. A
+/// prior close to the truth leaves only the genuinely unknown for traders to
+/// win, which is what the depositor is paid fees to insure.
+///
+/// Integer maths only, ported op for op to the SDK: the exponent is
+/// `L − (2i−63)²·DAY / (8·V·window)` (`= L − d²/2σ²` with `d = i − 31.5`,
+/// `σ² = V·window/DAY`), floored at zero, then `exp_wad`.
+pub fn prior(window_secs: i64) -> Result<([i128; BINS], i128), MathError> {
+    if window_secs <= 0 {
+        return Err(MathError::Overflow);
+    }
+    let denom = 8 * PRIOR_VAR_BINS_PER_DAY * window_secs as i128;
+    let mut w = [WAD; BINS];
+    // Symmetric about the centre, so each exponential serves two bins.
+    for i in 0..BINS / 2 {
+        let d2 = (2 * i as i128 - (BINS as i128 - 1)).pow(2);
+        let e = PRIOR_PEAK_LN - d2 * DAY_SECS * WAD / denom;
+        if e > 0 {
+            let v = exp_wad(e)?;
+            w[i] = v;
+            w[BINS - 1 - i] = v;
+        }
+    }
+    let sum = w.iter().sum();
+    Ok((w, sum))
 }
 
 /// Apply a trade of `delta` shares (negative sells) in `shape`. Returns the
@@ -328,6 +375,47 @@ pub fn tranche_pnl(
 mod tests {
     use super::*;
     use crate::math::lmsr_n::cost_delta_n;
+
+    #[test]
+    fn the_prior_is_a_symmetric_bell_with_floored_tails() {
+        let (w, sum) = prior(86_400).unwrap();
+        assert_eq!(sum, w.iter().sum::<i128>());
+        for i in 0..BINS {
+            assert_eq!(w[i], w[BINS - 1 - i], "symmetric about the opening price");
+            assert!(w[i] >= WAD && w[i] <= W_MAX);
+        }
+        assert!(w[31] > w[30] && w[30] > w[28]);
+        assert_eq!(w[0], WAD, "tails floored, never zero");
+        // centre bins together near a fifth of the mass for a day's round
+        let p = |w: &[i128; BINS], sum: i128, i: usize| w[i] as f64 / sum as f64;
+        let centre = p(&w, sum, 31) + p(&w, sum, 32);
+        assert!(centre > 0.17 && centre < 0.23, "{centre}");
+        // a shorter round is more certain of its centre
+        let (s, t) = prior(3_600).unwrap();
+        assert!(p(&s, t, 31) + p(&s, t, 32) > 2.0 * centre);
+    }
+
+    #[test]
+    fn a_seed_under_the_prior_loses_far_less_to_a_trader_who_knows_the_close() {
+        // The whole seed is at stake on a flat ladder when the close is known
+        // at the lock; under the prior an ordinary close costs a fraction.
+        let deposit = 1_000 * WAD;
+        let lose = |w: [i128; BINS], sum: i128, k: usize| {
+            let b = liquidity_for_deposit(&w, sum, deposit).unwrap();
+            // the most anyone can take on bin k: push it to the weight cap
+            let pushed = W_MAX;
+            let fin = sum - w[k] + pushed;
+            -tranche_pnl(b, w[k], sum, pushed, fin).unwrap()
+        };
+        let (fw, fs) = fresh();
+        let (pw, ps) = prior(86_400).unwrap();
+        let flat = lose(fw, fs, 33);
+        let bell = lose(pw, ps, 33);
+        assert!(flat > 99 * deposit / 100, "flat: the seed is gone");
+        assert!(bell < 45 * deposit / 100, "prior, one band from centre: {}", bell / WAD);
+        // a tail close still costs the whole seed: that is the insured risk
+        assert!(lose(pw, ps, 5) > 99 * deposit / 100);
+    }
 
     fn close(a: i128, b: i128, eps: i128) -> bool {
         (a - b).abs() <= eps

@@ -107,18 +107,57 @@ market. While it runs, `fees_protocol` *is* the bounty, and a void folds every
 fee back into the refund pot; an early sweep would have starved one or
 shorted the other.
 
-**What a void refunds.** Everything the vault holds — cash and every fee —
-goes back to whoever is still in: each deposit and each open position gets
-the same fraction of what it put in, `void_vault / (deposits + open basis)`.
-That fraction is below one by exactly the gains sellers realised before the
-void, and above one by their realised losses. The first version refunded
-traders at cost and gave LPs the remainder, which made a foreseeable void a
-riskless way to drain the house: buy a bin from one wallet, buy it again from
-another, sell the first into the second at a gain, and let the void refund
-the second at cost. Now the second wallet wears its share of the gain like
-everyone else. A blind audit of the economics (`docs/design-review/`) found
-both of these; everything else — solvency after every trade, tranche P&L,
-fee attribution, the SDK quote — was confirmed on the shipped binary.
+**What a void refunds.** Everything the vault holds, cash and every fee, is
+split into two pots. Depositors get theirs first, up to what they put in,
+shared by deposit; open positions share whatever is left, by what they paid.
+That remainder is short of what traders paid by exactly the gains sellers
+realised before the void, and long by their realised losses.
+
+It took three tries, and each was broken by an audit:
+
+1. Traders at cost, LPs the remainder. A foreseeable void was a riskless
+   drain: buy a bin from wallet A, pump it from wallet B, sell A into B at a
+   gain, let the void refund B at cost. The house paid A's gain.
+2. Everyone pro rata. B now wore its share, but the pair still netted
+   `gain × D / (D + B's cost)`: 34% of the deposit on one bin, 70% across
+   eight, reproduced on the binary (`design-review/audit-round-2-2026-09-23.md`).
+3. Depositors first. The pair nets zero from the house: B wears A's gain in
+   full. The reason it is fair and not only safe: a trader can sell at any
+   time before the lock, a deposit cannot leave until the market is final.
+   Whoever chose to stay in a market that did not finish shares its losses
+   with the others who stayed, not with the party that could not leave.
+
+Solvency after every trade, tranche P&L, fee attribution and the SDK quote
+were confirmed on the shipped binary by both audits.
+
+## A round's shape: when it trades, and what odds it opens with
+
+**Times follow the close.** A round trades for at most a day
+(`ROUND_SECS`): funded earlier, it waits in Seeding, taking deposits, and
+opens 24 hours before its close. So its centre is read at an instant the
+round fixes, not one its funder picks by choosing when to start it. It locks
+a twenty-fourth of its window before the close, between two minutes and an
+hour: an hour for a daily round, because the last hour of a day is mostly
+people trading against a price they can already see.
+
+**Opening odds are a bell, not flat.** A flat 64-bin ladder prices every
+band at 1/64. On a daily round in 1% bands on an asset that moves about 1% a
+day, the close is known to within a band or two by the lock, so a flat start
+handed the seed's whole deposit to whoever traded last, in essentially every
+round: the second audit measured −0.97 of the deposit at the lock. Rounds now
+open on a discretised bell (`math::ladder::prior`): centred on the opening
+price, variance 16 bands² per day of window, tails floored at 1/1,100 of the
+peak so every band stays tradeable. Each coin's band width is chosen so an
+ordinary day moves about four bands, which is what makes one variance right
+for every anchor (SPYx and GLDx 0.25%, ZEC 1%, STONK 2%).
+
+A deposit still buys `b = 0.9999·D / ln(1/p_min)`, now against the prior's
+cheapest tail, so a deposit buys about half the depth it bought on a flat
+ladder and its worst case is still exactly its deposit. What changes is the
+expected case: a close one band from centre costs the seed under 45% instead
+of all of it, and the end-to-end test's LPs went from −5.0% to −1.2%. A
+close far in a tail still costs the whole deposit; that is the risk the fee
+is paid for.
 
 ## Continuous UI over banded state
 
@@ -216,17 +255,29 @@ mint carrying the same extensions is still owed.
 
 ## Open
 
-- Token-2022 is proven on LiteSVM against a real xStock mint's bytes, not yet
-  on devnet or against mainnet's Token-2022 build.
-- The keeper (`infra/ladder-crank`) has opened and settled a devnet market
-  from Hermes; it is run by hand, not hosted anywhere yet.
-- Deployed on devnet as `55kGEMHJyNbD3qcdonCD8UPTqzM85yg2kr6M5UF5P353` with
-  the protocol initialised and a mock USDC (`AUzQ1ncKFsKQvZh8vX1vt64X8X738t86xUcFWPnmXXHT`).
-  Markets have been created, opened, traded, joined, settled by the keeper,
-  redeemed and claimed on devnet; every amount matched the SDK's prediction
-  to the base unit.
+Ranked by the second audit (`design-review/audit-round-2-2026-09-23.md`):
+
+- **Mainnet prerequisites.** Build with `--features mainnet` (Full-verified
+  Pyth updates only) and run the keeper with `FULL_VERIFICATION=1`.
+  `initialize_protocol` is first-come: initialise in the same breath as the
+  deploy, or bind it to the upgrade authority.
+- **Canonical rounds are still a client convention.** Any `settles_at` and
+  tier makes a valid round; the calendar shows one per day (the app's tier,
+  else the deepest). A `Series` account per coin (feed, mint, tier, close
+  hour, period) seeding rounds by day index would make one round per day a
+  rule of the program and let the calendar derive addresses instead of
+  scanning. About two days.
+- **No `ladder_close`.** A finished round keeps ~0.016 SOL of rent and a few
+  base units of rounding dust forever.
+- **LP joins are exact-sequence.** A busy round, or a bot trading dust every
+  slot, makes a join retry indefinitely. A bound on depth received
+  (`min_b`) would keep the sandwich refused without the retry.
+- **The freeze authority is not read.** A classic mint whose issuer can
+  freeze the vault is classed Open while an equivalent Pausable mint needs
+  approval. Harmless for the devnet mock; USDC on mainnet has one.
+- **Opener discretion.** Any update up to 60 s old opens a round, so the
+  opener picks the centre from a minute of prints. Now that `opens_at` is
+  fixed by the round, open should use the settlement rule
+  (`prev < opens_at ≤ publish`).
 - Rounding dust (a few base units per market) stays in the vault after all
   claims; nothing sweeps it.
-- On a market busy enough to trade every slot, a sequence-guarded join has to
-  retry. A tolerance band would fix that and is not built.
-- Fee ramp toward lock; fee-only LP zones.

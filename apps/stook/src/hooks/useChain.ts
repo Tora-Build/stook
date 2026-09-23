@@ -28,6 +28,9 @@ export const usePositions = (ladder: PublicKey | null) => {
     queryKey: ["positions", ladder?.toBase58(), publicKey?.toBase58()],
     queryFn: () => chain.fetchPositions(connection, ladder!, publicKey!),
     enabled: !!ladder && !!publicKey,
+    // Read from a different node than the one that confirmed the trade, so
+    // one refetch after a send can come back a slot behind. Keep reading.
+    refetchInterval: 8_000,
   });
 };
 
@@ -38,6 +41,7 @@ export const useTranches = (ladder: PublicKey | null, mineOnly: boolean) => {
     queryKey: ["tranches", ladder?.toBase58(), mineOnly ? publicKey?.toBase58() : "all"],
     queryFn: () => chain.fetchTranches(connection, ladder!, mineOnly ? publicKey! : undefined),
     enabled: !!ladder && (!mineOnly || !!publicKey),
+    refetchInterval: 15_000,
   });
 };
 

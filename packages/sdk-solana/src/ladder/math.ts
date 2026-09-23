@@ -100,7 +100,57 @@ export interface Curve {
   sum: bigint;
 }
 
+/** Every bin equally likely. Tests use it; a real round starts from `prior`. */
 export const fresh = (): Curve => ({ w: Array<bigint>(BINS).fill(WAD), sum: WAD * BigInt(BINS) });
+
+export const PRIOR_VAR_BINS_PER_DAY = 16n;
+export const PRIOR_PEAK_LN = 7n * WAD;
+const DAY_SECS = 86_400n;
+
+/**
+ * The odds a round opens with, exactly as `ladder_create` writes them: a bell
+ * centred on the opening price, as wide as `windowSecs` of ordinary movement,
+ * tails floored at 1/1,100 of the peak. Op for op with `math::ladder::prior`.
+ */
+export function prior(windowSecs: bigint): Curve {
+  if (windowSecs <= 0n) fail("prior: bad window");
+  const denom = 8n * PRIOR_VAR_BINS_PER_DAY * windowSecs;
+  const w: bigint[] = [];
+  let sum = 0n;
+  for (let i = 0; i < BINS; i++) {
+    const d = 2n * BigInt(i) - BigInt(BINS - 1);
+    const e = PRIOR_PEAK_LN - (d * d * DAY_SECS * WAD) / denom;
+    const wi = e > 0n ? expWad(e) : WAD;
+    w.push(wi);
+    sum += wi;
+  }
+  return { w, sum };
+}
+
+export const ROUND_SECS = 86_400n;
+export const LOCK_GAP_MIN_SECS = 120n;
+export const LOCK_GAP_MAX_SECS = 3_600n;
+export const OPEN_DELAY_SECS = 60n;
+export const MIN_ROUND_SECS = 900n;
+
+/** When a round started at `now` for `settlesAt` opens and locks (`round_times`). */
+export function roundTimes(now: bigint, settlesAt: bigint): { opensAt: bigint; locksAt: bigint } {
+  const early = settlesAt - ROUND_SECS, soon = now + OPEN_DELAY_SECS;
+  const opensAt = soon > early ? soon : early;
+  let gap = (settlesAt - opensAt) / 24n;
+  if (gap < LOCK_GAP_MIN_SECS) gap = LOCK_GAP_MIN_SECS;
+  if (gap > LOCK_GAP_MAX_SECS) gap = LOCK_GAP_MAX_SECS;
+  return { opensAt, locksAt: settlesAt - gap };
+}
+
+/** A void's two pots: depositors up to what they put in, open lines the rest. */
+export function voidPots(vault: bigint, depositTotal: bigint): { lp: bigint; traders: bigint } {
+  const lp = vault < depositTotal ? vault : depositTotal;
+  return { lp, traders: vault - lp };
+}
+
+/** One claim's cut of a pot, floored, as `void_share`. */
+export const voidShare = (claim: bigint, pot: bigint, claims: bigint): bigint => (claims > 0n ? (claim * pot) / claims : 0n);
 
 /**
  * Price a trade of `delta` WAD shares of `shape` against depth `b`. Returns the

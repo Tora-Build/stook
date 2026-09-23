@@ -47,7 +47,11 @@ export function Market() {
   const sel = mine.find((r) => r.pubkey.toBase58() === selected) ?? null;
   const setHeightAndShape = (h: number) => { setHeight(h); if (shape && shape.h > 1) setShape(stook.tent((shape.lo + shape.hi) / 2, h)); };
   const livePrice = live.data && live.data.price > 0n ? Number(live.data.price) * 10 ** live.data.expo : null;
-  const stateText = l.status === "seeding" ? (step === "void" ? "never opened" : "opening") : l.status === "open" ? (now < Number(l.locksAt) ? `trading · locks in ${untilText(l.locksAt, now)}` : step === "settle" ? "the bell is ringing" : `locked · bell in ${untilText(l.settlesAt, now)}`) : l.status === "settled" ? `landed in band ${l.settledBin}` : "void";
+  // After the close the keeper settles within seconds. If it has not after a
+  // few minutes, the price it needs probably never printed within 30 s of the
+  // close, and the round is waiting out the day before it can be voided.
+  const waiting = l.status === "open" && now > Number(l.settlesAt) + 300;
+  const stateText = l.status === "seeding" ? (step === "void" ? "never opened" : now < Number(l.opensAt) ? `funded · opens in ${untilText(l.opensAt, now)}` : "opening") : l.status === "open" ? (now < Number(l.locksAt) ? `trading · locks in ${untilText(l.locksAt, now)}` : waiting ? (step === "void" ? "no settlement price · can be voided" : `waiting for the settlement price · void possible in ${untilText(l.settlesAt + 86_400n, now)}`) : now >= Number(l.settlesAt) ? "the bell is ringing" : `locked · bell in ${untilText(l.settlesAt, now)}`) : l.status === "settled" ? `landed in band ${l.settledBin}` : "void";
 
   return (
     <div className="page market">

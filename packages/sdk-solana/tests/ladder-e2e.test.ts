@@ -3,7 +3,7 @@
 //   settle path: seed (two LPs, a third joins mid-market) → open from a REAL Pyth account → trade →
 //                settle → winners redeem → LPs claim → fees → vault empty
 //   void path:   trade → settlement price never arrives → void →
-//                trader refunded exactly what they paid, LP made whole
+//                depositors whole first, the traders who stayed share the rest
 //
 // Every instruction is built by the SDK, and every trade is quoted by the SDK
 // first: the trade is sent with its limit set to the quote EXACTLY, so a port
@@ -146,6 +146,11 @@ describe("ladder end to end", () => {
     // ── Seeding: the creator, then a second LP ─────────────────────────────
     warpClockTo(e.ctx, PUBLISH_TIME - 1000n);
     const create = await ok(e, m.create(5_000_000_000n), e.creator.kp);
+    // The round's times and opening odds are what the SDK predicts, to the unit.
+    const times = L.roundTimes(PUBLISH_TIME - 1000n, settlesAt);
+    expect(m.state().opensAt).toBe(times.opensAt);
+    expect(m.state().locksAt).toBe(times.locksAt);
+    expect(m.state().curve).toEqual(L.prior(settlesAt - times.opensAt));
     await ok(e, m.join(e.lp2, 2_500_000_000n, 0n), e.lp2.kp);
     expect(balance(e, m.vault)).toBe(7_500_000_000n);
 
@@ -280,7 +285,7 @@ describe("ladder end to end", () => {
     for (const cu of [tent.cu, band.cu, sell.cu, join.cu, settle.cu, redeem.cu, claim.cu]) expect(cu).toBeLessThan(200_000);
   });
 
-  it("voids when the settlement price never arrives: refunds at cost, and a gain someone already cashed out is worn by everyone still in, equally", async () => {
+  it("voids when the settlement price never arrives: depositors come back whole, and a gain someone cashed out is worn by the traders who stayed", async () => {
     const e = boot();
     const settlesAt = PUBLISH_TIME + 3700n;
     const m = market(e, settlesAt);
@@ -291,9 +296,9 @@ describe("ladder end to end", () => {
     warpClockTo(e.ctx, PUBLISH_TIME + 10n);
     await ok(e, m.open(e.priceAccount(NVDA_UPDATE)), e.trader.kp);
 
-    // lp3 (as a trader) buys bin 40 cheap; the trader then pumps it hard — the
-    // position a mark-to-last-price refund would overpay — and lp3 sells into
-    // the pump. That gain has left the vault before anything else happens.
+    // The attack the second audit measured: lp3 (as a trader) buys bin 40
+    // cheap, the trader pumps it, lp3 sells into the pump, the trader holds
+    // into a void. That gain has left the vault before anything else happens.
     await ok(e, m.tradeAs(e.lp3, 40, 40, 1, 100_000_000n, BIG), e.lp3.kp);
     await ok(e, m.trade(40, 40, 1, 800_000_000n, BIG), e.trader.kp);
     await ok(e, m.tradeAs(e.lp3, 40, 40, 1, -100_000_000n, 0n), e.lp3.kp);
@@ -312,24 +317,21 @@ describe("ladder end to end", () => {
     await refused(e, m.collectFees(), e.trader.kp);                    // nothing to sweep: fees went back into the pot
 
     const v = m.state();
-    expect(v.voidClaims).toBe(7_500_000_000n + paid);                  // every deposit + every open line's cost
-    expect(v.voidVault).toBe(v.voidClaims - gain);                     // short by exactly what the seller took
+    expect(v.voidLpPot).toBe(7_500_000_000n);                          // every deposit, whole
+    expect(v.voidTraderPot).toBe(paid - gain);                         // short by exactly what the seller took
+    expect(L.voidPots(v.voidLpPot + v.voidTraderPot, v.depositTotal)).toEqual({ lp: v.voidLpPot, traders: v.voidTraderPot });
 
     await ok(e, m.redeem(40, 40, 1), e.trader.kp);
     await ok(e, m.redeem(28, 34, 4), e.trader.kp);
     await ok(e, m.claimLp(e.lp2), e.lp2.kp);
     await ok(e, m.claimLp(e.creator), e.creator.kp);
+    expect(balance(e, e.creator.token)).toBe(e.creator.start);         // both depositors exactly whole,
+    expect(balance(e, e.lp2.token)).toBe(e.lp2.start);                 // whenever they joined
     const traderBack = balance(e, e.trader.token) - (e.trader.start - paid);
-    const creatorBack = balance(e, e.creator.token) - (e.creator.start - 5_000_000_000n);
-    const lp2Back = balance(e, e.lp2.token) - (e.lp2.start - 2_500_000_000n);
-    // The same fraction for a deposit and for an open line, to a base unit of flooring.
-    const ratio = Number(v.voidVault) / Number(v.voidClaims);
-    for (const [back, put] of [[traderBack, paid], [creatorBack, 5_000_000_000n], [lp2Back, 2_500_000_000n]] as const) {
-      expect(Number(put) * ratio - Number(back)).toBeGreaterThanOrEqual(0);
-      expect(Number(put) * ratio - Number(back)).toBeLessThan(2);
-    }
-    expect(traderBack + creatorBack + lp2Back + gain).toBeGreaterThanOrEqual(7_500_000_000n + paid - 3n); // nothing minted, nothing kept
+    // The trader and the seller together get back what they paid, less fees and flooring: nothing from the house.
+    expect(traderBack + gain - paid).toBeLessThanOrEqual(0n);
+    expect(paid - gain - traderBack).toBeLessThan(3n);
     expect(balance(e, m.vault)).toBeLessThan(3n);
-    console.log(`\nVOID PATH  seller took ${(Number(gain) / 1e6).toFixed(6)} before the void; everyone still in got back ${(ratio * 100).toFixed(4)}% of what they put in. Vault ${balance(e, m.vault)}.\n`);
+    console.log(`\nVOID PATH  seller took ${(Number(gain) / 1e6).toFixed(6)} before the void; the trader who stayed got back ${(Number(traderBack) / 1e6).toFixed(6)} of ${(Number(paid) / 1e6).toFixed(6)}; both depositors whole. Vault ${balance(e, m.vault)}.\n`);
   });
 });

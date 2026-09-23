@@ -96,14 +96,24 @@ export async function send(c: Connection, wallet: WalletContextState, ixs: Trans
     const signed = await wallet.signTransaction(tx);
     const raw = signed.serialize();
     const sig = await c.sendRawTransaction(raw, { skipPreflight: false, preflightCommitment: "confirmed", maxRetries: 0 });
+    // Read the block height BEFORE the status, so a transaction included in
+    // the last valid block is seen as landed rather than declared expired.
+    const landed = async () => {
+      const st = (await c.getSignatureStatuses([sig], { searchTransactionHistory: true })).value[0];
+      if (st?.err) throw new Error(`transaction failed: ${JSON.stringify(st.err)}`);
+      return !!st && (st.confirmationStatus === "confirmed" || st.confirmationStatus === "finalized");
+    };
     for (;;) {
       await new Promise((r) => setTimeout(r, 2000));
-      const st = (await c.getSignatureStatuses([sig])).value[0];
-      if (st?.err) throw new Error(`transaction failed: ${JSON.stringify(st.err)}`);
-      if (st && (st.confirmationStatus === "confirmed" || st.confirmationStatus === "finalized")) return sig;
-      if ((await c.getBlockHeight("confirmed")) > lastValidBlockHeight) break;
+      const dead = (await c.getBlockHeight("confirmed")) > lastValidBlockHeight;
+      if (await landed()) return sig;
+      if (dead) break;
       await c.sendRawTransaction(raw, { skipPreflight: true, maxRetries: 0 }).catch(() => {});
     }
+    // Before signing again, look once more: a node that answered late must
+    // not turn one buy into two.
+    await new Promise((r) => setTimeout(r, 2000));
+    if (await landed()) return sig;
     if (attempt >= 1) throw new Error("The network did not include the transaction in time, twice. Try again in a moment.");
   }
 }
@@ -126,7 +136,10 @@ export function explain(e: unknown): string {
     UnsupportedMintExtension: "This token cannot be held in a market vault.",
     ProtocolPaused: "The protocol is paused.",
     LadderNotFinal: "The market has not settled yet.",
-    AccountNotInitialized: "An account this needs does not exist yet — usually a token account with none of the coin in it. Get test coins first.",
+    LadderBadTimes: "Too close to the close to start this day, or not its time yet.",
+    LadderNotVoidable: "This round can still finish; it cannot be voided yet.",
+    LadderTooDeep: "That deposit is larger than one round can take.",
+    AccountNotInitialized: "An account this needs does not exist yet, usually a token account with none of the coin in it. Get test coins first.",
   };
   if (code && known[code]) return known[code]!;
   // The token program's own errors: 0x1 is "insufficient funds".

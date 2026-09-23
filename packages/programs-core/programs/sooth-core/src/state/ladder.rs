@@ -5,7 +5,7 @@
 //! ```text
 //!   Seeding ──open──▶ Open ──(locks_at)──▶ locked ──settle──▶ Settled
 //!      │                                                  └──▶ Void
-//!      └── nobody can trade yet, so every tranche joins at uniform prices
+//!      └── nobody can trade yet, so every tranche joins at the opening prior
 //! ```
 //!
 //! Liquidity may join at any time before lock, as a TRANCHE (`math::ladder`):
@@ -106,15 +106,18 @@ pub struct Ladder {
     /// reserved. Tranche principal is paid from here and it only decreases, so
     /// a rounding surplus can never become an over-withdrawal.
     pub lp_pool: u64,
-    /// Fixed at void: everything the vault held, and everything put in by
-    /// those still in the market — every deposit plus every open position's
-    /// cost. Money that already left with sellers cannot be recalled, so a
-    /// void pays each claim `× void_vault / void_claims`: depositors and open
-    /// lines take the same haircut (or the same surplus), and nobody can
-    /// drain the house by realising a gain against a market they know will
-    /// not finish.
-    pub void_vault: u64,
-    pub void_claims: u64,
+    /// Fixed at void: the vault split into two pots. Depositors come first
+    /// (`void_lp_pot = min(vault, deposit_total)`), shared by deposit; open
+    /// positions share the rest by what they paid. `deposit_total` and
+    /// `basis_total` do not move after a void, so they are the denominators.
+    ///
+    /// Depositors first because they are the only party that cannot leave: a
+    /// trader can sell at any time before the lock, a deposit is locked until
+    /// the market is final. So money that left with sellers before a void is
+    /// worn by the traders who stayed in, and a void, however foreseeable,
+    /// cannot be used to take the house's deposit.
+    pub void_lp_pot: u64,
+    pub void_trader_pot: u64,
 
     /// `payout[i]`: quote base units owed in total if bin `i` settles. Kept so
     /// solvency is a comparison, not a belief about the scoring rule.

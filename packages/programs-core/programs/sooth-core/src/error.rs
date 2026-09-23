@@ -77,4 +77,6 @@ pub enum SoothCoreError {
     LadderCurveMoved,
     #[msg("Less arrived in the vault than the deposit requires; the mint's transfer fee changed")]
     LadderDepositShort,
+    #[msg("This deposit would make the pool deeper than its arithmetic allows")]
+    LadderTooDeep,
 }

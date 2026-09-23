@@ -30,22 +30,22 @@ export function How() {
           </>}
           {i === 1 && <>
             <h2>The calendar</h2>
-            <p>One round a day, closing <b>4:00 PM New York</b>. Whoever funds a day first starts it; everyone after joins that round.</p>
-            <p className="try">Start a day.</p>
+            <p>One round a day. It trades for the 24 hours before the <b>4:00 PM New York</b> close and stops an hour before it. Whoever funds a day first starts it; everyone after joins that round.</p>
+            <p className="try">Fund a day.</p>
           </>}
           {i === 2 && <>
             <h2>The line</h2>
-            <p>64 bands of 1% around the opening price. Click the one you expect at the close: your <b>line</b>. It pays most there, one step less per band it misses by, out to its <b>reach</b>. A <b>range</b> pays the same anywhere inside. Price is the crowd's odds. Sell any time before the lock.</p>
+            <p>64 bands around the opening price. Click the one you expect at the close: your <b>line</b>. It pays most there, one step less per band it misses by, out to its <b>reach</b>. A <b>range</b> pays the same anywhere inside. Price is the crowd's odds; a round opens with an ordinary day already priced in. Sell any time before the lock.</p>
             <p className="try">Click a band. Change the reach.</p>
           </>}
           {i === 3 && <>
             <h2>The bell</h2>
-            <p>At the close, the anchor's <b>Pyth price</b> on chain, one update picked by a rule, lands in a band. That band pays; the rest pay nothing. No price within 24 hours: the round is <b>void</b> and everyone still in is refunded at cost.</p>
+            <p>At the close, the first <b>Pyth price</b> published at or after 4:00 PM lands in a band, if it came within 30 seconds. That band pays; the rest pay nothing. No such price: a day later the round is <b>void</b>. Deposits come back first, and open lines share the rest.</p>
             <p className="try">Ring it.</p>
           </>}
           {i === 4 && <>
             <h2>The house</h2>
-            <p>The pool takes the other side of every line; anyone can add to it until the lock. Trades pay a <b>1% fee</b>: 80% to the pool by depth, 10% to the round's starter, 10% to the protocol. At the close the pool pays the winning band and keeps the rest.</p>
+            <p>The pool takes the other side of every line; anyone can add to it until the lock. Trades pay a <b>1% fee</b>: 80% to the pool by depth, 10% to whoever funded the day, 5% to whoever rings the bell, 5% to the protocol. At the close the pool pays the winning band and keeps the rest. A close far from the open can cost the pool its whole deposit; an ordinary one costs it little.</p>
             <p className="try">Move the deposit.</p>
           </>}
           {i === 5 && <>
@@ -86,7 +86,7 @@ function Calendar() {
         {["M", "T", "W", "T", "F", "S", "S"].map((d, n) => <div key={n} className="scene-dow">{d}</div>)}
         {Array.from({ length: 7 }, (_, n) => {
           const on = started.has(n), today = n === 2;
-          return <button key={n} className={`scene-day ${on ? "on" : ""} ${today ? "today" : ""}`} onClick={() => setStarted(new Set(started).add(n))}>{on ? (today ? "trading" : "started") : "start"}</button>;
+          return <button key={n} className={`scene-day ${on ? "on" : ""} ${today ? "today" : ""}`} onClick={() => setStarted(new Set(started).add(n))}>{on ? (today ? "trading" : "funded") : "fund"}</button>;
         })}
       </div>
       <div className="scene-caption muted">A model.</div>

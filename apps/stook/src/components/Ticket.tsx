@@ -87,7 +87,9 @@ function Buy(p: Props & { held?: boolean }) {
   const pays = q ? stook.grossFor(q.total, p.transferFee) : null;
   const lands = (book: bigint) => stook.netOf(book, p.transferFee);
   const limit = q ? (q.total * 1005n) / 1000n : null;
-  const short = pays !== null && balance.data !== undefined && balance.data < pays;
+  // Held to what the transaction may take, not the point quote: a balance
+  // between the two would pass here and fail on chain.
+  const short = limit !== null && balance.data !== undefined && balance.data < stook.grossFor(limit, p.transferFee);
   const centre = s && s.h > 1 ? (s.lo + s.hi) / 2 : null;
   const where = !s ? null : s.h === 1 ? `${fmtPrice(stook.binBounds(Math.max(s.lo, 0), l.p0, l.stepBps)[0], l.p0Expo, p.dp)} – ${stook.binBounds(Math.min(s.hi, 63), l.p0, l.stepBps)[1] === Infinity ? "∞" : fmtPrice(stook.binBounds(Math.min(s.hi, 63), l.p0, l.stepBps)[1], l.p0Expo, p.dp)}` : `${fmtPrice(stook.binBounds(centre!, l.p0, l.stepBps)[0], l.p0Expo, p.dp)}, reach ${s.h}`;
   const existing = s ? p.positions.find((r) => r.position.shape.lo === s.lo && r.position.shape.hi === s.hi && r.position.shape.h === s.h) : null;
@@ -99,7 +101,7 @@ function Buy(p: Props & { held?: boolean }) {
         <div className="seg"><button className={p.mode === "line" ? "on" : ""} onClick={() => p.setMode("line")}>Line</button><button className={p.mode === "range" ? "on" : ""} onClick={() => p.setMode("range")}>Range</button></div>
         {p.mode === "line" && <label className="height">reach <input type="range" min={1} max={stook.MAX_HEIGHT} value={p.height} onChange={(e) => p.setHeight(Number(e.target.value))} /><span className="mono">{p.height}</span></label>}
       </div>}
-      {!s ? <p className="explain">{p.tradeable ? (p.mode === "line" ? "Click the price you expect at the close." : "Drag across the range you expect.") : l.status === "seeding" ? "Opening in a moment. The keeper is posting the opening price; deposits are open." : "Trading is closed; the bell is next."} {p.positions.length > 0 && <>Click one of your lines on the chart to add to it or sell it.</>}</p>
+      {!s ? <p className="explain">{p.tradeable ? (p.mode === "line" ? "Click the price you expect at the close." : "Drag across the range you expect.") : l.status === "seeding" ? (p.now < Number(l.opensAt) ? `Funded. Trading opens ${new Date(Number(l.opensAt) * 1000).toLocaleString("en-US", { weekday: "short", hour: "numeric", minute: "2-digit" })}; the House takes deposits now.` : "Opening in a moment. The keeper is posting the opening price; deposits are open.") : "Trading is closed; the bell is next."} {p.positions.length > 0 && <>Click one of your lines on the chart to add to it or sell it.</>}</p>
         : <div className="shape-desc">{p.symbol} at {where}{existing && !p.held && <span className="muted"> · same as your {fmtAmount(existing.position.shares, dec)} sh line: this adds to it</span>}</div>}
       {s && (
         <table className="ladder-table">
@@ -113,7 +115,7 @@ function Buy(p: Props & { held?: boolean }) {
       {s && s.h > 1 && <p className="hint">A share pays {s.h} on your band and one less per band away. That is the reach, and it is the same wherever you draw. What the crowd charges for it is the last column: the longer the odds, the more on stake.</p>}
       <label className="field"><span>Shares</span><input value={text} onChange={(e) => setText(e.target.value)} inputMode="decimal" /><span className="hint">balance {balance.data !== undefined ? fmtAmount(balance.data, dec) : "—"} {p.quoteSymbol}</span></label>
       {q && pays !== null && limit !== null && <dl className="quote"><div><dt>You pay</dt><dd className="mono">{fmtAmount(pays, dec)} {p.quoteSymbol}</dd></div>{pays !== q.total && <div><dt>of which the coin's transfer fee</dt><dd className="mono">{fmtAmount(pays - q.total, dec)}</dd></div>}<div><dt>at most, if the odds move first</dt><dd className="mono muted">{fmtAmount(stook.grossFor(limit, p.transferFee), dec)}</dd></div><div><dt>best case</dt><dd className="mono amber">{fmtAmount(lands(q.maxPayout), dec)} ({(Number(lands(q.maxPayout)) / Number(pays)).toFixed(1)}×)</dd></div></dl>}
-      {short && <p className="warn">You hold {fmtAmount(balance.data!, dec)} {p.quoteSymbol}; this costs {fmtAmount(pays!, dec)}.</p>}
+      {short && <p className="warn">You hold {fmtAmount(balance.data!, dec)} {p.quoteSymbol}; this can cost up to {fmtAmount(stook.grossFor(limit!, p.transferFee), dec)}.</p>}
       <button className="primary" disabled={!q || !p.tradeable || send.isPending || !publicKey || short} onClick={submit}>{!publicKey ? "Connect a wallet" : !p.tradeable ? "Not trading" : !s ? "Draw a line first" : send.isPending ? "Sending…" : `${p.held || existing ? "Add" : "Buy"} ${text} shares`}</button>
     </>
   );
@@ -148,27 +150,37 @@ function Collect(p: Props) {
   // Shown as it lands in the wallet: the pool sends the book amount and the
   // coin's transfer fee, if any, comes off on the way.
   const lands = (book: bigint) => stook.netOf(book, p.transferFee);
-  const voidShare = (claim: bigint) => (l.voidClaims > 0n ? (claim * l.voidVault) / l.voidClaims : 0n);
-  const owed = p.positions.map((r) => ({ r, amount: lands(l.status === "settled" && l.settledBin !== null ? r.position.shares * BigInt(stook.level(r.position.shape, l.settledBin)) : l.status === "void" ? voidShare(r.position.netPaid) : 0n) }));
-  const lp = p.tranches.map((t) => { const k = l.settledBin; const v = lands(l.status === "settled" && k !== null ? stook.tranchePrincipal(t.tranche.deposit, stook.tranchePnl(t.tranche.b, t.tranche.join.w[k]!, t.tranche.join.sum, l.curve.w[k]!, l.curve.sum), dec) + stook.trancheFees(t.tranche.b, dec, l.accFee, t.tranche.feeSnap) : voidShare(t.tranche.deposit)); return { t, v }; });
+  // A void pays depositors first, then open lines share what is left.
+  const owed = p.positions.map((r) => ({ r, amount: lands(l.status === "settled" && l.settledBin !== null ? r.position.shares * BigInt(stook.level(r.position.shape, l.settledBin)) : l.status === "void" ? stook.voidShare(r.position.netPaid, l.voidTraderPot, l.basisTotal) : 0n) }));
+  const lp = p.tranches.map((t) => { const k = l.settledBin; const v = lands(l.status === "settled" && k !== null ? stook.tranchePrincipal(t.tranche.deposit, stook.tranchePnl(t.tranche.b, t.tranche.join.w[k]!, t.tranche.join.sum, l.curve.w[k]!, l.curve.sum), dec) + stook.trancheFees(t.tranche.b, dec, l.accFee, t.tranche.feeSnap) : stook.voidShare(t.tranche.deposit, l.voidLpPot, l.depositTotal)); return { t, v }; });
   const total = owed.reduce((a, x) => a + x.amount, 0n) + lp.reduce((a, x) => a + x.v, 0n);
-  const voidPct = l.status === "void" && l.voidClaims > 0n ? (Number(l.voidVault) / Number(l.voidClaims)) * 100 : null;
+  const linesPct = l.status === "void" && l.basisTotal > 0n ? (Number(l.voidTraderPot) / Number(l.basisTotal)) * 100 : null;
   const nothing = p.positions.length === 0 && p.tranches.length === 0;
-  const submit = () => {
+  // A legacy transaction holds about 14 of these; send them twelve at a time.
+  const [progress, setProgress] = useState<[number, number] | null>(null);
+  const submit = async () => {
     if (!publicKey) return;
     const ata = ataOf(l.quoteMint, publicKey, p.refs.tokenProgram);
-    send.mutate({ computeUnits: 60_000 + 20_000 * (p.positions.length + p.tranches.length), ixs: [ensureAta(l.quoteMint, publicKey, p.refs.tokenProgram), ...p.positions.map((r) => stook.redeemLadderIx(p.refs, publicKey, ata, r.position.shape)), ...p.tranches.map((t) => stook.claimLpIx(p.refs, publicKey, ata, t.tranche.index))] });
+    const items = [...p.positions.map((r) => stook.redeemLadderIx(p.refs, publicKey, ata, r.position.shape)), ...p.tranches.map((t) => stook.claimLpIx(p.refs, publicKey, ata, t.tranche.index))];
+    const chunks: (typeof items)[] = [];
+    for (let i = 0; i < items.length; i += 12) chunks.push(items.slice(i, i + 12));
+    try {
+      for (let n = 0; n < chunks.length; n++) {
+        setProgress([n + 1, chunks.length]);
+        await send.mutateAsync({ computeUnits: 60_000 + 20_000 * chunks[n]!.length, ixs: [...(n === 0 ? [ensureAta(l.quoteMint, publicKey, p.refs.tokenProgram)] : []), ...chunks[n]!] });
+      }
+    } catch { /* the toast has said why; what landed stays landed */ } finally { setProgress(null); }
   };
   return (
     <>
-      <p className="explain">{l.status === "void" ? `The round was void. Lines and deposits come back at cost${voidPct !== null && Math.abs(voidPct - 100) >= 0.005 ? `, ${voidPct.toFixed(2)}% of it: some money left with sellers before the void, and everyone still in shares that equally` : ""}.` : `The bell rang. Band ${l.settledBin} landed.`}</p>
+      <p className="explain">{l.status === "void" ? `The round was void. Deposits come back in full; open lines share what is left${linesPct !== null && Math.abs(linesPct - 100) >= 0.005 ? `, ${linesPct.toFixed(2)}% of what they cost, because sellers took their gains before the void` : ", at cost"}.` : `The bell rang. Band ${l.settledBin} landed.`}</p>
       {nothing ? <p className="muted">You had nothing in this round.</p> : (
         <ul className="rows">
           {owed.map(({ r, amount }) => <li key={r.pubkey.toBase58()}><span>{r.position.shape.h > 1 ? `line, reach ${r.position.shape.h}` : "range"} · {fmtAmount(r.position.shares, dec)} sh</span><span className={`mono ${amount > 0n ? "up" : "muted"}`}>{amount > 0n ? `+${fmtAmount(amount, dec)}` : "0"}</span></li>)}
           {lp.map(({ t, v }) => <li key={t.pubkey.toBase58()}><span>deposit #{t.tranche.index} · {fmtAmount(t.tranche.deposit, dec)}</span><span className="mono">{fmtAmount(v, dec)}</span></li>)}
         </ul>
       )}
-      {!nothing && <button className="primary" disabled={!publicKey || send.isPending} onClick={submit}>{send.isPending ? "Sending…" : `Collect ${fmtAmount(total, dec)} ${p.quoteSymbol}`}</button>}
+      {!nothing && <button className="primary" disabled={!publicKey || !!progress} onClick={() => void submit()}>{progress ? (progress[1] > 1 ? `Collecting ${progress[0]} of ${progress[1]}…` : "Sending…") : `Collect ${fmtAmount(total, dec)} ${p.quoteSymbol}`}</button>}
       <p className="hint" style={{ marginTop: ".6rem" }}><Link to={`/c/${p.symbol}`}>Back to the calendar</Link></p>
     </>
   );
