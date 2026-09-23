@@ -22,7 +22,8 @@
   const OPENERS = [
     "Fuck me, {anchor} at {price}.", "Who the hell drew a line at {far}?", "{coin} pool's thin as shit. Fund it or shut up.", "Reach 8? Grow a pair, reach 2 and pick a band.", "Where's {anchor} closing? Don't say {near}, everyone says {near}.",
     "Bullshit. {anchor} never closes at {level}.", "My line's at {level}. Yours?", "The odds on {anchor} are wrong and I'm gonna get paid.", "Start the {coin} round or I will. Then you pay me fees.", "You still holding that {coin} range? Christ.",
-    "Bell's in a few hours. Lines in, mouths shut.", "{anchor} {chg} and you're still on the fence?", "I've got 2,000 {coin} on {level}. Say something.", "Whoever's the house on {coin} today owes me a drink.", "Somebody's sitting on the {coin} pool like a hen.",
+    "Bell's in a few hours. Lines in, mouths shut.", "{anchor} at {price} and you're calling it a top? Fuck outta here.", "I don't care what the crowd thinks, {anchor}'s going to {far}.", "Some asshole started the {coin} round with 10 coins. Ten.",
+    "You want the edge on {anchor}? Draw where it hurts.", "Screw the range. Line at {level}, reach 3, done.", "{coin} pool paid me lunch. Twice.", "If {anchor} closes at {near} I'm quitting this floor.", "The tape's the tape. {price}. Deal with it.", "{anchor} {chg} and you're still on the fence?", "I've got 2,000 {coin} on {level}. Say something.", "Whoever's the house on {coin} today owes me a drink.", "Somebody's sitting on the {coin} pool like a hen.",
     "{anchor} moved {abs}% today. That's {bands} bands.", "A band on {anchor} is about {band} wide right now.", "{anchor} needs {abs}% to get back where it started.", "If {anchor} holds {price} into the close, my line pays.",
     "{coin} pool's paying fees. Somebody's trading.", "{anchor} at {price} — that's the middle band, nobody wins big there.", "Two bands up on {anchor} is {far}. I'd take it.", "{anchor} {chg} and the crowd hasn't moved. Odd.",
     "Sold my {coin} line, buying it back lower.", "Is the {coin} round started yet?", "Whoever seeded {coin} today is up on fees already.", "Range on {anchor}: {near} to {far}. Sleep easy.",
@@ -35,7 +36,7 @@
   const REPLIES = [
     "Bullshit.", "You're out of your fucking mind.", "That's what you said about {anchor} last week.", "Fine, {level}. Now shut up.", "Then fund the damn pool.", "I'll take that bet. All of it.", "Eat shit. {far} by Friday.",
     "Sure. And I'm the Fed.", "Draw the line, stop talking about it.", "{chg}? That's noise.", "Nobody cares about your line.", "The crowd's got it at {near}, genius.", "Move your ass, bell's soon.", "Wider band, smaller mouth.",
-    "Ha! {price}. Pay up.", "My grandmother could draw that line.", "Don't be greedy. Range it.", "If you're so sure, be the house.",
+    "Ha! {price}. Pay up.", "No fucking way.", "Bet.", "You'd draw a line on a heart monitor.", "That's the dumbest line I've seen all week.", "Fine. But I'm the house, not you.", "Say it louder, the {coin} table can't hear you.", "Christ, just click the band.", "My grandmother could draw that line.", "Don't be greedy. Range it.", "If you're so sure, be the house.",
     "{bands} bands? The tent won't cover that.", "Then draw the line at {near}.", "The house made {abs}% just sitting there.", "Start it yourself, it's one click.", "{band} a band. Fine. Reach 2.",
     "{anchor}'s never closed there.", "I'll seed it if you trade it.", "Wider reach. Costs more, pays wider.", "Your line's four bands out. Good luck.", "The odds already say {near}.",
     "No way. {level}, easy.", "I'm long the close.", "Not with my {coin}.", "Line's in. {level}.", "Pool's fine, you fund it then.", "{chg}? That's nothing.", "Told you. {price}.",
@@ -100,11 +101,11 @@
     // ── planning: someone decides to go and talk ───────────────────────────
     function plan() {
       const walking = agents.filter((a) => a.state !== "home").length;
-      if (walking >= 5 || agents.length < 2) return;
+      if (walking >= 8 || agents.length < 2) return;
       const a = pick(agents.filter((x) => x.state === "home"));
       if (!a) return;
       // mostly a neighbour at the same table; sometimes across the floor
-      const sameTable = Math.random() < 0.65;
+      const sameTable = Math.random() < 0.5;
       const pool = agents.filter((x) => x !== a && x.state === "home" && (sameTable ? x.table === a.table : x.table !== a.table));
       const b = pick(pool); if (!b) return;
       // Where to stand: beside b on the rim of b's table (a neighbour), or a
@@ -122,7 +123,7 @@
       const withData = Object.keys(q).filter((c) => q[c] && q[c].price != null);
       const k = Math.random() < 0.7 && q[tk] ? tk : withData.length ? pick(withData) : tk;
       const pool = mood(q[k]?.change24h);
-      const opener = pool && Math.random() < 0.6 ? pick(pool) : pick(OPENERS);
+      const opener = pool && Math.random() < 0.7 ? pick(pool) : pick(OPENERS);
       const lines = [[a, line(opener, k, q[k])], [b, line(pick(REPLIES), k, q[k])]];
       const r = Math.random();
       if (r < 0.35) lines.push([a, line(pick(pool || OPENERS), k, q[k])], [b, pick(CLOSERS)]);       // a longer argument
@@ -143,7 +144,7 @@
       raf = requestAnimationFrame(step);
       if (!visible || now - last < 33) return; // ~30 fps
       const dt = Math.min(0.1, (now - last) / 1000); last = now;
-      if (Math.random() < dt / 2.5) plan();      // a new trip every ~2.5 s on average
+      if (Math.random() < dt / 1.2) plan();      // a new trip every ~1.2 s on average
 
       for (const a of agents) {
         if (a.state === "walk" || a.state === "back") {
@@ -154,7 +155,7 @@
           }
           const tx = a.state === "walk" ? a.tx : a.hx, ty = a.state === "walk" ? a.ty : a.hy;
           const dx = tx - a.x, dy = ty - a.y, d = Math.hypot(dx, dy);
-          const sp = 70 * dt;
+          const sp = 120 * dt;
           if (d < sp) { a.x = tx; a.y = ty; a.t = 0; if (a.state === "walk") { a.state = "talk"; a.partner.state = "talk"; talk(a, a.partner); } else { a.state = "home"; a.partner = null; } }
           else {
             a.x += (dx / d) * sp; a.y += (dy / d) * sp;
@@ -182,7 +183,7 @@
           if (c.a.state === "home") c.a.partner = null; if (c.b.state === "home") c.b.partner = null;
           continue;
         }
-        const [who, text] = c.lines[c.i++]; c.el = bubble(who, text); c.until = now + 1800 + text.length * 45;
+        const [who, text] = c.lines[c.i++]; c.el = bubble(who, text); c.until = now + 1400 + text.length * 40;
       }
       draw();
     }
