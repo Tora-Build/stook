@@ -424,3 +424,16 @@ a.wc-cell:hover { text-decoration: none; border-color: var(--taxi); }
 .tiles-2 { grid-template-columns: 1fr 1fr; max-width: 900px; }
 @media (max-width: 860px) { .tiles-2 { grid-template-columns: 1fr; } }
 .lbl-xs { font-size: 5px; }
+
+/* two ways in: a pair of doors off the floor */
+.doors { padding-top: 3rem; }
+.center { text-align: center; }
+.door-row { display: grid; grid-template-columns: repeat(2, minmax(260px, 380px)); justify-content: center; gap: 2rem; margin: 0 0 1.2rem; }
+.door { display: flex; flex-direction: column; align-items: center; text-align: center; gap: .7rem; padding: 0 1.2rem 1.3rem; background: var(--sky-2); border: 3px solid var(--cream); box-shadow: 8px 8px 0 var(--brick-2); color: var(--cream); text-decoration: none; transition: transform .12s; }
+.door:hover { text-decoration: none; transform: translate(-2px, -2px); box-shadow: 10px 10px 0 var(--brick-2); }
+.door-frame { width: calc(100% + 2.4rem); margin: 0 -1.2rem; background: var(--ink); border-bottom: 3px solid var(--cream); padding: 1.2rem 0; display: grid; place-items: center; }
+.door-frame svg { width: 120px; height: 80px; image-rendering: pixelated; }
+.door-sign { font-family: var(--px); font-size: .7rem; color: var(--taxi); background: var(--green); color: #f4e9c8; padding: .5rem .9rem; border: 3px solid #f4e9c8; margin-top: -1.55rem; }
+.door p { color: var(--cream-2); margin: .2rem 0 0; font-size: .95rem; max-width: 30ch; }
+.door-go { font-family: var(--px); font-size: .5rem; color: var(--taxi); margin-top: .3rem; }
+@media (max-width: 760px) { .door-row { grid-template-columns: 1fr; } }
