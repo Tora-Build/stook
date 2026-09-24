@@ -25,7 +25,8 @@ export interface Coin {
   symbol: string;
   name: string;
   logo: string;
-  /** Mainnet mint, on StonkFun. */
+  /** Mainnet mint, on StonkFun. $STOOK's comes from the build's environment
+   *  (VITE_STOOK_MINT), not the repo; empty means unknown. */
   mint: string;
   decimals: number;
   /** The mint's transfer fee, as launched. Informational; the program reads the live schedule. */
@@ -35,7 +36,7 @@ export interface Coin {
 
 export const COINS: Coin[] = [
   {
-    symbol: "STOOK", name: "Stook Street", logo: "/logos/stook.png", mint: "", decimals: 6, feeBps: 0,
+    symbol: "STOOK", name: "Stook Street", logo: "/logos/stook.png", mint: import.meta.env.VITE_STOOK_MINT ?? "", decimals: 6, feeBps: 0,
     anchor: { symbol: "SPYx", name: "S&P 500", mint: "XsoCS1TfEyfFhfvj8EtZ528L3CaKBDBRqRapnBbDF2W", logo: "/logos/spyx.png", feedId: "2817b78438c769357182c04346fddaad1178c82f4048828fe0997c3c64624e14", hours: "24/7", dp: 2 },
   },
   {

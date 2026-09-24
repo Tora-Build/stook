@@ -17,15 +17,16 @@ const UA = { "user-agent": "Mozilla/5.0 stook-street", accept: "application/json
 
 // Each coin's own mint on mainnet, for its dollar price (Jupiter). The app
 // shows what a trade costs and pays in dollars as well as in the coin.
-const MINTS = {
-  STOOK: "",
+const BASE_MINTS = {
   ZCAT: "HcRLc9VDgjLeK154xDawfb1dmVJ98DoSqcwTHGqiDeJR",
   KNOTS: "8RVBk8vxLiUHueLUW1f4izFVqN3nWippLhkohKg6EGkS",
   GP: "HTmQz7My6MehV7bjhJ6jde8nDND1yvsz68d24LP7YgUQ",
 };
 
 /** Jupiter's price API for the coins: { STOOK: { usd, change24h }, … }; a coin it lacks is left out. */
-async function coinQuotes() {
+async function coinQuotes(env) {
+  // $STOOK's mint is a Worker setting (STOOK_MINT), not in the repo.
+  const BASE_MINTS = { ...BASE_MINTS, ...(env.STOOK_MINT ? { STOOK: env.STOOK_MINT } : {}) };
   const r = await fetch(`https://lite-api.jup.ag/price/v3?ids=${Object.values(MINTS).join(",")}`, { headers: UA });
   if (!r.ok) throw new Error(`jupiter ${r.status}`);
   const j = await r.json();
@@ -123,7 +124,7 @@ export default {
       const cache = caches.default, key = new Request(url.origin + url.pathname);
       const hit = await cache.match(key); if (hit) return hit;
       let body, age = 60;
-      try { const q = await coinQuotes(); body = url.pathname === "/usd" ? Object.fromEntries(Object.entries(q).map(([k, v]) => [k, v.usd])) : q; } catch (e) { body = {}; age = 10; }
+      try { const q = await coinQuotes(env); body = url.pathname === "/usd" ? Object.fromEntries(Object.entries(q).map(([k, v]) => [k, v.usd])) : q; } catch (e) { body = {}; age = 10; }
       const res = new Response(JSON.stringify(body), { headers: { "content-type": "application/json", "cache-control": `public, max-age=${age}`, "access-control-allow-origin": "*", "x-content-type-options": "nosniff" } });
       ctx.waitUntil(cache.put(key, res.clone()));
       return res;
