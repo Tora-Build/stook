@@ -4,6 +4,8 @@ import { COINS } from "../lib/coins";
 import { Skyline } from "../components/Skyline";
 import { Floor } from "../components/Floor";
 
+const STOOK_MINT = COINS.find((c) => c.symbol === "STOOK")?.mint ?? "";
+
 
 export function Markets() {
   const [params] = useSearchParams();
@@ -61,6 +63,8 @@ export function Markets() {
           <dl>
             <div><dt>coin</dt><dd>$STOOK · Stook Street · the street's own</dd></div>
             <div><dt>follows</dt><dd>S&amp;P 500 · SPYx · <span className="mono">XsoCS1TfEyfFhfvj8EtZ528L3CaKBDBRqRapnBbDF2W</span></dd></div>
+            {/* the mint comes from the build's environment, not the repo */}
+            {STOOK_MINT && <div><dt>mint</dt><dd className="muted mono">{STOOK_MINT}</dd></div>}
             <div><dt>on</dt><dd>StonkFun, Solana</dd></div>
             <div><dt>what it does</dt><dd>$STOOK is the money in $STOOK rounds. You buy lines with it, you fund the pool with it, and winners are paid in it.</dd></div>
           </dl>
