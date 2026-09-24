@@ -36,75 +36,108 @@ function rng(seed) {
 }
 
 // ── the grammar ───────────────────────────────────────────────────────────────
-// Slots: {coin} {anchor} {price} {chg} {abs} {up} {usd} {cchg} {bell} {level}
-// {near} {far}. Moods pick from the anchor's move and the coin's.
+// Scripts, not loose lines: each is one exchange where every line answers
+// the one before, so the floor holds real conversations. Slots vary the
+// words and carry the live numbers:
+//   {coin} {anchor} {price} {chg} {usd} {cchg} {bell} {level} {near} {far}
+//   {fu} intensifier  {bro} address  {rekt} outcome  {lol}  {curse}
+// Scripts are grouped by what the market is doing, and the floor talks about
+// the mood it is in.
 
-const LEAD = ["", "", "", "Look, ", "Honestly, ", "Word on the floor: ", "Mark my words, ", "Between us, ", "Listen. ", "Heads up: ", "Not gonna lie, ", "Real talk: ", "Swear to god, ", "Hear me out: ", "Quick one: "];
+const WORDS = {
+  fu: ["fucking", "fucking", "goddamn", "absolutely"],
+  bro: ["anon", "ser", "bro", "my guy", "fren"],
+  rekt: ["rekt", "cooked", "liquidated", "wrecked", "done"],
+  lol: ["lmao", "lol", "kek", "lmfao"],
+  curse: ["Fuck me.", "Holy shit.", "Jesus fucking christ.", "Fuck yes.", "Sheesh."],
+};
 
-const FACT = [
-  "{anchor}'s at {price}.", "{anchor} is {chg} on the day.", "{anchor} moved {abs}% since yesterday.", "{anchor} sitting at {price}, {chg}.",
-  "{coin} trades at {usd}.", "{coin} is {cchg} today.", "{coin} at {usd}, {cchg} on the day.", "bell's in {bell}.",
-  "{bell} to the bell.", "the tape says {price} on {anchor}.", "{anchor} printed {price} a minute ago.", "{coin} holders are {cchg} today.",
-  "the crowd has {anchor} closing near {near}.", "the odds lean {near} on {anchor}.", "somebody's line on {anchor} sits at {far}.", "the widest line on {coin} tops out near {far}.",
-];
-
-const TAKE = {
+const SCRIPTS = {
   hot: [
-    "{anchor}'s running and the bands can't keep up.", "every short on {coin} is sweating.", "that's a {far} print if it holds.", "whoever called {level} is smiling.",
-    "ring the bell early, I'm done.", "this is why you don't fade {anchor}.", "the house on {coin} is paying out today.", "reach 8 still isn't wide enough.",
+    ["{anchor} {chg} today. {curse}", "Told you. My line at {level} is printing.", "Printing? You're still two bands off, {bro}.", "Shut the fuck up and let me enjoy it."],
+    ["Who shorted {anchor}? It's at {price}, {lol}.", "Some jeet at the {coin} table.", "{rekt}. Pour one out."],
+    ["{anchor} ripping, {chg}. The bands can't keep up.", "So draw wider, {bro}. Reach 8.", "Reach 8 is for cowards. I'm on {far}.", "{far}? You're {fu} deranged. I love it."],
+    ["The {coin} house is getting drained. Someone called {anchor} right.", "Wasn't me. I faded it like a {fu} idiot.", "Fading {anchor} at {chg}. Classic.", "Shut up."],
+    ["{anchor} at {price}. Is this the top?", "There's no top till the bell, {bro}.", "Then my line at {far} still has a shot.", "It has a prayer. Not a shot."],
   ],
   cold: [
-    "{anchor} is getting hit hard.", "every long on {coin} is toast.", "the house on {coin} is eating well.", "don't catch that knife.",
-    "I said range, you said line.", "the pool's collecting on every wrong line.", "{near}'s the new ceiling.", "somebody's line at {far} is a donation.",
+    ["{anchor} is getting {fu} murdered. {chg}.", "Every long line on {coin} is {rekt}.", "Not the house. The house is eating {fu} good today.", "Then I'm funding tomorrow. Fuck being a trader."],
+    ["Who drew a line at {far}? It's {price}.", "Me. Don't {fu} talk to me.", "{lol}, ngmi."],
+    ["{anchor} {chg}. Catching this knife?", "Fuck no. Range from {near} and pray.", "Cope range. Respect."],
+    ["{chg} on {anchor}. Is this the bottom?", "There's no bottom until the bell.", "Then my line at {near} is {fu} {rekt}.", "Cooked and served."],
+    ["{anchor} bleeding at {price}. {curse}", "The crowd saw it coming. Look at the odds.", "The crowd's always right after the fact.", "The crowd gets paid, {bro}. You don't."],
   ],
   flat: [
-    "nothing's moving, middle band all day.", "the house is just collecting fees.", "I could draw a line blindfolded.", "dead tape, tight bands, easy money for the house.",
-    "boring is profitable if you're the house.", "the crowd's asleep on {coin}.", "one band either side and you're right.", "somebody wake {anchor} up.",
+    ["{anchor} hasn't moved a {fu} inch. {price}.", "Middle band gang. House collects, we sleep.", "Wake me at the bell."],
+    ["Dead tape on {anchor}, {bro}.", "Perfect. Tight bands, reach 2, free money.", "Free money is how you get {rekt}.", "Not today. Nothing's moving."],
+    ["{anchor}'s so flat I can see my reflection.", "Great day to be the house.", "Great day to take a nap.", "Same thing, really."],
+    ["{anchor} at {price}, same as an hour ago.", "Then the line's easy. {near}.", "Everyone's on {near}. That's why it pays shit.", "Paying shit beats paying nothing."],
+  ],
+  pump: [ // the coin ran far ahead of its anchor
+    ["{coin} {cchg} while {anchor} did {chg}. The fuck?", "Chips outran the stock. Degens gonna degen.", "Doesn't matter. The round settles on {anchor}, not on {coin}.", "Tell that to my bags."],
+    ["{coin} at {usd}, {cchg} today. {curse}", "And {anchor} barely moved. The chips are the trade.", "The chips are the chips. The line is on {anchor}. Focus, {bro}.", "Focus is for people without bags."],
+  ],
+  dump: [ // the coin fell far behind its anchor
+    ["{anchor} {chg} and {coin} still bled {cchg}.", "Jeets dumping chips, not the stock.", "Doesn't matter. The round pays on where {anchor} lands. Line at {level}.", "Paid in cheaper chips though, {lol}."],
+    ["{coin} {cchg} today. Who's selling?", "Paper hands. {anchor} is fine at {price}.", "Then draw on {anchor} and ignore the chart.", "Easier said than done, {bro}."],
+  ],
+  soon: [ // the bell is close
+    ["{bell} to the bell, {bro}. Lines in?", "Line's at {level}. Hands off the keyboard.", "Trading locks soon anyway. The fee's at its highest.", "Fuck the fee, I'm right."],
+    ["Bell in {bell}. Who's still drawing?", "Me. {near}, reach 2.", "Late and tight. Bold.", "Bold pays four to one on the band."],
   ],
   any: [
-    "my line's at {level}.", "I'm the house on {coin} today.", "I've got a range from {near} to {far}.", "reach 3, centre {level}, done.",
-    "the odds are wrong and I'm getting paid.", "I'm drawing at {near} and going to lunch.", "the crowd's too tight on {coin}.", "fund the {coin} round or stop talking.",
-    "I sold my {coin} line, buying it back lower.", "whoever seeds tomorrow's {coin} round eats the fees.", "the pool on {coin} could use a whale.", "I'll take the other side of that.",
+    ["Where's {anchor} closing?", "{near}. Book it.", "{near}? Everyone says {near}. That's why it pays shit.", "Fine, {far}. Happy?", "No. Fuck off."],
+    ["I'm the house on {coin} today.", "So you're the one taking my money.", "Ninety percent of the fees, {bro}. Call the close or pay me.", "Fuck it, line at {level}."],
+    ["{coin} at {usd}. Cheap chips.", "Cheap chips, expensive mistakes.", "My line at {level} says otherwise.", "Your line says a lot of shit."],
+    ["Range or line on {anchor}?", "Line. Ranges are for people with jobs.", "Line at {level}, reach 3. Send it.", "Sent. See you at the bell."],
+    ["Anyone funding tomorrow's {coin} round?", "Why, so you can farm me?", "Fees, {bro}. The house always eats.", "Fine. I'll seed it. Don't {fu} cry later."],
+    ["The odds on {anchor} are wrong.", "The odds are the crowd, genius.", "The crowd's wrong. {near} is underpriced.", "Then put your chips where your mouth is."],
+    ["What's the bell at, {bro}?", "Four PM New York. {bell} from now.", "Plenty of time to be wrong.", "Plenty of time to be right."],
+    ["{anchor} at {price}. What's your line?", "{level}, reach 2.", "Reach 2? {fu} coward.", "Coward with a payout."],
+    ["Who's the whale in the {coin} pool?", "Not me, I'm broke from yesterday.", "Yesterday's bell {rekt} half the floor.", "And the house bought a boat."],
+    ["Give me one reason {anchor} closes at {far}.", "Vibes.", "Vibes. Great. {rekt} by four.", "Vibes pay four to one on the band, {bro}."],
+    ["Sold my {coin} line early.", "Paper hands, {lol}.", "Took profit. Crazy concept, I know.", "Profit on a line is just a smaller line."],
   ],
 };
 
-const REPLY = [
-  "Bullshit.", "No chance.", "You said that last week.", "Fine, {level}. Now shut up.", "Then fund the pool.", "Bet.", "I'll take that bet.", "Sure. And I'm the Fed.",
-  "Draw the line, stop talking.", "{chg}? That's noise.", "The crowd's got it at {near}, genius.", "Bell's in {bell}, move.", "Wider band, smaller mouth.", "Ha. {price}. Pay up.",
-  "Not with my {coin}.", "Range it and sleep.", "Your line's four bands out. Good luck.", "The odds already say {near}.", "Fees pay either way.", "{coin} at {usd}? Cheap chips.",
-  "Show me the odds.", "That's a {far} print by Friday.", "The house always eats.", "Give it an hour.", "You'd draw a line on a heart monitor.", "If you're so sure, be the house.",
-  "Told you. {price}.", "Nobody cares about your line.", "Reach 2. Pick a band.", "{coin} {cchg}? The chips moved more than the stock.",
-];
+const moods = (c) => {
+  const out = [];
+  if (c.chg != null && c.chg > 3) out.push("hot");
+  else if (c.chg != null && c.chg < -3) out.push("cold");
+  else out.push("flat");
+  if (c.usdChg != null && c.chg != null && c.usdChg - c.chg > 10) out.push("pump");
+  if (c.usdChg != null && c.chg != null && c.chg - c.usdChg > 10) out.push("dump");
+  const m = /(?:(\d+) h )?(\d+) min/.exec(c.bell ?? "");
+  if (m && Number(m[1] ?? 0) * 60 + Number(m[2]) <= 90) out.push("soon");
+  return out;
+};
 
-const CLOSE = ["Deal.", "We'll see.", "Ha.", "Fine.", "Back to it.", "Watch the tape.", "Later.", "Mm.", "Nope.", "Coffee.", "Size down.", "Your funeral.", "Tape doesn't lie.", "Shut up and trade.", "Bell's at four.", "Wake me at the close.", "Don't be a hero.", "See you at the bell."];
-
-const moodOf = (c) => (c.chg == null ? "flat" : c.chg > 2 ? "hot" : c.chg < -2 ? "cold" : "flat");
-
-function fill(tpl, c, r) {
+function fill(tpl, c, r, pick) {
   const lvl = (lo, hi) => price(c.price == null ? null : c.price * (1 + lo + r() * (hi - lo)), c.dp);
+  // one level per conversation, so "{near}" means the same price on every line
+  c._near ??= lvl(-0.008, 0.008); c._level ??= lvl(-0.015, 0.015); c._far ??= lvl(0.04, 0.09);
   return tpl
     .replace(/\{coin\}/g, "$" + c.coin).replace(/\{anchor\}/g, c.anchor)
-    .replace(/\{price\}/g, price(c.price, c.dp)).replace(/\{chg\}/g, pct(c.chg)).replace(/\{abs\}/g, abs(c.chg))
-    .replace(/\{up\}/g, c.chg == null ? "flat" : c.chg >= 0 ? "up" : "down")
+    .replace(/\{price\}/g, price(c.price, c.dp)).replace(/\{chg\}/g, pct(c.chg))
     .replace(/\{usd\}/g, usd(c.usd)).replace(/\{cchg\}/g, pct(c.usdChg)).replace(/\{bell\}/g, c.bell)
-    .replace(/\{level\}/g, lvl(-0.015, 0.015)).replace(/\{near\}/g, lvl(-0.008, 0.008)).replace(/\{far\}/g, lvl(0.04, 0.09));
+    .replace(/\{level\}/g, c._level).replace(/\{near\}/g, c._near).replace(/\{far\}/g, c._far)
+    .replace(/\{(fu|bro|rekt|lol|curse)\}/g, (_, k) => pick(WORDS[k]));
 }
 const cap = (s) => s.charAt(0).toUpperCase() + s.slice(1);
 
-/** `n` fresh conversations from the grammar, for the coins in `data`. */
+/** `n` fresh conversations from the scripts, for the coins in `data`. */
 export function grammarChatter(data, n, seed) {
   const r = rng(seed), pick = (xs) => xs[Math.floor(r() * xs.length)];
-  const coins = data.coins.filter((c) => c.price != null || c.usd != null);
+  const coins = data.coins.filter((c) => c.price != null);
   if (!coins.length) return [];
   const out = [], seen = new Set();
-  for (let tries = 0; out.length < n && tries < n * 6; tries++) {
-    const c = pick(coins), mood = moodOf(c);
-    const take = r() < 0.6 ? pick(TAKE[mood]) : pick(TAKE.any);
-    const opener = cap(fill(pick(LEAD) + (r() < 0.55 ? pick(FACT) + " " + cap(take) : cap(take)), c, r));
-    const lines = [opener, fill(pick(REPLY), c, r)];
-    const k = r();
-    if (k < 0.3) lines.push(cap(fill(r() < 0.5 ? pick(FACT) : pick(TAKE.any), c, r)), pick(CLOSE));
-    else if (k < 0.7) lines.push(pick(CLOSE));
+  for (let tries = 0; out.length < n && tries < n * 8; tries++) {
+    const c = { ...pick(coins) };
+    const mood = moods(c), pool = r() < 0.6 ? SCRIPTS[pick(mood)] : SCRIPTS.any;
+    const script = pick(pool);
+    // sometimes the exchange stops early, at a natural point
+    const len = script.length > 2 && r() < 0.3 ? script.length - 1 : script.length;
+    const lines = script.slice(0, len).map((t) => cap(fill(t, c, r, pick)));
     const key = lines.join("|");
     if (seen.has(key)) continue;
     seen.add(key);
@@ -119,8 +152,9 @@ export function grammarChatter(data, n, seed) {
 // Non-reasoning models: reasoning ones spend the budget thinking and return
 // nothing. Llama 3.3 70B writes the best floor talk within the allowance.
 const MODELS = ["@cf/meta/llama-3.3-70b-instruct-fp8-fast", "@cf/mistralai/mistral-small-3.1-24b-instruct"];
-const BANNED = /\b(nigg|fag|retard|kike|spic|chink|rape|kill yourself|kys)\w*/i;
-const ADVICE = /\b(buy|ape|load up on|accumulate|moon(ing)?|100x|guaranteed|financial advice)\b/i;
+const BANNED = /\b(nigg|fag|retard|kike|spic|chink|rape|kill yourself|kys)\w*|\$?(STOOK|ZCAT|KNOTS|GP)\b[^.!?]{0,12}\b(is|are)\s+(trash|garbage|dead|a scam|shit|shitcoin|a rug)\b/i;
+// Degen talk is fine ("moon", "ape", "send it"); telling people to buy a coin is not.
+const ADVICE = /\b(buy|ape into|load up on|accumulate|grab)\s+(some |more )?\$[A-Za-z]+|\bguaranteed\b|financial advice/i;
 
 /** Every number a line may quote: the data's own, as we format them, plus the bell's four and small counts. */
 function allowedNumbers(data) {
@@ -136,12 +170,19 @@ const norm = (s) => s.toLowerCase().replace(/[^a-z0-9 ]/g, "").replace(/\s+/g, "
 export async function aiChatter(env, data, seen, why = {}) {
   if (!env.AI) { why.error = "no AI binding"; return []; }
   const facts = data.coins.map((c) => `$${c.coin} (a memecoin) plays ${c.anchor}: ${c.anchor} is at ${price(c.price, c.dp)}, ${pct(c.chg)} today; $${c.coin} trades at ${usd(c.usd)}, ${pct(c.usdChg)} today`).join("\n");
-  const sys = `You write overheard chatter between traders on Stook Street, a pixel-art trading floor. Each coin (a memecoin) has one round a day: players draw a "line" on a price band where the coin's anchor will close at 4 PM New York (the bell) and get paid in the coin; a line pays most on its band, a "range" pays flat across bands; "the house" funds the pool and keeps 90% of fees. The traders are an old-timer, a degen, a quant, a doomer and a rookie, but never write their names or labels: just what they say. Style: salty, funny, specific, confident, like a real floor. Talk about the numbers, where it closes, lines, bands, the house, the bell, the coin's own move versus its anchor. Rules: no slurs, no hate, nothing sexual, never tell anyone to buy a coin, never promise profits. Only use numbers exactly as written in the facts. Each line under 80 characters.
+  const sys = `You write overheard chatter between degen traders on Stook Street, a pixel-art trading floor. Each coin (a memecoin) has one round a day: players draw a "line" on a price band where the coin's anchor closes at 4 PM New York (the bell) and get paid in the coin; a line pays most on its band, a "range" pays flat; "the house" funds the pool and keeps 90% of fees.
 
-Examples of the tone:
-["Zcash down 9% and the $ZCAT house is eating every long.", "Should've drawn a range, genius."]
-["Gold hasn't moved all day.", "Middle band, collect the fees, go home."]
-["$KNOTS up 39% while STONK did 15. The chips outran the stock.", "Degens gonna degen.", "Bell's in two hours, calm down."]`;
+Voice: crypto degens on a trading floor. Swear freely (fuck, shit, goddamn) and use degen slang (anon, ser, fren, rekt, cooked, ngmi, wagmi, cope, send it, jeet, paper hands, bags). Funny, cocky, specific.
+
+Each conversation is ONE thread between two traders, 3 or 4 lines: an opening take, a reply that pushes back or roasts it, a comeback, and a punchline. Every line is a full spoken sentence that directly answers the one before. Never write stat lists like "X +5%, Y -2%"; say it like a person would. No speaker names or labels. Talk about the facts: where the anchor closes, lines, bands, ranges, the house, the bell, the coin running ahead of or behind its anchor.
+
+Hard rules: roast each other, never the coins or their communities (no "X is trash", "X is dead"); no slurs, no hate, nothing sexual; never tell anyone to buy a coin; never promise profits. Use numbers only exactly as written in the facts. Each line under 80 characters.
+
+Examples:
+["Zcash down 9% and the $ZCAT house is eating every long.", "Should've drawn a range, dumbass.", "Ranges are for cowards.", "Cowards get paid, you got rekt."]
+["Gold hasn't moved a fucking inch all day.", "Perfect, middle band and let the house pay me fees.", "You're the house? Since when do you have money?", "Since your line at the top band, anon."]
+["$KNOTS is up 39% while STONK only did 15. The fuck is happening?", "Degens bidding the chips harder than the stock, ser.", "Round still settles on STONK though, focus.", "Focus is for people without bags."]
+["Who the hell drew a line that far out on the S&P?", "Me, and I'll be buying drinks at the bell.", "You'll be buying drinks with what, your cope?", "Vibes pay four to one on the band, fren."]`;
   const user = `Facts right now (the bell is in ${data.coins[0]?.bell ?? "a while"}):\n${facts}\n\nWrite 10 short conversations between two traders about these facts. Reply with JSON only: [{"coin":"STOOK","lines":["...","..."]}, ...], 2 to 4 lines each.`;
   let text = "";
   for (const model of why.only ? [why.only] : MODELS) {
@@ -176,7 +217,7 @@ Examples of the tone:
   for (const c of Array.isArray(convos) ? convos : []) {
     const coin = String(c?.coin ?? "").replace(/^\$/, "").toUpperCase();
     const lines = (Array.isArray(c?.lines) ? c.lines : []).map((l) => String(l).replace(/^[A-Za-z][\w -]{0,14}:\s+/, "").replace(/[—–]/g, ",").replace(/\s+/g, " ").trim()).filter(Boolean).slice(0, 4);
-    if (!known.has(coin) || lines.length < 2) continue;
+    if (!known.has(coin) || lines.length < 3) continue;
     const bad = lines.some((l) => l.length > 110 || BANNED.test(l) || ADVICE.test(l) || numbersIn(l).some((n) => !ok.has(n)) || seen.has(norm(l)));
     if (bad) { why.rejected.push(lines.join(" / ").slice(0, 160)); continue; }
     lines.forEach((l) => seen.add(norm(l)));
