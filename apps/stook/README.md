@@ -48,5 +48,6 @@ at the edge:
 | `/chart?coin=` or `?sym=` | the anchor over the last day | the tape, then Yahoo |
 | `/usd`, `/coins` | each coin's dollar price (and 24h move) | Jupiter's price API |
 | `/supply` | `{"circulatingSupply": n}` for $STOOK | the mint account, less `STOOK_EXCLUDE` token accounts |
+| `/chatter` | the floor's conversations, new every minute | a template grammar on live numbers, plus hourly lines from Workers AI (Llama 3.3 70B, free allowance) that must quote only real numbers; `POST /chatter/refresh` with the tape token runs the hourly job now |
 
 `wrangler.toml` here is only the `app.stooks.xyz` redirect.

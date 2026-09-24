@@ -1,8 +1,8 @@
 // The trading floor, alive. Traders stand around their tables; now and then
 // one walks over to another — at the same table or across the floor — and
-// they talk. What they say is built from the live numbers (the anchors'
-// prices and moves) and a large bag of phrasings, so the chatter is new each
-// time. Drawn on one low-resolution canvas laid over the tables, with the
+// they talk. What they say comes from the site's /chatter feed (live numbers,
+// a large grammar and hourly AI lines), with the phrasings below as the
+// fallback. Drawn on one low-resolution canvas laid over the tables, with the
 // bubbles as DOM text so they stay crisp. Pauses when off-screen or hidden.
 //
 //   StookFloor.mount(container, { tables: () => [{el, coin, anchor}], data: () => quotes })
@@ -71,8 +71,32 @@
       .replace("{level}", lvl(rnd(-0.02, 0.02))).replace("{near}", lvl(rnd(-0.01, 0.01))).replace("{far}", lvl(rnd(0.05, 0.12)));
   }
 
+  // ── the feed: fresh conversations from the site's /chatter (the Worker's
+  // grammar plus hourly AI lines, all on live numbers). The lines above are
+  // the fallback when it is unreachable. A line already shown in this tab is
+  // skipped, so the floor keeps saying new things.
+  const feed = { queue: [], loading: false, shown: new Set() };
+  function refill() {
+    if (feed.loading) return;
+    feed.loading = true;
+    fetch("/chatter").then((r) => (r.ok ? r.json() : null)).then((j) => {
+      for (const c of j?.convos ?? []) if (Array.isArray(c.lines) && c.lines.length >= 2 && !c.lines.some((l) => feed.shown.has(l))) feed.queue.push(c);
+    }).catch(() => {}).finally(() => { feed.loading = false; });
+  }
+  function fromFeed(coin) {
+    if (feed.queue.length < 8) refill();
+    let i = feed.queue.findIndex((c) => c.coin === coin);
+    if (i < 0 && Math.random() < 0.5) i = 0;
+    if (i < 0 || !feed.queue.length) return null;
+    const c = feed.queue.splice(i, 1)[0];
+    if (c.lines.some((l) => feed.shown.has(l))) return fromFeed(coin);
+    c.lines.forEach((l) => feed.shown.add(l));
+    return c.lines;
+  }
+
   function mount(container, opts) {
     if (matchMedia("(prefers-reduced-motion: reduce)").matches) return () => {};
+    refill();
     const canvas = document.createElement("canvas"), ctx = canvas.getContext("2d");
     canvas.className = "floor-life"; Object.assign(canvas.style, { position: "absolute", inset: 0, width: "100%", height: "100%", imageRendering: "pixelated", pointerEvents: "none", zIndex: 2 });
     const bubbles = document.createElement("div"); Object.assign(bubbles.style, { position: "absolute", inset: 0, pointerEvents: "none", zIndex: 3 });
@@ -122,6 +146,9 @@
       const tk = tables[b.table]?.coin || tables[a.table]?.coin;
       const withData = Object.keys(q).filter((c) => q[c] && q[c].price != null);
       const k = Math.random() < 0.7 && q[tk] ? tk : withData.length ? pick(withData) : tk;
+      // Most conversations come from the live feed; the built-in lines fill in.
+      const fed = fromFeed(tk);
+      if (fed) { convos.push({ lines: fed.map((t, i) => [i % 2 ? b : a, t]), i: 0, until: 0, a, b }); return; }
       const pool = mood(q[k]?.change24h);
       const opener = pool && Math.random() < 0.7 ? pick(pool) : pick(OPENERS);
       const lines = [[a, line(opener, k, q[k])], [b, line(pick(REPLIES), k, q[k])]];

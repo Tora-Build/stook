@@ -1,3 +1,5 @@
+import { aiChatter, bellIn, grammarChatter } from "./chatter.js";
+
 // stooks.xyz: static assets, plus two small data routes the page and the app
 // read. Market data for display comes from public sources (Yahoo, CoinGecko,
 // GeckoTerminal); settlement on chain is Pyth and only Pyth. Cached at the
@@ -86,6 +88,37 @@ async function series(src) {
   return [];
 }
 
+// What the floor talks about: each coin's anchor (name, price, move) and the
+// coin's own dollar price and move, and the time to the bell.
+const ANCHORS = { STOOK: ["the S&P 500", 2], ZCAT: ["Zcash", 2], KNOTS: ["STONK", 4], GP: ["gold", 2] };
+async function floorData(env) {
+  const [tape, coins] = await Promise.all([fromTape(env, "/prices").catch(() => null), coinQuotes(env).catch(() => ({}))]);
+  const bell = bellIn();
+  const out = await Promise.all(Object.keys(COINS).map(async (k) => {
+    let p = null, chg = null;
+    const t = tape?.[k];
+    if (typeof t?.price === "number") { p = t.price; chg = typeof t.change24h === "number" ? t.change24h : null; }
+    else {
+      try { const pts = await series({ ...COINS[k], kv: env.SERIES, key: k }); const l = pts[pts.length - 1], f = pts[0]; if (l) { p = l[1]; chg = pts.length > 1 ? (l[1] / f[1] - 1) * 100 : null; } } catch {}
+    }
+    const [anchor, dp] = ANCHORS[k] ?? [k, 2];
+    return { coin: k, anchor, dp, price: p, chg, usd: coins[k]?.usd ?? null, usdChg: coins[k]?.change24h ?? null, bell };
+  }));
+  return { coins: out };
+}
+
+/** The AI's latest conversations, written hourly by the cron, and the lines it has used lately. */
+const AI_KEY = "chatter:ai", SEEN_KEY = "chatter:seen";
+async function refreshAiChatter(env, why = {}) {
+  const data = await floorData(env);
+  const seen = new Set((await env.SERIES.get(SEEN_KEY, "json")) ?? []);
+  const fresh = await aiChatter(env, data, seen, why);
+  if (!fresh.length) return 0;
+  await env.SERIES.put(AI_KEY, JSON.stringify({ at: Date.now(), convos: fresh }));
+  await env.SERIES.put(SEEN_KEY, JSON.stringify([...seen].slice(-400)));
+  return fresh.length;
+}
+
 /** The tape's current public address (a quick tunnel, re-announced when it restarts). */
 async function tapeUrl(env) { return env.SERIES.get("tape:url"); }
 
@@ -96,8 +129,31 @@ async function fromTape(env, path) {
 }
 
 export default {
+  // Hourly: a fresh batch of AI chatter about what happened.
+  async scheduled(_event, env, ctx) { ctx.waitUntil(refreshAiChatter(env)); },
+
   async fetch(request, env, ctx) {
     const url = new URL(request.url);
+    // /chatter: conversations for the floor, from the grammar (new every
+    // minute) and the AI's latest hourly batch, shuffled together.
+    // The cron's job on demand, for the operator (the tape's token).
+    if (url.pathname === "/chatter/refresh" && request.method === "POST") {
+      if (!env.TAPE_TOKEN || request.headers.get("authorization") !== `Bearer ${env.TAPE_TOKEN}`) return new Response("no", { status: 401 });
+      const why = url.searchParams.get("model") ? { only: url.searchParams.get("model") } : {};
+      return new Response(JSON.stringify({ added: await refreshAiChatter(env, why), why }), { headers: { "content-type": "application/json" } });
+    }
+    if (url.pathname === "/chatter") {
+      const cache = caches.default, key = new Request(url.origin + "/chatter");
+      const hit = await cache.match(key); if (hit) return hit;
+      const data = await floorData(env);
+      const ai = (await env.SERIES.get(AI_KEY, "json"))?.convos ?? [];
+      const minute = Math.floor(Date.now() / 60_000);
+      const grammar = grammarChatter(data, 36, minute * 2654435761);
+      const mixed = [...ai, ...grammar].map((c, i) => [((i * 2654435761 + minute) >>> 0) % 997, c]).sort((a, b) => a[0] - b[0]).map((x) => x[1]);
+      const res = new Response(JSON.stringify({ at: Date.now(), convos: mixed }), { headers: { "content-type": "application/json", "cache-control": "public, max-age=60", "access-control-allow-origin": "*", "x-content-type-options": "nosniff" } });
+      ctx.waitUntil(cache.put(key, res.clone()));
+      return res;
+    }
     // The tape announces where it is.
     if (url.pathname === "/tape/register" && request.method === "POST") {
       if (!env.TAPE_TOKEN || request.headers.get("authorization") !== `Bearer ${env.TAPE_TOKEN}`) return new Response("no", { status: 401 });
