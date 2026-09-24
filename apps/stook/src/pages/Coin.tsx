@@ -60,7 +60,9 @@ export function Coin() {
 
       <section className="slots">
         <div className="plan-head"><h3>Plan ahead</h3><span className="hint">Fund any day up to 31 days out and be its house. Its bands are set the moment it opens.</span></div>
-        {series.data && !stook.warmedUp(series.data) && <p className="hint">Still learning how {coin.anchor.name} moves ({series.data.observations} of {stook.WARMUP_OBSERVATIONS} closes).{firstOpen !== null ? <> The first day that can open is {nyWhen(stook.closeOf(series.data, firstOpen), { weekday: "short", month: "short", day: "numeric" })}.</> : null}</p>}
+        {/* A new coin learns from 20 daily closes before its first round, once.
+            Say so only while that holds back the next round anyone could fund. */}
+        {series.data && firstOpen !== null && firstOpen > stook.indexAtOrBefore(series.data, BigInt(now)) + 1 && <p className="hint">New on the street: {coin.anchor.name}'s rounds start {nyWhen(stook.closeOf(series.data, firstOpen), { weekday: "short", month: "short", day: "numeric" })}, once it has seen 20 daily closes ({series.data.observations} so far). After that it learns every day on its own.</p>}
         {series.data && seriesKey ? <WallCalendar seriesKey={seriesKey} series={series.data} now={now} minLeadSecs={MIN_LEAD_SECS} dp={anchor.dp} coinSymbol={coin.symbol} canStart={!!mint && series.data.active} onStart={setStarting} />
           : <p className="muted">{series.isLoading ? "Reading the calendar…" : "This coin's rounds have not been opened on this network yet."}</p>}
       </section>

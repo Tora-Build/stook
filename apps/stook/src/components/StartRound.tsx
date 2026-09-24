@@ -1,19 +1,19 @@
-// Funding a day's round from the calendar: one input, the seed. The round's
-// terms are fixed by the program and the coin (2% fee rising to 5% over the
-// last six hours, the anchor's band
-// width, opens a day before the close, locks an hour before), so there is
-// nothing else to choose.
+// Funding a day's round: a house ticket. The round's terms are fixed by the
+// program and the coin (the fee, the band width at open, when it opens and
+// locks), so the one thing to choose is the seed; the ticket shows the day's
+// timeline and the deal in three lines, and the How page has the rest.
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useWallet } from "@solana/wallet-adapter-react";
 import { stook } from "@sooth/sdk-solana";
 import type { PublicKey } from "@solana/web3.js";
-import { anchorOf, isDevnet, mintOf, standInNote, type Coin } from "../lib/coins";
+import { isDevnet, mintOf, standInNote, type Coin } from "../lib/coins";
 import { ataOf, ensureAta } from "../lib/chain";
 import { useBalance, useMint, useSend } from "../hooks/useChain";
 import { fmtAmount, parseAmount } from "../lib/format";
 import { Usd, fmtUsd, fromUsd, toUsd, useUsdRates } from "../lib/usd";
 import { nyWhen } from "../lib/time";
+import { Bell } from "./Bell";
 
 export function StartRound({ coin, seriesKey, series, index, onClose }: { coin: Coin; seriesKey: PublicKey; series: stook.SeriesAccount; index: number; onClose: () => void }) {
   const nav = useNavigate();
@@ -27,7 +27,6 @@ export function StartRound({ coin, seriesKey, series, index, onClose }: { coin: 
   const rate = useUsdRates().data?.[coin.symbol] ?? null;
   const dec = mint.data?.decimals ?? coin.decimals;
   const seed = inUsd && rate ? fromUsd(Number(text.replace(/,/g, "")) || 0, dec, rate) : parseAmount(text, dec);
-  const anchor = anchorOf(coin);
   // Exactly what the program will write if this lands now.
   const terms = stook.roundTerms(series, index, BigInt(Math.floor(Date.now() / 1000)));
   const settlesAt = Number(terms.settlesAt);
@@ -38,9 +37,6 @@ export function StartRound({ coin, seriesKey, series, index, onClose }: { coin: 
   // No volatility learned yet: there is no width to show, only when it is set.
   const learning = !stook.warmedUp(series) || terms.stepBps === 0;
   const band = terms.stepBps / 100;
-  // bands 1..62 are finite; 0 and 63 are open-ended tails
-  const up = (Math.exp((31 * terms.stepBps) / 10_000) - 1) * 100, down = (1 - Math.exp((-31 * terms.stepBps) / 10_000)) * 100;
-  const dailyMove = Math.sqrt(Number(series.varWad) / 1e18) * 100;
   const gross = seed && mint.data?.report.transferFee ? stook.grossFor(seed, mint.data.report.transferFee) : seed;
 
   const start = () => {
@@ -52,19 +48,38 @@ export function StartRound({ coin, seriesKey, series, index, onClose }: { coin: 
       { onSuccess: () => nav(`/m/${stook.deriveLadderPda(key).toBase58()}`) });
   };
 
+  // A day's timeline, funding to the bell, on New York's clock.
+  const stops = [
+    { k: "now", label: "Fund", sub: "you're the house" },
+    { k: "open", label: `${opens}`, sub: learning ? "opens · bands set" : `opens · bands ~${band.toFixed(2)}%` },
+    { k: "lock", label: `${locks}`, sub: "trading stops" },
+    { k: "bell", label: nyWhen(settlesAt, { weekday: "short", hour: "numeric", minute: "2-digit" }), sub: "the bell" },
+  ];
+
   return (
     <div className="sheet-back" onClick={onClose}>
-      <section className="panel sheet" onClick={(e) => e.stopPropagation()}>
-        <h3>Fund ${coin.symbol}'s round for {when} New York</h3>
+      <section className="panel sheet ticket-sheet" onClick={(e) => e.stopPropagation()} role="dialog" aria-labelledby="fund-title">
+        <header className="ts-head">
+          <span className="ts-sign">House ticket</span>
+          <h3 id="fund-title">${coin.symbol} · {when} NY</h3>
+          <button className="ts-x" onClick={onClose} aria-label="Close">×</button>
+        </header>
         {standInNote(coin) && <p className="warn">{standInNote(coin)}</p>}
-        <dl className="quote terms">
-          <div><dt>trading</dt><dd className="mono">{opens} to {locks} New York</dd></div>
-          {learning ? <div><dt>bands</dt><dd className="mono">set when it opens, once the coin has learned how {anchor.symbol} moves ({series.observations} of {stook.WARMUP_OBSERVATIONS} closes so far)</dd></div> : <>
-            <div><dt>bands</dt><dd className="mono">set when it opens; at today's volatility {band.toFixed(2)}% each, from −{down.toFixed(0)}% to +{up.toFixed(0)}% around the open</dd></div>
-            <div><dt>because {anchor.symbol} moves</dt><dd className="mono">about {dailyMove.toFixed(1)}% a day lately</dd></div></>}
-        </dl>
-        <p className="hint">Your wallet also shows about 0.026 SOL{isDevnet ? " (devnet SOL: set your wallet to devnet)" : ""}. That is account rent for the round, not a payment: 0.009 comes back when you claim your deposit, the rest when the round closes.</p>
-        <p className="explain">Your seed is the house for this round. It opens on the {anchor.name} price at {opens} New York, with bands sized to how {anchor.name} is moving then and the odds of an ordinary day already priced in. The pool keeps 90% of every trade's fee: 2%, rising to 5% over the last six hours, when the sharpest trading happens. It is shared by depth with everyone who adds to it. If the close lands far from the open, the winners are paid from your seed, and it can lose all of it. Anyone can add to the same round. If it is not opened within five minutes of {opens}, or its closing price comes late or unsure, the round is void and deposits come back first.</p>
+
+        <ol className="ts-line" aria-label="The round's day">
+          {stops.map((st) => <li key={st.k} className={`ts-stop ts-${st.k}`}>
+            <span className="ts-dot">{st.k === "bell" ? <Bell scale={1} /> : null}</span>
+            <span className="ts-when">{st.label}</span>
+            <span className="ts-what">{st.sub}</span>
+          </li>)}
+        </ol>
+
+        <div className="ts-terms">
+          <div><b>Earn</b><span>90% of every fee, 2% rising to 5%</span></div>
+          <div><b>Risk</b><span>up to your seed, if it closes far from the open</span></div>
+          <div><b>Refund</b><span>if it can't open or settle, deposits first</span></div>
+        </div>
+
         <div className="field">
           <div className="amount-head">
             <span>Seed</span>
@@ -84,7 +99,7 @@ export function StartRound({ coin, seriesKey, series, index, onClose }: { coin: 
         <button className="primary" disabled={!publicKey || !seed || !mint.data || send.isPending || (balance.data !== undefined && !!gross && balance.data < gross)} onClick={start}>
           {!publicKey ? "Connect a wallet" : send.isPending ? "Funding…" : `Fund the round${seed ? ` with ${fmtAmount(seed, dec)} ${coin.symbol}${rate !== null ? ` · ${fmtUsd(toUsd(seed, dec, rate))}` : ""}` : ""}`}
         </button>
-        <button className="link" onClick={onClose} style={{ marginTop: ".8rem" }}>cancel</button>
+        <p className="ts-rent" title={`Account rent for the round, not a payment: about 0.009 SOL comes back when you claim your deposit, the rest when the round closes.${isDevnet ? " Devnet SOL: set your wallet to devnet." : ""}`}>+ about 0.026 {isDevnet ? "devnet " : ""}SOL rent, returned to you later</p>
       </section>
     </div>
   );
