@@ -146,7 +146,7 @@ export function Chart(p: ChartProps) {
       </svg>
       <div className="chart-hover">
         {hoverBox ? (<><span className="mono">{hoverBox.range}</span><span>{hoverBox.prob} chance</span>{hoverBox.pays !== null && <span className="amber">{hoverBox.pays ? `pays ${hoverBox.pays} a share` : "pays nothing"}</span>}</>)
-          : (<span className="muted">{p.disabled ? (p.opened === false ? "Not trading yet." : "Trading is closed.") : p.mode === "line" ? "Click the price you expect at settlement." : "Drag up or down across the range you expect."}{p.positions?.length ? " Click one of your lines to add to it or sell; drag to draw over it." : ""}</span>)}
+          : (<span className="muted">{p.disabled ? (p.opened === false ? "Not trading yet." : "Trading is closed.") : "Hover a band for its chance and what it pays."}</span>)}
       </div>
     </div>
   );

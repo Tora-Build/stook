@@ -732,3 +732,29 @@ button.tour-skip:hover { color: var(--cream); }
 .rb-labels span { display: flex; flex-direction: column; font-size: .74rem; color: var(--cream-3); }
 .rb-labels b { font-family: var(--px); font-weight: 400; font-size: .4rem; color: var(--cream); margin-bottom: .2rem; }
 .rb-l-open b { color: #5ec48f; } .rb-l-lock { margin-left: auto; text-align: right; } .rb-l-lock b { color: #f0a83a; } .rb-l-bell { text-align: right; }
+
+/* ── trading page: big tabs, a pointer to the board, the house in three facts */
+.big-tabs { display: grid; grid-template-columns: 1fr 1fr; border: 3px solid var(--cream); margin-bottom: 1rem; }
+.big-tabs button { display: flex; flex-direction: column; align-items: center; gap: .3rem; padding: .8rem .5rem; background: var(--sky); color: var(--cream-2); border: 0; cursor: pointer; font: inherit; }
+.big-tabs button + button { border-left: 3px solid var(--cream); }
+.big-tabs button span { font-family: var(--px); font-size: .7rem; }
+.big-tabs button em { font-style: normal; font-size: .72rem; opacity: .75; }
+.big-tabs button.on { background: var(--taxi); color: #101a2e; }
+.big-tabs button:not(.on):hover { background: var(--sky-3); color: var(--cream); }
+.big-tabs button:focus-visible { outline: 2px solid var(--teal); outline-offset: -5px; }
+.pick-hint { display: flex; align-items: center; gap: .7rem; padding: .8rem .9rem; margin: .2rem 0 .8rem; border: 2px dashed var(--line); color: var(--cream-2); font-size: .88rem; }
+.pick-hint b { color: var(--cream); font-weight: 600; }
+.pick-arrow { font-size: 1.1rem; color: var(--taxi); animation: pick-nudge 1.2s ease-in-out infinite; }
+@keyframes pick-nudge { 50% { transform: translateX(-4px); } }
+@media (max-width: 860px) { .pick-arrow { transform: rotate(90deg); animation: none; } }
+@media (prefers-reduced-motion: reduce) { .pick-arrow { animation: none; } }
+.house-facts { display: grid; grid-template-columns: repeat(3, 1fr); gap: .5rem; margin-bottom: .6rem; }
+.house-facts > div { background: var(--ink); border: 2px solid var(--line); padding: .55rem .6rem; display: flex; flex-direction: column; gap: .15rem; min-width: 0; }
+.house-facts b { font-family: var(--px); font-size: .42rem; font-weight: 400; color: var(--taxi); margin-bottom: .15rem; }
+.house-facts > div:nth-child(3) b { color: var(--bad); }
+.house-facts span { font-size: .85rem; color: var(--cream); }
+.house-facts em { font-style: normal; font-size: .72rem; color: var(--cream-3); }
+@media (max-width: 480px) { .house-facts { grid-template-columns: 1fr; } }
+/* the ticket's round bar is the whole timeline now */
+.ts-clock { padding-top: 1.4rem; }
+.rb-track { height: 18px; }

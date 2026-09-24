@@ -67,9 +67,9 @@ export function Ticket(p: Props) {
   const [tab, setTab] = useState<"trade" | "house">("trade");
   return (
     <section className="panel ticket">
-      <div className="seg ticket-tabs">
-        <button className={tab === "trade" ? "on" : ""} onClick={() => setTab("trade")}>Trade</button>
-        <button className={tab === "house" ? "on" : ""} onClick={() => setTab("house")} data-tour="house">House</button>
+      <div className="big-tabs" role="tablist">
+        <button role="tab" aria-selected={tab === "trade"} className={tab === "trade" ? "on" : ""} onClick={() => setTab("trade")}><span>Trade</span><em>draw a line</em></button>
+        <button role="tab" aria-selected={tab === "house"} className={tab === "house" ? "on" : ""} onClick={() => setTab("house")} data-tour="house"><span>House</span><em>fund the pool</em></button>
       </div>
       {tab === "house" ? <LpPanel refs={p.refs} ladder={p.ladder} quoteSymbol={p.quoteSymbol} now={p.now} transferFee={p.transferFee} usd={p.usd} bare /> : p.final ? <Collect {...p} /> : (
         <>
@@ -152,7 +152,9 @@ function Buy(p: Props & { held?: boolean }) {
         <div className="seg" data-tour="shape"><button className={p.mode === "line" ? "on" : ""} onClick={() => p.setMode("line")}>Line</button><button className={p.mode === "range" ? "on" : ""} onClick={() => p.setMode("range")}>Range</button></div>
         {p.mode === "line" && <label className="height" data-tour="reach">reach <Slider min={1} max={stook.MAX_HEIGHT} value={p.height} onChange={p.setHeight} width={110} /><span className="mono">{p.height}</span></label>}
       </div>}
-      {!s ? <p className="explain">{p.tradeable ? (p.mode === "line" ? "Click the price you expect at the close." : "Drag across the range you expect.") : l.status === "seeding" ? (p.now < Number(l.opensAt) ? `Funded. Trading opens ${nyWhen(l.opensAt, { weekday: "short", hour: "numeric", minute: "2-digit" })} New York; the House takes deposits now.` : (p.now < Number(l.opensAt) + Number(stook.OPEN_WINDOW_SECS) ? "Opening in a moment. The keeper is posting the opening price; deposits are open." : "This round did not open in time and will be void; deposits come back.")) : "Trading is closed; the bell is next."} {p.positions.length > 0 && <>Click one of your lines on the chart to add to it or sell it.</>}</p>
+      {!s ? (p.tradeable
+        ? <div className="pick-hint"><span className="pick-arrow" aria-hidden="true">◀</span><span><b>Pick your price on the board.</b> {p.mode === "line" ? "Click a band." : "Drag across a range."}{p.positions.length > 0 ? " Or pick one of your lines to add to it or sell it." : ""}</span></div>
+        : <p className="explain">{l.status === "seeding" ? (p.now < Number(l.opensAt) ? `Funded. Trading opens ${nyWhen(l.opensAt, { weekday: "short", hour: "numeric", minute: "2-digit" })} NY; the House takes deposits now.` : p.now < Number(l.opensAt) + Number(stook.OPEN_WINDOW_SECS) ? "Opening in a moment. Deposits are open." : "This round did not open in time and will be void; deposits come back.") : "Trading is closed; the bell is next."}</p>)
         : <div className="shape-desc">{p.symbol} at {where}{existing && !p.held && <span className="muted"> · same as your {fmtAmount(existing.position.shares, dec)} sh line: this adds to it</span>}</div>}
       {s && (
         <table className="ladder-table">
@@ -163,7 +165,7 @@ function Buy(p: Props & { held?: boolean }) {
           </tbody>
         </table>
       )}
-      {s && s.h > 1 && <p className="hint">A share pays {s.h} on your band and one less per band away. That is the reach, and it is the same wherever you draw. What the crowd charges for it is the last column: the longer the odds, the more on stake.</p>}
+      {s && s.h > 1 && <p className="hint">A share pays {s.h} on your band, one less per band away.</p>}
       <div className="field" data-tour="order">
         <div className="amount-head">
           <span>{unit === "shares" ? "Shares" : "Spend"}</span>

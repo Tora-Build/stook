@@ -81,7 +81,7 @@ export function Market() {
           <div className="anchor-mark">{coin && !standIn ? <img src={coin.anchor.logo} alt="" /> : <span className="tick">{feed.symbol}</span>}</div>
           <div>
             <div className="strip-title">{feed.name} <span className="sym">{feed.symbol}</span>{coin && <span className="paid-in"><img src={coin.logo} alt="" />paid in <b>${coin.symbol}</b></span>}</div>
-            <div className="muted small">closes {nyWhen(l.settlesAt, { weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })} New York · {preview ? <>bands about {(preview.stepBps / 100).toFixed(2)}%, set when it opens</> : <>bands of {(l.stepBps / 100).toFixed(2)}%</>}{coin && !standIn && <> · <Address label={`${coin.anchor.symbol}`} value={coin.anchor.mint} /></>}</div>
+            <div className="muted small">{nyWhen(l.settlesAt, { weekday: "short", month: "short", day: "numeric" })} round · {preview ? <>bands about {(preview.stepBps / 100).toFixed(2)}%, set when it opens</> : <>bands of {(l.stepBps / 100).toFixed(2)}%</>}{coin && !standIn && <> · <Address label={`${coin.anchor.symbol}`} value={coin.anchor.mint} /></>}</div>
           </div>
         </div>
         <div className="strip-num"><span className="strip-k">price</span><span className="mono strip-v">{livePrice !== null ? `$${fmtPrice(BigInt(Math.round(livePrice / 10 ** live.data!.expo)), live.data!.expo, feed.dp)}` : "…"}</span></div>

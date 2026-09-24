@@ -46,11 +46,11 @@ export function TodayDesk(p: Props) {
   let kicker: string, title: string, line: string, cta: { label: string; to?: string; start?: number } | null;
   if (l && l.status === "open" && p.now < Number(l.locksAt)) {
     kicker = "On the floor now"; title = "Trading";
-    line = `Draw where ${p.anchorName} closes at 4 PM New York. Trading stops in ${untilText(l.locksAt, p.now)}.`;
+    line = "";
     cta = { label: "Trade today's round", to: `/m/${r!.pubkey.toBase58()}` };
   } else if (l && l.status === "open") {
     kicker = "Locked"; title = "Waiting for the bell";
-    line = "No more trades today. The first Pyth price at 4 PM New York settles it.";
+    line = "No more trades. The first Pyth price at the bell settles it.";
     cta = { label: "Watch the bell", to: `/m/${r!.pubkey.toBase58()}` };
   } else if (l && l.status === "seeding") {
     kicker = "Funded"; title = p.now < Number(l.opensAt) ? `Opens ${nyWhen(l.opensAt, { hour: "numeric", minute: "2-digit" })} NY` : "Opening";
@@ -80,12 +80,12 @@ export function TodayDesk(p: Props) {
         {/* New York's time, live, with today's round on the dial */}
         <div className="desk-watch">
           <PocketWatch now={p.now} locksAt={l && l.status === "open" ? Number(l.locksAt) : undefined} settlesAt={l && l.status === "open" ? closes : undefined} size={132} title="New York time; the ring is the hours ahead: green trading, amber locked, then the bell" />
-          <div className="desk-clock mono">{nyWhen(p.now, { hour: "numeric", minute: "2-digit" })} <span>New York</span></div>
+          <div className="desk-clock mono">{nyWhen(p.now, { hour: "numeric", minute: "2-digit" })} <span>NY</span></div>
         </div>
         <div className="desk-main">
         <div className="desk-kicker"><span>{kicker}</span></div>
         <div className="desk-title">{title}</div>
-        <div className="desk-when">closes {nyWhen(stook.closeOf(p.series, today), { weekday: "long", hour: "numeric", minute: "2-digit" })} New York · rings in {untilText(BigInt(closes), p.now)}</div>
+        <div className="desk-when">bell {nyWhen(stook.closeOf(p.series, today), { weekday: "short", hour: "numeric", minute: "2-digit" })} · in {untilText(BigInt(closes), p.now)}{l && l.status === "open" && p.now < Number(l.locksAt) ? <> · trading stops {nyWhen(l.locksAt, { hour: "numeric", minute: "2-digit" })}</> : null}</div>
         {l && <div className="desk-nums">
           <div><span className="desk-k">pool</span><span className="mono">{fmtAmount(l.depositTotal, l.decimals, 0)} {p.coinSymbol}</span><Usd units={l.depositTotal} decimals={l.decimals} rate={rate} /></div>
           <div><span className="desk-k">trades</span><span className="mono">{l.curveSeq.toString()}</span></div>

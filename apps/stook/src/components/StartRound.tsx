@@ -13,7 +13,6 @@ import { useBalance, useMint, useSend } from "../hooks/useChain";
 import { fmtAmount, parseAmount } from "../lib/format";
 import { Usd, fmtUsd, fromUsd, toUsd, useUsdRates } from "../lib/usd";
 import { nyWhen } from "../lib/time";
-import { PocketWatch } from "./PocketWatch";
 import { RoundBar } from "./RoundBar";
 
 export function StartRound({ coin, seriesKey, series, index, onClose }: { coin: Coin; seriesKey: PublicKey; series: stook.SeriesAccount; index: number; onClose: () => void }) {
@@ -56,7 +55,6 @@ export function StartRound({ coin, seriesKey, series, index, onClose }: { coin: 
         {standInNote(coin) && <p className="warn">{standInNote(coin)}</p>}
 
         <div className="ts-clock">
-          <PocketWatch at={settlesAt} size={84} title="The bell rings at 4:00 PM New York" />
           <RoundBar opensAt={Number(terms.opensAt)} locksAt={Number(terms.locksAt)} settlesAt={settlesAt} />
         </div>
 

@@ -28,11 +28,6 @@ export function LpPanel(p: Props) {
     if (seeding) return 1n;
     try { return stook.liquidityForDeposit(l.curve, deposit, dec); } catch { return null; }
   }, [deposit, l.curve, dec, seeding]);
-  const worst = useMemo(() => {
-    // the longest shot's odds, which is what sets how much depth a deposit buys
-    const min = l.curve.w.reduce((a, v) => (v < a ? v : a));
-    return Number(l.curve.sum) / Number(min);
-  }, [l.curve]);
 
   const joinable = (l.status === "seeding" || l.status === "open") && p.now < Number(l.locksAt);
   const balance = useBalance(l.quoteMint, p.refs.tokenProgram);
@@ -56,10 +51,12 @@ export function LpPanel(p: Props) {
   return (
     <Wrap className={p.bare ? "" : "panel"}>
       {!p.bare && <h3>Provide liquidity</h3>}
-      <p className="explain">
-        The pool takes the other side of every trade. {seeding ? <><span className="mono">{fmtAmount(l.depositTotal, dec)}</span> {p.quoteSymbol} <Usd units={l.depositTotal} decimals={dec} rate={rate} /> is in it so far; its depth is set when the round opens.</> : <><span className="mono">{fmtAmount(l.depositTotal, dec)}</span> {p.quoteSymbol} <Usd units={l.depositTotal} decimals={dec} rate={rate} /> in it gives depth <span className="mono">{fmtAmount(l.b / 10n ** 12n, 6, 0)}</span>.</>}
-        Deposit and you are the house: the pool keeps 90% of every trade's fee from now on ({(l.feeBps / 100).toFixed(0)}%, rising to 5% over the last six hours), shared by depth, and pays when traders were right.
-      </p>
+      <div className="house-facts">
+        <div><b>Pool</b><span className="mono">{fmtAmount(l.depositTotal, dec, 0)} {p.quoteSymbol}</span><Usd units={l.depositTotal} decimals={dec} rate={rate} /></div>
+        <div><b>Earn</b><span>90% of every fee</span><em>{(l.feeBps / 100).toFixed(0)}% now, 5% near the close</em></div>
+        <div><b>Risk</b><span>up to your deposit</span><em>if traders call the close</em></div>
+      </div>
+      <p className="hint">You take the other side of every trade, shared with the pool by what you put in. <a href="/how">How the house works</a></p>
       {joinable && (
         <>
           <div className="field">
@@ -80,14 +77,11 @@ export function LpPanel(p: Props) {
           {depth && (
             <dl className="quote">
               {seeding ? <>
-                <div><dt>adds depth</dt><dd className="mono">set at open</dd></div>
                 <div><dt>your share of the pool</dt><dd className="mono">{(Number(deposit) / (Number(l.depositTotal) + Number(deposit)) * 100).toFixed(1)}%, if nobody else joins</dd></div>
               </> : <>
-                <div><dt>adds depth</dt><dd className="mono">{fmtAmount(depth / 10n ** 12n, 6, 1)}</dd></div>
                 <div><dt>your share of fees from now</dt><dd className="mono">{(Number(depth) / (Number(l.b) + Number(depth)) * 100).toFixed(1)}%</dd></div>
               </>}
               {p.transferFee && <div><dt>your wallet sends</dt><dd className="mono">{fmtAmount(stook.grossFor(deposit!, p.transferFee), dec)} <Usd units={stook.grossFor(deposit!, p.transferFee)} decimals={dec} rate={rate} /> (incl. the token's {(p.transferFee.bps / 100).toFixed(1)}% transfer fee)</dd></div>}
-              {!seeding && <div><dt>longest shot right now</dt><dd className="mono">1 in {worst.toFixed(0)}</dd></div>}
             </dl>
           )}
           {short && <p className="warn">You hold {fmtAmount(balance.data!, dec)} {p.quoteSymbol}; this needs {fmtAmount(gross!, dec)}. On devnet, use <b>test coins</b> in the header.</p>}

@@ -51,7 +51,7 @@ export function PocketWatch({ now, at, locksAt, settlesAt, size = 150, title }: 
     ring = <>
       {dLock > 0 && <path d={arc(d0, d0 + dLock, R_RING)} fill="none" stroke={COL.trade} strokeWidth={6} strokeLinecap="butt"><title>Trading until trading stops</title></path>}
       {dBell > Math.max(dLock, 0) && <path d={arc(d0 + Math.max(dLock, 0), d0 + dBell, R_RING)} fill="none" stroke={COL.lock} strokeWidth={6}><title>Locked until the bell</title></path>}
-      {settlesAt - t <= 12 * 3600 && (() => { const [x, y] = pt(d0 + dBell, R_RING); return <g transform={`translate(${x - 7} ${y - 7}) scale(.7)`}><title>The bell</title><path d="M9 1 h2 v2 h3 v2 h2 v7 h2 v3 h-18 v-3 h2 v-7 h2 v-2 h3 z" fill="#f0a83a" stroke={COL.outline} strokeWidth={2} /><rect x={8} y={16} width={4} height={3} fill="#7d2f22" /></g>; })()}
+      {settlesAt - t <= 12 * 3600 && (() => { const [x, y] = pt(d0 + dBell, R_RING); return <g transform={`translate(${x - 12} ${y - 12}) scale(1.2)`}><title>The bell</title><circle cx={10} cy={10} r={11} fill={COL.dial} stroke={COL.outline} strokeWidth={1.6} /><path d="M9 3 h2 v1.5 h2.5 v1.5 h1.5 v6 h1.5 v2.5 h-15 v-2.5 h1.5 v-6 h1.5 v-1.5 h2.5 z" fill="#f0a83a" stroke={COL.outline} strokeWidth={1.3} /><rect x={8.5} y={15} width={3} height={2.2} fill="#7d2f22" /></g>; })()}
     </>;
   }
   return (
