@@ -104,14 +104,14 @@ describe("a ladder quoted in a real xStock", () => {
     expect(report.reasons.map((r) => r.split(":")[0])).toEqual(["PermanentDelegate", "Pausable", "TransferHook"]);
 
     // ── the trust decision is the authority's, and nobody else's ────────────
-    warpClockTo(e.ctx, PUBLISH_TIME - 1000n);
+    warpClockTo(e.ctx, PUBLISH_TIME - 60n);
     await ok(e, ser.createIx(), e.admin);
     const closes = warmCloses(ser.indexOf, ser.closeOf, PUBLISH_TIME - 1000n, 22_019_000n);
     warpClockTo(e.ctx, closes.at(-1)!.at + 1n);          // a backfill: the whole history is past
     for (const c of closes) {
       await ok(e, L.observeSeriesIx(ser.series, e.trader.kp.publicKey, e.priceAccount(updateAt(c.price, c.at, c.at - 1n)), c.index, PROGRAM), e.trader.kp);
     }
-    warpClockTo(e.ctx, PUBLISH_TIME - 1000n);
+    warpClockTo(e.ctx, PUBLISH_TIME - 60n);
     await refused(e, create(false), e.creator.kp, "MintNeedsApproval");
     await refused(e, create(true), e.creator.kp, "AccountNotInitialized");               // claiming an approval that does not exist
     await refused(e, L.approveQuoteMintIx(e.creator.kp.publicKey, e.mint, PROGRAM), e.creator.kp, "Unauthorized");
@@ -127,7 +127,7 @@ describe("a ladder quoted in a real xStock", () => {
 
     // ── the same market, at 8 decimals ──────────────────────────────────────
     warpClockTo(e.ctx, PUBLISH_TIME + 10n);
-    await ok(e, L.openLadderIx(refs, e.trader.kp.publicKey, e.priceAccount(NVDA_UPDATE), ser.series), e.trader.kp);
+    await ok(e, L.openLadderIx(refs, e.trader.kp.publicKey, e.priceAccount(updateAt(22_019_000n, PUBLISH_TIME, PUBLISH_TIME - 1n)), ser.series), e.trader.kp);
     const W = L.binFor(22_460_000n, state().p0, state().stepBps);
 
     const quoted = async (shape: L.Shape, shares: bigint) => {

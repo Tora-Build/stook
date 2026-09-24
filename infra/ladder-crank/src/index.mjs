@@ -149,19 +149,24 @@ async function pass() {
         continue;
       }
       const feed = hex(ladder.feedId);
-      // For an open, the update from a few seconds ago rather than "latest":
-      // Hermes stamps ahead of a lagging machine or cluster clock, and the
-      // program refuses a price from the future. 15s is well inside the 60s
-      // the program allows.
-      const { parsed, vaas } = step === "open"
-        ? await hermes(`/v2/updates/price/${Number(now) - 15}`, feed)
-        : await hermes(`/v2/updates/price/${ladder.settlesAt}`, feed);
-      if (!parsed) { console.log(tag, "hermes returned no update"); continue; }
+      // Both an open and a settle take THE update for their instant (the
+      // first at or after it), which Hermes returns for that second.
+      const { parsed, vaas } = await hermes(`/v2/updates/price/${step === "open" ? ladder.opensAt : ladder.settlesAt}`, feed);
+      if (!parsed) { console.log(tag, "hermes returned no update yet"); continue; }
 
-      const problem = step === "open" ? stook.openProblem(parsed, ladder, now) : stook.settlementProblem(parsed, ladder);
-      // Not an error: a market whose feed was silent across its settlement time
-      // is SUPPOSED to be unsettleable, and will void after the grace period.
-      if (problem) { console.log(tag, "skipped:", problem); continue; }
+      const problem = step === "open" ? stook.openProblem(parsed, ladder) : stook.settlementProblem(parsed, ladder);
+      if (problem) {
+        // The close's one update cannot settle the round (late, unsure):
+        // that update is the proof that voids it, at once.
+        if (step === "settle" && stook.voidProof(parsed, ladder)) {
+          console.log(tag, "cannot settle (" + problem + "); voiding with proof", await postAndConsume(vaas, feed, (price) => [stook.voidLadderIx(refs, payer.publicKey, price)]));
+          succeeded(key);
+          continue;
+        }
+        // Otherwise Hermes has not got it yet, or (an open) Pyth was silent
+        // at the opening and the round will void when its window passes.
+        console.log(tag, "skipped:", problem); continue;
+      }
 
       if (step === "open") {
         console.log(tag, await postAndConsume(vaas, feed, (price) => [stook.openLadderIx(refs, payer.publicKey, price, ladder.series)]));

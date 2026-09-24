@@ -82,14 +82,14 @@ describe("a ladder quoted in $STOOK, a 1% transfer-fee mint", () => {
     const vault = L.deriveLadderVault(ladder, PROGRAM);
     const state = () => L.decodeLadder(new Uint8Array(raw(e, ladder).data));
 
-    warpClockTo(e.ctx, PUBLISH_TIME - 1000n);
+    warpClockTo(e.ctx, PUBLISH_TIME - 60n);
     await ok(e, ser.createIx(), e.admin);
     const closes = warmCloses(ser.indexOf, ser.closeOf, PUBLISH_TIME - 1000n, 22_019_000n);
     warpClockTo(e.ctx, closes.at(-1)!.at + 1n);          // a backfill: the whole history is past
     for (const c of closes) {
       await ok(e, L.observeSeriesIx(ser.series, e.trader.kp.publicKey, e.priceAccount(updateAt(c.price, c.at, c.at - 1n)), c.index, PROGRAM), e.trader.kp);
     }
-    warpClockTo(e.ctx, PUBLISH_TIME - 1000n);
+    warpClockTo(e.ctx, PUBLISH_TIME - 60n);
     const create = (t: boolean) => L.createLadderIx({ ...key, creator: e.creator.kp.publicKey, creatorToken: e.creator.token, tokenProgram: TOKEN_2022_PROGRAM_ID, seed: 1_000n * T, issuerTrusted: t, programId: PROGRAM });
     await refused(e, create(false), e.creator.kp, "MintNeedsApproval");
     await ok(e, L.approveQuoteMintIx(e.admin.publicKey, e.mint, PROGRAM), e.admin);
@@ -106,7 +106,7 @@ describe("a ladder quoted in $STOOK, a 1% transfer-fee mint", () => {
     expect(raw(e, vault).data.length).toBe(178);                          // base + type + TransferFeeAmount
 
     warpClockTo(e.ctx, PUBLISH_TIME + 10n);
-    await ok(e, L.openLadderIx(refs, e.trader.kp.publicKey, e.priceAccount(NVDA_UPDATE), ser.series), e.trader.kp);
+    await ok(e, L.openLadderIx(refs, e.trader.kp.publicKey, e.priceAccount(updateAt(22_019_000n, PUBLISH_TIME, PUBLISH_TIME - 1n)), ser.series), e.trader.kp);
     const W = L.binFor(22_460_000n, state().p0, state().stepBps);
 
     // ── a buy: the quote is the net; the wallet pays gross ─────────────────

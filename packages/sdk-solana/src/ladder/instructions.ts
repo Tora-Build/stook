@@ -213,7 +213,7 @@ export function revokeQuoteMintIx(authority: PublicKey, mint: PublicKey, program
 /** Centre the grid on the oracle price and start trading. Anyone may call it. */
 /** `series`: the round's series, whose volatility sets the band width at open. */
 export const openLadderIx = (r: LadderRefs, cranker: PublicKey, priceUpdate: PublicKey, series: PublicKey) =>
-  ix(r, pack(DISC.open), [signer(cranker, false), rw(r.ladder), ro(priceUpdate), ro(series)]);
+  ix(r, pack(DISC.open), [signer(cranker, false), rw(r.ladder), ro(priceUpdate), rw(series)]);
 
 export interface TradeLadderArgs {
   user: PublicKey;
@@ -275,8 +275,11 @@ export function settleLadderIx(r: LadderRefs, series: PublicKey, cranker: Public
 }
 
 /** Give up on a market that never opened, or never got its price. Anyone. */
-export const voidLadderIx = (r: LadderRefs, cranker: PublicKey) =>
-  ix(r, pack(DISC.void), [signer(cranker, false), rw(r.ladder)]);
+/** Void a round that cannot finish. For an opened one before the fallback,
+ *  pass the posted update for its close that shows it cannot settle
+ *  (`voidProof`); without it the slot is the program id (Anchor's "none"). */
+export const voidLadderIx = (r: LadderRefs, cranker: PublicKey, priceUpdate?: PublicKey) =>
+  ix(r, pack(DISC.void), [signer(cranker, false), rw(r.ladder), ro(priceUpdate ?? pid(r))]);
 
 /**
  * Collect a position. The owner at any time; `caller` (anyone else) 30 days

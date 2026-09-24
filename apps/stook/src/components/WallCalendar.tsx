@@ -73,7 +73,7 @@ export function WallCalendar(p: Props) {
           const paused = !r && !past && !learning && !p.series.active;
           const early = !r && !past && !learning && !paused && !terms.fundable;
           const l = r?.ladder;
-          const state = !l ? "" : l.status === "open" ? (p.now < Number(l.locksAt) ? "trading" : "locked") : l.status === "seeding" ? (p.now < Number(l.opensAt) ? "funded" : p.now < Number(l.locksAt) ? "opening" : "void soon") : l.status;
+          const state = !l ? "" : l.status === "open" ? (p.now < Number(l.locksAt) ? "trading" : "locked") : l.status === "seeding" ? (p.now < Number(l.opensAt) ? "funded" : p.now < Number(l.opensAt) + Number(stook.OPEN_WINDOW_SECS) && p.now < Number(l.locksAt) ? "opening" : "void soon") : l.status;
           const closesIn = offset === 0 && at > p.now && (!l || l.status === "open" || l.status === "seeding") && !early && !learning && !paused ? untilText(BigInt(at), p.now) : null;
           const landed = l && l.status === "settled" && l.settledBin !== null ? stook.binBounds(l.settledBin, l.p0, l.stepBps) : null;
           const body = (

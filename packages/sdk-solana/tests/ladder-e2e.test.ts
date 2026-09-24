@@ -140,7 +140,7 @@ function market(e: Env, settlesAt: bigint) {
     open: (price: PublicKey) => L.openLadderIx(refs, e.trader.kp.publicKey, price, ser.series),
     trade: (lo: number, hi: number, h: number, shares: bigint, limit: bigint) => tradeAs(e.trader, lo, hi, h, shares, limit),
     settle: (price: PublicKey) => L.settleLadderIx(refs, ser.series, e.trader.kp.publicKey, price, e.trader.token),
-    voidIt: () => L.voidLadderIx(refs, e.trader.kp.publicKey),
+    voidIt: (price?: PublicKey) => L.voidLadderIx(refs, e.trader.kp.publicKey, price),
     redeem: (lo: number, hi: number, h: number) => L.redeemLadderIx(refs, e.trader.kp.publicKey, e.trader.token, { lo, hi, h }),
     claimLp: (w: Env["lp2"], index = 0) => L.claimLpIx(refs, w.kp.publicKey, w.token, index),
     collectFees: () => L.collectLadderFeesIx(refs, e.trader.kp.publicKey, e.creator.token, e.treasuryToken),
@@ -160,11 +160,11 @@ describe("ladder end to end", () => {
     expect(L.decodeProtocolConfig(new Uint8Array((e.svm.getAccount(e.config.toBase58() as any) as any).data)).treasury.equals(e.treasury.publicKey)).toBe(true);
 
     // ── Seeding: the creator, then a second LP ─────────────────────────────
-    warpClockTo(e.ctx, PUBLISH_TIME - 1000n);
+    warpClockTo(e.ctx, PUBLISH_TIME - 60n);
     const create = await ok(e, m.create(5_000_000_000n), e.creator.kp);
     // The round's times are what the SDK predicts from the series. Its bands
     // are not set yet: a deposit before open records only its size.
-    const terms = L.roundTerms(m.seriesState(), m.index, PUBLISH_TIME - 1000n);
+    const terms = L.roundTerms(m.seriesState(), m.index, PUBLISH_TIME - 60n);
     expect(terms.settlesAt).toBe(settlesAt);
     expect(m.state().opensAt).toBe(terms.opensAt);
     expect(m.state().locksAt).toBe(terms.locksAt);
@@ -178,7 +178,7 @@ describe("ladder end to end", () => {
     // round cannot open until its series has learned from 20 closes; nothing
     // sets that number but Pyth prices.
     warpClockTo(e.ctx, PUBLISH_TIME + 10n);
-    const cold = await send(e, [m.open(e.priceAccount(NVDA_UPDATE))], e.trader.kp);
+    const cold = await send(e, [m.open(e.priceAccount(updateAt(22_019_000n, PUBLISH_TIME, PUBLISH_TIME - 1n)))], e.trader.kp);
     expect(cold.logs).toContain("SeriesWarmingUp");
     await m.warm(PUBLISH_TIME - 1000n);
     const learned = m.seriesState();
@@ -197,11 +197,16 @@ describe("ladder end to end", () => {
     // ── Open, from the real update ──────────────────────────────────────────
     warpClockTo(e.ctx, PUBLISH_TIME + 10n);
     await refused(e, m.trade(31, 31, 1, 1_000_000n, BIG), e.trader.kp);           // not open yet
-    const open = await ok(e, m.open(e.priceAccount(NVDA_UPDATE)), e.trader.kp);
+    // The opening window is five minutes: later, the round can only void,
+    // so nobody opens late onto a grid centred on a price long gone.
+    warpClockTo(e.ctx, PUBLISH_TIME + 300n);
+    await refused(e, m.open(e.priceAccount(updateAt(P0, PUBLISH_TIME, PUBLISH_TIME - 1n))), e.trader.kp, "LadderBadTimes");
+    warpClockTo(e.ctx, PUBLISH_TIME + 10n);
+    const open = await ok(e, m.open(e.priceAccount(updateAt(22_019_000n, PUBLISH_TIME, PUBLISH_TIME - 1n))), e.trader.kp);
     // At open the band width and odds come from the series' volatility now,
     // over the time left, exactly as the SDK predicts; the early deposits'
     // depths, recomputed from their sizes, add up to the pool's.
-    const opening = L.openingTerms(m.seriesState().varWad, settlesAt, PUBLISH_TIME + 10n);
+    const opening = L.openingTerms(m.seriesState().varWad, settlesAt, opensAt);          // over the round's window, whenever it was opened
     expect(m.state().stepBps).toBe(opening.stepBps);
     expect(m.state().varBandsE9).toBe(opening.varBandsE9);
     expect(m.state().curve).toEqual(opening.curve);
@@ -378,10 +383,10 @@ describe("ladder end to end", () => {
     await ok(e, m.createSeries(), e.treasury);
     await m.warm(PUBLISH_TIME - 1000n);
 
-    warpClockTo(e.ctx, PUBLISH_TIME - 1000n);
+    warpClockTo(e.ctx, PUBLISH_TIME - 60n);
     await ok(e, m.create(5_000_000_000n), e.creator.kp);
     warpClockTo(e.ctx, PUBLISH_TIME + 10n);
-    await ok(e, m.open(e.priceAccount(NVDA_UPDATE)), e.trader.kp);
+    await ok(e, m.open(e.priceAccount(updateAt(22_019_000n, PUBLISH_TIME, PUBLISH_TIME - 1n))), e.trader.kp);
 
     // The attack the second audit measured: lp3 (as a trader) buys bin 40
     // cheap, the trader pumps it, lp3 sells into the pump, the trader holds
@@ -395,11 +400,15 @@ describe("ladder end to end", () => {
     await ok(e, m.trade(28, 34, 4, 60_000_000n, BIG), e.trader.kp);
     const paid = e.trader.start - balance(e, e.trader.token);
 
-    await refused(e, m.voidIt(), e.trader.kp);                         // it can still settle
-    warpClockTo(e.ctx, settlesAt + 24n * 3600n - 1n);
-    await refused(e, m.voidIt(), e.trader.kp);                         // grace not over
-    warpClockTo(e.ctx, settlesAt + 24n * 3600n);
-    await ok(e, m.voidIt(), e.trader.kp);
+    await refused(e, m.voidIt(), e.trader.kp);                         // before the close
+    warpClockTo(e.ctx, settlesAt + 60n);
+    // A void needs proof the round cannot settle: the close's one update,
+    // failing the rule. While a valid one exists, only a settle can end it,
+    // so a losing trader can never void a round that could settle.
+    await refused(e, m.voidIt(e.priceAccount(updateAt(P0, settlesAt, settlesAt - 1n))), e.trader.kp, "LadderStillSettleable");
+    await refused(e, m.voidIt(e.priceAccount(updateAt(P0, settlesAt + 40n, settlesAt + 39n))), e.trader.kp, "OracleNotTheSettlementInstant"); // a later update proves nothing
+    await refused(e, m.voidIt(), e.trader.kp, "LadderNotVoidable");    // no proof: that waits a week
+    await ok(e, m.voidIt(e.priceAccount(updateAt(P0, settlesAt + 40n, settlesAt - 1n))), e.trader.kp); // Pyth was silent for 40 s across the close
     await refused(e, m.settle(e.priceAccount(updateAt(P0, settlesAt, settlesAt - 1n))), e.trader.kp); // void is final
     await refused(e, m.collectFees(), e.trader.kp);                    // nothing to sweep: fees went back into the pot
 

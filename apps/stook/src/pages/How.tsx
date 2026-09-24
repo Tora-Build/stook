@@ -40,7 +40,7 @@ export function How() {
           </>}
           {i === 3 && <>
             <h2>The bell</h2>
-            <p>At the close, the first <b>Pyth price</b> published at or after 4:00 PM New York lands in a band, if it came within 30 seconds. That band pays; the rest pay nothing. No such price: a day later the round is <b>void</b>. Deposits come back first, and open lines share the rest.</p>
+            <p>At the close, the first <b>Pyth price</b> published at or after 4:00 PM New York lands in a band, if it came within 30 seconds. That band pays; the rest pay nothing. If that price came late or unsure, the round is <b>void</b>, and nobody can void a round that could settle. Deposits come back first, and open lines share the rest.</p>
             <p className="try">Ring it.</p>
           </>}
           {i === 4 && <>

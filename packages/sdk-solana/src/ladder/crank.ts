@@ -10,23 +10,29 @@ import type { GetProgramAccountsFilter, PublicKey } from "@solana/web3.js";
 import { LADDER_DISCRIMINATOR, LADDER_SIZE, POSITION_DISCRIMINATOR, TRANCHE_DISCRIMINATOR, type LadderAccount, type LadderStatus } from "./accounts.js";
 import { level, type Shape } from "./math.js";
 
-export const VOID_GRACE_SECS = 86_400n;
+/** An opened round with no proof it cannot settle voids only this long after its close (`VOID_FALLBACK_SECS`). */
+export const VOID_FALLBACK_SECS = 7n * 86_400n;
+/** A round may be opened only this long after `opens_at` (`OPEN_WINDOW_SECS`); after that it voids. */
+export const OPEN_WINDOW_SECS = 300n;
 /** After this long past a close, anyone may pay out a round’s positions and deposits, to their owners. */
 export const CLAIM_GRACE_SECS = 30n * 86_400n;
 export const SETTLE_MAX_GAP_SECS = 30n;
-export const OPEN_MAX_AGE_SECS = 60n;
-export const OPEN_MAX_CONF_BPS = 100n;
+/** Confidence bar at open, as a settlement step: under 1% of the price. */
+export const OPEN_CONF_STEP_BPS = 200;
 
 export type CrankStep = "open" | "settle" | "void";
 
 /** The one instruction this market is waiting for at `now`, if any. */
 export function nextStep(l: Pick<LadderAccount, "status" | "opensAt" | "locksAt" | "settlesAt">, now: bigint): CrankStep | null {
   if (l.status === "seeding") {
-    if (now >= l.locksAt) return "void"; // never opened; nothing left to open into
+    if (now >= l.opensAt + OPEN_WINDOW_SECS || now >= l.locksAt) return "void"; // never opened in its window
     return now >= l.opensAt ? "open" : null;
   }
   if (l.status === "open") {
-    if (now >= l.settlesAt + VOID_GRACE_SECS) return "void";
+    // After the close: settle, or, if the close's one update cannot settle
+    // it, void with that update as proof (the keeper decides which). With no
+    // update to show, a void waits for the fallback.
+    if (now >= l.settlesAt + VOID_FALLBACK_SECS) return "void";
     return now >= l.settlesAt ? "settle" : null;
   }
   return null;
@@ -62,15 +68,25 @@ export function settlementProblem(u: HermesPrice, l: Pick<LadderAccount, "feedId
   return null;
 }
 
-/** Why the program would refuse `u` for opening this market at `now`, or null. */
-export function openProblem(u: HermesPrice, l: Pick<LadderAccount, "feedId">, now: bigint): string | null {
-  if (u.id.replace(/^0x/, "").toLowerCase() !== hex(l.feedId)) return "wrong feed";
-  const age = now - BigInt(u.price.publish_time);
-  if (age < 0n || age > OPEN_MAX_AGE_SECS) return `price is ${age}s old`;
-  const price = BigInt(u.price.price), conf = BigInt(u.price.conf);
-  if (price <= 0n) return "non-positive price";
-  if (conf * 10_000n > price * OPEN_MAX_CONF_BPS) return "confidence interval wider than 1%";
-  return null;
+/** Why the program would refuse `u` for opening this market, or null. The
+ *  opening price is the settlement rule at `opens_at` with a 1% confidence bar. */
+export function openProblem(u: HermesPrice, l: Pick<LadderAccount, "feedId" | "opensAt">): string | null {
+  return settlementProblem(u, { feedId: l.feedId, settlesAt: l.opensAt, stepBps: OPEN_CONF_STEP_BPS, p0Expo: u.price.expo });
+}
+
+/**
+ * Is `u` proof that this opened market can never settle? It must be THE
+ * update for the close (the first at or after it) and fail the settlement
+ * rule anyway: late, too unsure, non-positive or on another exponent. Then
+ * `ladder_void` accepts it at once. Anything else (a wrong or missing
+ * update) proves nothing: retry, or settle.
+ */
+export function voidProof(u: HermesPrice, l: Pick<LadderAccount, "feedId" | "settlesAt" | "stepBps" | "p0Expo">): boolean {
+  if (u.id.replace(/^0x/, "").toLowerCase() !== hex(l.feedId)) return false;
+  const prev = u.metadata?.prev_publish_time;
+  if (prev === undefined) return false;
+  if (!(BigInt(prev) < l.settlesAt && l.settlesAt <= BigInt(u.price.publish_time))) return false;
+  return settlementProblem(u, l) !== null;
 }
 
 const STATUS_BYTE: Record<LadderStatus, number> = { seeding: 0, open: 1, settled: 2, void: 3 };

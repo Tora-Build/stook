@@ -39,10 +39,20 @@ pub const MINT_APPROVAL_SEED: &[u8] = b"mint_approval";
 /// Fixed-point scale of the per-unit-`b` fee accumulator.
 pub const FEE_ACC_SCALE: u128 = 1_000_000_000_000_000_000;
 
-/// How long after `settles_at` a market may wait for its settlement price
-/// before anyone can void it. Long enough for a crank outage; short enough
-/// that money is not held hostage to a feed that never printed.
-pub const VOID_GRACE_SECS: i64 = 24 * 60 * 60;
+/// A round that opened voids only on proof that it cannot settle: the one
+/// Pyth update for its close, failing the settlement rule (`ladder_void`).
+/// Without that proof it waits this long, for a close whose update can no
+/// longer be posted (a retired Wormhole guardian set) or a feed that never
+/// printed again. Until then settling is always possible and voiding is not,
+/// so a losing trader cannot race a late settle.
+pub const VOID_FALLBACK_SECS: i64 = 7 * 24 * 60 * 60;
+
+/// How long after `opens_at` a round may be opened. The opening price is the
+/// Pyth update at `opens_at`, fixed whoever opens; this bounds how stale it
+/// may be when trading starts, so a late opener cannot trade against a grid
+/// centred on a price the market has since left. A round not opened by then
+/// never will be, and voids.
+pub const OPEN_WINDOW_SECS: i64 = 5 * 60;
 
 /// The latest the settlement update may be published after `settles_at`.
 pub const SETTLE_MAX_GAP_SECS: i64 = 30;

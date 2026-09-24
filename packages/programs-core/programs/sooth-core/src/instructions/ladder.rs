@@ -13,7 +13,7 @@ use anchor_spl::token_interface::{
 use crate::error::SoothCoreError;
 use crate::math::ladder::{apply_trade, band_width, bin_for, liquidity_for_deposit, prior, tranche_pnl, Shape};
 use crate::math::{scalar_for, wad_to_amount_ceil, wad_to_amount_floor};
-use crate::oracle::{check_settlement_instant, read_price_update, read_settlement_price, OraclePolicy};
+use crate::oracle::{check_settlement_instant, read_price_update};
 use crate::state::ladder::*;
 use crate::state::{require_not_paused, ProtocolConfig, Series, PROTOCOL_CONFIG_SEED};
 
@@ -58,10 +58,6 @@ pub const ROUND_SECS: i64 = 24 * 60 * 60;
 pub const LOCK_GAP_MIN_SECS: i64 = 120;
 pub const LOCK_GAP_MAX_SECS: i64 = 60 * 60;
 
-/// How long a daily round waits for its series to learn the close before its
-/// opening, before opening without it (a close Pyth was silent across).
-pub const OPEN_LEARN_GRACE_SECS: i64 = 30 * 60;
-
 /// The earliest a round opens after it is started: enough for the keeper to
 /// post the price the grid centres on.
 pub const OPEN_DELAY_SECS: i64 = 60;
@@ -71,9 +67,9 @@ pub const OPEN_DELAY_SECS: i64 = 60;
 pub const MIN_ROUND_SECS: i64 = 15 * 60;
 pub const MAX_LEAD_SECS: i64 = 31 * 24 * 60 * 60;
 
-/// Oracle freshness at open, and the widest confidence interval accepted.
-pub const OPEN_MAX_AGE_SECS: i64 = 60;
-pub const OPEN_MAX_CONF_BPS: u16 = 100;
+/// The widest confidence interval accepted at open: 1% of the price (as a
+/// settlement step: half of 200 bps).
+pub const OPEN_CONF_STEP_BPS: u16 = 200;
 
 /// Guardian-signature floor. Devnet posts are Partial without exception (3–5
 /// signatures observed, zero Full); mainnet posts are Full. 255 is unreachable
@@ -433,8 +429,9 @@ pub struct LadderOpen<'info> {
     /// signatures and confidence are all checked in `oracle`.
     pub price_update: UncheckedAccount<'info>,
 
-    /// The round's series: its volatility sets the band width, now.
-    #[account(address = ladder.load()?.series @ SoothCoreError::LadderWrongAccount)]
+    /// The round's series: its volatility sets the band width. Opening at a
+    /// close also teaches it that close.
+    #[account(mut, address = ladder.load()?.series @ SoothCoreError::LadderWrongAccount)]
     pub series: Box<Account<'info, Series>>,
 }
 
@@ -443,23 +440,29 @@ pub fn open_handler(ctx: Context<LadderOpen>) -> Result<()> {
     let mut l = ctx.accounts.ladder.load_mut()?;
 
     require!(l.status == STATUS_SEEDING, SoothCoreError::LadderNotSeeding);
-    require!(now >= l.opens_at && now < l.locks_at, SoothCoreError::LadderBadTimes);
+    require!(now >= l.opens_at && now < l.opens_at + OPEN_WINDOW_SECS && now < l.locks_at, SoothCoreError::LadderBadTimes);
 
-    // The grid centres on the price NOW, not at creation: a market that sat in
-    // Seeding through a 3% move must not open with a centre the first trader
-    // can harvest.
-    let price = read_settlement_price(
-        &ctx.accounts.price_update.to_account_info(),
-        &OraclePolicy {
-            feed_id: l.feed_id,
-            max_age_secs: OPEN_MAX_AGE_SECS,
-            min_signatures: ORACLE_MIN_SIGNATURES,
-            max_conf_bps: OPEN_MAX_CONF_BPS,
-        },
-        now,
-    )?;
+    // The grid centres on THE price at `opens_at`, by the settlement rule: the
+    // first update at or after it, within 30 seconds, confidence under 1%.
+    // Exactly one update qualifies, so whoever opens, and whenever in the
+    // window, the round opens the same way. (Not the price at creation: a
+    // round that sat in Seeding through a 3% move must not open on a centre
+    // the first trader can harvest.)
+    let price = read_price_update(&ctx.accounts.price_update.to_account_info())?;
+    check_settlement_instant(&price, &l.feed_id, ORACLE_MIN_SIGNATURES, l.opens_at, SETTLE_MAX_GAP_SECS, OPEN_CONF_STEP_BPS)?;
     l.p0 = price.price;
     l.p0_expo = price.exponent;
+
+    // A round funded ahead opens at the previous close, and this update is
+    // that close's price: teach it to the series, as `series_observe` would.
+    {
+        let s = &mut ctx.accounts.series;
+        if let Some(i) = s.index_of(l.opens_at) {
+            if s.may_observe(i, now) {
+                let _ = s.observe(price.price, price.exponent, l.opens_at);
+            }
+        }
+    }
 
     // The band width and the opening odds, from the anchor's volatility at
     // this moment over the time left: nothing about them was read earlier,
@@ -474,15 +477,17 @@ pub fn open_handler(ctx: Context<LadderOpen>) -> Result<()> {
         // guardian rotation) cannot open, and its round refunds after the lock.
         require!(ctx.accounts.series.warmed_up(), SoothCoreError::SeriesWarmingUp);
         // Nor on a stale one: a daily round opens only once its series has
-        // taken the latest close before now (anyone may submit it; after
-        // half an hour the round opens without it), so whoever opens cannot
-        // choose to open before yesterday's move is counted.
+        // taken the latest close before now (the open above takes it itself
+        // when it opens at a close; anyone may submit any other), so nobody
+        // can open before yesterday's move is counted.
         let s = &ctx.accounts.series;
         if s.period_secs == 0 {
-            let prev = s.close_of(s.index_at_or_before(l.opens_at.max(now)));
-            require!(s.last_at >= prev || now >= prev + OPEN_LEARN_GRACE_SECS, SoothCoreError::SeriesNotCaughtUp);
+            let prev = s.close_of(s.index_at_or_before(now));
+            require!(s.last_at >= prev, SoothCoreError::SeriesNotCaughtUp);
         }
-        let (step_bps, var_bands) = math(band_width(ctx.accounts.series.var_wad, l.settles_at - now))?;
+        // Over the round's own window, not the time left when someone opened
+        // it: the width is the round's, not the opener's.
+        let (step_bps, var_bands) = math(band_width(ctx.accounts.series.var_wad, l.settles_at - l.opens_at))?;
         let var_bands_e9 = (var_bands / 1_000_000_000).max(1) as u64;
         l.step_bps = step_bps;
         l.var_bands_e9 = var_bands_e9;
@@ -1009,17 +1014,40 @@ pub struct LadderVoid<'info> {
     pub cranker: Signer<'info>,
     #[account(mut)]
     pub ladder: AccountLoader<'info, Ladder>,
+    /// CHECK: optional. For an opened round, the Pyth update that is the price
+    /// at its close, showing it cannot settle; checked below.
+    pub price_update: Option<UncheckedAccount<'info>>,
 }
 
-/// Give up on a market that cannot finish: one that never opened before its
-/// lock, or one whose settlement price never arrived within the grace period.
-/// Not a judgement call and not a privilege — both conditions are clock reads.
+/// Give up on a market that cannot finish. Not a judgement call and not a
+/// privilege:
+/// - one that was never opened, once its opening window has passed;
+/// - one that opened, on proof that it cannot settle: the one update for its
+///   close (the first at or after it) is more than 30 s late, too unsure,
+///   or on another exponent. While a valid update exists, only settling is
+///   possible, so a losing trader can never void a round that could settle;
+/// - one that opened, with no proof, `VOID_FALLBACK_SECS` after its close.
 pub fn void_handler(ctx: Context<LadderVoid>) -> Result<()> {
     let now = Clock::get()?.unix_timestamp;
     let mut l = ctx.accounts.ladder.load_mut()?;
 
-    let never_opened = l.status == STATUS_SEEDING && now >= l.locks_at;
-    let never_settled = l.status == STATUS_OPEN && now >= l.settles_at + VOID_GRACE_SECS;
+    let never_opened = l.status == STATUS_SEEDING && (now >= l.opens_at + OPEN_WINDOW_SECS || now >= l.locks_at);
+    let never_settled = l.status == STATUS_OPEN
+        && now >= l.settles_at
+        && match &ctx.accounts.price_update {
+            Some(a) => {
+                let p = read_price_update(&a.to_account_info())?;
+                require!(p.feed_id == l.feed_id, SoothCoreError::OracleWrongFeed);
+                require!(p.verification.meets(ORACLE_MIN_SIGNATURES), SoothCoreError::OracleUnderVerified);
+                // THE update for the close: nothing else proves anything.
+                require!(p.prev_publish_time < l.settles_at && l.settles_at <= p.publish_time, SoothCoreError::OracleNotTheSettlementInstant);
+                let settleable = check_settlement_instant(&p, &l.feed_id, ORACLE_MIN_SIGNATURES, l.settles_at, SETTLE_MAX_GAP_SECS, l.step_bps).is_ok()
+                    && p.exponent == l.p0_expo;
+                require!(!settleable, SoothCoreError::LadderStillSettleable);
+                true
+            }
+            None => now >= l.settles_at + VOID_FALLBACK_SECS,
+        };
     require!(never_opened || never_settled, SoothCoreError::LadderNotVoidable);
 
     // Fees go back into the pot: a void refunds what people PAID, fee included,

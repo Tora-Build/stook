@@ -40,11 +40,9 @@ export function Market() {
   if (!l || !refs) return <p className="page muted">{l === null ? "No round at this address." : "Reading the quote token…"}</p>;
 
   // A round that has not opened has no bands yet: they are set at open from
-  // the volatility then. Show the ones it would get if it opened now.
-  // No preview while the series is still learning, or once the close has
-  // passed without an opening (the round can only be voided then).
-  const openAt = BigInt(Math.max(now, Number(l.opensAt)));
-  const preview = l.status === "seeding" && l.b === 0n && series.data && series.data.varWad > 0n && openAt < l.settlesAt ? (() => { try { return stook.openingTerms(series.data.varWad, l.settlesAt, openAt); } catch { return null; } })() : null;
+  // the volatility then, over the round's window. Show the ones it would get
+  // from the volatility now. None while the series is still learning.
+  const preview = l.status === "seeding" && l.b === 0n && series.data && series.data.varWad > 0n && l.opensAt < l.settlesAt ? (() => { try { return stook.openingTerms(series.data.varWad, l.settlesAt, l.opensAt); } catch { return null; } })() : null;
   const shown: stook.LadderAccount = preview ? { ...l, curve: preview.curve, stepBps: preview.stepBps } : l;
   const feed = feedByHex(feedHex(l.feedId));
   const coin = coinByMint(l.quoteMint);
@@ -58,11 +56,12 @@ export function Market() {
   const sel = mine.find((r) => r.pubkey.toBase58() === selected) ?? null;
   const setHeightAndShape = (h: number) => { setHeight(h); if (shape && shape.h > 1) setShape(stook.tent((shape.lo + shape.hi) / 2, h)); };
   const livePrice = live.data && live.data.price > 0n ? Number(live.data.price) * 10 ** live.data.expo : null;
-  // After the close the keeper settles within seconds. If it has not after a
-  // few minutes, the price it needs probably never printed within 30 s of the
-  // close, and the round is waiting out the day before it can be voided.
+  // After the close the keeper settles within seconds, or, if the close's
+  // price cannot settle it, voids it with that price as proof. If neither has
+  // happened after a few minutes, the round waits; with no price to show at
+  // all, it can be voided a week after the close.
   const waiting = l.status === "open" && now > Number(l.settlesAt) + 300;
-  const stateText = l.status === "seeding" ? (step === "void" ? "never opened" : now < Number(l.opensAt) ? `funded · opens in ${untilText(l.opensAt, now)}` : "opening") : l.status === "open" ? (now < Number(l.locksAt) ? `trading · locks in ${untilText(l.locksAt, now)}` : waiting ? (step === "void" ? "no settlement price · can be voided" : `waiting for the settlement price · void possible in ${untilText(l.settlesAt + 86_400n, now)}`) : now >= Number(l.settlesAt) ? "the bell is ringing" : `locked · bell in ${untilText(l.settlesAt, now)}`) : l.status === "settled" ? `landed in band ${l.settledBin}` : "void";
+  const stateText = l.status === "seeding" ? (step === "void" ? "never opened" : now < Number(l.opensAt) ? `funded · opens in ${untilText(l.opensAt, now)}` : "opening") : l.status === "open" ? (now < Number(l.locksAt) ? `trading · locks in ${untilText(l.locksAt, now)}` : waiting ? (step === "void" ? "no settlement price · can be voided" : `waiting for the settlement price · void possible in ${untilText(l.settlesAt + stook.VOID_FALLBACK_SECS, now)}`) : now >= Number(l.settlesAt) ? "the bell is ringing" : `locked · bell in ${untilText(l.settlesAt, now)}`) : l.status === "settled" ? `landed in band ${l.settledBin}` : "void";
 
   return (
     <div className="page market">

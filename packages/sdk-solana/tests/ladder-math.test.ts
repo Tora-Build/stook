@@ -137,9 +137,12 @@ describe("ladder sdk", () => {
     expect(at("seeding", 99n)).toBe(null);
     expect(at("seeding", 100n)).toBe("open");
     expect(at("seeding", 200n)).toBe("void");       // never opened before its lock
+    expect(L.nextStep({ opensAt: 100n, locksAt: 10_000n, settlesAt: 20_000n, status: "seeding" }, 399n)).toBe("open");
+    expect(L.nextStep({ opensAt: 100n, locksAt: 10_000n, settlesAt: 20_000n, status: "seeding" }, 400n)).toBe("void"); // its opening window passed
     expect(at("open", 299n)).toBe(null);
-    expect(at("open", 300n)).toBe("settle");
-    expect(at("open", 300n + 86_400n)).toBe("void"); // the price never came
+    expect(at("open", 300n)).toBe("settle");                    // or a void with proof: the keeper decides
+    expect(at("open", 300n + 86_400n)).toBe("settle");          // no longer a race: a day late still settles
+    expect(at("open", 300n + 7n * 86_400n)).toBe("void");       // no update to show at all
     expect(at("settled", 10n ** 9n)).toBe(null);
     expect(at("void", 10n ** 9n)).toBe(null);
   });
@@ -161,10 +164,20 @@ describe("ladder sdk", () => {
     expect(L.settlementProblem(u(1_000, 999, "5000", -8), l)).toMatch(/exponent/);
     expect(L.settlementProblem(u(1_000, 999, "5000", -5, "00".repeat(32)), l)).toBe("wrong feed");
 
-    expect(L.openProblem(u(1_000, 999), l, 1_060n)).toBe(null);
-    expect(L.openProblem(u(1_000, 999), l, 1_061n)).toMatch(/old/);
-    expect(L.openProblem(u(1_000, 999), l, 999n)).toMatch(/old/);               // from the future: a clock disagreement
-    expect(L.openProblem(u(1_000, 999, "224601"), l, 1_010n)).toMatch(/1%/);
+    // Opening takes the same rule at opens_at, with a 1% confidence bar.
+    const o = { feedId, opensAt: 1_000n };
+    expect(L.openProblem(u(1_000, 999), o)).toBe(null);
+    expect(L.openProblem(u(1_000, 1_000), o)).toMatch(/first update/);
+    expect(L.openProblem(u(1_031, 999), o)).toMatch(/silent/);
+    expect(L.openProblem(u(1_000, 999, "224601"), o)).toMatch(/half a bin/);      // 1% of price, +1
+    expect(L.openProblem(u(1_000, 999, "224600", -8), o)).toBe(null);             // any exponent: it sets p0's
+
+    // A void's proof: THE update for the close, and it cannot settle.
+    expect(L.voidProof(u(1_031, 999), l)).toBe(true);
+    expect(L.voidProof(u(1_000, 999, "112301"), l)).toBe(true);
+    expect(L.voidProof(u(1_000, 999), l)).toBe(false);                            // it settles
+    expect(L.voidProof(u(1_031, 1_030), l)).toBe(false);                          // not the first at or after
+    expect(L.voidProof(u(1_031, undefined), l)).toBe(false);
   });
 
   it("filters program accounts down to ladders in one state", () => {

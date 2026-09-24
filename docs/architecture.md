@@ -101,13 +101,18 @@ bounty. Which price settles is fixed by the oracle rule, not by who posts it,
 so the bounty buys liveness without buying discretion. See
 `docs/design-review/svm-review-2026-09-22.md` for the reviews that led here.
 
-A round that never opened can be voided from its lock; one that opened, from
-24 hours after its close with no settlement. Until then a losing trader has no
-way to prefer a void. After it, settlement has no deadline and both paths are
-permissionless, so whichever lands first decides, and a void refunds cost, so
-losers prefer it. That race needs a full day in which nobody (the keeper,
-a winner, a bounty hunter) settled; it moves value between holders and never
-touches solvency.
+A round that never opened can be voided once its five-minute opening window
+has passed. One that opened can be voided only on proof that it cannot
+settle: the one Pyth update for its close (the first at or after it), which
+fails the settlement rule (more than 30 s late, confidence over half a band,
+or on another exponent). While a valid update for the close exists, the
+program refuses the void (`LadderStillSettleable`) and only a settle can end
+the round, so a losing trader can never void a round that could settle, however
+late it is settled; settlement has no deadline. The keeper posts that proof
+as soon as it sees the close cannot settle. With no update to show at all (a
+feed that never printed again, or a close whose update was signed by a
+retired Wormhole guardian set and can no longer be posted) a void waits
+`VOID_FALLBACK_SECS`, a week.
 
 The protocol's fee share can only be swept from a settled market (there is no
 creator share). While it runs, `fees_protocol` *is* the bounty, and a void
@@ -212,14 +217,20 @@ peak.
 twenty-fourth of that before it (an hour for a daily round). It can be funded
 up to a month ahead.
 
-**Bands are set at open, not when a day is funded.** `ladder_open`, which the
-keeper calls at the round's opening second with the Pyth price (and anyone
-may call), reads the series' volatility at that moment and the time left, and
-sets the band width (`sigma_window / 4`, clamped to 20..2000 basis points),
-the opening bell (its width stored as `var_bands_e9`) and the pool's depth
-from every deposit made so far. It waits for the series to have taken the
-latest close before the moment it opens (anyone may submit it), or for 30
-minutes past that close, so an opener cannot choose to open before
+**Bands are set at open, not when a day is funded.** `ladder_open` (the
+keeper calls it; anyone may) centres the grid on THE price at `opens_at`,
+by the settlement rule: the first Pyth update at or after it, within 30
+seconds, confidence under 1%. It must be called within five minutes of
+`opens_at` (`OPEN_WINDOW_SECS`), or the round can only void, so nobody can open
+late onto a grid centred on a price the market has left. It reads the
+series' volatility and sets the band width over the round's own window
+(`settles_at - opens_at`, `sigma_window / 4`, clamped to 20..2000 basis
+points), the opening bell (its width stored as `var_bands_e9`) and the pool's
+depth from every deposit made so far. So whoever opens, and whenever in the
+window, the round opens identically. A round funded ahead opens at the
+previous close, and its opening price is that close's price: the open
+teaches it to the series itself. Any earlier close must already be learned
+(`SeriesNotCaughtUp`; anyone may submit one), so nobody can open before
 yesterday's move is counted.
 A deposit made before open records only its size; its own depth and the odds it joined at are
 recomputed from its size and the stored bell whenever it is paid
@@ -384,18 +395,18 @@ Ranked by the audits (`design-review/audit-round-*`):
 - **The freeze authority is not read.** A classic mint whose issuer can
   freeze the vault is classed Open while an equivalent Pausable mint needs
   approval. Harmless for the devnet mock; USDC on mainnet has one.
-- **Opener discretion.** Any update up to 60 s old (or 10 s ahead of the
-  cluster clock) opens a round, at any time from `opens_at` to the lock, so
-  the opener picks the centre from about a minute of prints, and a late
-  opener the moment. The keeper opens at `opens_at`. Open could use the
-  settlement rule at `opens_at` (`prev < opens_at ≤ publish`) instead.
+- **Opening late within the window.** The opening price and bands are fixed,
+  but whoever opens up to five minutes after `opens_at` can trade at once
+  against a grid centred on a price up to five minutes old. About a quarter
+  of a band at one sigma over five minutes, under the 2% fee; the keeper opens
+  within seconds.
 - **Pause is a trusted power.** The authority can unpause, trade and pause
   again in one transaction, trading while nobody else can. Settlement and
   every payout ignore the pause, so it cannot hold or take funds.
-- **The void race after the grace.** Once a round has gone 24 hours past its
-  close unsettled, a void and a late settle race (see *Who finishes a
-  market*). Redundant settlers and an alert on a round unsettled an hour
-  after its close keep it from arising.
+- **The week-long fallback void.** A round whose close has no postable
+  update at all can be voided without proof a week after its close, even if
+  a settle would have been possible before that. Only an outage of every
+  settler for a week reaches it.
 - **Unscheduled exchange closures.** The weekday clock skips the NYSE's
   scheduled holidays, but a closure announced at short notice (a national
   day of mourning) cannot be known in advance. A stock anchor's feed trades

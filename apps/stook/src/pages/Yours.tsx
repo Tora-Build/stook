@@ -20,7 +20,7 @@ type Stage = "funded" | "opening" | "void soon" | "trading" | "locked" | "settli
 
 const stageOf = (l: stook.LadderAccount, now: number): Stage =>
   l.status === "settled" ? "settled" : l.status === "void" ? "void"
-    : l.status === "seeding" ? (now < Number(l.opensAt) ? "funded" : now < Number(l.locksAt) ? "opening" : "void soon")
+    : l.status === "seeding" ? (now < Number(l.opensAt) ? "funded" : now < Number(l.opensAt) + Number(stook.OPEN_WINDOW_SECS) && now < Number(l.locksAt) ? "opening" : "void soon")
     : now < Number(l.locksAt) ? "trading" : now < Number(l.settlesAt) ? "locked" : "settling";
 
 interface Line { key: string; what: string; size: bigint; cost: bigint; value: bigint | null; kind: "line" | "house"; note?: string }

@@ -333,19 +333,19 @@ export function pendingObservations(s: SeriesAccount, now: bigint, max = 40, set
 /** A warmed-up series may pass over closes this old, whose updates may no
  *  longer be postable (`Series::may_observe`); otherwise every close is taken. */
 export const SKIP_AFTER_SECS = 7n * 86_400n;
-/** How long a daily round waits for its series to learn the close before its opening. */
-export const OPEN_LEARN_GRACE_SECS = 30n * 60n;
 
 /**
  * Why `ladder_open` would refuse this round now for its series' sake, or null:
  * the series has not warmed up, or (daily) has not yet taken the latest close
- * at or before now (or the opening) and that close is under half an hour old.
+ * before now, other than the one the round opens at (the open takes that).
  */
 export function openBlocker(s: SeriesAccount, opensAt: bigint, now: bigint): string | null {
   if (!warmedUp(s)) return `series warming up (${s.observations}/${WARMUP_OBSERVATIONS} closes)`;
   if (s.periodSecs === 0) {
-    const prev = closeOf(s, indexAtOrBefore(s, opensAt > now ? opensAt : now));
-    if (s.lastAt < prev && now < prev + OPEN_LEARN_GRACE_SECS) return "series has not learned the last close yet";
+    // The open teaches the series the close it opens at; any earlier one
+    // must be taken first.
+    const prev = closeOf(s, indexAtOrBefore(s, now));
+    if (s.lastAt < prev && prev !== opensAt) return "series has not learned the last close yet";
   }
   return null;
 }

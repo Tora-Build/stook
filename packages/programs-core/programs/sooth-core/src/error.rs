@@ -97,4 +97,6 @@ pub enum SoothCoreError {
     SeriesOutOfOrder,
     #[msg("The series has not yet learned the latest close before this round opens; it will within minutes")]
     SeriesNotCaughtUp,
+    #[msg("This round can still settle: its close has a valid Pyth update")]
+    LadderStillSettleable,
 }
