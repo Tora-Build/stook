@@ -6,6 +6,7 @@ import { Link } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { COINS, type Coin } from "../lib/coins";
 import { useNow } from "../hooks/useNow";
+import { fmtUsd, useUsdRates } from "../lib/usd";
 
 const DATA = "";
 
@@ -39,15 +40,20 @@ export function Floor() {
 
 function Table({ coin, q }: { coin: Coin; q?: { price: number; change24h: number | null } }) {
   const a = coin.anchor;
+  const rate = useUsdRates().data?.[coin.symbol];
   return (
     <Link to={`/c/${coin.symbol}`} className="post" title={`${coin.name} · rounds on ${coin.anchor.name}`}>
       <div className="table">
         <div className="screen" data-coin={coin.symbol}>
           <div className="logos logos-anchor-first"><img src={a.logo} alt="" className="logo-coin" /><img src={coin.logo} alt="" className="logo-anchor" /></div>
+          {/* The coin is the table's name; what it plays is the anchor, whose
+              price is the big number, labelled so it is never read as the
+              coin's. The coin's own price sits underneath. */}
           <div className="coin">${coin.symbol}</div>
-          <div className="anchor">{a.name}{a.name !== a.symbol && <> · {a.symbol}</>}</div>
-          <div className="price">{q ? `$${q.price.toLocaleString("en-US", { minimumFractionDigits: a.dp, maximumFractionDigits: a.dp })}` : "…"}</div>
+          <div className="anchor">plays {a.name}</div>
+          <div className="price"><span className="price-k">{a.symbol}</span>{q ? `$${q.price.toLocaleString("en-US", { minimumFractionDigits: a.dp, maximumFractionDigits: a.dp })}` : "…"}</div>
           <div className={`chg ${typeof q?.change24h === "number" ? (q.change24h >= 0 ? "up" : "down") : ""}`}>{typeof q?.change24h === "number" ? `${q.change24h >= 0 ? "+" : ""}${q.change24h.toFixed(2)}% 24h` : ""}</div>
+          {rate !== undefined && <div className="coinpx">1 ${coin.symbol} = {fmtUsd(rate)}</div>}
         </div>
       </div>
     </Link>

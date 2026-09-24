@@ -602,7 +602,12 @@ button.tour-skip:hover { color: var(--cream); }
 /* ── the closing bell in the round's status ──────────────────────────────────── */
 .status { display: inline-flex; align-items: center; gap: .5rem; }
 .bell { flex: none; filter: drop-shadow(1px 1px 0 rgba(0, 0, 0, .45)); }
-.bell-body { transform-origin: 7px 1px; transform-box: view-box; }
+.bell-body { transform-origin: 10px 1px; transform-box: view-box; }
 .bell-ringing .bell-body { animation: bell-swing .5s ease-in-out infinite alternate; }
-@keyframes bell-swing { from { transform: rotate(-18deg); } to { transform: rotate(18deg); } }
+@keyframes bell-swing { from { transform: rotate(-16deg); } to { transform: rotate(16deg); } }
+.status .bell { margin: -.3rem 0; }
 @media (prefers-reduced-motion: reduce) { .bell-ringing .bell-body { animation: none; } }
+
+.screen .price { display: flex; align-items: baseline; gap: .4rem; }
+.screen .price-k { font-family: var(--px); font-size: .42rem; color: #c9bfa4; text-shadow: none; }
+.screen .coinpx { font-family: var(--mono); font-size: .68rem; color: var(--taxi); margin-top: .45rem; white-space: nowrap; opacity: .9; }
