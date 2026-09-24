@@ -78,8 +78,13 @@ export function TodayDesk(p: Props) {
   return (
     <section className="desk">
       <div className={`desk-today ${live ? "desk-live" : ""}`}>
-        {/* today's round on the watch: where the hand is in its day */}
-        <div className="desk-watch"><PocketWatch opensAt={l ? Number(l.opensAt) : closes - 86_400} locksAt={l ? Number(l.locksAt) : closes - 3_600} settlesAt={closes} now={p.now} scale={2} label="Today's round on a watch: green is trading, amber is locked, the bell at twelve" /></div>
+        {/* New York's time, live, with today's round on the dial */}
+        <div className="desk-watch">
+          <PocketWatch opensAt={l ? Number(l.opensAt) : closes - 86_400} locksAt={l ? Number(l.locksAt) : closes - 3_600} settlesAt={closes} now={p.now} size={150} when={(t) => nyWhen(t, { weekday: "short", hour: "numeric", minute: "2-digit" })} />
+          <div className="desk-clock mono">{nyWhen(p.now, { hour: "numeric", minute: "2-digit", second: "2-digit" })} <span>New York</span></div>
+          <div className="desk-key"><span className="k-trade">trading</span><span className="k-lock">locked</span><span className="k-bell">bell</span></div>
+        </div>
+        <div className="desk-main">
         <div className="desk-kicker">{live && <Bell ringing={p.now >= closes} />}<span>{kicker}</span></div>
         <div className="desk-title">{title}</div>
         <div className="desk-when">closes {nyWhen(stook.closeOf(p.series, today), { weekday: "long", hour: "numeric", minute: "2-digit" })} New York · rings in {untilText(BigInt(closes), p.now)}</div>
@@ -89,6 +94,7 @@ export function TodayDesk(p: Props) {
         </div>}
         {line && <p className="desk-line">{line}</p>}
         {cta && (cta.to ? <Link className="desk-cta" to={cta.to}>{cta.label} ›</Link> : <button className="desk-cta" onClick={() => p.onStart(cta!.start!)}>{cta.label} ›</button>)}
+        </div>
       </div>
 
       <div className="desk-next">

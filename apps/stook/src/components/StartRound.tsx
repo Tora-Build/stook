@@ -68,7 +68,7 @@ export function StartRound({ coin, seriesKey, series, index, onClose }: { coin: 
         {standInNote(coin) && <p className="warn">{standInNote(coin)}</p>}
 
         <div className="ts-clock">
-          <PocketWatch opensAt={Number(terms.opensAt)} locksAt={Number(terms.locksAt)} settlesAt={settlesAt} now={Math.floor(Date.now() / 1000)} scale={3} label={`Opens ${opens}, trading until ${locks}, the bell at 4 PM New York`} />
+          <PocketWatch opensAt={Number(terms.opensAt)} locksAt={Number(terms.locksAt)} settlesAt={settlesAt} size={150} when={(t) => nyWhen(t, { weekday: "short", hour: "numeric", minute: "2-digit" })} />
           <ol className="ts-legend" aria-label="The round's day">
             {stops.map((st) => <li key={st.k} className={`ts-stop ts-${st.k}`}>
               <span className="ts-dot">{st.k === "bell" ? <Bell scale={1} /> : null}</span>

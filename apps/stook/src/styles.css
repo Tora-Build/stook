@@ -635,7 +635,8 @@ button.tour-skip:hover { color: var(--cream); }
 .fee-chip { font-family: var(--px); font-size: .4rem; color: var(--cream-2); border: 2px solid var(--line); padding: .3rem .45rem; align-self: center; }
 .desk { display: grid; grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr); gap: 1.25rem; margin: .5rem 0 2rem; }
 @media (max-width: 760px) { .desk { grid-template-columns: 1fr; } }
-.desk-today { position: relative; background: var(--sky-2); border: 3px solid var(--cream); box-shadow: 8px 8px 0 var(--brick-2); padding: 1.1rem 1.25rem 1.25rem; display: flex; flex-direction: column; gap: .45rem; }
+.desk-today { position: relative; background: var(--sky-2); border: 3px solid var(--cream); box-shadow: 8px 8px 0 var(--brick-2); padding: 1.1rem 1.25rem 1.25rem; display: flex; gap: 1.4rem; align-items: center; }
+.desk-main { display: flex; flex-direction: column; gap: .45rem; min-width: 0; flex: 1; }
 .desk-live { border-color: var(--taxi); background: linear-gradient(180deg, rgba(15, 122, 77, .22), transparent 55%), var(--sky-2); }
 .desk-kicker { display: flex; align-items: center; gap: .5rem; font-family: var(--px); font-size: .5rem; color: var(--taxi); letter-spacing: .04em; }
 .desk-live .desk-kicker span { color: #5ef0a0; }
@@ -691,18 +692,27 @@ button.tour-skip:hover { color: var(--cream); }
 
 /* the house ticket's pocket watch: one lap is the round, the legend beside it */
 .ts-clock { display: flex; align-items: center; gap: 1.1rem; }
-.pocket-watch { flex: none; filter: drop-shadow(4px 4px 0 var(--brick-2)); image-rendering: pixelated; }
 .ts-legend { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: .55rem; }
 .ts-legend .ts-stop { display: grid; grid-template-columns: 22px auto; grid-template-rows: auto auto; column-gap: .55rem; align-items: center; text-align: left; }
 .ts-legend .ts-dot { grid-row: 1 / 3; width: 14px; height: 14px; border: 2px solid var(--cream); background: var(--sky-2); }
 .ts-legend .ts-now .ts-dot { background: #d8d1bd; }
-.ts-legend .ts-open .ts-dot { background: #2fb36f; }
+.ts-legend .ts-open .ts-dot { background: #1f9d5c; }
 .ts-legend .ts-lock .ts-dot { background: #f0a83a; }
 .ts-legend .ts-bell .ts-dot { border: 0; background: none; width: 18px; height: 18px; margin: 0; }
 .ts-legend .ts-when { margin: 0; }
-@media (max-width: 420px) { .ts-clock { gap: .7rem; } .pocket-watch { width: 96px; height: auto; } }
 .ts-clock { padding-top: .3rem; }
 
-.desk-watch { position: absolute; top: 1rem; right: 1.2rem; }
-.desk-today > :not(.desk-watch) { max-width: calc(100% - 100px); }
-@media (max-width: 520px) { .desk-watch { top: .8rem; right: .8rem; } .desk-watch .pocket-watch { width: 60px; height: auto; } .desk-today > :not(.desk-watch) { max-width: calc(100% - 64px); } .desk-today > .desk-line, .desk-today > .desk-cta { max-width: none; } }
+
+/* the pocket watch: a 24-hour New York dial with the round's hours on it */
+.pocket-watch { flex: none; display: block; }
+.pocket-watch .pw-num { font-family: var(--px); font-size: 13px; fill: #2a2419; }
+.pocket-watch .pw-ny { font-family: var(--px); font-size: 8px; fill: #8d8670; }
+.pocket-watch path, .pocket-watch rect, .pocket-watch g { cursor: help; }
+.desk-watch { display: flex; flex-direction: column; align-items: center; gap: .35rem; flex: none; }
+.desk-clock { font-size: 1rem; color: var(--cream); }
+.desk-clock span { font-family: var(--px); font-size: .38rem; color: var(--cream-3); }
+.desk-key { display: flex; gap: .6rem; font-size: .7rem; color: var(--cream-2); }
+.desk-key span::before { content: ""; display: inline-block; width: 9px; height: 9px; margin-right: .3rem; border: 2px solid var(--cream); vertical-align: -1px; }
+.desk-key .k-trade::before { background: #1f9d5c; } .desk-key .k-lock::before { background: #f0a83a; } .desk-key .k-bell::before { background: #a8412f; }
+@media (max-width: 600px) { .desk-today { flex-direction: column; align-items: stretch; } .desk-watch { align-self: center; } }
+@media (max-width: 420px) { .ts-clock { flex-direction: column; } }
