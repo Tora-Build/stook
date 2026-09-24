@@ -8,6 +8,8 @@ import { Chart, type DrawMode } from "../components/Chart";
 import { Ticket } from "../components/Ticket";
 import { Address } from "../components/Address";
 import { Tour, tourSeen, type TourStop } from "../components/Tour";
+import { Usd, useUsdPerCoin } from "../lib/usd";
+import { Bell } from "../components/Bell";
 import { useLadder, useLivePrice, useMint, usePositions, useRefs, useSend, useSeries, useTranches } from "../hooks/useChain";
 import { useNow } from "../hooks/useNow";
 import { feedByHex, feedHex } from "../lib/feeds";
@@ -37,6 +39,8 @@ export function Market() {
   const tranches = useTranches(key, true);
   const voidIt = useSend("Void");
   const series = useSeries(l?.series ?? null);
+  // Dollars per whole coin, for the dollar value beside every amount.
+  const usd = useUsdPerCoin(l?.quoteMint, mint.data?.decimals === 6 ? "USDC" : undefined);
 
   const loaded = !!ladder.data && !!refs;
   useEffect(() => { if (loaded && !tourSeen()) setTouring(true); }, [loaded]);
@@ -81,8 +85,8 @@ export function Market() {
           </div>
         </div>
         <div className="strip-num"><span className="strip-k">price</span><span className="mono strip-v">{livePrice !== null ? `$${fmtPrice(BigInt(Math.round(livePrice / 10 ** live.data!.expo)), live.data!.expo, feed.dp)}` : "…"}</span></div>
-        <div className="strip-num"><span className="strip-k">pool</span><span className="mono strip-v">{fmtAmount(l.depositTotal, l.decimals, 0)} <span className="muted">{quoteSymbol}</span></span></div>
-        <div className={`status status-${l.status}`} data-tour="clock">{stateText}</div>
+        <div className="strip-num"><span className="strip-k">pool</span><span className="mono strip-v">{fmtAmount(l.depositTotal, l.decimals, 0)} <span className="muted">{quoteSymbol}</span></span><Usd units={l.depositTotal} decimals={l.decimals} rate={usd} className="strip-usd" /></div>
+        <div className={`status status-${l.status}`} data-tour="clock"><Bell ringing={l.status === "open" && now >= Number(l.settlesAt)} rung={l.status === "settled"} />{stateText}</div>
         <button className="tour-btn" onClick={() => setTouring(true)} aria-label="Open the floor guide">? Guide</button>
       </header>
       <Tour open={touring} onClose={() => setTouring(false)} stops={tourStops(feed.name, quoteSymbol)} />
@@ -98,7 +102,7 @@ export function Market() {
           selected={selected} onSelect={setSelected}
         />
         <Ticket refs={refs} ladder={shown} shape={shape} selected={sel} onSelect={(r) => { setSelected(r.pubkey.toBase58()); setShape(r.position.shape); }} onDeselect={() => { setSelected(null); setShape(null); }} mode={mode} setMode={setMode} height={height} setHeight={setHeightAndShape}
-          symbol={feed.symbol} coinSymbol={coin?.symbol} dp={feed.dp} quoteSymbol={quoteSymbol} tradeable={tradeable} final={final} positions={mine} tranches={tranches.data ?? []} transferFee={mint.data?.report.transferFee} now={now} />
+          symbol={feed.symbol} coinSymbol={coin?.symbol} dp={feed.dp} quoteSymbol={quoteSymbol} tradeable={tradeable} final={final} positions={mine} tranches={tranches.data ?? []} transferFee={mint.data?.report.transferFee} now={now} usd={usd} />
       </div>
       {step === "void" && publicKey && <p className="hint"><button className="link" onClick={() => voidIt.mutate([stook.voidLadderIx(refs, publicKey)])} disabled={voidIt.isPending}>This round cannot finish. Void it: deposits come back first, open lines share the rest</button></p>}
     </div>

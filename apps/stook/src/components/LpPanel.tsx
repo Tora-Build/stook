@@ -4,19 +4,22 @@ import { stook } from "@sooth/sdk-solana";
 import { fmtAmount, parseAmount, short as shortKey } from "../lib/format";
 import { ataOf, ensureAta } from "../lib/chain";
 import { useBalance, useSend, useTranches } from "../hooks/useChain";
+import { Usd, fmtUsd, fromUsd, toUsd } from "../lib/usd";
 
-interface Props { refs: stook.LadderRefs; ladder: stook.LadderAccount; quoteSymbol: string; now: number; transferFee?: stook.TransferFee; bare?: boolean }
+interface Props { refs: stook.LadderRefs; ladder: stook.LadderAccount; quoteSymbol: string; now: number; transferFee?: stook.TransferFee; bare?: boolean; usd?: number | null }
 
 export function LpPanel(p: Props) {
   const { publicKey } = useWallet();
   const [text, setText] = useState("100");
+  const [inUsd, setInUsd] = useState(false);
+  const rate = p.usd ?? null;
   const join = useSend("Liquidity added");
   const claim = useSend("Claimed");
   const mine = useTranches(p.refs.ladder, true);
   const dec = p.ladder.decimals;
   const l = p.ladder;
 
-  const deposit = parseAmount(text, dec);
+  const deposit = inUsd && rate ? fromUsd(Number(text.replace(/,/g, "")) || 0, dec, rate) : parseAmount(text, dec);
   // Before it opens a round has no depth yet: deposits are recorded by size,
   // and the depth they buy is set at open from the day's volatility.
   const seeding = l.status === "seeding" && l.b === 0n;
@@ -54,15 +57,26 @@ export function LpPanel(p: Props) {
     <Wrap className={p.bare ? "" : "panel"}>
       {!p.bare && <h3>Provide liquidity</h3>}
       <p className="explain">
-        The pool takes the other side of every trade. {seeding ? <><span className="mono">{fmtAmount(l.depositTotal, dec)}</span> {p.quoteSymbol} is in it so far; its depth is set when the round opens.</> : <><span className="mono">{fmtAmount(l.depositTotal, dec)}</span> {p.quoteSymbol} in it gives depth <span className="mono">{fmtAmount(l.b / 10n ** 12n, 6, 0)}</span>.</>}
+        The pool takes the other side of every trade. {seeding ? <><span className="mono">{fmtAmount(l.depositTotal, dec)}</span> {p.quoteSymbol} <Usd units={l.depositTotal} decimals={dec} rate={rate} /> is in it so far; its depth is set when the round opens.</> : <><span className="mono">{fmtAmount(l.depositTotal, dec)}</span> {p.quoteSymbol} <Usd units={l.depositTotal} decimals={dec} rate={rate} /> in it gives depth <span className="mono">{fmtAmount(l.b / 10n ** 12n, 6, 0)}</span>.</>}
         Deposit and you are the house: the pool keeps 90% of every trade's fee from now on ({(l.feeBps / 100).toFixed(0)}%, rising to 5% over the last six hours), shared by depth, and pays when traders were right.
       </p>
       {joinable && (
         <>
-          <label className="field">
-            <span>Deposit</span>
-            <input value={text} onChange={(e) => setText(e.target.value)} inputMode="decimal" />
-          </label>
+          <div className="field">
+            <div className="amount-head">
+              <span>Deposit</span>
+              <div className="seg seg-sm" role="group" aria-label="Enter the deposit in">
+                <button className={!inUsd ? "on" : ""} onClick={() => setInUsd(false)}>{p.quoteSymbol}</button>
+                {rate !== null && <button className={inUsd ? "on" : ""} onClick={() => setInUsd(true)}>USD</button>}
+              </div>
+            </div>
+            <div className={`amount-input ${inUsd ? "amount-usd" : ""}`}>
+              {inUsd && <span className="amount-sign">$</span>}
+              <input value={text} onChange={(e) => setText(e.target.value)} inputMode="decimal" aria-label={inUsd ? "Deposit in dollars" : `Deposit in ${p.quoteSymbol}`} />
+              {!inUsd && <span className="amount-unit">{p.quoteSymbol}</span>}
+            </div>
+            <span className="hint">{inUsd && deposit ? <>{fmtAmount(deposit, dec)} {p.quoteSymbol} · </> : !inUsd && deposit && rate !== null ? <>{fmtUsd(toUsd(deposit, dec, rate))} · </> : null}balance {balance.data !== undefined ? <>{fmtAmount(balance.data, dec)} {p.quoteSymbol}</> : "…"}</span>
+          </div>
           {depth && (
             <dl className="quote">
               {seeding ? <>
@@ -72,13 +86,13 @@ export function LpPanel(p: Props) {
                 <div><dt>adds depth</dt><dd className="mono">{fmtAmount(depth / 10n ** 12n, 6, 1)}</dd></div>
                 <div><dt>your share of fees from now</dt><dd className="mono">{(Number(depth) / (Number(l.b) + Number(depth)) * 100).toFixed(1)}%</dd></div>
               </>}
-              {p.transferFee && <div><dt>your wallet sends</dt><dd className="mono">{fmtAmount(stook.grossFor(deposit!, p.transferFee), dec)} (incl. the token's {(p.transferFee.bps / 100).toFixed(1)}% transfer fee)</dd></div>}
+              {p.transferFee && <div><dt>your wallet sends</dt><dd className="mono">{fmtAmount(stook.grossFor(deposit!, p.transferFee), dec)} <Usd units={stook.grossFor(deposit!, p.transferFee)} decimals={dec} rate={rate} /> (incl. the token's {(p.transferFee.bps / 100).toFixed(1)}% transfer fee)</dd></div>}
               {!seeding && <div><dt>longest shot right now</dt><dd className="mono">1 in {worst.toFixed(0)}</dd></div>}
             </dl>
           )}
           {short && <p className="warn">You hold {fmtAmount(balance.data!, dec)} {p.quoteSymbol}; this needs {fmtAmount(gross!, dec)}. On devnet, use <b>test coins</b> in the header.</p>}
           <button className="primary" disabled={!depth || join.isPending || !publicKey || short} onClick={submit}>
-            {!publicKey ? "Connect a wallet" : join.isPending ? "Sending…" : `Deposit ${text} ${p.quoteSymbol}`}
+            {!publicKey ? "Connect a wallet" : join.isPending ? "Sending…" : `Deposit ${deposit ? fmtAmount(deposit, dec) : 0} ${p.quoteSymbol}${deposit && rate !== null ? ` · ${fmtUsd(toUsd(deposit, dec, rate))}` : ""}`}
           </button>
         </>
       )}
@@ -95,7 +109,7 @@ export function LpPanel(p: Props) {
             return (
               <li key={t.index}>
                 <span>tranche #{t.index} · {shortKey(t.owner)}</span>
-                <span className="mono">{fmtAmount(t.deposit, dec)} in · fees {fmtAmount(fees, dec)}{value !== null ? ` · worth ${fmtAmount(value, dec)}` : ""}</span>
+                <span className="mono">{fmtAmount(t.deposit, dec)} in <Usd units={t.deposit} decimals={dec} rate={rate} /> · fees {fmtAmount(fees, dec)} <Usd units={fees} decimals={dec} rate={rate} />{value !== null && <> · worth {fmtAmount(value, dec)} <Usd units={value} decimals={dec} rate={rate} /></>}</span>
                 {final && publicKey && (
                   <button className="small" disabled={claim.isPending} onClick={() => claim.mutate([ensureAta(l.quoteMint, publicKey, p.refs.tokenProgram), stook.claimLpIx(p.refs, publicKey, ataOf(l.quoteMint, publicKey, p.refs.tokenProgram), t.index)])}>
                     Claim

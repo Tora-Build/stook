@@ -41,7 +41,7 @@ export function Coin() {
     <div className="page">
       <header className="market-head">
         <div className="coin-head-row">
-          <div className="logos logos-big"><img src={coin.logo} alt={coin.symbol} className="logo-coin" /><img src={coin.anchor.logo} alt={coin.anchor.symbol} className="logo-anchor" /></div>
+          <div className="logos logos-big logos-anchor-first"><img src={coin.anchor.logo} alt={coin.anchor.symbol} className="logo-coin" /><img src={coin.logo} alt={coin.symbol} className="logo-anchor" /></div>
           <div>
           <span className="sign">${coin.symbol} · {coin.name.toUpperCase()}</span>
           <h1>{coin.anchor.name} <span className="sym">{coin.anchor.symbol}</span></h1>

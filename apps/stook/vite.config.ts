@@ -8,5 +8,6 @@ export default defineConfig({
   resolve: { alias: { buffer: "buffer/" } },
   define: { "process.env.NODE_ENV": JSON.stringify(process.env.NODE_ENV ?? "development"), global: "globalThis" },
   optimizeDeps: { include: ["buffer"] },
-  server: { port: 5180, strictPort: true },
+  // The data routes live in the site's Worker; in dev, read the deployed ones.
+  server: { port: 5180, strictPort: true, proxy: Object.fromEntries(["/prices", "/chart", "/usd"].map((p) => [p, { target: "https://stooks.xyz", changeOrigin: true }])) },
 });

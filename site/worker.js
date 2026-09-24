@@ -15,6 +15,25 @@ const COINS = {
 };
 const UA = { "user-agent": "Mozilla/5.0 stook-street", accept: "application/json" };
 
+// Each coin's own mint on mainnet, for its dollar price (Jupiter). The app
+// shows what a trade costs and pays in dollars as well as in the coin.
+const MINTS = {
+  STOOK: "GWrd84X5QxdRPAiNUFyiBaNoVZs85oHyWHtonJdd4wqu",
+  ZCAT: "HcRLc9VDgjLeK154xDawfb1dmVJ98DoSqcwTHGqiDeJR",
+  KNOTS: "8RVBk8vxLiUHueLUW1f4izFVqN3nWippLhkohKg6EGkS",
+  GP: "HTmQz7My6MehV7bjhJ6jde8nDND1yvsz68d24LP7YgUQ",
+};
+
+/** { STOOK: dollars per coin, … } from Jupiter's price API; a coin it lacks is left out. */
+async function usdPrices() {
+  const r = await fetch(`https://lite-api.jup.ag/price/v3?ids=${Object.values(MINTS).join(",")}`, { headers: UA });
+  if (!r.ok) throw new Error(`jupiter ${r.status}`);
+  const j = await r.json();
+  const out = {};
+  for (const [sym, mint] of Object.entries(MINTS)) { const p = j?.[mint]?.usdPrice; if (typeof p === "number" && p > 0) out[sym] = p; }
+  return out;
+}
+
 const RPC = "https://solana-rpc.publicnode.com";
 
 /** A Raydium CLMM pool's spot price of token1 in token0, from sqrt_price_x64. */
@@ -95,6 +114,15 @@ export default {
       for (const k of ["res", "from"]) { const v = url.searchParams.get(k); if (v !== null) { if (!/^\d{1,12}$/.test(v)) return new Response(`bad ${k}`, { status: 400 }); q.set(k, v); } }
       const r = await fetch(`${base}/candles?${q}`);
       return new Response(r.body, { status: r.status, headers: { "content-type": "application/json", "x-content-type-options": "nosniff" } });
+    }
+    if (url.pathname === "/usd") {
+      const cache = caches.default, key = new Request(url.origin + "/usd");
+      const hit = await cache.match(key); if (hit) return hit;
+      let body, age = 60;
+      try { body = await usdPrices(); } catch (e) { body = {}; age = 10; }
+      const res = new Response(JSON.stringify(body), { headers: { "content-type": "application/json", "cache-control": `public, max-age=${age}`, "access-control-allow-origin": "*", "x-content-type-options": "nosniff" } });
+      ctx.waitUntil(cache.put(key, res.clone()));
+      return res;
     }
     if (url.pathname !== "/prices" && url.pathname !== "/chart") return env.ASSETS.fetch(request);
     const cache = caches.default;

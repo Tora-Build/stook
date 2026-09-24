@@ -12,6 +12,7 @@ import { anchorOf, isDevnet, mintOf, standInNote, type Coin } from "../lib/coins
 import { ataOf, ensureAta } from "../lib/chain";
 import { useBalance, useMint, useSend } from "../hooks/useChain";
 import { fmtAmount, parseAmount } from "../lib/format";
+import { Usd, fmtUsd, fromUsd, toUsd, useUsdRates } from "../lib/usd";
 import { nyWhen } from "../lib/time";
 
 export function StartRound({ coin, seriesKey, series, index, onClose }: { coin: Coin; seriesKey: PublicKey; series: stook.SeriesAccount; index: number; onClose: () => void }) {
@@ -22,8 +23,10 @@ export function StartRound({ coin, seriesKey, series, index, onClose }: { coin: 
   const mint = useMint(mintKey);
   const balance = useBalance(mintKey, mint.data?.tokenProgram);
   const [text, setText] = useState("1000");
+  const [inUsd, setInUsd] = useState(false);
+  const rate = useUsdRates().data?.[coin.symbol] ?? null;
   const dec = mint.data?.decimals ?? coin.decimals;
-  const seed = parseAmount(text, dec);
+  const seed = inUsd && rate ? fromUsd(Number(text.replace(/,/g, "")) || 0, dec, rate) : parseAmount(text, dec);
   const anchor = anchorOf(coin);
   // Exactly what the program will write if this lands now.
   const terms = stook.roundTerms(series, index, BigInt(Math.floor(Date.now() / 1000)));
@@ -62,13 +65,24 @@ export function StartRound({ coin, seriesKey, series, index, onClose }: { coin: 
         </dl>
         <p className="hint">Your wallet also shows about 0.026 SOL{isDevnet ? " (devnet SOL: set your wallet to devnet)" : ""}. That is account rent for the round, not a payment: 0.009 comes back when you claim your deposit, the rest when the round closes.</p>
         <p className="explain">Your seed is the house for this round. It opens on the {anchor.name} price at {opens} New York, with bands sized to how {anchor.name} is moving then and the odds of an ordinary day already priced in. The pool keeps 90% of every trade's fee: 2%, rising to 5% over the last six hours, when the sharpest trading happens. It is shared by depth with everyone who adds to it. If the close lands far from the open, the winners are paid from your seed, and it can lose all of it. Anyone can add to the same round. If it is not opened within five minutes of {opens}, or its closing price comes late or unsure, the round is void and deposits come back first.</p>
-        <label className="field"><span>Seed ({coin.symbol})</span>
-          <input value={text} onChange={(e) => setText(e.target.value)} inputMode="decimal" autoFocus />
-          <span className="hint">balance {balance.data !== undefined ? fmtAmount(balance.data, dec) : "…"}{gross && seed && gross !== seed ? ` · your wallet sends ${fmtAmount(gross, dec)} (the coin's ${coin.feeBps / 100}% transfer fee)` : ""}</span>
-        </label>
+        <div className="field">
+          <div className="amount-head">
+            <span>Seed</span>
+            <div className="seg seg-sm" role="group" aria-label="Enter the seed in">
+              <button className={!inUsd ? "on" : ""} onClick={() => setInUsd(false)}>{coin.symbol}</button>
+              {rate !== null && <button className={inUsd ? "on" : ""} onClick={() => setInUsd(true)}>USD</button>}
+            </div>
+          </div>
+          <div className={`amount-input ${inUsd ? "amount-usd" : ""}`}>
+            {inUsd && <span className="amount-sign">$</span>}
+            <input value={text} onChange={(e) => setText(e.target.value)} inputMode="decimal" autoFocus aria-label={inUsd ? "Seed in dollars" : `Seed in ${coin.symbol}`} />
+            {!inUsd && <span className="amount-unit">{coin.symbol}</span>}
+          </div>
+          <span className="hint">{inUsd && seed ? <>{fmtAmount(seed, dec)} {coin.symbol} · </> : !inUsd && seed && rate !== null ? <>{fmtUsd(toUsd(seed, dec, rate))} · </> : null}balance {balance.data !== undefined ? <>{fmtAmount(balance.data, dec)} <Usd units={balance.data} decimals={dec} rate={rate} /></> : "…"}{gross && seed && gross !== seed ? ` · your wallet sends ${fmtAmount(gross, dec)} (the coin's ${coin.feeBps / 100}% transfer fee)` : ""}</span>
+        </div>
         {balance.data !== undefined && !!seed && !!gross && balance.data < gross && <p className="warn">You hold {fmtAmount(balance.data, dec)} {coin.symbol}; this needs {fmtAmount(gross, dec)}. On devnet, use <b>test coins</b> in the header first.</p>}
         <button className="primary" disabled={!publicKey || !seed || !mint.data || send.isPending || (balance.data !== undefined && !!gross && balance.data < gross)} onClick={start}>
-          {!publicKey ? "Connect a wallet" : send.isPending ? "Funding…" : "Fund the round"}
+          {!publicKey ? "Connect a wallet" : send.isPending ? "Funding…" : `Fund the round${seed ? ` with ${fmtAmount(seed, dec)} ${coin.symbol}${rate !== null ? ` · ${fmtUsd(toUsd(seed, dec, rate))}` : ""}` : ""}`}
         </button>
         <button className="link" onClick={onClose} style={{ marginTop: ".8rem" }}>cancel</button>
       </section>

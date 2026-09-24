@@ -566,3 +566,43 @@ button.tour-skip:hover { color: var(--cream); }
 .tour-next { background: var(--taxi); color: #101a2e; box-shadow: 2px 2px 0 var(--brick-2); }
 .tour-back:focus-visible, .tour-next:focus-visible, .tour-skip:focus-visible { outline: 2px solid var(--teal); outline-offset: 2px; }
 @media (prefers-reduced-motion: reduce) { .tour-spot, .tour-card { transition: none; animation: none; } }
+
+/* ── the anchor leads: its logo big, the coin's as the badge ─────────────────── */
+.logos-anchor-first .logo-coin { background: #fff; }
+.logos-anchor-first .logo-anchor { background: #0b1120; }
+
+/* ── dollars beside coin amounts ─────────────────────────────────────────────── */
+.usd { font-family: var(--mono); font-variant-numeric: tabular-nums; color: var(--good); font-size: .85em; margin-left: .25em; opacity: .9; }
+.usd-line { display: block; font-family: var(--mono); font-variant-numeric: tabular-nums; font-size: .75em; color: var(--good); opacity: .85; }
+.strip-usd { display: block; margin: 0; font-size: .75rem; }
+.tote-usd { font-size: 1.4rem; color: var(--good); margin-bottom: .2rem; }
+
+/* ── amount entry: shares, the coin, or dollars ──────────────────────────────── */
+.amount-head { display: flex; align-items: center; justify-content: space-between; gap: .5rem; margin-bottom: .35rem; }
+.amount-head > span { font-family: var(--px); font-size: .5rem; color: var(--cream-2); }
+.seg-sm button { font-size: .4rem !important; padding: .35rem .5rem !important; }
+.amount-input { display: flex; align-items: center; background: var(--ink); border: 3px solid var(--line); }
+.amount-input:focus-within { border-color: var(--taxi); }
+.amount-input input { flex: 1; min-width: 0; border: 0 !important; outline: none; background: transparent; box-shadow: none !important; }
+.amount-sign, .amount-unit { font-family: var(--mono); color: var(--cream-2); padding: 0 .7rem; font-size: 1rem; }
+.amount-sign { padding-right: 0; color: var(--good); font-size: 1.1rem; }
+.amount-unit { font-size: .8rem; }
+
+/* ── the order slip: what you pay and what you can win, in dollars first ─────── */
+.slip { margin: .7rem 0; border: 3px solid var(--line); background: var(--ink); }
+.slip-big { display: flex; align-items: baseline; justify-content: space-between; gap: .75rem; padding: .6rem .8rem; border-bottom: 2px dashed var(--line); }
+.slip-k { font-family: var(--px); font-size: .45rem; color: var(--cream-2); }
+.slip-v { display: flex; flex-direction: column; align-items: flex-end; }
+.slip-v b { font-size: 1.35rem; font-weight: 600; color: var(--cream); line-height: 1.2; }
+.slip-win .slip-v b { color: var(--good); }
+.slip-sub { font-size: .75rem; color: var(--cream-3); }
+.slip-note { margin: 0; padding: .45rem .8rem 0; font-size: .78rem; color: var(--cream-3); }
+.slip .quote { margin: .4rem .8rem .6rem; }
+
+/* ── the closing bell in the round's status ──────────────────────────────────── */
+.status { display: inline-flex; align-items: center; gap: .5rem; }
+.bell { flex: none; filter: drop-shadow(1px 1px 0 rgba(0, 0, 0, .45)); }
+.bell-body { transform-origin: 7px 1px; transform-box: view-box; }
+.bell-ringing .bell-body { animation: bell-swing .5s ease-in-out infinite alternate; }
+@keyframes bell-swing { from { transform: rotate(-18deg); } to { transform: rotate(18deg); } }
+@media (prefers-reduced-motion: reduce) { .bell-ringing .bell-body { animation: none; } }
