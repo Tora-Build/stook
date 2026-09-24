@@ -119,6 +119,34 @@ export default {
       const r = await fetch(`${base}/candles?${q}`);
       return new Response(r.body, { status: r.status, headers: { "content-type": "application/json", "x-content-type-options": "nosniff" } });
     }
+    // /supply: $STOOK's circulating supply, for aggregators (Jupiter asks for
+    // {"circulatingSupply": number} on the team's domain). Read from chain:
+    // the mint's supply, less any wallets listed in the STOOK_EXCLUDE setting
+    // (comma-separated token accounts or owners, e.g. locked or team tokens).
+    // The mint is the STOOK_MINT setting, so neither is in the repo.
+    if (url.pathname === "/supply") {
+      const cache = caches.default, key = new Request(url.origin + "/supply");
+      const hit = await cache.match(key); if (hit) return hit;
+      if (!env.STOOK_MINT) return new Response(JSON.stringify({ error: "mint not configured" }), { status: 503, headers: { "content-type": "application/json" } });
+      // Solana's own public endpoint: publicnode now refuses token-index calls without a key.
+      const rpc = async (method, params) => (await (await fetch("https://api.mainnet-beta.solana.com", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ jsonrpc: "2.0", id: 1, method, params }) })).json()).result;
+      let body, status = 200;
+      try {
+        const sup = await rpc("getTokenSupply", [env.STOOK_MINT]);
+        let circ = Number(sup.value.uiAmountString);
+        for (const w of (env.STOOK_EXCLUDE ?? "").split(",").map((s) => s.trim()).filter(Boolean)) {
+          // a token account's balance, or every $STOOK account an owner holds
+          const acct = await rpc("getTokenAccountBalance", [w]).catch(() => null);
+          if (acct?.value) { circ -= Number(acct.value.uiAmountString); continue; }
+          const owned = await rpc("getTokenAccountsByOwner", [w, { mint: env.STOOK_MINT }, { encoding: "jsonParsed" }]);
+          for (const a of owned?.value ?? []) circ -= Number(a.account.data.parsed.info.tokenAmount.uiAmountString);
+        }
+        body = { circulatingSupply: Math.max(0, circ) };
+      } catch (e) { body = { error: "supply unavailable" }; status = 502; }
+      const res = new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json", "cache-control": `public, max-age=${status === 200 ? 300 : 30}`, "access-control-allow-origin": "*", "x-content-type-options": "nosniff" } });
+      if (status === 200) ctx.waitUntil(cache.put(key, res.clone()));
+      return res;
+    }
     // /usd: dollars per coin. /coins: the same with each coin's 24h move.
     if (url.pathname === "/usd" || url.pathname === "/coins") {
       const cache = caches.default, key = new Request(url.origin + url.pathname);
