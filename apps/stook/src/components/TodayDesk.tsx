@@ -11,6 +11,7 @@ import { fmtAmount, fmtPrice, untilText } from "../lib/format";
 import { nyWhen } from "../lib/time";
 import { Usd, useUsdRates } from "../lib/usd";
 import { Bell } from "./Bell";
+import { PocketWatch } from "./PocketWatch";
 
 interface Props {
   seriesKey: PublicKey;
@@ -77,6 +78,8 @@ export function TodayDesk(p: Props) {
   return (
     <section className="desk">
       <div className={`desk-today ${live ? "desk-live" : ""}`}>
+        {/* today's round on the watch: where the hand is in its day */}
+        <div className="desk-watch"><PocketWatch opensAt={l ? Number(l.opensAt) : closes - 86_400} locksAt={l ? Number(l.locksAt) : closes - 3_600} settlesAt={closes} now={p.now} scale={2} label="Today's round on a watch: green is trading, amber is locked, the bell at twelve" /></div>
         <div className="desk-kicker">{live && <Bell ringing={p.now >= closes} />}<span>{kicker}</span></div>
         <div className="desk-title">{title}</div>
         <div className="desk-when">closes {nyWhen(stook.closeOf(p.series, today), { weekday: "long", hour: "numeric", minute: "2-digit" })} New York · rings in {untilText(BigInt(closes), p.now)}</div>

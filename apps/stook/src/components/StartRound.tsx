@@ -14,6 +14,7 @@ import { fmtAmount, parseAmount } from "../lib/format";
 import { Usd, fmtUsd, fromUsd, toUsd, useUsdRates } from "../lib/usd";
 import { nyWhen } from "../lib/time";
 import { Bell } from "./Bell";
+import { PocketWatch } from "./PocketWatch";
 
 export function StartRound({ coin, seriesKey, series, index, onClose }: { coin: Coin; seriesKey: PublicKey; series: stook.SeriesAccount; index: number; onClose: () => void }) {
   const nav = useNavigate();
@@ -66,13 +67,16 @@ export function StartRound({ coin, seriesKey, series, index, onClose }: { coin: 
         </header>
         {standInNote(coin) && <p className="warn">{standInNote(coin)}</p>}
 
-        <ol className="ts-line" aria-label="The round's day">
-          {stops.map((st) => <li key={st.k} className={`ts-stop ts-${st.k}`}>
-            <span className="ts-dot">{st.k === "bell" ? <Bell scale={1} /> : null}</span>
-            <span className="ts-when">{st.label}</span>
-            <span className="ts-what">{st.sub}</span>
-          </li>)}
-        </ol>
+        <div className="ts-clock">
+          <PocketWatch opensAt={Number(terms.opensAt)} locksAt={Number(terms.locksAt)} settlesAt={settlesAt} now={Math.floor(Date.now() / 1000)} scale={3} label={`Opens ${opens}, trading until ${locks}, the bell at 4 PM New York`} />
+          <ol className="ts-legend" aria-label="The round's day">
+            {stops.map((st) => <li key={st.k} className={`ts-stop ts-${st.k}`}>
+              <span className="ts-dot">{st.k === "bell" ? <Bell scale={1} /> : null}</span>
+              <span className="ts-when">{st.label}</span>
+              <span className="ts-what">{st.sub}</span>
+            </li>)}
+          </ol>
+        </div>
 
         <div className="ts-terms">
           <div><b>Earn</b><span>90% of every fee, 2% rising to 5%</span></div>
