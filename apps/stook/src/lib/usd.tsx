@@ -16,6 +16,16 @@ export function useUsdRates() {
   });
 }
 
+/** Each coin's dollar price and 24h move, for the street's LED rings. */
+export function useCoinQuotes() {
+  return useQuery({
+    queryKey: ["coins"],
+    queryFn: async () => (await fetch("/coins")).json() as Promise<Record<string, { usd: number; change24h: number | null }>>,
+    refetchInterval: 60_000,
+    staleTime: 30_000,
+  });
+}
+
 /** Dollars per whole coin for a round's quote mint, or null if unknown. */
 export function useUsdPerCoin(quoteMint: PublicKey | null | undefined, quoteSymbol?: string): number | null {
   const rates = useUsdRates();

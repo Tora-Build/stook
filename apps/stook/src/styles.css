@@ -612,4 +612,19 @@ button.tour-skip:hover { color: var(--cream); }
 
 .screen .price { display: flex; align-items: baseline; gap: .4rem; }
 .screen .price-k { font-family: var(--px); font-size: .42rem; color: #c9bfa4; text-shadow: none; }
-.screen .coinpx { font-family: var(--mono); font-size: .68rem; color: var(--taxi); margin-top: .45rem; white-space: nowrap; opacity: .9; }
+
+/* ── street tables: the coin's quote on an LED band round the rim ─────────── */
+.led-ring { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; overflow: visible; }
+.led-band { fill: none; stroke: #04070d; stroke-width: 21; }
+.led-dots { fill: none; stroke: rgba(94, 240, 160, .09); stroke-width: 2.4; stroke-dasharray: .01 5.4; stroke-linecap: round; }
+.led-edge { fill: none; stroke: #232a38; stroke-width: 1; }
+.led-spin { transform-origin: 131px 131px; animation: led-spin 60s linear infinite; }
+.post:hover .led-spin { animation-play-state: paused; }
+@keyframes led-spin { to { transform: rotate(360deg); } }
+.led-ring text { font-family: var(--px); font-size: 11px; letter-spacing: .5px; }
+.led-ring .led-sub { font-size: 7px; }
+.led-coin { fill: var(--taxi); filter: drop-shadow(0 0 3px rgba(240, 168, 58, .7)); }
+.led-px, .led-up { fill: #5ef0a0; filter: drop-shadow(0 0 3px rgba(94, 240, 160, .75)); }
+.led-down { fill: #ff6a5e; filter: drop-shadow(0 0 3px rgba(255, 106, 94, .7)); }
+.led-sep { fill: transparent; }
+@media (prefers-reduced-motion: reduce) { .led-spin { animation: none; } }

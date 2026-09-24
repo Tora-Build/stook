@@ -24,13 +24,16 @@ const MINTS = {
   GP: "HTmQz7My6MehV7bjhJ6jde8nDND1yvsz68d24LP7YgUQ",
 };
 
-/** { STOOK: dollars per coin, … } from Jupiter's price API; a coin it lacks is left out. */
-async function usdPrices() {
+/** Jupiter's price API for the coins: { STOOK: { usd, change24h }, … }; a coin it lacks is left out. */
+async function coinQuotes() {
   const r = await fetch(`https://lite-api.jup.ag/price/v3?ids=${Object.values(MINTS).join(",")}`, { headers: UA });
   if (!r.ok) throw new Error(`jupiter ${r.status}`);
   const j = await r.json();
   const out = {};
-  for (const [sym, mint] of Object.entries(MINTS)) { const p = j?.[mint]?.usdPrice; if (typeof p === "number" && p > 0) out[sym] = p; }
+  for (const [sym, mint] of Object.entries(MINTS)) {
+    const q = j?.[mint], p = q?.usdPrice;
+    if (typeof p === "number" && p > 0) out[sym] = { usd: p, change24h: typeof q.priceChange24h === "number" ? q.priceChange24h : null };
+  }
   return out;
 }
 
@@ -115,11 +118,12 @@ export default {
       const r = await fetch(`${base}/candles?${q}`);
       return new Response(r.body, { status: r.status, headers: { "content-type": "application/json", "x-content-type-options": "nosniff" } });
     }
-    if (url.pathname === "/usd") {
-      const cache = caches.default, key = new Request(url.origin + "/usd");
+    // /usd: dollars per coin. /coins: the same with each coin's 24h move.
+    if (url.pathname === "/usd" || url.pathname === "/coins") {
+      const cache = caches.default, key = new Request(url.origin + url.pathname);
       const hit = await cache.match(key); if (hit) return hit;
       let body, age = 60;
-      try { body = await usdPrices(); } catch (e) { body = {}; age = 10; }
+      try { const q = await coinQuotes(); body = url.pathname === "/usd" ? Object.fromEntries(Object.entries(q).map(([k, v]) => [k, v.usd])) : q; } catch (e) { body = {}; age = 10; }
       const res = new Response(JSON.stringify(body), { headers: { "content-type": "application/json", "cache-control": `public, max-age=${age}`, "access-control-allow-origin": "*", "x-content-type-options": "nosniff" } });
       ctx.waitUntil(cache.put(key, res.clone()));
       return res;
