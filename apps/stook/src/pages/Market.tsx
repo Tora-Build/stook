@@ -86,7 +86,9 @@ export function Market() {
         </div>
         <div className="strip-num"><span className="strip-k">price</span><span className="mono strip-v">{livePrice !== null ? `$${fmtPrice(BigInt(Math.round(livePrice / 10 ** live.data!.expo)), live.data!.expo, feed.dp)}` : "…"}</span></div>
         <div className="strip-num"><span className="strip-k">pool</span><span className="mono strip-v">{fmtAmount(l.depositTotal, l.decimals, 0)} <span className="muted">{quoteSymbol}</span></span><Usd units={l.depositTotal} decimals={l.decimals} rate={usd} className="strip-usd" /></div>
-        <div className={`status status-${l.status}`} data-tour="clock"><Bell ringing={l.status === "open" && now >= Number(l.settlesAt)} rung={l.status === "settled"} />{stateText}</div>
+        <div className={`status status-${l.status}`} data-tour="clock"><Bell ringing={l.status === "open" && now >= Number(l.settlesAt)} rung={l.status === "settled"} />{l.status === "open" && now < Number(l.settlesAt)
+          ? <span className="status-lines"><span>rings in {untilText(l.settlesAt, now)}</span><span className="status-sub">{now < Number(l.locksAt) ? `trading · locks in ${untilText(l.locksAt, now)}` : "locked · no more trades"}</span></span>
+          : stateText}</div>
         <button className="tour-btn" onClick={() => setTouring(true)} aria-label="Open the floor guide">? Guide</button>
       </header>
       <Tour open={touring} onClose={() => setTouring(false)} stops={tourStops(feed.name, quoteSymbol)} />

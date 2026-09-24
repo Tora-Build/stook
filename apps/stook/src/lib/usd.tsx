@@ -32,11 +32,22 @@ export const toUsd = (units: bigint, decimals: number, rate: number): number => 
 export const fromUsd = (usd: number, decimals: number, rate: number): bigint =>
   rate > 0 && usd > 0 ? BigInt(Math.floor((usd / rate) * 10 ** decimals)) : 0n;
 
-/** "$1,234.56", "$0.42", "$0.00013" (two significant digits under a cent), "$0". */
+const SUB = "₀₁₂₃₄₅₆₇₈₉";
+/** A small number the way Jupiter and DexScreener write it: the run of zeros
+ *  after the point as a subscript count, then the first digits: 0.0000032378
+ *  is "0.0₅324". Numbers from 0.001 up are left as they are. */
+export function tiny(a: number, digits = 3): string {
+  if (a >= 0.001 || a <= 0) return a.toLocaleString("en-US", { maximumSignificantDigits: digits, maximumFractionDigits: 12 });
+  const zeros = Math.floor(-Math.log10(a)); // leading zeros after the point
+  const sig = Math.round(a * 10 ** (zeros + digits)).toString().replace(/0+$/, "") || "0";
+  return `0.0${String(zeros).split("").map((d) => SUB[+d]).join("")}${sig}`;
+}
+
+/** "$1,234.56", "$0.42", "$0.0042", "$0.0₅324" (Jupiter-style under a tenth of a cent), "$0". */
 export function fmtUsd(v: number): string {
   const a = Math.abs(v), sign = v < 0 ? "−" : "";
   if (a === 0) return "$0";
-  if (a < 1e-9) return `${sign}<$0.000000001`;
+  if (a < 0.001) return `${sign}$${tiny(a)}`;
   if (a < 0.01) return `${sign}$${a.toLocaleString("en-US", { maximumSignificantDigits: 2, maximumFractionDigits: 12 })}`;
   if (a >= 1_000_000) return `${sign}$${(a / 1_000_000).toLocaleString("en-US", { maximumFractionDigits: 2 })}M`;
   return `${sign}$${a.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
