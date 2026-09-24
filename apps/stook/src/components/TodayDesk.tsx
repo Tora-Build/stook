@@ -10,7 +10,6 @@ import { useSeriesRounds } from "../hooks/useChain";
 import { fmtAmount, fmtPrice, untilText } from "../lib/format";
 import { nyWhen } from "../lib/time";
 import { Usd, useUsdRates } from "../lib/usd";
-import { Bell } from "./Bell";
 import { PocketWatch } from "./PocketWatch";
 
 interface Props {
@@ -80,12 +79,11 @@ export function TodayDesk(p: Props) {
       <div className={`desk-today ${live ? "desk-live" : ""}`}>
         {/* New York's time, live, with today's round on the dial */}
         <div className="desk-watch">
-          <PocketWatch opensAt={l ? Number(l.opensAt) : closes - 86_400} locksAt={l ? Number(l.locksAt) : closes - 3_600} settlesAt={closes} now={p.now} size={150} when={(t) => nyWhen(t, { weekday: "short", hour: "numeric", minute: "2-digit" })} />
-          <div className="desk-clock mono">{nyWhen(p.now, { hour: "numeric", minute: "2-digit", second: "2-digit" })} <span>New York</span></div>
-          <div className="desk-key"><span className="k-trade">trading</span><span className="k-lock">locked</span><span className="k-bell">bell</span></div>
+          <PocketWatch now={p.now} locksAt={l && l.status === "open" ? Number(l.locksAt) : undefined} settlesAt={l && l.status === "open" ? closes : undefined} size={132} title="New York time; the ring is the hours ahead: green trading, amber locked, then the bell" />
+          <div className="desk-clock mono">{nyWhen(p.now, { hour: "numeric", minute: "2-digit" })} <span>New York</span></div>
         </div>
         <div className="desk-main">
-        <div className="desk-kicker">{live && <Bell ringing={p.now >= closes} />}<span>{kicker}</span></div>
+        <div className="desk-kicker"><span>{kicker}</span></div>
         <div className="desk-title">{title}</div>
         <div className="desk-when">closes {nyWhen(stook.closeOf(p.series, today), { weekday: "long", hour: "numeric", minute: "2-digit" })} New York · rings in {untilText(BigInt(closes), p.now)}</div>
         {l && <div className="desk-nums">

@@ -716,3 +716,19 @@ button.tour-skip:hover { color: var(--cream); }
 .desk-key .k-trade::before { background: #1f9d5c; } .desk-key .k-lock::before { background: #f0a83a; } .desk-key .k-bell::before { background: #a8412f; }
 @media (max-width: 600px) { .desk-today { flex-direction: column; align-items: stretch; } .desk-watch { align-self: center; } }
 @media (max-width: 420px) { .ts-clock { flex-direction: column; } }
+
+/* the watch v3: a plain twelve-hour face */
+.pocket-watch .pw-num { font-family: var(--sans); font-weight: 600; font-size: 15px; fill: #2a2419; }
+.ts-clock { display: flex; flex-direction: column; align-items: center; gap: .9rem; }
+.round-bar { width: 100%; }
+.rb-track { position: relative; height: 14px; background: var(--ink); border: 2px solid var(--cream); margin-right: 14px; }
+.rb-trade, .rb-lock { position: absolute; top: 0; bottom: 0; cursor: help; }
+.rb-trade { background: #1f9d5c; }
+.rb-lock { background: #f0a83a; }
+.rb-midnight { position: absolute; top: -6px; bottom: -6px; width: 2px; background: var(--cream); }
+.rb-midnight em { position: absolute; top: -1.15rem; left: 50%; transform: translateX(-50%); font-style: normal; font-family: var(--px); font-size: .38rem; color: var(--cream-2); white-space: nowrap; }
+.rb-bell { position: absolute; right: -15px; top: 50%; transform: translateY(-50%); }
+.rb-labels { display: flex; justify-content: space-between; gap: .8rem; margin-top: .55rem; }
+.rb-labels span { display: flex; flex-direction: column; font-size: .74rem; color: var(--cream-3); }
+.rb-labels b { font-family: var(--px); font-weight: 400; font-size: .4rem; color: var(--cream); margin-bottom: .2rem; }
+.rb-l-open b { color: #5ec48f; } .rb-l-lock { margin-left: auto; text-align: right; } .rb-l-lock b { color: #f0a83a; } .rb-l-bell { text-align: right; }

@@ -13,8 +13,8 @@ import { useBalance, useMint, useSend } from "../hooks/useChain";
 import { fmtAmount, parseAmount } from "../lib/format";
 import { Usd, fmtUsd, fromUsd, toUsd, useUsdRates } from "../lib/usd";
 import { nyWhen } from "../lib/time";
-import { Bell } from "./Bell";
 import { PocketWatch } from "./PocketWatch";
+import { RoundBar } from "./RoundBar";
 
 export function StartRound({ coin, seriesKey, series, index, onClose }: { coin: Coin; seriesKey: PublicKey; series: stook.SeriesAccount; index: number; onClose: () => void }) {
   const nav = useNavigate();
@@ -33,11 +33,6 @@ export function StartRound({ coin, seriesKey, series, index, onClose }: { coin: 
   const settlesAt = Number(terms.settlesAt);
   // Round times on New York's clock, like the calendar they were picked from.
   const when = nyWhen(settlesAt, { weekday: "long", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
-  const opens = nyWhen(terms.opensAt, { weekday: "short", hour: "numeric", minute: "2-digit" });
-  const locks = nyWhen(terms.locksAt, { weekday: "short", hour: "numeric", minute: "2-digit" });
-  // No volatility learned yet: there is no width to show, only when it is set.
-  const learning = !stook.warmedUp(series) || terms.stepBps === 0;
-  const band = terms.stepBps / 100;
   const gross = seed && mint.data?.report.transferFee ? stook.grossFor(seed, mint.data.report.transferFee) : seed;
 
   const start = () => {
@@ -49,13 +44,6 @@ export function StartRound({ coin, seriesKey, series, index, onClose }: { coin: 
       { onSuccess: () => nav(`/m/${stook.deriveLadderPda(key).toBase58()}`) });
   };
 
-  // A day's timeline, funding to the bell, on New York's clock.
-  const stops = [
-    { k: "now", label: "Fund", sub: "you're the house" },
-    { k: "open", label: `${opens}`, sub: learning ? "opens · bands set" : `opens · bands ~${band.toFixed(2)}%` },
-    { k: "lock", label: `${locks}`, sub: "trading stops" },
-    { k: "bell", label: nyWhen(settlesAt, { weekday: "short", hour: "numeric", minute: "2-digit" }), sub: "the bell" },
-  ];
 
   return (
     <div className="sheet-back" onClick={onClose}>
@@ -68,14 +56,8 @@ export function StartRound({ coin, seriesKey, series, index, onClose }: { coin: 
         {standInNote(coin) && <p className="warn">{standInNote(coin)}</p>}
 
         <div className="ts-clock">
-          <PocketWatch opensAt={Number(terms.opensAt)} locksAt={Number(terms.locksAt)} settlesAt={settlesAt} size={150} when={(t) => nyWhen(t, { weekday: "short", hour: "numeric", minute: "2-digit" })} />
-          <ol className="ts-legend" aria-label="The round's day">
-            {stops.map((st) => <li key={st.k} className={`ts-stop ts-${st.k}`}>
-              <span className="ts-dot">{st.k === "bell" ? <Bell scale={1} /> : null}</span>
-              <span className="ts-when">{st.label}</span>
-              <span className="ts-what">{st.sub}</span>
-            </li>)}
-          </ol>
+          <PocketWatch at={settlesAt} size={84} title="The bell rings at 4:00 PM New York" />
+          <RoundBar opensAt={Number(terms.opensAt)} locksAt={Number(terms.locksAt)} settlesAt={settlesAt} />
         </div>
 
         <div className="ts-terms">
