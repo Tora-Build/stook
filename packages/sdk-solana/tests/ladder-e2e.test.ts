@@ -184,6 +184,12 @@ describe("ladder end to end", () => {
     const lastClose = warmCloses(m.indexOfClose, m.closeAt, PUBLISH_TIME - 1000n, P0).at(-1)!;
     const again = await send(e, [L.observeSeriesIx(m.series, e.trader.kp.publicKey, e.priceAccount(updateAt(lastClose.price, lastClose.at, lastClose.at - 1n)), lastClose.index, PROGRAM)], e.trader.kp);
     expect(again.logs).toContain("SeriesAlreadyObserved");                             // once per close
+    // and in order: a later close cannot jump one that closed under 48 h ago,
+    // so nobody picks which closes the series learns from
+    const jump = lastClose.index + 2, jumpAt = m.closeAt(jump);
+    warpClockTo(e.ctx, jumpAt + 1n);
+    const skip = await send(e, [L.observeSeriesIx(m.series, e.trader.kp.publicKey, e.priceAccount(updateAt(lastClose.price, jumpAt, jumpAt - 1n)), jump, PROGRAM)], e.trader.kp);
+    expect(skip.logs).toContain("SeriesOutOfOrder");
 
     // ── Open, from the real update ──────────────────────────────────────────
     warpClockTo(e.ctx, PUBLISH_TIME + 10n);

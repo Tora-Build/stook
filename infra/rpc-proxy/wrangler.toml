@@ -4,3 +4,9 @@ compatibility_date = "2026-08-01"
 
 # The upstream RPC URL (with its API key) lives in a secret, never in code:
 #   wrangler secret put UPSTREAM_RPC
+
+# 300 requests per 10 s per client address; the keeper sends a few a second.
+[[ratelimits]]
+name = "LIMITER"
+namespace_id = "7001"
+simple = { limit = 300, period = 10 }

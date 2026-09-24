@@ -12,6 +12,7 @@ import { useNow } from "../hooks/useNow";
 import { feedByHex, feedHex } from "../lib/feeds";
 import { coinByMint, standInNote } from "../lib/coins";
 import { fmtAmount, fmtPrice, untilText } from "../lib/format";
+import { nyWhen } from "../lib/time";
 
 export function Market() {
   const { id } = useParams();
@@ -40,10 +41,15 @@ export function Market() {
 
   // A round that has not opened has no bands yet: they are set at open from
   // the volatility then. Show the ones it would get if it opened now.
-  const preview = l.status === "seeding" && l.b === 0n && series.data ? stook.openingTerms(series.data.varWad, l.settlesAt, BigInt(Math.max(now, Number(l.opensAt)))) : null;
+  // No preview while the series is still learning, or once the close has
+  // passed without an opening (the round can only be voided then).
+  const openAt = BigInt(Math.max(now, Number(l.opensAt)));
+  const preview = l.status === "seeding" && l.b === 0n && series.data && series.data.varWad > 0n && openAt < l.settlesAt ? (() => { try { return stook.openingTerms(series.data.varWad, l.settlesAt, openAt); } catch { return null; } })() : null;
   const shown: stook.LadderAccount = preview ? { ...l, curve: preview.curve, stepBps: preview.stepBps } : l;
   const feed = feedByHex(feedHex(l.feedId));
   const coin = coinByMint(l.quoteMint);
+  // On devnet the round runs on a stand-in feed: show that feed, not the anchor's logo and mint.
+  const standIn = coin ? standInNote(coin) : null;
   const quoteSymbol = coin ? coin.symbol : mint.data?.decimals === 6 ? "USDC" : "tokens";
   const tradeable = l.status === "open" && now < Number(l.locksAt);
   const final = l.status === "settled" || l.status === "void";
@@ -62,21 +68,21 @@ export function Market() {
     <div className="page market">
       <header className="strip-head">
         <div className="strip-id">
-          {coin && <div className="logos"><img src={coin.logo} alt="" className="logo-coin" /><img src={coin.anchor.logo} alt="" className="logo-anchor" /></div>}
+          {coin && <div className="logos"><img src={coin.logo} alt="" className="logo-coin" />{!standIn && <img src={coin.anchor.logo} alt="" className="logo-anchor" />}</div>}
           <div>
             <div className="strip-title">{feed.name} <span className="sym">{feed.symbol}</span>{coin && <span className="strip-coin"> · in ${coin.symbol}</span>}</div>
-            <div className="muted small">closes {new Date(Number(l.settlesAt) * 1000).toLocaleString("en-US", { weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })} · {preview ? <>bands about {(preview.stepBps / 100).toFixed(2)}%, set when it opens</> : <>bands of {(l.stepBps / 100).toFixed(2)}%</>}{coin && <> · <Address label={`${coin.anchor.symbol}`} value={coin.anchor.mint} /></>}</div>
+            <div className="muted small">closes {nyWhen(l.settlesAt, { weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })} New York · {preview ? <>bands about {(preview.stepBps / 100).toFixed(2)}%, set when it opens</> : <>bands of {(l.stepBps / 100).toFixed(2)}%</>}{coin && !standIn && <> · <Address label={`${coin.anchor.symbol}`} value={coin.anchor.mint} /></>}</div>
           </div>
         </div>
         <div className="strip-num"><span className="strip-k">price</span><span className="mono strip-v">{livePrice !== null ? `$${fmtPrice(BigInt(Math.round(livePrice / 10 ** live.data!.expo)), live.data!.expo, feed.dp)}` : "—"}</span></div>
         <div className="strip-num"><span className="strip-k">pool</span><span className="mono strip-v">{fmtAmount(l.depositTotal, l.decimals, 0)} <span className="muted">{quoteSymbol}</span></span></div>
         <div className={`status status-${l.status}`}>{stateText}</div>
       </header>
-      {coin && standInNote(coin) && <p className="warn standin">{standInNote(coin)}</p>}
+      {standIn && <p className="warn standin">{standIn}</p>}
 
       <div className="market-grid">
         <Chart
-          curve={shown.curve} p0={l.p0 || (live.data?.price ?? 1n)} expo={l.p0Expo || (live.data?.expo ?? -8)} stepBps={shown.stepBps || 100} dp={feed.dp}
+          curve={shown.curve} p0={l.p0 || (live.data?.price ?? 1n)} expo={l.p0Expo || (live.data?.expo ?? -8)} stepBps={shown.stepBps || 100} dp={feed.dp} opened={l.p0 > 0n}
           shape={shape} onShape={setShape} mode={mode} height={height}
           live={live.data && live.data.price > 0n ? { price: live.data.price } : null} history={history.data?.points} settlesAt={l.settlesAt} now={now}
           settledBin={l.settledBin} disabled={!tradeable}
@@ -84,7 +90,7 @@ export function Market() {
           selected={selected} onSelect={setSelected}
         />
         <Ticket refs={refs} ladder={shown} shape={shape} selected={sel} onSelect={(r) => { setSelected(r.pubkey.toBase58()); setShape(r.position.shape); }} onDeselect={() => { setSelected(null); setShape(null); }} mode={mode} setMode={setMode} height={height} setHeight={setHeightAndShape}
-          symbol={feed.symbol} dp={feed.dp} quoteSymbol={quoteSymbol} tradeable={tradeable} final={final} positions={mine} tranches={tranches.data ?? []} transferFee={mint.data?.report.transferFee} now={now} />
+          symbol={feed.symbol} coinSymbol={coin?.symbol} dp={feed.dp} quoteSymbol={quoteSymbol} tradeable={tradeable} final={final} positions={mine} tranches={tranches.data ?? []} transferFee={mint.data?.report.transferFee} now={now} />
       </div>
       {step === "void" && publicKey && <p className="hint"><button className="link" onClick={() => voidIt.mutate([stook.voidLadderIx(refs, publicKey)])} disabled={voidIt.isPending}>This round cannot finish. Void it and refund everyone</button></p>}
     </div>

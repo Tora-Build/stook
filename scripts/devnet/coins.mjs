@@ -33,7 +33,9 @@ for (const coin of COINS) {
     const rent = await c.getMinimumBalanceForRentExemption(len);
     await sendAndConfirmTransaction(c, new Transaction().add(
       SystemProgram.createAccount({ fromPubkey: payer.publicKey, newAccountPubkey: kp.publicKey, lamports: rent, space: len, programId: TOKEN_2022_PROGRAM_ID }),
-      createInitializeTransferFeeConfigInstruction(kp.publicKey, authority.publicKey, authority.publicKey, coin.feeBps, BigInt("1000000000000000"), TOKEN_2022_PROGRAM_ID),
+      // The faucet key is public (it ships in the app), so it only mints. The
+      // fee schedule and the withheld fees answer to the deployer.
+      createInitializeTransferFeeConfigInstruction(kp.publicKey, payer.publicKey, payer.publicKey, coin.feeBps, BigInt("1000000000000000"), TOKEN_2022_PROGRAM_ID),
       createInitializeMint2Instruction(kp.publicKey, coin.decimals, authority.publicKey, null, TOKEN_2022_PROGRAM_ID),
     ), [payer, kp]);
     mint = kp.publicKey; twins[coin.symbol] = mint.toBase58();

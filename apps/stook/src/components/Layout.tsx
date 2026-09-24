@@ -3,6 +3,7 @@ import { WalletMultiButton } from "@solana/wallet-adapter-react-ui";
 import { Faucet } from "./Faucet";
 import { Skyline } from "./Skyline";
 import { ThemeToggle } from "./Theme";
+import { PageGuard } from "./PageGuard";
 import { useLocation } from "react-router-dom";
 import { useEffect } from "react";
 
@@ -27,7 +28,7 @@ export function Layout() {
         </div>
       </header>
       {!home && <Skyline />}
-      <main className={home ? "main-street" : ""}><Outlet /></main>
+      <main className={home ? "main-street" : ""}><PageGuard key={location.pathname}><Outlet /></PageGuard></main>
       <footer className="foot">
         <span>Stook Street · devnet</span>
         <a href="https://github.com/Tora-Build/stook" target="_blank" rel="noreferrer">source</a>

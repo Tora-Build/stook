@@ -5,11 +5,12 @@
 //! "one round per day" is the program's rule, not a convention a client
 //! keeps, and a calendar can derive every day's address instead of scanning.
 //!
-//! The series also carries the anchor's volatility, and it learns it from its
-//! own settlements: each settled round's price, against the last one, feeds
-//! an exponentially weighted variance of daily log returns. That number sets
-//! the band width of every round the series starts next, so bands are thin
-//! for a quiet anchor and wide for a wild one without anyone choosing.
+//! The series also carries the anchor's volatility, learned from the Pyth
+//! price at every day's close (`series_observe`, and each settlement): each
+//! close against the last one feeds an exponentially weighted variance of
+//! daily log returns. That number sets a round's band width when the round
+//! opens, so bands are thin for a quiet anchor and wide for a wild one
+//! without anyone choosing.
 
 use anchor_lang::prelude::*;
 
@@ -36,6 +37,15 @@ pub const VAR_KEEP_DEN: i128 = 100;
 /// then its volatility is a plain average of what it has seen; after, the
 /// weighted average below. Twenty is about a month of trading days.
 pub const WARMUP_OBSERVATIONS: u32 = 20;
+
+/// A day that has a round can be skipped (its close never learned) only once
+/// its close is this old: long enough that a close Pyth published is always
+/// submitted first, so skipping only ever passes a close Pyth was silent across.
+/// A series of short periods waits two periods instead.
+pub const SKIP_AFTER_SECS: i64 = 48 * 60 * 60;
+
+/// How far back a series that has learned nothing may start learning from.
+pub const BACKFILL_WINDOW_SECS: i64 = 45 * 24 * 60 * 60;
 
 /// A daily σ between 0.1% and 30%, as variance (WAD). Outside that is a bad
 /// print or a broken feed, not an asset.
@@ -84,6 +94,93 @@ impl Series {
         }
     }
 
+    /// The index whose close is exactly `at`, if any.
+    pub fn index_of(&self, at: i64) -> Option<u32> {
+        let span = if self.period_secs > 0 { self.period_secs as i64 } else { DAY };
+        let guess = (at - self.close_secs as i64).div_euclid(span);
+        for i in [guess, guess + 1, guess - 1] {
+            if i >= 0 && i <= u32::MAX as i64 && self.close_of(i as u32) == at {
+                return Some(i as u32);
+            }
+        }
+        None
+    }
+
+    /// The latest index with a round whose close is at or before `t`.
+    pub fn index_at_or_before(&self, t: i64) -> u32 {
+        let span = if self.period_secs > 0 { self.period_secs as i64 } else { DAY };
+        let mut i = ((t - self.close_secs as i64).div_euclid(span) + 1).clamp(0, u32::MAX as i64) as u32;
+        let mut guard = 0;
+        while i > 0 && guard < 16 && (self.close_of(i) > t || !self.has_round(i)) {
+            i -= 1;
+            guard += 1;
+        }
+        i
+    }
+
+    /// The next index after `index` that has a round.
+    pub fn next_round(&self, index: u32) -> u32 {
+        let mut i = index.saturating_add(1);
+        while !self.has_round(i) {
+            i = i.saturating_add(1);
+        }
+        i
+    }
+
+    /// May the close of `index` be learned now? Strictly in order: once a
+    /// return has been learned, only the next day with a round, or a later
+    /// one if every day skipped closed at least `SKIP_AFTER_SECS` ago (a
+    /// close Pyth was silent across can be passed; a live day cannot be
+    /// jumped, so nobody chooses which days a series learns from). A series
+    /// that has learned nothing may start from any recent close, and start
+    /// again from an earlier one until its first return.
+    pub fn may_observe(&self, index: u32, now: i64) -> bool {
+        if !self.has_round(index) {
+            return false;
+        }
+        let at = self.close_of(index);
+        if at > now {
+            return false;
+        }
+        let Some(last) = (self.last_at > 0).then(|| self.index_of(self.last_at)).flatten() else {
+            return at >= now - BACKFILL_WINDOW_SECS;
+        };
+        if index == last {
+            return false;
+        }
+        if index < last {
+            return self.observations == 0 && at >= now - BACKFILL_WINDOW_SECS;
+        }
+        let next = self.next_round(last);
+        if index == next {
+            return true;
+        }
+        // A jump: the latest day skipped must have closed long enough ago.
+        let mut prev = index - 1;
+        while prev > last && !self.has_round(prev) {
+            prev -= 1;
+        }
+        self.close_of(prev) <= now - self.skip_after()
+    }
+
+    /// How old a close must be before a later one may pass over it.
+    pub fn skip_after(&self) -> i64 {
+        if self.period_secs > 0 { SKIP_AFTER_SECS.min(2 * self.period_secs as i64) } else { SKIP_AFTER_SECS }
+    }
+
+    /// Seconds the return since the last close stands for. Calendar time,
+    /// except on a weekday clock, where a weekend is not two quiet days: the
+    /// return is scaled by trading days, as a stock's volatility is.
+    fn span_secs(&self, at: i64) -> i64 {
+        if self.period_secs == 0 && self.clock == CLOCK_NEW_YORK_WEEKDAYS {
+            if let (Some(a), Some(b)) = (self.index_of(self.last_at), self.index_of(at)) {
+                let days = (a + 1..=b).take(400).filter(|&d| self.has_round(d)).count() as i64;
+                return days.max(1) * DAY;
+            }
+        }
+        at - self.last_at
+    }
+
     /// Does day (or period) `index` have a round at all?
     pub fn has_round(&self, index: u32) -> bool {
         self.period_secs > 0
@@ -124,7 +221,7 @@ impl Series {
             // for any price above ~7.9e10 raw (BTC, ETH), and every settle
             // after the first reverted.
             let r = ln_wad(wad_div(price as i128, self.last_price as i128)?)?;
-            let r2_day = wad_mul(r, r)?.checked_mul(DAY as i128).ok_or(MathError::Overflow)? / (at - self.last_at) as i128;
+            let r2_day = wad_mul(r, r)?.checked_mul(DAY as i128).ok_or(MathError::Overflow)? / self.span_secs(at) as i128;
             let r2 = r2_day.min(VAR_MAX);
             let n = self.observations as i128;
             let v = if self.observations < WARMUP_OBSERVATIONS {
@@ -162,6 +259,48 @@ mod tests {
         p.period_secs = 3_600;
         p.close_secs = 0;
         assert_eq!(p.close_of(500_000), 1_800_000_000);
+    }
+
+    #[test]
+    fn closes_are_learned_in_order() {
+        let mut s = daily(CLOCK_UTC, 20 * 3600);
+        let d = days_from_civil(2026, 9, 1) as u32;
+        let now = s.close_of(d + 10) + 60;
+        // cold: any recent close, and an earlier one again until a return is learned
+        assert!(s.may_observe(d + 5, now));
+        assert!(!s.may_observe(d - 60, now), "too old to start from");
+        assert!(!s.may_observe(d + 11, now), "not closed yet");
+        s.observe(100, 0, s.close_of(d + 5)).unwrap();
+        assert!(s.may_observe(d + 3, now), "restart earlier while cold");
+        s.observe(100, 0, s.close_of(d + 3)).unwrap();
+        s.observe(101, 0, s.close_of(d + 4)).unwrap();
+        assert_eq!(s.observations, 1);
+        // warm: only the next day, never back, never a jump over a fresh close
+        assert!(!s.may_observe(d + 3, now));
+        assert!(!s.may_observe(d + 4, now));
+        assert!(s.may_observe(d + 5, now));
+        assert!(!s.may_observe(d + 10, now), "day 9 closed a day ago: cannot be skipped");
+        // a jump is fine once every skipped close is 48 h old
+        assert!(s.may_observe(d + 8, now));
+        assert_eq!(s.index_of(s.close_of(d + 7)), Some(d + 7));
+        assert_eq!(s.index_at_or_before(s.close_of(d + 7) + 5), d + 7);
+        assert_eq!(s.index_at_or_before(s.close_of(d + 7) - 5), d + 6);
+    }
+
+    #[test]
+    fn a_weekday_series_scales_monday_by_one_trading_day() {
+        let mut s = daily(CLOCK_NEW_YORK_WEEKDAYS, 16 * 3600);
+        s.var_wad = 400_000_000_000_000; // 2%/day
+        let fri = days_from_civil(2026, 9, 18) as u32;
+        let (mon, now) = (fri + 3, s.close_of(fri + 3) + 60);
+        assert!(!s.has_round(fri + 1));
+        s.observe(1_000_000, 0, s.close_of(fri)).unwrap();
+        assert!(s.may_observe(mon, now), "the weekend is not skipped, it has no rounds");
+        let mut t = s.clone();
+        t.observe(1_020_000, 0, s.close_of(mon)).unwrap(); // +2% over the weekend
+        // a 2% move on a 2%/day series leaves it where it was, not a third of it
+        let r = t.var_wad as f64 / 400_000_000_000_000f64;
+        assert!(r > 0.97 && r < 1.03, "{r}");
     }
 
     #[test]

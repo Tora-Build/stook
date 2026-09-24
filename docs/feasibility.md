@@ -66,6 +66,10 @@ conservative, but they express a belief, not depth.
 
 ## 3. LP attribution — solvent and exact
 
+*Not adopted.* The program has no per-band attribution: every deposit is a
+full-grid tranche and the first funder is an LP like any other
+(`docs/architecture.md`). The measurement is kept as it was taken.
+
 Scheme: the creator's seed sets `b` and is the residual backstop. Range LPs
 stake on ticks; each earns that tick's premium pro-rata to stake and bears that
 tick's settlement loss pro-rata, **capped at their stake**; anything above the
@@ -147,7 +151,10 @@ exist (NVDA, TSLA, AAPL, MSFT, US500, US100, …).
 
 So a market on `Equity.Index.NVDA/USD` settles at any hour with a plain
 staleness check (`now − publish_time ≤ max_age`). Markets on `Equity.US.*`
-would need the historical route. Stook quotes the Index feeds.
+would need the historical route. Stook first quoted the Index feeds; it now
+settles on each anchor's own feed (Pyth's xStock feeds for SPYx and GLDx,
+crypto feeds for ZEC and STONK) with the settlement-instant rule, not a
+staleness check.
 
 ## 9. Prior art
 

@@ -8,6 +8,7 @@ import { Link } from "react-router-dom";
 import { useWallet } from "@solana/wallet-adapter-react";
 import { stook } from "@sooth/sdk-solana";
 import { chance, fmtAmount, parseAmount, fmtPrice } from "../lib/format";
+import { nyWhen } from "../lib/time";
 
 const WAD_ONE = 10n ** 18n;
 
@@ -17,6 +18,16 @@ export function bandName(l: stook.LadderAccount, i: number, dp: number): string 
   if (i <= 0) return `below ${fmtPrice(hi, l.p0Expo, dp)}`;
   if (i >= 63) return `above ${fmtPrice(lo, l.p0Expo, dp)}`;
   return fmtPrice(lo, l.p0Expo, dp);
+}
+
+/** A range of bands by its ends: "X – Y", or "below Y" / "above X" when it reaches a tail. */
+export function rangeName(l: stook.LadderAccount, lo: number, hi: number, dp: number): string {
+  const a = Math.min(Math.max(lo, 0), 63), z = Math.min(Math.max(hi, 0), 63);
+  const floor = fmtPrice(stook.binBounds(a, l.p0, l.stepBps)[0], l.p0Expo, dp), top = fmtPrice(stook.binBounds(z, l.p0, l.stepBps)[1], l.p0Expo, dp);
+  if (a <= 0 && z >= 63) return "anywhere";
+  if (a <= 0) return `below ${top}`;
+  if (z >= 63) return `above ${floor}`;
+  return `${floor} – ${top}`;
 }
 
 /** How far a band is from the opening price, as a move: "17% below the open". */
@@ -40,6 +51,8 @@ interface Props {
   mode: DrawMode; setMode: (m: DrawMode) => void;
   height: number; setHeight: (h: number) => void;
   symbol: string; dp: number; quoteSymbol: string;
+  /** The coin the round is paid in, for the way back to its calendar. */
+  coinSymbol?: string;
   tradeable: boolean; final: boolean;
   positions: PositionRow[]; tranches: TrancheRow[];
   transferFee?: stook.TransferFee;
@@ -67,7 +80,7 @@ export function Ticket(p: Props) {
 // ── your lines in this round, as chips: pick one to add to it or sell it ─────
 function Mine(p: Props) {
   const dec = p.ladder.decimals, l = p.ladder;
-  const name = (s: stook.Shape) => s.h > 1 ? `${bandName(l, (s.lo + s.hi) / 2, p.dp)} ·${s.h}` : `${bandName(l, Math.max(s.lo, 0), p.dp)}–${stook.binBounds(Math.min(s.hi, 63), l.p0, l.stepBps)[1] === Infinity ? "∞" : fmtPrice(stook.binBounds(Math.min(s.hi, 63), l.p0, l.stepBps)[1], l.p0Expo, p.dp)}`;
+  const name = (s: stook.Shape) => s.h > 1 ? `${bandName(l, (s.lo + s.hi) / 2, p.dp)} ·${s.h}` : rangeName(l, s.lo, s.hi, p.dp);
   return (
     <div className="mine">
       <span className="mine-k">yours</span>
@@ -110,7 +123,7 @@ function Buy(p: Props & { held?: boolean }) {
   // between the two would pass here and fail on chain.
   const short = limit !== null && balance.data !== undefined && balance.data < stook.grossFor(limit, p.transferFee);
   const centre = s && s.h > 1 ? (s.lo + s.hi) / 2 : null;
-  const where = !s ? null : s.h === 1 ? `${fmtPrice(stook.binBounds(Math.max(s.lo, 0), l.p0, l.stepBps)[0], l.p0Expo, p.dp)} – ${stook.binBounds(Math.min(s.hi, 63), l.p0, l.stepBps)[1] === Infinity ? "∞" : fmtPrice(stook.binBounds(Math.min(s.hi, 63), l.p0, l.stepBps)[1], l.p0Expo, p.dp)}` : `${bandName(l, centre!, p.dp)}, reach ${s.h}`;
+  const where = !s ? null : s.h === 1 ? rangeName(l, s.lo, s.hi, p.dp) : `${bandName(l, centre!, p.dp)}, reach ${s.h}`;
   const existing = s ? p.positions.find((r) => r.position.shape.lo === s.lo && r.position.shape.hi === s.hi && r.position.shape.h === s.h) : null;
   const submit = () => { if (!q || !s || !shares || !publicKey || limit === null) return; send.mutate({ computeUnits: stook.tradeComputeUnits(s), ixs: [ensureAta(l.quoteMint, publicKey, p.refs.tokenProgram), stook.tradeLadderIx(p.refs, { user: publicKey, userToken: ataOf(l.quoteMint, publicKey, p.refs.tokenProgram), shape: s, shares, limit })] }); };
 
@@ -120,7 +133,7 @@ function Buy(p: Props & { held?: boolean }) {
         <div className="seg"><button className={p.mode === "line" ? "on" : ""} onClick={() => p.setMode("line")}>Line</button><button className={p.mode === "range" ? "on" : ""} onClick={() => p.setMode("range")}>Range</button></div>
         {p.mode === "line" && <label className="height">reach <input type="range" min={1} max={stook.MAX_HEIGHT} value={p.height} onChange={(e) => p.setHeight(Number(e.target.value))} /><span className="mono">{p.height}</span></label>}
       </div>}
-      {!s ? <p className="explain">{p.tradeable ? (p.mode === "line" ? "Click the price you expect at the close." : "Drag across the range you expect.") : l.status === "seeding" ? (p.now < Number(l.opensAt) ? `Funded. Trading opens ${new Date(Number(l.opensAt) * 1000).toLocaleString("en-US", { weekday: "short", hour: "numeric", minute: "2-digit" })}; the House takes deposits now.` : "Opening in a moment. The keeper is posting the opening price; deposits are open.") : "Trading is closed; the bell is next."} {p.positions.length > 0 && <>Click one of your lines on the chart to add to it or sell it.</>}</p>
+      {!s ? <p className="explain">{p.tradeable ? (p.mode === "line" ? "Click the price you expect at the close." : "Drag across the range you expect.") : l.status === "seeding" ? (p.now < Number(l.opensAt) ? `Funded. Trading opens ${nyWhen(l.opensAt, { weekday: "short", hour: "numeric", minute: "2-digit" })} New York; the House takes deposits now.` : "Opening in a moment. The keeper is posting the opening price; deposits are open.") : "Trading is closed; the bell is next."} {p.positions.length > 0 && <>Click one of your lines on the chart to add to it or sell it.</>}</p>
         : <div className="shape-desc">{p.symbol} at {where}{existing && !p.held && <span className="muted"> · same as your {fmtAmount(existing.position.shares, dec)} sh line: this adds to it</span>}</div>}
       {s && (
         <table className="ladder-table">
@@ -175,24 +188,25 @@ function Collect(p: Props) {
   const total = owed.reduce((a, x) => a + x.amount, 0n) + lp.reduce((a, x) => a + x.v, 0n);
   const linesPct = l.status === "void" && l.basisTotal > 0n ? (Number(l.voidTraderPot) / Number(l.basisTotal)) * 100 : null;
   const nothing = p.positions.length === 0 && p.tranches.length === 0;
-  // A legacy transaction holds about 14 of these; send them twelve at a time.
+  // Sent in as few transactions as their compute and size allow.
   const [progress, setProgress] = useState<[number, number] | null>(null);
   const submit = async () => {
     if (!publicKey) return;
     const ata = ataOf(l.quoteMint, publicKey, p.refs.tokenProgram);
-    const items = [...p.positions.map((r) => stook.redeemLadderIx(p.refs, publicKey, ata, r.position.shape)), ...p.tranches.map((t) => stook.claimLpIx(p.refs, publicKey, ata, t.tranche.index))];
-    const chunks: (typeof items)[] = [];
-    for (let i = 0; i < items.length; i += 12) chunks.push(items.slice(i, i + 12));
+    const chunks = stook.packByCompute([
+      ...p.positions.map((r) => ({ ix: stook.redeemLadderIx(p.refs, publicKey, ata, r.position.shape), units: stook.REDEEM_COMPUTE_UNITS })),
+      ...p.tranches.map((t) => ({ ix: stook.claimLpIx(p.refs, publicKey, ata, t.tranche.index), units: stook.claimComputeUnits(l, t.tranche) })),
+    ]);
     try {
       for (let n = 0; n < chunks.length; n++) {
         setProgress([n + 1, chunks.length]);
-        await send.mutateAsync({ computeUnits: 60_000 + 20_000 * chunks[n]!.length, ixs: [...(n === 0 ? [ensureAta(l.quoteMint, publicKey, p.refs.tokenProgram)] : []), ...chunks[n]!] });
+        await send.mutateAsync({ computeUnits: chunks[n]!.units, ixs: [...(n === 0 ? [ensureAta(l.quoteMint, publicKey, p.refs.tokenProgram)] : []), ...chunks[n]!.ixs] });
       }
     } catch { /* the toast has said why; what landed stays landed */ } finally { setProgress(null); }
   };
   return (
     <>
-      <p className="explain">{l.status === "void" ? `The round was void. Deposits come back in full; open lines share what is left${linesPct !== null && Math.abs(linesPct - 100) >= 0.005 ? `, ${linesPct.toFixed(2)}% of what they cost, because sellers took their gains before the void` : ", at cost"}.` : `The bell rang. Band ${l.settledBin} landed.`}</p>
+      <p className="explain">{l.status === "void" ? `The round was void. Deposits come back first, up to what was put in; open lines share what is left${linesPct !== null && Math.abs(linesPct - 100) >= 0.005 ? `, ${linesPct.toFixed(2)}% of what they cost, because sellers took their gains before the void` : ", at cost"}.` : `The bell rang. Band ${l.settledBin} landed.`}</p>
       {nothing ? <p className="muted">You had nothing in this round.</p> : (
         <ul className="rows">
           {owed.map(({ r, amount }) => <li key={r.pubkey.toBase58()}><span>{r.position.shape.h > 1 ? `line, reach ${r.position.shape.h}` : "range"} · {fmtAmount(r.position.shares, dec)} sh</span><span className={`mono ${amount > 0n ? "up" : "muted"}`}>{amount > 0n ? `+${fmtAmount(amount, dec)}` : "0"}</span></li>)}
@@ -200,7 +214,7 @@ function Collect(p: Props) {
         </ul>
       )}
       {!nothing && <button className="primary" disabled={!publicKey || !!progress} onClick={() => void submit()}>{progress ? (progress[1] > 1 ? `Collecting ${progress[0]} of ${progress[1]}…` : "Sending…") : `Collect ${fmtAmount(total, dec)} ${p.quoteSymbol}`}</button>}
-      <p className="hint" style={{ marginTop: ".6rem" }}><Link to={`/c/${p.symbol}`}>Back to the calendar</Link></p>
+      <p className="hint" style={{ marginTop: ".6rem" }}><Link to={p.coinSymbol ? `/c/${p.coinSymbol}` : "/"}>{p.coinSymbol ? "Back to the calendar" : "Back to the street"}</Link></p>
     </>
   );
 }

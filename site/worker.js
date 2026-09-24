@@ -77,14 +77,24 @@ export default {
     const url = new URL(request.url);
     // The tape announces where it is.
     if (url.pathname === "/tape/register" && request.method === "POST") {
-      if (request.headers.get("authorization") !== `Bearer ${env.TAPE_TOKEN}`) return new Response("no", { status: 401 });
+      if (!env.TAPE_TOKEN || request.headers.get("authorization") !== `Bearer ${env.TAPE_TOKEN}`) return new Response("no", { status: 401 });
       const { url: u } = await request.json(); if (!/^https:\/\/[a-z0-9-]+\.trycloudflare\.com$/.test(u)) return new Response("bad url", { status: 400 });
       await env.SERIES.put("tape:url", u); return new Response("ok");
     }
-    // Live stream and candles straight from the tape (no cache).
+    // Live stream and candles straight from the tape (no cache). Only known
+    // coins and plain numbers go through, and what comes back is served as
+    // the type it must be, whatever the tape says.
     if (url.pathname === "/tape/stream" || url.pathname === "/tape/candles") {
       const base = await tapeUrl(env); if (!base) return new Response("tape offline", { status: 503 });
-      return fetch(base + url.pathname.replace("/tape", "") + url.search, { headers: { accept: request.headers.get("accept") || "*/*" } });
+      if (url.pathname === "/tape/stream") {
+        const r = await fetch(base + "/stream", { headers: { accept: "text/event-stream" } });
+        return new Response(r.body, { status: r.status, headers: { "content-type": "text/event-stream", "cache-control": "no-cache", "x-content-type-options": "nosniff" } });
+      }
+      const coin = url.searchParams.get("coin"), q = new URLSearchParams({ coin: coin ?? "" });
+      if (!coin || !Object.hasOwn(COINS, coin)) return new Response("unknown coin", { status: 404 });
+      for (const k of ["res", "from"]) { const v = url.searchParams.get(k); if (v !== null) { if (!/^\d{1,12}$/.test(v)) return new Response(`bad ${k}`, { status: 400 }); q.set(k, v); } }
+      const r = await fetch(`${base}/candles?${q}`);
+      return new Response(r.body, { status: r.status, headers: { "content-type": "application/json", "x-content-type-options": "nosniff" } });
     }
     if (url.pathname !== "/prices" && url.pathname !== "/chart") return env.ASSETS.fetch(request);
     const cache = caches.default;
@@ -101,7 +111,7 @@ export default {
       const SYMS = { BTC: "BTC-USD", ETH: "ETH-USD", SOL: "SOL-USD", DOGE: "DOGE-USD", XRP: "XRP-USD", BNB: "BNB-USD", ZEC: "ZEC-USD", SPY: "SPY", GLDx: "GLD", GLD: "GLD", SPYx: "SPY" };
       const sym = url.searchParams.get("sym");
       const coinKey = url.searchParams.get("coin");
-      const coin = sym ? (SYMS[sym] ? { kind: "yahoo", symbol: SYMS[sym] } : sym === "STONK" ? { ...COINS.KNOTS, kv: env.SERIES, key: "KNOTS" } : null) : COINS[coinKey] ? { ...COINS[coinKey], kv: env.SERIES, key: coinKey } : null;
+      const coin = sym ? (Object.hasOwn(SYMS, sym) ? { kind: "yahoo", symbol: SYMS[sym] } : sym === "STONK" ? { ...COINS.KNOTS, kv: env.SERIES, key: "KNOTS" } : null) : coinKey && Object.hasOwn(COINS, coinKey) ? { ...COINS[coinKey], kv: env.SERIES, key: coinKey } : null;
       if (!coin) return new Response("unknown coin", { status: 404 });
       const tapeCoin = coinKey || Object.keys(COINS).find((k) => COINS[k].symbol === SYMS[sym]) || (sym === "STONK" ? "KNOTS" : null);
       const t = tapeCoin ? await fromTape(env, `/candles?coin=${tapeCoin}&res=300`) : null;
@@ -112,7 +122,7 @@ export default {
       // lacks falls through to the market-data sources below.
       body = {};
       const tape = await fromTape(env, "/prices");
-      if (tape) for (const [sym, q] of Object.entries(tape)) if (q?.price) body[sym] = { price: q.price, at: q.at, change24h: q.change24h ?? null, source: "pool" };
+      if (tape) for (const [sym, q] of Object.entries(tape)) if (Object.hasOwn(COINS, sym) && typeof q?.price === "number") body[sym] = { price: q.price, at: q.at, change24h: q.change24h ?? null, source: "pool" };
       await Promise.all(Object.entries(COINS).filter(([sym]) => !body[sym]).map(async ([sym, src0]) => {
         const src = { ...src0, kv: env.SERIES, key: sym };
         const qkey = new Request(`${url.origin}/q/${sym}`);
@@ -144,7 +154,7 @@ export default {
       }));
       maxAge = tape ? 5 : 60;
     }
-    const res = new Response(JSON.stringify(body), { headers: { "content-type": "application/json", "cache-control": `public, max-age=${maxAge}`, "access-control-allow-origin": "*" } });
+    const res = new Response(JSON.stringify(body), { headers: { "content-type": "application/json", "cache-control": `public, max-age=${maxAge}`, "access-control-allow-origin": "*", "x-content-type-options": "nosniff" } });
     ctx.waitUntil(cache.put(key, res.clone()));
     return res;
   },

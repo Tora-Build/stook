@@ -131,6 +131,33 @@ export function tradeComputeUnits(shape: Shape): number {
   return 50_000 + bins * 2_600 + (shape.h > 1 ? 5_000 : 0);
 }
 
+/** Compute for one `ladder_redeem`: a token transfer and a little arithmetic. */
+export const REDEEM_COMPUTE_UNITS = 25_000;
+
+/**
+ * Compute for one `ladder_claim_lp`. A tranche deposited before its round
+ * opened has its depth and join odds rebuilt from the opening bell at claim
+ * (`tranche_terms`), about 114K measured; any other is as cheap as a redeem.
+ */
+export function claimComputeUnits(l: { varBandsE9: bigint }, t: { b: bigint }): number {
+  return t.b === 0n && l.varBandsE9 !== 0n ? 130_000 : REDEEM_COMPUTE_UNITS;
+}
+
+/**
+ * Pack collect instructions into transactions: at most `perTx` each (a legacy
+ * transaction holds about 14) and at most `maxUnits` of compute each, after a
+ * `base` for the heap request, the ATA and the transfers' overhead.
+ */
+export function packByCompute<T>(items: { ix: T; units: number }[], base = 60_000, perTx = 12, maxUnits = 1_300_000): { ixs: T[]; units: number }[] {
+  const out: { ixs: T[]; units: number }[] = [];
+  for (const it of items) {
+    const last = out[out.length - 1];
+    if (last && last.ixs.length < perTx && last.units + it.units <= maxUnits) { last.ixs.push(it.ix); last.units += it.units; }
+    else out.push({ ixs: [it.ix], units: base + it.units });
+  }
+  return out;
+}
+
 export interface CreateLadderArgs extends LadderKey {
   quoteMint: PublicKey;
   creator: PublicKey;

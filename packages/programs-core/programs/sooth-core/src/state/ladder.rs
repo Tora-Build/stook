@@ -112,7 +112,7 @@ pub struct Ladder {
     pub payout: [u64; BINS],
 
     pub p0_expo: i32,
-    /// Band width, basis points of log price. Set at creation from the
+    /// Band width, basis points of log price. Set at open from the
     /// series' volatility (`math::ladder::band_width`).
     pub step_bps: u16,
     pub fee_bps: u16,

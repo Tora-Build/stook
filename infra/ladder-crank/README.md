@@ -1,7 +1,9 @@
 # ladder-crank
 
-Opens, settles and voids Stook ladders. Permissionless: the program decides
-which price settles a market (`prev_publish_time < T <= publish_time`, the first
+Learns each series' daily close, opens, settles and voids rounds, sweeps
+positions owed nothing, pays out positions and deposits left uncollected 30
+days after the close, collects the fee shares and closes finished rounds.
+Permissionless: the program decides which price settles a round (`prev_publish_time < T <= publish_time`, the first
 Pyth update at or after the settlement time), so it does not matter who runs
 this or how many copies run.
 

@@ -40,7 +40,7 @@ export function How() {
           </>}
           {i === 3 && <>
             <h2>The bell</h2>
-            <p>At the close, the first <b>Pyth price</b> published at or after 4:00 PM lands in a band, if it came within 30 seconds. That band pays; the rest pay nothing. No such price: a day later the round is <b>void</b>. Deposits come back first, and open lines share the rest.</p>
+            <p>At the close, the first <b>Pyth price</b> published at or after 4:00 PM New York lands in a band, if it came within 30 seconds. That band pays; the rest pay nothing. No such price: a day later the round is <b>void</b>. Deposits come back first, and open lines share the rest.</p>
             <p className="try">Ring it.</p>
           </>}
           {i === 4 && <>
@@ -51,7 +51,7 @@ export function How() {
           {i === 5 && <>
             <h2>The fine print</h2>
             <p>Some coins take a <b>transfer fee</b> on every move; the app shows what your wallet sends and what the round books.</p>
-            <p>Rounds settle on the <b>tokenized</b> asset's feed (SPYx, GLDx), the same price the table shows.</p>
+            <p>Rounds settle on the anchor's <b>Pyth</b> feed; on devnet that is a crypto stand-in, and each coin page says which. The table's live price comes from the anchor's DEX pool and is for display only.</p>
             <p>Every quote is the program's own maths, exact to the unit.</p>
           </>}
           <div className="placard-nav">
@@ -141,7 +141,7 @@ function House() {
       <div className="scene-row"><label className="height">deposit <input type="range" min={100} max={5000} step={100} value={dep} onChange={(e) => setDep(Number(e.target.value))} /><span className="mono">{dep.toLocaleString()}</span></label></div>
       <div className="scene-house">
         <div className="scene-bar"><div className="scene-fill" style={{ width: `${share * 100}%` }} /></div>
-        <div className="scene-legend"><span>your share of the pool <b className="mono">{(share * 100).toFixed(0)}%</b></span><span>of {fees} in fees today <b className="mono">{(fees * 0.8 * share).toFixed(0)}</b> is yours</span></div>
+        <div className="scene-legend"><span>your share of the pool <b className="mono">{(share * 100).toFixed(0)}%</b></span><span>of {fees} in fees today <b className="mono">{(fees * 0.9 * share).toFixed(0)}</b> is yours</span></div>
       </div>
       <div className="scene-caption muted">Others hold {others.toLocaleString()}. A model.</div>
     </div>

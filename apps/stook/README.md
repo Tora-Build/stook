@@ -9,8 +9,9 @@ cp .env.example .env.local           # or run scripts/devnet/setup.mjs, which wr
 pnpm -F @stook/app dev               # http://127.0.0.1:5180
 ```
 
-Pages: `/` markets, `/m/:address` a market (chart, trade, liquidity, positions),
-`/new` create, `/how` the mechanism in plain words.
+Pages: `/` the street, `/c/:symbol` a coin's calendar (fund a day),
+`/m/:id` a round (chart, trade, liquidity), `/yours` your rounds, `/how` the
+walk-through.
 
 Design rules the pages keep to:
 
@@ -19,8 +20,13 @@ Design rules the pages keep to:
 - The chart is the market: bars are the crowd's odds per band, a click draws a
   line, a drag draws a range, and the payout the shape makes at every band is
   drawn over the bars.
-- Live prices come from Pyth's on-chain push-oracle account over plain RPC, so
-  the browser never holds an API key.
-- The devnet faucet's mint authority ships in the bundle on purpose — the mock
-  token is worthless and handing it out is the faucet's job. Nothing else
-  secret is ever built in.
+- The street and coin pages show the live price from the Worker's `/prices`
+  (the tape's pool prices, with Yahoo as the fallback; display only). A
+  round's page reads the Pyth push-oracle account over plain RPC for its live
+  line, so the browser never holds an API key. Rounds settle on Pyth either
+  way.
+- The devnet faucet's key ships in the bundle on purpose: the devnet coins
+  and mock token are worthless and handing them out is the faucet's job. The
+  same key is also the transfer-fee and withheld-withdraw authority of the
+  devnet coins (`scripts/devnet/coins.mjs`); those two should move to a
+  private key. Nothing else secret is ever built in.

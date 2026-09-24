@@ -25,12 +25,18 @@ settles, before fees. This is a strongly informed trader, not the literal
 worst: the third audit found a fat-tailed belief takes about 1.1 points more,
 because a thin-tailed one occasionally hands the house a windfall.
 
-Stock anchors are replayed on weekdays only, which is what their on-chain
-series do (`CLOCK_NEW_YORK_WEEKDAYS`). Their hourly bars start on the half
+Stock anchors are replayed on weekdays only, which is what the program's
+weekday clock does (`CLOCK_NEW_YORK_WEEKDAYS`); mainnet stock series should
+use it (the devnet series run every day on crypto stand-ins). Their hourly bars start on the half
 hour, so the "price at the lock" the trader sees is really 30 minutes before
 the close: that flatters the trader, not the house.
 
 ## Result (`results.txt`)
+
+These runs predate the program's 0.2% band floor (`MIN_STEP_BPS`), so SPY
+was replayed at 0.19% bands, just under what the program now allows. The
+other coins' widths are above the floor and unaffected. They also predate
+learning weekday returns by trading days.
 
 | rule | house per round | worst 5% | closes off the grid |
 |---|---|---|---|
@@ -47,7 +53,7 @@ and that it needs no per-coin table. Per coin it matches or beats the
 hand-picked widths everywhere, and holds where they broke: when ZEC's volatility jumped, fixed
 1% bands lost 71% in the worst 5% of rounds; volatility-sized bands, 35%.
 Widths it picks: BTC 0.55%, ETH 0.90%, SOL 0.95%, DOGE 1.1%, ZEC 1.5%, SPY
-0.19%, GLD 0.25%.
+0.19% (now floored at 0.2%), GLD 0.25%.
 
 ## What the search found
 
@@ -80,7 +86,7 @@ fees, as a share of its deposit:
 
 | fee | no regular traders | 1× | 3× | 10× the deposit in volume |
 |---|---|---|---|---|
-| flat 1% (current) | −15.9% | −12.1% | −9.2% | −3.0% |
+| flat 1% (earlier) | −15.9% | −12.1% | −9.2% | −3.0% |
 | flat 2% | −15.2% | −8.6% | −2.9% | +9.5% |
 | flat 3% | −14.6% | −5.7% | +2.7% | +21.5% |
 | 1% rising to 5% over the last 6 h | −15.1% | −9.9% | −5.3% | +4.4% |
@@ -99,7 +105,7 @@ Starting the rise at 2% (`house-results-2pct.txt`):
 | fee | no regular traders | 1× | 3× | 10× |
 |---|---|---|---|---|
 | flat 2% | −15.2% | −8.6% | −2.9% | +9.5% |
-| 2% rising to 5% over the last 6 h | −14.6% | −7.1% | −0.2% | +14.9% |
+| **2% rising to 5% over the last 6 h (shipped)** | −14.6% | −7.1% | −0.2% | +14.9% |
 | 2% rising to 10% over the last 3 h | −14.3% | −6.7% | +0.6% | +16.6% |
 
 A rising fee from 2% beats flat 2% everywhere and breaks even at about 3×

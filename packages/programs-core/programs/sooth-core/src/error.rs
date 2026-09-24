@@ -93,4 +93,8 @@ pub enum SoothCoreError {
     SeriesWarmingUp,
     #[msg("This close, or a later one, has already been observed")]
     SeriesAlreadyObserved,
+    #[msg("Closes are learned in order: this is not the next one, and the days it skips closed less than 48 hours ago")]
+    SeriesOutOfOrder,
+    #[msg("The series has not yet learned the latest close before this round opens; it will within minutes")]
+    SeriesNotCaughtUp,
 }

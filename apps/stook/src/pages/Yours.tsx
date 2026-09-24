@@ -13,13 +13,14 @@ import { ataOf, ensureAta, type Holding } from "../lib/chain";
 import { anchorOf, coinByMint } from "../lib/coins";
 import { feedByHex, feedHex } from "../lib/feeds";
 import { fmtAmount, short } from "../lib/format";
-import { bandName } from "../components/Ticket";
+import { bandName, rangeName } from "../components/Ticket";
+import { nyWhen } from "../lib/time";
 
-type Stage = "funded" | "opening" | "trading" | "locked" | "settling" | "settled" | "void";
+type Stage = "funded" | "opening" | "void soon" | "trading" | "locked" | "settling" | "settled" | "void";
 
 const stageOf = (l: stook.LadderAccount, now: number): Stage =>
   l.status === "settled" ? "settled" : l.status === "void" ? "void"
-    : l.status === "seeding" ? (now < Number(l.opensAt) ? "funded" : "opening")
+    : l.status === "seeding" ? (now < Number(l.opensAt) ? "funded" : now < Number(l.locksAt) ? "opening" : "void soon")
     : now < Number(l.locksAt) ? "trading" : now < Number(l.settlesAt) ? "locked" : "settling";
 
 interface Line { key: string; what: string; size: bigint; cost: bigint; value: bigint | null; kind: "line" | "house"; note?: string }
@@ -35,7 +36,7 @@ function value(h: Holding, now: number, dp: number): Valued {
     const p = r.position;
     if (!final && p.shares === 0n) continue;
     const s = p.shape;
-    const what = s.h > 1 ? `${bandName(l, Math.floor((s.lo + s.hi) / 2), dp)}, reach ${s.h}` : `${bandName(l, Math.max(s.lo, 0), dp)} range`;
+    const what = s.h > 1 ? `${bandName(l, Math.floor((s.lo + s.hi) / 2), dp)}, reach ${s.h}` : `${rangeName(l, s.lo, s.hi, dp)} range`;
     let v: bigint | null = null;
     if (final) { v = stook.owedTo(l, p); ready += v > 0n ? v : 0n; }
     else if (l.status === "open" && now < Number(l.locksAt) && p.shares > 0n) {
@@ -133,22 +134,28 @@ function RoundBlock({ h, now, own }: { h: Holding; now: number; own: boolean }) 
     if (!publicKey || !mint.data) return;
     const refs = { ladder: h.pubkey, quoteMint: l.quoteMint, tokenProgram: mint.data.tokenProgram };
     const ata = ataOf(l.quoteMint, publicKey, mint.data.tokenProgram);
-    const items = [...h.positions.map((r) => stook.redeemLadderIx(refs, publicKey, ata, r.position.shape)), ...h.tranches.map((t) => stook.claimLpIx(refs, publicKey, ata, t.tranche.index))];
+    const chunks = stook.packByCompute([
+      ...h.positions.map((r) => ({ ix: stook.redeemLadderIx(refs, publicKey, ata, r.position.shape), units: stook.REDEEM_COMPUTE_UNITS })),
+      ...h.tranches.map((t) => ({ ix: stook.claimLpIx(refs, publicKey, ata, t.tranche.index), units: stook.claimComputeUnits(l, t.tranche) })),
+    ]);
     try {
-      for (let i = 0; i < items.length; i += 12) await send.mutateAsync({ computeUnits: 60_000 + 20_000 * Math.min(12, items.length - i), ixs: [...(i === 0 ? [ensureAta(l.quoteMint, publicKey, mint.data.tokenProgram)] : []), ...items.slice(i, i + 12)] });
+      for (let n = 0; n < chunks.length; n++) await send.mutateAsync({ computeUnits: chunks[n]!.units, ixs: [...(n === 0 ? [ensureAta(l.quoteMint, publicKey, mint.data.tokenProgram)] : []), ...chunks[n]!.ixs] });
     } catch { /* the toast has said why */ }
   };
   const sym = coin ? `$${coin.symbol}` : "";
+  // Named by the coin's real anchor, as everywhere but the round page and
+  // the fund sheet (which name the devnet stand-in feed, with a note).
+  const shownAnchor = coin ? coin.anchor : null;
   const pnl = (x: Line) => (x.value === null ? null : x.value - x.cost);
   return (
-    <article className={`stmt-round stage-${stage}`}>
+    <article className={`stmt-round stage-${stage.replace(" ", "-")}`}>
       <header className="stmt-round-head">
         {coin && <div className="logos"><img src={coin.logo} alt="" className="logo-coin" /><img src={coin.anchor.logo} alt="" className="logo-anchor" /></div>}
         <div className="stmt-round-id">
-          <Link to={`/m/${h.pubkey.toBase58()}`} className="stmt-round-name">{coin ? coin.anchor.name : feed.name} <span className="sym">{coin ? coin.anchor.symbol : feed.symbol}</span> in {sym}</Link>
-          <div className="muted small">closes {new Date(Number(l.settlesAt) * 1000).toLocaleString("en-US", { weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}</div>
+          <Link to={`/m/${h.pubkey.toBase58()}`} className="stmt-round-name">{shownAnchor ? shownAnchor.name : feed.name} <span className="sym">{shownAnchor ? shownAnchor.symbol : feed.symbol}</span> in {sym}</Link>
+          <div className="muted small">closes {nyWhen(l.settlesAt, { weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })} New York</div>
         </div>
-        <span className={`stamp stamp-${stage}`}>{stage}</span>
+        <span className={`stamp stamp-${stage.replace(" ", "-")}`}>{stage}</span>
       </header>
       <table className="ledger">
         <thead><tr><th>holding</th><th>size</th><th>cost</th><th>{stage === "settled" || stage === "void" ? "pays" : "worth"}</th><th>result</th></tr></thead>

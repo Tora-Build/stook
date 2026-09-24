@@ -43,11 +43,11 @@ not conservative (`∂pᵢ/∂qⱼ ≠ ∂pⱼ/∂qᵢ`), so the cost of a posit
 order it was built in, and a round trip extracts money from the LPs forever.
 `docs/feasibility.md` §2 has the numbers.
 
-So `b` is one number for the whole grid. What an LP chooses is not depth but
-**attribution**: which bands' fees they earn and which bands' settlement loss
-they bear, capped at their stake, with the creator's seed as the residual
-backstop. The economics are stated plainly in the feasibility doc — ranges are
-risk selection plus fee share, and a range containing the outcome pays out.
+So `b` is one number for the whole grid. An LP chooses only how much to
+deposit: each deposit is a full-grid layer (a tranche, below) that earns fees
+by its share of depth and bears `b · ln(p_join / p_final)` at settlement, never
+more than its deposit. The first funder is an LP like any other. The per-band
+attribution scheme in `docs/feasibility.md` §3 was not adopted.
 
 A trade does not reprice every band. The market keeps `Σ exp(qᵢ/b − m)` cached,
 so a buy recomputes one exponential and costs the same at 32 bands as at 8.
@@ -96,16 +96,23 @@ honest shape of an LMSR and the pitch does not hide it.
 ## Who finishes a market
 
 Nobody is obliged to run a keeper, so a market pays for its own ending:
-whoever settles it takes half the protocol's fee share. A void pays nothing,
-so a losing trader never prefers voiding to settling. Which price settles is
-fixed by the oracle rule, not by who posts it, so the bounty buys liveness
-without buying discretion. See `docs/design-review/svm-review-2026-09-22.md`
-for the reviews that led here.
+whoever settles it takes half the protocol's fee share. A void pays no
+bounty. Which price settles is fixed by the oracle rule, not by who posts it,
+so the bounty buys liveness without buying discretion. See
+`docs/design-review/svm-review-2026-09-22.md` for the reviews that led here.
 
-The creator's and protocol's fee shares can only be swept from a settled
-market. While it runs, `fees_protocol` *is* the bounty, and a void folds every
-fee back into the refund pot; an early sweep would have starved one or
-shorted the other.
+A round that never opened can be voided from its lock; one that opened, from
+24 hours after its close with no settlement. Until then a losing trader has no
+way to prefer a void. After it, settlement has no deadline and both paths are
+permissionless, so whichever lands first decides, and a void refunds cost, so
+losers prefer it. That race needs a full day in which nobody (the keeper,
+a winner, a bounty hunter) settled; it moves value between holders and never
+touches solvency.
+
+The protocol's fee share can only be swept from a settled market (there is no
+creator share). While it runs, `fees_protocol` *is* the bounty, and a void
+folds every fee back into the refund pot; an early sweep would have starved
+one or shorted the other.
 
 **What a void refunds.** Everything the vault holds, cash and every fee, is
 split into two pots. Depositors get theirs first, up to what they put in,
@@ -127,6 +134,11 @@ It took three tries, and each was broken by an audit:
    Whoever chose to stay in a market that did not finish shares its losses
    with the others who stayed, not with the party that could not leave.
 
+What this leaves open, stated plainly: the traders' pot is shared by cost, so
+a self-dealing pair (A sells to B at a gain, B is refunded by cost) can still
+take a share of the other traders' refunds in a void, up to about half in the
+fourth audit's measurement. It never reaches the depositors' pot.
+
 Solvency after every trade, tranche P&L, fee attribution and the SDK quote
 were confirmed on the shipped binary by both audits.
 
@@ -134,10 +146,13 @@ were confirmed on the shipped binary by both audits.
 
 **A series is one coin's rounds** (`state/series.rs`): a feed, a quote mint,
 and a close ("4 PM New York", computed on chain with the US daylight-saving
-rule; stock anchors use the weekday clock, which has no Saturday or Sunday
-round). A round is addressed by `(series, day number)`, so one day has one
-round because the program says so, and a calendar derives each day's address
-instead of scanning. The protocol authority opens a series; everything after
+rule). The program also has a New York weekday clock
+(`CLOCK_NEW_YORK_WEEKDAYS`, no Saturday or Sunday round) for stock anchors;
+the devnet series run on the every-day clock because their stand-in feeds
+are crypto, and mainnet stock series should use the weekday one. It knows
+no exchange holidays. A round is addressed by `(series, day number)`, so one
+day has one round because the program says so, and a calendar derives each
+day's address instead of scanning. The protocol authority opens a series; everything after
 is permissionless.
 
 **The series learns its anchor's volatility from Pyth closes, and from
@@ -145,30 +160,44 @@ nothing else.** A program cannot read price history, so the series keeps its
 own: for every day (or period) that has a round, `series_observe` takes the
 Pyth update that is the price at that close, under the same rule a
 settlement uses (the first update published at or after the close, within
-30 seconds), and folds the day's log return into a running variance. Anyone
-may submit a close, and nobody chooses which price it is; settling a round
-submits it too. Days go in order, and a missed day can be submitted later
-from Pyth's history (Hermes keeps it), so the series learns every day whether
-or not anyone funded a round, and never depends on the keeper being up.
-Nothing else sets the number: `series_create` takes no volatility, and there
-is no reset. A new series' rounds cannot open until it has learned from 20 closes
-(the keeper backfills them from history when the series is created); funding
-never waits for it, since bands are set at open; those
-twenty are a plain average, after which each day counts 6% (λ = 0.94, a
-half-life of about 11 days, the RiskMetrics convention; a week and a month of
-memory did about as well in the backtest). A close across which Pyth was
-silent can never be submitted; the next one is, and its return is scaled to
-the days it spans. History reaches back only to the last Wormhole guardian
-set rotation: older Pyth updates are signed by a set the Solana receiver now
-refuses (`GuardianSetExpired`). On devnet that was 4 September 2026, so the
-daily series warmed from the closes after it.
+30 seconds, confidence under 1% of the price), and folds the day's log return
+into a running variance. Anyone may submit a close, and nobody chooses which
+price it is; settling a round submits it too, under the same 1% bar. Closes
+go strictly in order: once a series has learned one return, the only close
+it accepts is the next day with a round. A later one is accepted only if
+every close it skips is at least 48 hours old (two periods, for a series of
+periods shorter than a day), so a close Pyth was silent
+across can be passed, but a live day cannot be jumped, and a day that was
+passed is gone for good. The keeper submits each close as it happens (from
+Pyth's history through Hermes if it was down), so the series learns every day
+whether or not anyone funded a round. A skipped close's successor has its
+return scaled to the days it spans; on the weekday clock that is trading
+days, not calendar time, as a stock's volatility is.
+
+A new series is the one place a submitter chooses: until it has learned its
+first return it may start from any close in the last 45 days, and restart
+from an earlier one. The keeper backfills from history when the series is
+created, so the trust here is that the first closes are the honest run of
+days, which anyone can check against Pyth.
+
+Nothing else sets the number: `series_create` takes no volatility, and
+`series_set` only pauses. A new series' rounds cannot open until it has
+learned 20 daily returns (21 closes); funding never waits for it, since bands
+are set at open. Those twenty are a plain average, after which each day
+counts 6% (λ = 0.94, a half-life of about 11 days, the RiskMetrics
+convention; a week and a month of memory did about as well in the backtest).
+History reaches back only to the last Wormhole guardian set rotation: older
+Pyth updates are signed by a set the Solana receiver now refuses
+(`GuardianSetExpired`). On devnet that was 4 September 2026, so the daily
+series learn from the closes after it.
 
 **Band width follows.** A round's band is a quarter of the anchor's ordinary
 move over the round's window (`band_width`), so an ordinary move spans four
-bands for every coin and every window: 0.55% for BTC, 0.19% for SPY, 1.5% for
-ZEC over a day, narrower for a shorter round. The 64 bands then cover about
-±8 ordinary moves, and the round opens on a bell four bands wide
-(`prior`), tails floored at 1/1,100 of the peak.
+bands for every coin and every window: 0.55% for BTC, about 0.2% for SPY (the
+floor), 1.5% for ZEC over a day, narrower for a shorter round (never under
+the floor). The 64 bands then cover about ±8 ordinary moves, and the round
+opens on a bell four bands wide (`prior`), tails floored at 1/1,100 of the
+peak.
 
 **When a round trades.** At most the 24 hours before its close, locking a
 twenty-fourth of that before it (an hour for a daily round). It can be funded
@@ -177,9 +206,12 @@ up to a month ahead.
 **Bands are set at open, not when a day is funded.** `ladder_open`, which the
 keeper calls at the round's opening second with the Pyth price (and anyone
 may call), reads the series' volatility at that moment and the time left, and
-sets the band width, the opening bell (its width stored as `var_bands_e9`)
-and the pool's depth from every deposit made so far. A deposit made before
-open records only its size; its own depth and the odds it joined at are
+sets the band width (`sigma_window / 4`, clamped to 20..2000 basis points),
+the opening bell (its width stored as `var_bands_e9`) and the pool's depth
+from every deposit made so far. It waits for the series to have learned the
+latest close at or before the opening, or for 30 minutes past that close if
+Pyth was silent across it, so an opener cannot open on a stale volatility.
+A deposit made before open records only its size; its own depth and the odds it joined at are
 recomputed from its size and the stored bell whenever it is paid
 (`tranche_terms`), exactly as `open` computed them. So a day funded weeks
 ahead opens as fresh as one funded that morning, and nobody who funds early
@@ -194,15 +226,18 @@ trading against the house is sharpest; replayed over a whole day of trading on
 4,493 real rounds (`scripts/backtest/house.py`), this schedule broke the
 house even at about 3x its deposit in daily volume, where a flat 1% lost 9%
 and a flat 2% lost 3%. 90% to the depositors by depth, 10% to the protocol,
-half of which pays whoever settles. The first funder gets nothing extra: a bonus for being
-first could be taken with a one-token seed on every round.
+half of which pays whoever settles (so 90/5/5). There is no creator fee: the
+first funder gets nothing extra, since a bonus for being first could be taken
+with a one-token seed on every round.
 
 **Why, measured.** Replayed over 4,493 real daily rounds on seven assets
 against a trader who knows the price at the lock (`scripts/backtest/`):
 flat 1% bands lost the house 74.5% of its deposit per round; a bell with a
 fixed width per coin, 17.3% (41% in the worst 5%); volatility-sized bands,
-16.6% (35%). What carries the result is calibration; the bell's exact shape
-and its tail floor barely matter per unit of depth. The remaining loss is the
+16.6% (35%). These runs predate the 0.2% band floor, so SPY's bands in them
+were 0.19%, just under what the program now allows. What carries the result
+is calibration; the bell's exact shape and its tail floor barely matter per
+unit of depth. The remaining loss is the
 cost of the day's information, which no opening curve removes; fees pay it.
 
 ## Clearing up
@@ -230,7 +265,8 @@ A line is drawn at any price; it buys the band containing it. The band must be
 visible before the trade is confirmed — someone must never believe they
 committed to a finer price than the market recorded.
 
-64 bands, log-spaced; the width per band is the market's tier.
+64 bands, log-spaced; the width per band is set at open from the series'
+volatility.
 
 ## What Stook changed in the inherited engine
 
@@ -245,13 +281,14 @@ travels with the market.
 the curve, unlock the book at a fee threshold. Stook first opened both at
 once, then removed the book altogether: a 64-outcome market has no natural
 book, and the inherited one was 1.2 MB of program the ladder never called.
-The program went from 1.82 MB to 567 KB.
+The program went from 1.82 MB to about 690 KB.
 
 **No adjudicator.** Sooth carries manual, zkTLS and bonded-optimistic
 resolution plus committees, because "did this happen" can be contested. "What
-was this number" cannot, so settlement is a Pyth read — the 24/7
-`Equity.Index.*` feeds, consumed by a vendored `PriceUpdateV2` layout with no
-Pyth crate — and the resolution stack is unused weight here.
+was this number" cannot, so settlement is a Pyth read of the anchor's feed
+(xStock feeds for tokenized equities, crypto feeds otherwise; devnet uses
+crypto stand-ins), consumed by a vendored `PriceUpdateV2` layout with no Pyth
+crate, and the resolution stack is unused weight here.
 
 ## Token-2022, and what an xStock actually is
 
@@ -283,8 +320,8 @@ verdicts:
 | verdict | meaning | who may create a market |
 |---|---|---|
 | `Open` | nothing breaks the accounting, nobody holds power over the vault | anyone |
-| `IssuerTrusted` | custodiable, but the issuer can move or stall vault funds | anyone, **once the protocol authority has approved the mint** (`approve_quote_mint`) |
-| `Refused` | transfer fee, non-transferable, a hook that names a program, frozen-by-default, interest-bearing, or anything unrecognised | nobody |
+| `IssuerTrusted` | custodiable, but the issuer can move or stall vault funds, or change its transfer fee (a transfer fee with a fee authority; a transfer hook with only an authority) | anyone, **once the protocol authority has approved the mint** (`approve_quote_mint`) |
+| `Refused` | confidential transfer fees, non-transferable, a hook that names a program, frozen-by-default, interest-bearing, or anything unrecognised | nobody |
 
 The approval is per mint, made once, and says exactly one thing: *we accept
 this issuer's powers*. It cannot lower the bar for a `Refused` mint. Revoking
@@ -292,7 +329,7 @@ it stops new markets and leaves existing ones to finish.
 
 **Transfer fees.** StonkFun sets a 1% transfer fee on every launch, $STOOK
 included, so refusing fee-bearing mints would refuse Stook's own coin. Every
-deposit — the creator's seed, a buy, an LP join — now goes through one
+deposit (a round's first funding, a buy, an LP join) now goes through one
 `pull`: the program reads the mint's fee schedule for the current epoch,
 sends the gross that lands at least the net, then reloads the vault and
 credits only what arrived. A shortfall of any size reverts. Payouts send
@@ -320,12 +357,13 @@ mint carrying the same extensions is still owed.
 
 ## Open
 
-Ranked by the second and third audits (`design-review/audit-round-*`):
+Ranked by the audits (`design-review/audit-round-*`):
 
-- **The band width is read when a day is funded, not bound by the funder.**
-  An expected-terms argument on `ladder_create` would let the app refuse a
-  round whose width moved between display and signature.
-
+- **A funder commits before the band width exists.** The width is set at
+  open from the series' volatility then, so a depositor cannot bound it (no
+  minimum or maximum width on `ladder_create` or `ladder_lp_join`). A bound
+  would let the app refuse a round whose bands came out wider or narrower
+  than it showed.
 - **Mainnet prerequisites.** Build with `--features mainnet` (Full-verified
   Pyth updates only) and run the keeper with `FULL_VERIFICATION=1`.
   `initialize_protocol` is first-come: initialise in the same breath as the
@@ -340,3 +378,10 @@ Ranked by the second and third audits (`design-review/audit-round-*`):
   opener picks the centre from a minute of prints. Now that `opens_at` is
   fixed by the round, open should use the settlement rule
   (`prev < opens_at ≤ publish`).
+- **The void race after the grace.** Once a round has gone 24 hours past its
+  close unsettled, a void and a late settle race (see *Who finishes a
+  market*). Redundant settlers and an alert on a round unsettled an hour
+  after its close keep it from arising.
+- **No exchange holidays.** The weekday clock skips only Saturday and
+  Sunday. On an NYSE holiday a stock anchor's 24/7 feed trades like a
+  weekend, and its round is likely to void on the confidence bar.

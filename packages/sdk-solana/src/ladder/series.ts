@@ -281,11 +281,12 @@ export function observeSeriesIx(series: PublicKey, caller: PublicKey, priceUpdat
   });
 }
 
-/** The index whose close is the latest at or before `t`. */
+/** The index with a round whose close is the latest at or before `t`
+ *  (`Series::index_at_or_before`). */
 export function indexAtOrBefore(s: Pick<SeriesAccount, "periodSecs" | "closeSecs" | "clock">, t: bigint): number {
   const span = s.periodSecs > 0 ? s.periodSecs : DAY;
   let i = Math.floor(Number(t - BigInt(s.closeSecs)) / span) + 1;
-  while (closeOf(s, i) > t) i--;
+  while (closeOf(s, i) > t || !hasRound(s, i)) i--;
   return i;
 }
 
@@ -298,14 +299,39 @@ export function indexAtOrBefore(s: Pick<SeriesAccount, "periodSecs" | "closeSecs
 export function pendingObservations(s: SeriesAccount, now: bigint, max = 40, settle = 60n, backfill = WARMUP_OBSERVATIONS + 5): number[] {
   const latest = indexAtOrBefore(s, now - settle);
   const out: number[] = [];
-  // A series that has learned nothing yet backfills from the start, even
-  // before a close it has already anchored on; after that, only newer closes.
+  // The program takes closes strictly in order (`Series::may_observe`). A
+  // series that has learned nothing yet backfills from the start, even before
+  // a close it has already anchored on (re-anchoring there, then walking
+  // forward through every day, its old anchor included); after that, only the
+  // days after the last one learned, in order.
   const cold = s.observations === 0;
   let from = !cold ? indexAtOrBefore(s, s.lastAt) + 1 : latest - backfill;
   // A weekday series skips weekends when counting its backfill.
   if (cold) { let n = 0; for (from = latest; from > latest - 3 * backfill && n < backfill; from--) if (hasRound(s, from)) n++; }
-  for (let i = from; i <= latest && out.length < max; i++) if (hasRound(s, i) && (cold ? closeOf(s, i) !== s.lastAt : closeOf(s, i) > s.lastAt)) out.push(i);
+  for (let i = from; i <= latest && out.length < max; i++) if (hasRound(s, i) && (cold || closeOf(s, i) > s.lastAt)) out.push(i);
+  if (cold && out.length && closeOf(s, out[0]) === s.lastAt) out.shift();
   return out;
+}
+
+/** A skipped close lets a later one in only once it is this old (`Series::may_observe`). */
+export const SKIP_AFTER_SECS = 48n * 3600n;
+/** The same, for this series: two periods for a series of short periods. */
+export const skipAfterSecs = (s: Pick<SeriesAccount, "periodSecs">): bigint => (s.periodSecs > 0 && BigInt(2 * s.periodSecs) < SKIP_AFTER_SECS ? BigInt(2 * s.periodSecs) : SKIP_AFTER_SECS);
+/** How long a daily round waits for its series to learn the close before its opening. */
+export const OPEN_LEARN_GRACE_SECS = 30n * 60n;
+
+/**
+ * Why `ladder_open` would refuse this round now for its series' sake, or null:
+ * the series has not warmed up, or (daily) has not yet learned the latest
+ * close at or before the opening and that close is under half an hour old.
+ */
+export function openBlocker(s: SeriesAccount, opensAt: bigint, now: bigint): string | null {
+  if (!warmedUp(s)) return `series warming up (${s.observations}/${WARMUP_OBSERVATIONS} closes)`;
+  if (s.periodSecs === 0) {
+    const prev = closeOf(s, indexAtOrBefore(s, opensAt));
+    if (s.lastAt < prev && now < prev + OPEN_LEARN_GRACE_SECS) return "series has not learned the last close yet";
+  }
+  return null;
 }
 
 /** σ_day as a fraction → the series' variance, WAD. */

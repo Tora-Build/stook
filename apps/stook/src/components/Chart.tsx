@@ -8,7 +8,7 @@
 
 import { useMemo, useRef, useState, type PointerEvent } from "react";
 import { stook } from "@sooth/sdk-solana";
-import { pct } from "../lib/format";
+import { chance } from "../lib/format";
 
 const { BINS } = stook;
 const W = 960, H = 440, PAD = { l: 8, r: 70, t: 14, b: 26 };
@@ -33,6 +33,8 @@ export interface ChartProps {
   /** [unix seconds, price in display units] over the last day. */
   history?: [number, number][];
   settlesAt: bigint;
+  /** False before the round opens: p0 is then today's price, not an opening. */
+  opened?: boolean;
   now: number;
   settledBin?: number | null;
   disabled?: boolean;
@@ -102,7 +104,7 @@ export function Chart(p: ChartProps) {
 
   const fmt = (v: number) => v.toLocaleString("en-US", { minimumFractionDigits: p.dp, maximumFractionDigits: p.dp });
   const labelEvery = nVis > 16 ? 2 : 1;
-  const hoverBox = hover !== null ? { range: hover === 0 ? `below ${fmt(edge(1))}` : hover === BINS - 1 ? `above ${fmt(edge(BINS - 1))}` : `${fmt(edge(hover))} – ${fmt(edge(hover + 1))}`, prob: pct(probs[hover]!), pays: levels ? levels[hover]! : null } : null;
+  const hoverBox = hover !== null ? { range: hover === 0 ? `below ${fmt(edge(1))}` : hover === BINS - 1 ? `above ${fmt(edge(BINS - 1))}` : `${fmt(edge(hover))} – ${fmt(edge(hover + 1))}`, prob: chance(probs[hover]!), pays: levels ? levels[hover]! : null } : null;
 
   return (
     <div className="chart-wrap">
@@ -134,12 +136,12 @@ export function Chart(p: ChartProps) {
           <line x1={PAD.l} x2={W - PAD.r} y1={yOfPrice(livePrice)} y2={yOfPrice(livePrice)} className="line-live" />
           <text x={PAD.l + 4} y={yOfPrice(livePrice) - 4} className="lbl lbl-live">now {fmt(livePrice)}</text>
         </>}
-        {p0 > 0 && <text x={oddsX - 8} y={yOfPrice(p0) + 12} textAnchor="end" className="lbl lbl-p0">opened at {fmt(p0)}</text>}
+        {p0 > 0 && <text x={oddsX - 8} y={yOfPrice(p0) + 12} textAnchor="end" className="lbl lbl-p0">{p.opened === false ? "centre if it opened now" : "opened at"} {fmt(p0)}</text>}
         {/* time axis */}
         <line x1={xOfT(p.now)} x2={xOfT(p.now)} y1={PAD.t} y2={PAD.t + plotH} className="line-now" />
-        <text x={PAD.l} y={H - 8} className="lbl">{new Date(t0 * 1000).toLocaleTimeString("en-US", { hour: "numeric" })}</text>
+        <text x={PAD.l} y={H - 8} className="lbl">{new Date(t0 * 1000).toLocaleTimeString("en-US", { hour: "numeric", timeZone: "America/New_York" })}</text>
         <text x={xOfT(p.now)} y={H - 8} className="lbl" textAnchor="middle">now</text>
-        <text x={PAD.l + histW} y={H - 8} className="lbl lbl-live" textAnchor="end">settles {new Date(Number(p.settlesAt) * 1000).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })}</text>
+        <text x={PAD.l + histW} y={H - 8} className="lbl lbl-live" textAnchor="end">settles {new Date(Number(p.settlesAt) * 1000).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", timeZone: "America/New_York" })} NY</text>
         <text x={oddsX + oddsW / 2} y={H - 8} className="lbl" textAnchor="middle">the crowd's odds</text>
       </svg>
       <div className="chart-hover">

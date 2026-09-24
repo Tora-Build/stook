@@ -77,26 +77,46 @@ async function postAndConsume(vaas, feedHex, makeIxs) {
   else await builder.addPostPartiallyVerifiedPriceUpdates(vaas);
   const priceUpdate = builder.getPriceUpdateAccount(`0x${feedHex}`);
   const posted = await builder.buildVersionedTransactions({ computeUnitPriceMicroLamports: PRIORITY });
-  await receiver.provider.sendAll(posted, { skipPreflight: false });
 
   const { Transaction, sendAndConfirmTransaction } = await import("@solana/web3.js");
   try {
+    await receiver.provider.sendAll(posted, { skipPreflight: false });
     return await sendAndConfirmTransaction(connection, new Transaction().add(...stook.withHeap(makeIxs(priceUpdate), 200_000, PRIORITY)), [payer]);
   } finally {
-    // Rent back, whether or not the consume landed.
-    const { instruction: close } = await receiver.buildClosePriceUpdateInstruction(priceUpdate);
-    await sendAndConfirmTransaction(connection, new Transaction().add(close), [payer]).catch((e) => console.error("close price account:", e?.message));
+    // Rent back, whether or not the consume (or part of the post) landed:
+    // the price update account and, when fully verified, the encoded VAA the
+    // builder collected close instructions for. One per transaction, so a
+    // close of an account that never landed fails alone.
+    for (const { instruction } of builder.closeInstructions) {
+      await sendAndConfirmTransaction(connection, new Transaction().add(instruction), [payer]).catch((e) => console.error("close update account:", e?.message));
+    }
   }
 }
 
-async function sendPlain(ix) {
+// A step the program keeps refusing is not retried every pass: each failure
+// doubles the wait, from 30 s up to ten minutes. A success clears it.
+const backoff = new Map();
+const waiting = (key) => (backoff.get(key)?.until ?? 0) > Date.now();
+const failed = (key) => {
+  const n = (backoff.get(key)?.n ?? 0) + 1;
+  backoff.set(key, { n, until: Date.now() + Math.min(30_000 * 2 ** (n - 1), 600_000) });
+};
+const succeeded = (key) => backoff.delete(key);
+
+async function sendPlain(ix, units) {
   const { Transaction, sendAndConfirmTransaction } = await import("@solana/web3.js");
-  return sendAndConfirmTransaction(connection, new Transaction().add(...stook.withHeap([ix])), [payer]);
+  return sendAndConfirmTransaction(connection, new Transaction().add(...stook.withHeap([ix], units)), [payer]);
 }
 
 async function pass() {
   const now = BigInt(Math.floor(Date.now() / 1000));
   const found = [];
+  const seriesCache = new Map();
+  const seriesOf = async (key) => {
+    const k = key.toBase58();
+    if (!seriesCache.has(k)) { const a = await connection.getAccountInfo(key); seriesCache.set(k, a ? stook.decodeSeries(a.data) : null); }
+    return seriesCache.get(k);
+  };
   for (const status of ["seeding", "open"]) {
     const accounts = await scanner.getProgramAccounts(SOOTH_CORE_PROGRAM_ID, { filters: stook.ladderFilters(status) });
     for (const a of accounts) found.push({ pubkey: a.pubkey, ladder: stook.decodeLadder(a.account.data) });
@@ -107,14 +127,25 @@ async function pass() {
     if (!step) continue;
     const tag = `${pubkey.toBase58().slice(0, 8)} ${step}`;
     if (args.has("--plan")) { console.log(tag); continue; }
+    const key = `${pubkey.toBase58()}:${step}`;
+    if (waiting(key)) continue;
 
     try {
+      // An open the program would refuse costs a Pyth post and a close for
+      // nothing: wait until the series has warmed up and learned the close
+      // before this round's opening.
+      if (step === "open") {
+        const s = await seriesOf(ladder.series);
+        const why = s ? stook.openBlocker(s, ladder.opensAt, now) : "series not found";
+        if (why) { console.log(tag, "waiting:", why); continue; }
+      }
       // Whichever token program owns the mint — classic SPL or Token-2022.
       const mint = await connection.getAccountInfo(ladder.quoteMint);
       if (!mint) { console.log(tag, "quote mint not found"); continue; }
       const refs = { ladder: pubkey, quoteMint: ladder.quoteMint, tokenProgram: mint.owner };
       if (step === "void") {
         console.log(tag, await sendPlain(stook.voidLadderIx(refs, payer.publicKey)));
+        succeeded(key);
         continue;
       }
       const feed = hex(ladder.feedId);
@@ -134,6 +165,7 @@ async function pass() {
 
       if (step === "open") {
         console.log(tag, await postAndConsume(vaas, feed, (price) => [stook.openLadderIx(refs, payer.publicKey, price, ladder.series)]));
+        succeeded(key);
       } else {
         // The settler is paid in the market's quote token. The token account is
         // made in its own transaction first: adding it beside the settle
@@ -146,9 +178,11 @@ async function pass() {
             createAssociatedTokenAccountIdempotentInstruction(payer.publicKey, ata, payer.publicKey, ladder.quoteMint, mint.owner)), [payer]);
         }
         console.log(tag, await postAndConsume(vaas, feed, (price) => [stook.settleLadderIx(refs, ladder.series, payer.publicKey, price, ata)]));
+        succeeded(key);
       }
     } catch (e) {
       console.error(tag, "failed:", e?.message ?? e);
+      failed(key);
     }
   }
 }
@@ -170,15 +204,14 @@ async function clearUp() {
         const mint = await connection.getAccountInfo(l.quoteMint);
         const refs = { ladder: pubkey, quoteMint: l.quoteMint, tokenProgram: mint.owner };
         // 30 days after the close, anything still uncollected is paid out to
-        // its owner: their token account, their rent. The keeper gains nothing.
+        // its owner's token account, if they have one. The keeper does not
+        // open token accounts for others: the owner could close it and keep
+        // the rent, so it would be a way to drain the keeper. An owner with no
+        // account collects it themselves, whenever they like.
         const graceOver = BigInt(Math.floor(Date.now() / 1000)) >= l.settlesAt + stook.CLAIM_GRACE_SECS;
         const ownerToken = async (owner) => {
           const ata = getAssociatedTokenAddressSync(l.quoteMint, owner, true, mint.owner);
-          if (!(await connection.getAccountInfo(ata))) {
-            const { Transaction, sendAndConfirmTransaction } = await import("@solana/web3.js");
-            await sendAndConfirmTransaction(connection, new Transaction().add(createAssociatedTokenAccountIdempotentInstruction(payer.publicKey, ata, owner, l.quoteMint, mint.owner)), [payer]);
-          }
-          return ata;
+          return (await connection.getAccountInfo(ata)) ? ata : null;
         };
         let open = l.openPositions, tranches = l.openTranches;
         if (open > 0) {
@@ -189,7 +222,9 @@ async function clearUp() {
               await sendPlain(stook.sweepPositionIx(refs, payer.publicKey, p.pubkey, pos.owner));
               console.log(tag, "swept", p.pubkey.toBase58().slice(0, 8));
             } else if (graceOver) {
-              await sendPlain(stook.redeemLadderIx(refs, pos.owner, await ownerToken(pos.owner), pos.shape, payer.publicKey));
+              const to = await ownerToken(pos.owner);
+              if (!to) continue;
+              await sendPlain(stook.redeemLadderIx(refs, pos.owner, to, pos.shape, payer.publicKey));
               console.log(tag, "paid out uncollected position to", pos.owner.toBase58().slice(0, 8));
             } else continue;
             open--;
@@ -199,7 +234,9 @@ async function clearUp() {
           const ts = await scanner.getProgramAccounts(SOOTH_CORE_PROGRAM_ID, { filters: stook.trancheFilters(pubkey) });
           for (const t of ts) {
             const tr = stook.decodeLadderTranche(t.account.data);
-            await sendPlain(stook.claimLpIx(refs, tr.owner, await ownerToken(tr.owner), tr.index, payer.publicKey));
+            const to = await ownerToken(tr.owner);
+            if (!to) continue;
+            await sendPlain(stook.claimLpIx(refs, tr.owner, to, tr.index, payer.publicKey), stook.claimComputeUnits(l, tr));
             console.log(tag, "paid out unclaimed deposit to", tr.owner.toBase58().slice(0, 8));
             tranches--;
           }
@@ -237,20 +274,27 @@ async function learn() {
   for (const { pubkey, account } of all) {
     const s = stook.decodeSeries(account.data);
     const feed = hex(s.feedId);
+    // Closes are learned strictly in order. One that can never be learned is
+    // passed over, but the program lets the next one in only once the one
+    // passed over is 48 hours old; until then, wait.
+    let skippedAt = 0n;
     for (const index of stook.pendingObservations(s, now, 10)) {
       const key = `${pubkey.toBase58()}:${index}`;
-      if (unobservable.has(key)) continue;
       const at = stook.closeOf(s, index);
+      if (unobservable.has(key)) { skippedAt = at; continue; }
+      if (s.observations > 0 && skippedAt > now - stook.skipAfterSecs(s)) break;
+      if (waiting(key)) break;
       const tag = `${pubkey.toBase58().slice(0, 8)} observe ${new Date(Number(at) * 1000).toISOString()}`;
       try {
         const { parsed, vaas } = await hermes(`/v2/updates/price/${at}`, feed);
         const problem = parsed ? stook.settlementProblem(parsed, { feedId: s.feedId, settlesAt: at, stepBps: 200, p0Expo: parsed.price.expo }) : "hermes returned no update";
-        if (problem) { unobservable.add(key); console.log(tag, "skipped:", problem); continue; }
+        if (problem) { unobservable.add(key); skippedAt = at; console.log(tag, "skipped:", problem); continue; }
         // An RPC node that has not seen the blockhash yet refuses the
         // simulation; that clears in seconds, so try again at once.
         for (let attempt = 0; ; attempt++) {
           try {
             console.log(tag, await postAndConsume(vaas, feed, (price) => [stook.observeSeriesIx(pubkey, payer.publicKey, price, index)]));
+            succeeded(key);
             break;
           } catch (e) {
             if (attempt < 4 && /Blockhash not found|block height exceeded/i.test(String(e?.message ?? e))) { await new Promise((r) => setTimeout(r, 2500)); continue; }
@@ -264,10 +308,12 @@ async function learn() {
         // all. Skip those for good; retry anything else next pass, in order.
         if (/GuardianSetExpired|OracleNotTheSettlementInstant|OracleTooUncertain|OracleWrongFeed|SeriesAlreadyObserved/.test(why)) {
           unobservable.add(key);
+          skippedAt = at;
           console.log(tag, "skipped for good:", (why.match(/Error Code: (\w+)/) ?? [])[1] ?? "unverifiable");
           continue;
         }
         console.error(tag, "failed:", e?.message ?? e);
+        failed(key);
         break;
       }
     }
@@ -276,14 +322,16 @@ async function learn() {
 
 if (args.has("--watch")) {
   for (let n = 0; ; n++) {
-    await pass().catch((e) => console.error("pass failed:", e?.message ?? e));
+    // Learn first, so a round opening at yesterday's close opens on a
+    // series that has already counted it.
     if (n % 4 === 0) await learn().catch((e) => console.error("learn failed:", e?.message ?? e));
+    await pass().catch((e) => console.error("pass failed:", e?.message ?? e));
     // finished rounds are not urgent: every ten passes
     if (n % 10 === 0) await clearUp().catch((e) => console.error("clear-up failed:", e?.message ?? e));
     await new Promise((r) => setTimeout(r, INTERVAL));
   }
 } else {
-  await pass();
   if (args.has("--learn")) await learn();
+  await pass();
   if (args.has("--clear-up")) await clearUp();
 }

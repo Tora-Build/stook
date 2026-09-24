@@ -490,7 +490,7 @@ a.wc-cell:hover { text-decoration: none; border-color: var(--taxi); }
 .stmt-round-name { color: var(--cream); font-weight: 600; }
 .stamp { font-family: var(--px); font-size: .45rem; text-transform: uppercase; padding: .35rem .5rem; border: 2px solid currentColor; transform: rotate(-4deg); letter-spacing: .08em; white-space: nowrap; }
 .stamp-trading { color: var(--good); } .stamp-funded, .stamp-opening { color: var(--teal); }
-.stamp-locked, .stamp-settling { color: var(--cream-2); } .stamp-settled { color: var(--taxi); } .stamp-void { color: var(--bad); }
+.stamp-locked, .stamp-settling { color: var(--cream-2); } .stamp-settled { color: var(--taxi); } .stamp-void, .stamp-void-soon { color: var(--bad); }
 .ledger { width: 100%; border-collapse: collapse; font-size: .9rem; }
 .ledger th { text-align: right; font-weight: 400; color: var(--cream-3); font-size: .7rem; text-transform: uppercase; letter-spacing: .06em; padding: .5rem 1rem .3rem; }
 .ledger th:first-child, .ledger td:first-child { text-align: left; }

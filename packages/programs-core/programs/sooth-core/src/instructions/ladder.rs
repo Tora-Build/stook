@@ -58,6 +58,10 @@ pub const ROUND_SECS: i64 = 24 * 60 * 60;
 pub const LOCK_GAP_MIN_SECS: i64 = 120;
 pub const LOCK_GAP_MAX_SECS: i64 = 60 * 60;
 
+/// How long a daily round waits for its series to learn the close before its
+/// opening, before opening without it (a close Pyth was silent across).
+pub const OPEN_LEARN_GRACE_SECS: i64 = 30 * 60;
+
 /// The earliest a round opens after it is started: enough for the keeper to
 /// post the price the grid centres on.
 pub const OPEN_DELAY_SECS: i64 = 60;
@@ -465,6 +469,15 @@ pub fn open_handler(ctx: Context<LadderOpen>) -> Result<()> {
         // round opens. One that has not (a new series right after a Wormhole
         // guardian rotation) cannot open, and its round refunds after the lock.
         require!(ctx.accounts.series.warmed_up(), SoothCoreError::SeriesWarmingUp);
+        // Nor on a stale one: a daily round opens only once its series has
+        // learned the latest close before the opening (or half an hour after
+        // it, if Pyth was silent across it), so whoever opens cannot choose
+        // to open before yesterday's move is counted.
+        let s = &ctx.accounts.series;
+        if s.period_secs == 0 {
+            let prev = s.close_of(s.index_at_or_before(l.opens_at));
+            require!(s.last_at >= prev || now >= prev + OPEN_LEARN_GRACE_SECS, SoothCoreError::SeriesNotCaughtUp);
+        }
         let (step_bps, var_bands) = math(band_width(ctx.accounts.series.var_wad, l.settles_at - now))?;
         let var_bands_e9 = (var_bands / 1_000_000_000).max(1) as u64;
         l.step_bps = step_bps;
@@ -838,7 +851,8 @@ pub fn lp_join_handler(ctx: Context<LadderLpJoin>, args: LadderLpJoinArgs) -> Re
 /// Share of the protocol's fee take paid to whoever settles. Nobody is
 /// obliged to run a keeper, so the market pays for its own ending: the
 /// settler gets half the protocol's cut, the treasury the rest. A void pays
-/// nothing — a losing trader should never prefer voiding to settling.
+/// no bounty. It becomes possible 24 hours after the close; a round the
+/// keeper has settled by then never reaches it.
 pub const SETTLE_BOUNTY_NUM: u64 = 1;
 pub const SETTLE_BOUNTY_DEN: u64 = 2;
 
@@ -935,9 +949,15 @@ pub fn settle_handler(ctx: Context<LadderSettle>) -> Result<()> {
 
     // The price at this round's close, against the last close the series
     // saw: tomorrow's band width is learned from it.
-    // A settlement must never fail because the series could not learn from
-    // it: an observation that errors is skipped, and the round settles.
-    let _ = ctx.accounts.series.observe(p.price, p.exponent, l.settles_at);
+    // The price at this close teaches the series too, under the same bar a
+    // `series_observe` must meet: confidence under 1%, and in order. A
+    // settlement never fails because of it: a close it cannot teach is
+    // skipped, and the round settles.
+    let learnable = (p.conf as u128).saturating_mul(10_000) <= (p.price as u128).saturating_mul(100)
+        && ctx.accounts.series.may_observe(l.index, now);
+    if learnable {
+        let _ = ctx.accounts.series.observe(p.price, p.exponent, l.settles_at);
+    }
 
     emit!(LadderSettled {
         ladder: ladder_key,
@@ -1512,7 +1532,8 @@ pub struct LadderCollectFees<'info> {
     pub token_program: Interface<'info, TokenInterface>,
 }
 
-/// Sweep the creator's and protocol's fee shares out of a settled market.
+/// Sweep the protocol's fee share (and the creator's, always zero) out of a
+/// settled market.
 /// Only a settled one: while the market runs, `fees_protocol` is what funds
 /// the settler's bounty and a void folds every fee back into the refund pot,
 /// so an early sweep would either starve the ending or short the refunds.

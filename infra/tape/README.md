@@ -19,8 +19,9 @@ One-minute candles are kept for a week in `~/stook-tape.json`.
 Runs on the tora box under cron (`deploy/keepalive.sh`), on port 8791, and
 reaches the world through a Cloudflare quick tunnel whose address it announces
 to the Worker (`POST /tape/register`, bearer `TAPE_TOKEN`, stored in KV). The
-Worker then serves `/prices` from it (5 s cache), `/chart` from its candles,
-and proxies `/tape/candles` and `/tape/stream` (SSE) live.
+Worker then serves `/prices` from it (5 s cache) and `/chart` from its
+candles, which is what the app reads. It also proxies `/tape/candles` and
+`/tape/stream` (SSE), which the app does not use today.
 
 Endpoints on the box: `/prices`, `/candles?coin=&res=60|300|900&from=`,
 `/stream`, `/health`.

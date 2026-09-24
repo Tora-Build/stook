@@ -1,6 +1,6 @@
 //! Series: the protocol authority opens one per coin (feed × quote mint) and
-//! may pause it or reset its volatility. Everything a round does after that
-//! is permissionless.
+//! may pause it; its volatility is learned from Pyth closes only. Everything
+//! a round does after that is permissionless.
 
 use anchor_lang::prelude::*;
 use anchor_spl::token_interface::Mint;
@@ -141,16 +141,16 @@ pub struct SeriesObserved {
 /// Teach a series one day's close, whether or not anyone funded a round that
 /// day: the Pyth update that is the price at `close_of(index)` under the same
 /// rule a settlement uses (the first published at or after the close, within
-/// 30 seconds). Days go in order, and missed ones can be submitted later from
-/// Pyth's history, so the series never depends on a keeper or on rounds to
-/// learn.
+/// 30 seconds). Anyone may submit it, from Pyth's history, so the series
+/// never depends on a keeper or on rounds to learn. Days go strictly in order
+/// (`Series::may_observe`): a day may be passed over only once its close is
+/// 48 hours old, so nobody chooses which days a series learns from.
 pub fn series_observe_handler(ctx: Context<SeriesObserve>, index: u32) -> Result<()> {
     let s = &mut ctx.accounts.series;
     require!(s.has_round(index), SoothCoreError::LadderBadTimes);
     let at = s.close_of(index);
-    // In order, except that a series which has learned nothing yet may start
-    // from an earlier close (`Series::observe`).
-    require!(at > s.last_at || (s.observations == 0 && at != s.last_at), SoothCoreError::SeriesAlreadyObserved);
+    require!(at != s.last_at, SoothCoreError::SeriesAlreadyObserved);
+    require!(s.may_observe(index, Clock::get()?.unix_timestamp), SoothCoreError::SeriesOutOfOrder);
     let p = read_price_update(&ctx.accounts.price_update.to_account_info())?;
     // Confidence under 1% of the price: this price only measures a move.
     check_settlement_instant(&p, &s.feed_id, ORACLE_MIN_SIGNATURES, at, SETTLE_MAX_GAP_SECS, 200)?;

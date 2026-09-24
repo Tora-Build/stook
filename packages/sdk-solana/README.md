@@ -21,8 +21,10 @@ Token-2022 mint can quote a market, and why not.
 
 **Builds.** One function per instruction — `createLadderIx`, `openLadderIx`,
 `tradeLadderIx`, `joinLadderIx`, `settleLadderIx`, `voidLadderIx`,
-`redeemLadderIx`, `claimLpIx`, `collectLadderFeesIx`, `approveQuoteMintIx`,
-`revokeQuoteMintIx` — plus the PDA derivations they use. `withHeap(ixs)`
+`redeemLadderIx`, `claimLpIx`, `collectLadderFeesIx`, `sweepPositionIx`,
+`closeLadderIx`, `approveQuoteMintIx`, `revokeQuoteMintIx`, `createSeriesIx`,
+`setSeriesIx`, `observeSeriesIx`, and the protocol's admin builders, plus the
+PDA derivations they use. `withHeap(ixs)`
 prepends the 256 KB heap request every `sooth_core` transaction must carry.
 
 **Keeper.** `nextStep` says what a market is waiting for; `openProblem` and
@@ -35,6 +37,8 @@ so a keeper never pays to post one that will be refused.
 pnpm -F @sooth/sdk-solana test
 ```
 
-`ladder-e2e` and `ladder-token2022` run the real program binary on LiteSVM
-(`cargo build-sbf` first, or point `STOOK_SO` at a `.so`). The Token-2022 run
-uses a mainnet xStock mint's actual bytes (`tests/fixtures/nvdax-mint.hex`).
+`ladder-e2e`, `ladder-token2022` and `ladder-stook` run the real program
+binary on LiteSVM (`cargo build-sbf` first, or point `STOOK_SO` at a `.so`).
+The Token-2022 run uses a mainnet xStock mint's actual bytes
+(`tests/fixtures/nvdax-mint.hex`); the $STOOK run uses $STOOK's, 1% transfer
+fee included.

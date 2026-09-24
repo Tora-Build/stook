@@ -13,6 +13,7 @@ import { stook } from "@sooth/sdk-solana";
 import { COINS, anchorOf, mintOf, seriesOf, standInNote } from "../lib/coins";
 import { useSeries } from "../hooks/useChain";
 import { useNow } from "../hooks/useNow";
+import { firstOpenableDay, nyWhen } from "../lib/time";
 
 const DATA = "";
 /** A slot can be started until this long before it settles: the program's
@@ -35,6 +36,7 @@ export function Coin() {
   const note = standInNote(coin);
   const q = quote.data?.[coin.symbol] as { price: number; change24h: number | null } | undefined;
   const mint = mintOf(coin);
+  const firstOpen = series.data ? firstOpenableDay(series.data) : null;
 
   return (
     <div className="page">
@@ -45,7 +47,7 @@ export function Coin() {
           <span className="sign">${coin.symbol} · {coin.name.toUpperCase()}</span>
           <h1>{coin.anchor.name} <span className="sym">{coin.anchor.symbol}</span></h1>
           <p className="live-row">
-            {q ? <><span className="mono">${q.price.toLocaleString("en-US", { minimumFractionDigits: coin.anchor.dp, maximumFractionDigits: coin.anchor.dp })}</span>{q.change24h != null && <span className={`mono ${q.change24h >= 0 ? "up" : "down"}`}> {q.change24h >= 0 ? "+" : ""}{q.change24h.toFixed(2)}% 24h</span>}</> : <span className="muted">price…</span>}
+            {q ? <><span className="mono">${q.price.toLocaleString("en-US", { minimumFractionDigits: coin.anchor.dp, maximumFractionDigits: coin.anchor.dp })}</span>{typeof q.change24h === "number" && <span className={`mono ${q.change24h >= 0 ? "up" : "down"}`}> {q.change24h >= 0 ? "+" : ""}{q.change24h.toFixed(2)}% 24h</span>}</> : <span className="muted">price…</span>}
           </p>
           {note && <p className="warn">{note}</p>}
           <p className="muted">one round a day on {coin.anchor.name} ({coin.anchor.symbol}), settling at the New York close, paid in ${coin.symbol} · the coin takes {coin.feeBps / 100}% on each transfer</p>
@@ -56,12 +58,12 @@ export function Coin() {
 
 
       <section className="slots">
-        <p className="explain">One round a day. It trades from 4 PM the day before until 3 PM, and the bell rings at the 4 PM New York close. Its bands are set when it opens, as wide as {coin.anchor.name} is moving then, so you can fund a day weeks ahead. Click a day to trade it, or to fund it. <Link to="/how">How it works</Link></p>
-        {series.data && !stook.warmedUp(series.data) && <p className="hint">Still learning how the price moves from Pyth closes ({series.data.observations} of {stook.WARMUP_OBSERVATIONS}); funding is open, and rounds get their bands when they open.</p>}
+        <p className="explain">One round a day. It trades from 4 PM New York the day before until 3 PM, and the bell rings at the 4 PM close. Its bands are set when it opens, as wide as {coin.anchor.name} is moving then, so you can fund a day weeks ahead. Click a day to trade it, or to fund it. <Link to="/how">How it works</Link></p>
+        {series.data && !stook.warmedUp(series.data) && <p className="hint">Still learning how the price moves from Pyth closes ({series.data.observations} of {stook.WARMUP_OBSERVATIONS}). {firstOpen !== null ? <>The first day that can open is {nyWhen(stook.closeOf(series.data, firstOpen), { weekday: "short", month: "short", day: "numeric" })}; earlier days are greyed out. Later days can be funded now and get their bands when they open.</> : <>Funding is open, and rounds get their bands when they open.</>}</p>}
         {series.data && seriesKey ? <WallCalendar seriesKey={seriesKey} series={series.data} now={now} minLeadSecs={MIN_LEAD_SECS} dp={anchor.dp} coinSymbol={coin.symbol} canStart={!!mint && series.data.active} onStart={setStarting} />
           : <p className="muted">{series.isLoading ? "Reading the calendar…" : "This coin's rounds have not been opened on this network yet."}</p>}
       </section>
-      <h3 className="chart24-h">{coin.anchor.symbol} over the last day</h3>
+      <h3 className="chart24-h">{coin.anchor.symbol} over the last day (New York time)</h3>
       <Chart24 points={chart.data?.points ?? []} dp={coin.anchor.dp} />
       {starting !== null && series.data && seriesKey && <StartRound coin={coin} seriesKey={seriesKey} series={series.data} index={starting} onClose={() => setStarting(null)} />}
     </div>
@@ -86,7 +88,7 @@ function Chart24({ points, dp }: { points: [number, number][]; dp: number }) {
         <text x={W - P.r + 6} y={y(last[1]) + 4} className="lbl lbl-live">{last[1].toLocaleString("en-US", { maximumFractionDigits: dp })}</text>
         <text x={W - P.r + 6} y={y(hi) + 4} className="lbl">{hi.toLocaleString("en-US", { maximumFractionDigits: dp })}</text>
         <text x={W - P.r + 6} y={y(lo) + 4} className="lbl">{lo.toLocaleString("en-US", { maximumFractionDigits: dp })}</text>
-        {ticks.map((i) => <text key={i} x={x(i)} y={H - 6} className="lbl" textAnchor={i === 0 ? "start" : i === points.length - 1 ? "end" : "middle"}>{new Date(points[i]![0] * 1000).toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" })}</text>)}
+        {ticks.map((i) => <text key={i} x={x(i)} y={H - 6} className="lbl" textAnchor={i === 0 ? "start" : i === points.length - 1 ? "end" : "middle"}>{new Date(points[i]![0] * 1000).toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", timeZone: "America/New_York" })}</text>)}
       </svg>
     </div>
   );
