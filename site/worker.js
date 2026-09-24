@@ -121,28 +121,32 @@ export default {
     }
     // /supply: $STOOK's circulating supply, for aggregators (Jupiter asks for
     // {"circulatingSupply": number} on the team's domain). Read from chain:
-    // the mint's supply, less any wallets listed in the STOOK_EXCLUDE setting
-    // (comma-separated token accounts or owners, e.g. locked or team tokens).
+    // the mint's supply, less the token accounts listed in the STOOK_EXCLUDE
+    // setting (comma-separated, e.g. locked or team tokens).
     // The mint is the STOOK_MINT setting, so neither is in the repo.
     if (url.pathname === "/supply") {
       const cache = caches.default, key = new Request(url.origin + "/supply");
       const hit = await cache.match(key); if (hit) return hit;
       if (!env.STOOK_MINT) return new Response(JSON.stringify({ error: "mint not configured" }), { status: 503, headers: { "content-type": "application/json" } });
-      // Solana's own public endpoint: publicnode now refuses token-index calls without a key.
-      const rpc = async (method, params) => (await (await fetch("https://api.mainnet-beta.solana.com", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ jsonrpc: "2.0", id: 1, method, params }) })).json()).result;
+      // Plain account reads: the public endpoints refuse token-index calls
+      // from Cloudflare, but any node serves getAccountInfo.
+      const account = async (key) => {
+        const j = await (await fetch(RPC, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "getAccountInfo", params: [key, { encoding: "base64" }] }) })).json();
+        if (j.error || !j.result?.value) throw new Error(`account ${key.slice(0, 6)}: ${j.error?.message ?? "not found"}`);
+        return Uint8Array.from(atob(j.result.value.data[0]), (c) => c.charCodeAt(0));
+      };
+      const u64 = (d, o) => new DataView(d.buffer).getBigUint64(o, true);
       let body, status = 200;
       try {
-        const sup = await rpc("getTokenSupply", [env.STOOK_MINT]);
-        let circ = Number(sup.value.uiAmountString);
-        for (const w of (env.STOOK_EXCLUDE ?? "").split(",").map((s) => s.trim()).filter(Boolean)) {
-          // a token account's balance, or every $STOOK account an owner holds
-          const acct = await rpc("getTokenAccountBalance", [w]).catch(() => null);
-          if (acct?.value) { circ -= Number(acct.value.uiAmountString); continue; }
-          const owned = await rpc("getTokenAccountsByOwner", [w, { mint: env.STOOK_MINT }, { encoding: "jsonParsed" }]);
-          for (const a of owned?.value ?? []) circ -= Number(a.account.data.parsed.info.tokenAmount.uiAmountString);
-        }
+        // SPL and Token-2022 mints share the base layout: supply at 36, decimals at 44
+        const mint = await account(env.STOOK_MINT);
+        const decimals = mint[44];
+        let units = u64(mint, 36);
+        // excluded token accounts (not owners): their balance sits at 64
+        for (const w of (env.STOOK_EXCLUDE ?? "").split(",").map((s) => s.trim()).filter(Boolean)) units -= u64(await account(w), 64);
+        const circ = Number(units) / 10 ** decimals;
         body = { circulatingSupply: Math.max(0, circ) };
-      } catch (e) { body = { error: "supply unavailable" }; status = 502; }
+      } catch (e) { body = { error: "supply unavailable", detail: String(e).slice(0, 160) }; status = 502; }
       const res = new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json", "cache-control": `public, max-age=${status === 200 ? 300 : 30}`, "access-control-allow-origin": "*", "x-content-type-options": "nosniff" } });
       if (status === 200) ctx.waitUntil(cache.put(key, res.clone()));
       return res;
