@@ -26,7 +26,7 @@ const BASE_MINTS = {
 /** Jupiter's price API for the coins: { STOOK: { usd, change24h }, … }; a coin it lacks is left out. */
 async function coinQuotes(env) {
   // $STOOK's mint is a Worker setting (STOOK_MINT), not in the repo.
-  const BASE_MINTS = { ...BASE_MINTS, ...(env.STOOK_MINT ? { STOOK: env.STOOK_MINT } : {}) };
+  const MINTS = { ...BASE_MINTS, ...(env.STOOK_MINT ? { STOOK: env.STOOK_MINT } : {}) };
   const r = await fetch(`https://lite-api.jup.ag/price/v3?ids=${Object.values(MINTS).join(",")}`, { headers: UA });
   if (!r.ok) throw new Error(`jupiter ${r.status}`);
   const j = await r.json();
