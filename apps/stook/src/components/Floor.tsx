@@ -46,7 +46,7 @@ function Table({ coin, q }: { coin: Coin; q?: { price: number; change24h: number
           <div className="logos"><img src={coin.logo} alt="" className="logo-coin" /><img src={a.logo} alt="" className="logo-anchor" /></div>
           <div className="coin">${coin.symbol}</div>
           <div className="anchor">{a.name}{a.name !== a.symbol && <> · {a.symbol}</>}</div>
-          <div className="price">{q ? `$${q.price.toLocaleString("en-US", { minimumFractionDigits: a.dp, maximumFractionDigits: a.dp })}` : "—"}</div>
+          <div className="price">{q ? `$${q.price.toLocaleString("en-US", { minimumFractionDigits: a.dp, maximumFractionDigits: a.dp })}` : "…"}</div>
           <div className={`chg ${typeof q?.change24h === "number" ? (q.change24h >= 0 ? "up" : "down") : ""}`}>{typeof q?.change24h === "number" ? `${q.change24h >= 0 ? "+" : ""}${q.change24h.toFixed(2)}% 24h` : ""}</div>
         </div>
       </div>

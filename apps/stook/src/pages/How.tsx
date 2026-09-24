@@ -5,6 +5,7 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
 import { COINS } from "../lib/coins";
+import { Slider } from "../components/Slider";
 
 const STOPS = ["The tables", "The calendar", "The line", "The bell", "The house", "The fine print"] as const;
 
@@ -30,17 +31,17 @@ export function How() {
           </>}
           {i === 1 && <>
             <h2>The calendar</h2>
-            <p>One round a day. Funded a day or more ahead, it trades for the 24 hours before the <b>4:00 PM New York</b> close and stops an hour before it; funded later, it opens a minute after funding and stops shortly before the close. Whoever funds a day first starts it; everyone after joins that round.</p>
+            <p>One round a day, and any day up to 31 days out can be funded. Funded a day or more ahead, it trades for the 24 hours before the <b>4:00 PM New York</b> close and stops an hour before it; funded later, it opens a minute after funding and stops shortly before the close. Whoever funds a day first starts it; everyone after joins that round. A round that does not open within five minutes of its opening time is <b>void</b>, and deposits come back.</p>
             <p className="try">Fund a day.</p>
           </>}
           {i === 2 && <>
             <h2>The line</h2>
-            <p>64 bands around the opening price, each a quarter of an ordinary day's move for that coin, learned from its own recent closes: thin for a quiet one, wide for a wild one. Click the one you expect at the close: your <b>line</b>. It pays most there, one step less per band it misses by, out to its <b>reach</b>. A <b>range</b> pays the same anywhere inside. Price is the crowd's odds; a round opens with an ordinary day already priced in. Sell any time before the lock.</p>
+            <p>64 bands around the opening price, set when the round opens: each a quarter of an ordinary day's move for the anchor, learned on chain from its Pyth closes. Thin for a quiet anchor, wide for a wild one. Click the one you expect at the close: your <b>line</b>. It pays most there, one step less per band it misses by, out to its <b>reach</b>. A <b>range</b> pays the same anywhere inside. Price is the crowd's odds; a round opens with an ordinary day already priced in. Sell any time before the lock.</p>
             <p className="try">Click a band. Change the reach.</p>
           </>}
           {i === 3 && <>
             <h2>The bell</h2>
-            <p>At the close, the first <b>Pyth price</b> published at or after 4:00 PM New York lands in a band, if it came within 30 seconds. That band pays; the rest pay nothing. If that price came late or unsure, the round is <b>void</b>, and nobody can void a round that could settle. Deposits come back first, and open lines share the rest.</p>
+            <p>At the close, the first <b>Pyth price</b> published at or after 4:00 PM New York lands in a band, if it came within 30 seconds. That band pays; the rest pay nothing. If that price came late or unsure, the round is <b>void</b>; if there is no price to show at all, it can be voided a week after the close. Nobody can void a round that could settle. In a void, deposits come back first and open lines share the rest.</p>
             <p className="try">Ring it.</p>
           </>}
           {i === 4 && <>
@@ -51,7 +52,8 @@ export function How() {
           {i === 5 && <>
             <h2>The fine print</h2>
             <p>Some coins take a <b>transfer fee</b> on every move; the app shows what your wallet sends and what the round books.</p>
-            <p>Rounds settle on the anchor's <b>Pyth</b> feed; on devnet that is a crypto stand-in, and each coin page says which. The table's live price comes from the anchor's DEX pool and is for display only.</p>
+            <p>Rounds settle on the anchor's <b>Pyth</b> feed; on devnet that is a crypto stand-in, and a round's page says which. The table's live price comes from the anchor's DEX pool and is for display only.</p>
+            <p>Collect whenever you like. After <b>30 days</b> anyone can send what a round owes you to your wallet, so a finished round can close.</p>
             <p>Every quote is the program's own maths, exact to the unit.</p>
           </>}
           <div className="placard-nav">
@@ -108,7 +110,7 @@ function Line() {
         <text x={2} y={68} className="lbl lbl-xs">← lower</text><text x={148} y={68} className="lbl lbl-xs" textAnchor="end">higher →</text>
       </svg>
       <div className="scene-row">
-        <label className="height">reach <input type="range" min={1} max={6} value={reach} onChange={(e) => setReach(Number(e.target.value))} /><span className="mono">{reach}</span></label>
+        <label className="height">reach <Slider min={1} max={6} value={reach} onChange={setReach} width={110} /><span className="mono">{reach}</span></label>
         {band !== null && <span className="mono">1 share ≈ {cost.toFixed(2)}</span>}
       </div>
       <div className="scene-caption">{band === null ? "Bars are the crowd's odds." : `Pays ${reach} for ${cost.toFixed(2)}: ${(reach / cost).toFixed(1)}× your stake.`}</div>
@@ -138,7 +140,7 @@ function House() {
   const share = dep / (dep + others);
   return (
     <div className="scene">
-      <div className="scene-row"><label className="height">deposit <input type="range" min={100} max={5000} step={100} value={dep} onChange={(e) => setDep(Number(e.target.value))} /><span className="mono">{dep.toLocaleString()}</span></label></div>
+      <div className="scene-row"><label className="height">deposit <Slider min={100} max={5000} step={100} value={dep} onChange={setDep} width={160} /><span className="mono">{dep.toLocaleString()}</span></label></div>
       <div className="scene-house">
         <div className="scene-bar"><div className="scene-fill" style={{ width: `${share * 100}%` }} /></div>
         <div className="scene-legend"><span>your share of the pool <b className="mono">{(share * 100).toFixed(0)}%</b></span><span>of {fees} in fees today <b className="mono">{(fees * 0.9 * share).toFixed(0)}</b> is yours</span></div>

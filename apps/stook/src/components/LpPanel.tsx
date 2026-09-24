@@ -76,7 +76,7 @@ export function LpPanel(p: Props) {
               {!seeding && <div><dt>longest shot right now</dt><dd className="mono">1 in {worst.toFixed(0)}</dd></div>}
             </dl>
           )}
-          {short && <p className="warn">You hold {fmtAmount(balance.data!, dec)} {p.quoteSymbol}; this needs {fmtAmount(gross!, dec)}. On devnet, use <b>Get test coins</b> in the header.</p>}
+          {short && <p className="warn">You hold {fmtAmount(balance.data!, dec)} {p.quoteSymbol}; this needs {fmtAmount(gross!, dec)}. On devnet, use <b>test coins</b> in the header.</p>}
           <button className="primary" disabled={!depth || join.isPending || !publicKey || short} onClick={submit}>
             {!publicKey ? "Connect a wallet" : join.isPending ? "Sending…" : `Deposit ${text} ${p.quoteSymbol}`}
           </button>

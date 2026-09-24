@@ -107,7 +107,7 @@ export function Chart(p: ChartProps) {
   const hoverBox = hover !== null ? { range: hover === 0 ? `below ${fmt(edge(1))}` : hover === BINS - 1 ? `above ${fmt(edge(BINS - 1))}` : `${fmt(edge(hover))} – ${fmt(edge(hover + 1))}`, prob: chance(probs[hover]!), pays: levels ? levels[hover]! : null } : null;
 
   return (
-    <div className="chart-wrap">
+    <div className="chart-wrap" data-tour="board">
       <svg ref={svg} viewBox={`0 0 ${W} ${H}`} className={`chart ${p.disabled ? "chart-disabled" : `chart-${p.mode}`}`}
         onPointerDown={down} onPointerMove={move} onPointerUp={up} onPointerLeave={() => { setHover(null); pressed.current = null; setAnchor(null); }} role="img" aria-label="Price history with the crowd's odds per band">
         {/* band stripes */}
@@ -136,7 +136,7 @@ export function Chart(p: ChartProps) {
           <line x1={PAD.l} x2={W - PAD.r} y1={yOfPrice(livePrice)} y2={yOfPrice(livePrice)} className="line-live" />
           <text x={PAD.l + 4} y={yOfPrice(livePrice) - 4} className="lbl lbl-live">now {fmt(livePrice)}</text>
         </>}
-        {p0 > 0 && <text x={oddsX - 8} y={yOfPrice(p0) + 12} textAnchor="end" className="lbl lbl-p0">{p.opened === false ? "centre if it opened now" : "opened at"} {fmt(p0)}</text>}
+        {p0 > 0 && <text x={oddsX - 8} y={yOfPrice(p0) + 12} textAnchor="end" className="lbl lbl-p0">{p.opened === false ? "now" : "opened at"} {fmt(p0)}</text>}
         {/* time axis */}
         <line x1={xOfT(p.now)} x2={xOfT(p.now)} y1={PAD.t} y2={PAD.t + plotH} className="line-now" />
         <text x={PAD.l} y={H - 8} className="lbl">{new Date(t0 * 1000).toLocaleTimeString("en-US", { hour: "numeric", timeZone: "America/New_York" })}</text>
@@ -146,7 +146,7 @@ export function Chart(p: ChartProps) {
       </svg>
       <div className="chart-hover">
         {hoverBox ? (<><span className="mono">{hoverBox.range}</span><span>{hoverBox.prob} chance</span>{hoverBox.pays !== null && <span className="amber">{hoverBox.pays ? `pays ${hoverBox.pays} a share` : "pays nothing"}</span>}</>)
-          : (<span className="muted">{p.disabled ? "Trading is closed." : p.mode === "line" ? "Click the price you expect at settlement." : "Drag up or down across the range you expect."}{p.positions?.length ? " Click one of your lines to add to it or sell; drag to draw over it." : ""}</span>)}
+          : (<span className="muted">{p.disabled ? (p.opened === false ? "Not trading yet." : "Trading is closed.") : p.mode === "line" ? "Click the price you expect at settlement." : "Drag up or down across the range you expect."}{p.positions?.length ? " Click one of your lines to add to it or sell; drag to draw over it." : ""}</span>)}
       </div>
     </div>
   );

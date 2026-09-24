@@ -865,8 +865,8 @@ pub fn lp_join_handler(ctx: Context<LadderLpJoin>, args: LadderLpJoinArgs) -> Re
 /// Share of the protocol's fee take paid to whoever settles. Nobody is
 /// obliged to run a keeper, so the market pays for its own ending: the
 /// settler gets half the protocol's cut, the treasury the rest. A void pays
-/// no bounty. It becomes possible 24 hours after the close; a round the
-/// keeper has settled by then never reaches it.
+/// no bounty, and needs proof the round cannot settle (or a week without
+/// any update), so it never competes with a settle.
 pub const SETTLE_BOUNTY_NUM: u64 = 1;
 pub const SETTLE_BOUNTY_DEN: u64 = 2;
 

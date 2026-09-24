@@ -115,7 +115,7 @@ export function Yours() {
           {finished.map((h) => <RoundBlock key={h.pubkey.toBase58()} h={h} now={now} own={own} />)}
           {running.length > 0 && <h2 className="stmt-h">Running</h2>}
           {running.map((h) => <RoundBlock key={h.pubkey.toBase58()} h={h} now={now} own={own} />)}
-          <p className="stmt-foot">Amounts are in each round's coin and before the coin's own transfer fee. A line's worth while trading is what selling it now would pay. What you are owed after a round finishes is paid to your wallet by anyone, if you have not collected it, 30 days after its close.</p>
+          <p className="stmt-foot">Amounts are in each round's coin and before the coin's own transfer fee. A line's worth while trading is what selling it now would pay. Collect what a finished round owes you whenever you like; 30 days after its close, anyone may send it to your wallet for you.</p>
         </>}
     </div>
   );
@@ -165,7 +165,7 @@ function RoundBlock({ h, now, own }: { h: Holding; now: number; own: boolean }) 
               <td><span className={`chip-k ${x.kind}`}>{x.kind === "line" ? "LINE" : "HOUSE"}</span> {x.what}{x.note && <div className="ledger-note">{x.note}</div>}</td>
               <td className="mono">{x.kind === "line" ? `${fmtAmount(x.size, l.decimals, 0)} sh` : fmtAmount(x.size, l.decimals)}</td>
               <td className="mono">{fmtAmount(x.cost, l.decimals)}</td>
-              <td className="mono">{x.value === null ? "—" : fmtAmount(x.value, l.decimals)}</td>
+              <td className="mono">{x.value === null ? "–" : fmtAmount(x.value, l.decimals)}</td>
               <td className={`mono ${r === null ? "muted" : r >= 0n ? "up" : "down"}`}>{r === null ? "at the bell" : `${r >= 0n ? "+" : "−"}${fmtAmount(r >= 0n ? r : -r, l.decimals)}`}</td>
             </tr>); })}
         </tbody>

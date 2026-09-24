@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "description": "Keeper for Stook ladders: opens markets from the current Pyth price, settles them from the one update that is the price at settlement time, voids the ones that cannot finish.",
+  "description": "Keeper for Stook: teaches series their closes, opens and settles rounds from the one Pyth update that is the price at each instant, voids the ones that cannot finish, clears up finished rounds.",
   "engines": {
     "node": ">=20"
   },

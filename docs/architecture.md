@@ -9,7 +9,7 @@ silent rewrite would lose it.
 
 The parimutuel case was: it is a fifth of the code, it has no cold-start
 problem, and it is the mechanic behind a project that won its hackathon
-category. The first two are still true. The third was the error — that project
+category. The first two are still true. The third was the error: that project
 won **Consumer Apps**, and Stook is entering **DeFi**, where the judging asks
 different questions.
 
@@ -22,7 +22,7 @@ one pitching *"decentralized liquidity and multi-outcome architecture"*.
 
 So: an AMM, with the liquidity story as a feature rather than an absence.
 
-## One market, N bands, one subsidy — and why the subsidy is global
+## One market, N bands, one subsidy, and why the subsidy is global
 
 The question is "where will this land", so the outcome is a price band and a
 market has as many outcomes as it has bands. The scoring rule generalises
@@ -37,8 +37,8 @@ pᵢ   = exp(qᵢ/b) / Σ exp(qⱼ/b)          Σ pᵢ = 1
 case. A test asserts the two agree.
 
 The design first proposed a per-band depth `bᵢ`, so that LPs could make some
-bands harder to move than others — concentrated liquidity along the outcome
-axis. **That was measured and rejected**: with unequal `bᵢ` the price field is
+bands harder to move than others (concentrated liquidity along the outcome
+axis). **That was measured and rejected**: with unequal `bᵢ` the price field is
 not conservative (`∂pᵢ/∂qⱼ ≠ ∂pⱼ/∂qᵢ`), so the cost of a position depends on the
 order it was built in, and a round trip extracts money from the LPs forever.
 `docs/feasibility.md` §2 has the numbers.
@@ -49,9 +49,9 @@ by its share of depth and bears `b · ln(p_join / p_final)` at settlement, never
 more than its deposit. The first funder is an LP like any other. The per-band
 attribution scheme in `docs/feasibility.md` §3 was not adopted.
 
-A trade does not reprice every band. The market keeps `Σ exp(qᵢ/b − m)` cached,
-so a buy recomputes one exponential and costs the same at 32 bands as at 8.
-There are 64 bands.
+A trade does not reprice every band. The market stores the weights
+`wᵢ = exp(qᵢ/b)` and their sum, so a trade computes one exponential however
+many bands it touches (`math/ladder.rs`). There are 64 bands.
 
 ## Liquidity joins at any time, as tranches
 
@@ -61,7 +61,7 @@ deposit into a curve that has already moved, and the blind design review
 measured what goes wrong when that is done naively: +2,802 extracted from a
 2,500 deposit by a sandwich.
 
-Each deposit is a **tranche** — its own LMSR layer under the shared prices.
+Each deposit is a **tranche**: its own LMSR layer under the shared prices.
 
 - It buys `b = 0.9999 · deposit / ln(1/p_min)` at the prices of the moment it
   joins: the most depth whose worst case that deposit covers alone. A late
@@ -82,7 +82,7 @@ read. It lands at exactly those prices or fails. A trade placed in front of a
 join costs the LP a retry and the attacker a fee; the end-to-end test sends
 push → join → unwind as one transaction and asserts it is refused. What is left
 is an attacker holding a distortion long enough for an LP to *read* it as the
-price, which means holding it against every arbitrageur — and the UI shows the
+price, which means holding it against every arbitrageur, and the UI shows the
 Pyth price beside the curve's.
 
 An escrow-then-activate design was considered and dropped: if anyone may
@@ -145,7 +145,7 @@ take a share of the other traders' refunds in a void, up to about half in the
 fourth audit's measurement. It never reaches the depositors' pot.
 
 Solvency after every trade, tranche P&L, fee attribution and the SDK quote
-were confirmed on the shipped binary by both audits.
+were confirmed on the shipped binary by the audits.
 
 ## Series: one round a day, and bands the anchor sets
 
@@ -192,7 +192,7 @@ A new series starts from a close at least 20 rounds back and inside the last
 warms up from Pyth's history at once (the keeper backfills it when it is
 created), and nobody can delay that by starting it late: after the start
 every close follows in order. The only freedom left is the starting day,
-among closes 20 to 45 days old.
+among closes at least 20 rounds and at most 45 days back.
 
 Nothing else sets the number: `series_create` takes no volatility, and
 `series_set` only pauses. A new series' rounds cannot open until it has
@@ -215,7 +215,9 @@ peak.
 
 **When a round trades.** At most the 24 hours before its close, locking a
 twenty-fourth of that before it (an hour for a daily round). It can be funded
-up to a month ahead.
+up to 31 days ahead (`MAX_LEAD_SECS`); funded less than a day ahead, it opens
+a minute after funding, and locks between two minutes and an hour before the
+close (`round_times`).
 
 **Bands are set at open, not when a day is funded.** `ladder_open` (the
 keeper calls it; anyone may) centres the grid on THE price at `opens_at`,
@@ -232,8 +234,9 @@ previous close, and its opening price is that close's price: the open
 teaches it to the series itself. Any earlier close must already be learned
 (`SeriesNotCaughtUp`; anyone may submit one), so nobody can open before
 yesterday's move is counted.
-A deposit made before open records only its size; its own depth and the odds it joined at are
-recomputed from its size and the stored bell whenever it is paid
+
+A deposit made before open records only its size; its own depth and the odds
+it joined at are recomputed from its size and the stored bell whenever it is paid
 (`tranche_terms`), exactly as `open` computed them. So a day funded weeks
 ahead opens as fresh as one funded that morning, and nobody who funds early
 can lock in stale bands. Bands are at least 0.2%: the settlement price's
@@ -267,7 +270,9 @@ Thirty days after a round's close, anyone may pay out a position or deposit
 its owner never collected (`ladder_redeem` / `ladder_claim_lp` with a caller
 who is not the owner): the money goes to the owner's token account and the
 rent to the owner, so an absent winner cannot hold a finished round open.
-The keeper does it, then closes the round.
+The keeper does it for owners who hold a token account for the coin; it never
+creates one for someone else, since its owner could close it and keep the
+rent. An owner without one collects whenever they like.
 
 Every position and tranche is counted on the round. A round cannot close
 before its close time, so a day voided early keeps its address and cannot be
@@ -283,7 +288,7 @@ them. The keeper does all of this for finished rounds.
 ## Continuous UI over banded state
 
 A line is drawn at any price; it buys the band containing it. The band must be
-visible before the trade is confirmed — someone must never believe they
+visible before the trade is confirmed: nobody may believe they
 committed to a finer price than the market recorded.
 
 64 bands, log-spaced; the width per band is set at open from the series'
@@ -293,7 +298,7 @@ volatility.
 
 **The AMM's mint is per-market.** Sooth pinned `AMM_TOKEN_MINT` as a
 compile-time constant, so a deployment served one token pair. Stook stores the
-mint on the market, and with it the decimals — because the WAD conversion was
+mint on the market, and with it the decimals, because the WAD conversion was
 hard-coded to USDC's 6 and a tokenized equity with 8 run through a 6-decimal
 scalar misprices by 100x, silently, in the protocol's favour. The scalar now
 travels with the market.
@@ -302,7 +307,7 @@ travels with the market.
 the curve, unlock the book at a fee threshold. Stook first opened both at
 once, then removed the book altogether: a 64-outcome market has no natural
 book, and the inherited one was 1.2 MB of program the ladder never called.
-The program went from 1.82 MB to about 690 KB.
+The program went from 1.82 MB to about 715 KB.
 
 **No adjudicator.** Sooth carries manual, zkTLS and bonded-optimistic
 resolution plus committees, because "did this happen" can be contested. "What
@@ -318,7 +323,7 @@ serves classic SPL (USDC) and Token-2022. What needed care is which Token-2022
 mints a vault may hold, and the first version of that answer was wrong.
 
 The first guard refused a mint for *carrying* any of seven extensions. Read
-against a real xStock — NVDAx, from mainnet — it refused the entire asset
+against a real xStock (NVDAx, from mainnet) it refused the entire asset
 class: xStocks carry `PermanentDelegate`, `Pausable`, `TransferHook`,
 `DefaultAccountState`, `ConfidentialTransferMint`, `ScaledUiAmount` and
 metadata. Two things were wrong with refusing by name:
@@ -326,8 +331,8 @@ metadata. Two things were wrong with refusing by name:
 - Several of those are inert as configured. The `TransferHook` names no
   program, so no code runs. `DefaultAccountState` is `Initialized`.
   `ConfidentialTransferMint` cannot reach an account that never opts in, and a
-  vault never does. `ScaledUiAmount` changes the displayed amount only — it is
-  how a tokenized stock survives a split — so the ladder accounts in raw units
+  vault never does. `ScaledUiAmount` changes the displayed amount only (it is
+  how a tokenized stock survives a split), so the ladder accounts in raw units
   and a UI applies the multiplier.
 - The rest are not defects to handle but **issuer powers**: a permanent
   delegate can empty any account of that mint, a pause authority can stall
@@ -355,7 +360,9 @@ deposit (a round's first funding, a buy, an LP join) now goes through one
 sends the gross that lands at least the net, then reloads the vault and
 credits only what arrived. A shortfall of any size reverts. Payouts send
 exactly what the pool owes and the receiver gets the mint's fee less; the
-app shows both numbers. The fee authority can change the rate, so such a
+app shows both numbers. A buy's limit caps the gross that leaves the
+wallet, transfer fee included, so a rate raised after the quote cannot take
+more than the trader agreed to. The fee authority can change the rate, so such a
 mint is `IssuerTrusted` and needs the one-time approval. Proven on LiteSVM
 against $STOOK's real bytes with Token-2022 taking its 1% on every transfer
 (`tests/ladder-stook.test.ts`).

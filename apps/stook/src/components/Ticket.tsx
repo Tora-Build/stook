@@ -40,6 +40,7 @@ import { ataOf, ensureAta, type PositionRow, type TrancheRow } from "../lib/chai
 import { useBalance, useSend } from "../hooks/useChain";
 import type { DrawMode } from "./Chart";
 import { LpPanel } from "./LpPanel";
+import { Slider } from "./Slider";
 
 interface Props {
   refs: stook.LadderRefs;
@@ -65,7 +66,7 @@ export function Ticket(p: Props) {
     <section className="panel ticket">
       <div className="seg ticket-tabs">
         <button className={tab === "trade" ? "on" : ""} onClick={() => setTab("trade")}>Trade</button>
-        <button className={tab === "house" ? "on" : ""} onClick={() => setTab("house")}>House</button>
+        <button className={tab === "house" ? "on" : ""} onClick={() => setTab("house")} data-tour="house">House</button>
       </div>
       {tab === "house" ? <LpPanel refs={p.refs} ladder={p.ladder} quoteSymbol={p.quoteSymbol} now={p.now} transferFee={p.transferFee} bare /> : p.final ? <Collect {...p} /> : (
         <>
@@ -131,10 +132,10 @@ function Buy(p: Props & { held?: boolean }) {
   return (
     <>
       {!p.held && <div className="seg-row">
-        <div className="seg"><button className={p.mode === "line" ? "on" : ""} onClick={() => p.setMode("line")}>Line</button><button className={p.mode === "range" ? "on" : ""} onClick={() => p.setMode("range")}>Range</button></div>
-        {p.mode === "line" && <label className="height">reach <input type="range" min={1} max={stook.MAX_HEIGHT} value={p.height} onChange={(e) => p.setHeight(Number(e.target.value))} /><span className="mono">{p.height}</span></label>}
+        <div className="seg" data-tour="shape"><button className={p.mode === "line" ? "on" : ""} onClick={() => p.setMode("line")}>Line</button><button className={p.mode === "range" ? "on" : ""} onClick={() => p.setMode("range")}>Range</button></div>
+        {p.mode === "line" && <label className="height" data-tour="reach">reach <Slider min={1} max={stook.MAX_HEIGHT} value={p.height} onChange={p.setHeight} width={110} /><span className="mono">{p.height}</span></label>}
       </div>}
-      {!s ? <p className="explain">{p.tradeable ? (p.mode === "line" ? "Click the price you expect at the close." : "Drag across the range you expect.") : l.status === "seeding" ? (p.now < Number(l.opensAt) ? `Funded. Trading opens ${nyWhen(l.opensAt, { weekday: "short", hour: "numeric", minute: "2-digit" })} New York; the House takes deposits now.` : "Opening in a moment. The keeper is posting the opening price; deposits are open.") : "Trading is closed; the bell is next."} {p.positions.length > 0 && <>Click one of your lines on the chart to add to it or sell it.</>}</p>
+      {!s ? <p className="explain">{p.tradeable ? (p.mode === "line" ? "Click the price you expect at the close." : "Drag across the range you expect.") : l.status === "seeding" ? (p.now < Number(l.opensAt) ? `Funded. Trading opens ${nyWhen(l.opensAt, { weekday: "short", hour: "numeric", minute: "2-digit" })} New York; the House takes deposits now.` : (p.now < Number(l.opensAt) + Number(stook.OPEN_WINDOW_SECS) ? "Opening in a moment. The keeper is posting the opening price; deposits are open." : "This round did not open in time and will be void; deposits come back.")) : "Trading is closed; the bell is next."} {p.positions.length > 0 && <>Click one of your lines on the chart to add to it or sell it.</>}</p>
         : <div className="shape-desc">{p.symbol} at {where}{existing && !p.held && <span className="muted"> · same as your {fmtAmount(existing.position.shares, dec)} sh line: this adds to it</span>}</div>}
       {s && (
         <table className="ladder-table">
@@ -146,7 +147,7 @@ function Buy(p: Props & { held?: boolean }) {
         </table>
       )}
       {s && s.h > 1 && <p className="hint">A share pays {s.h} on your band and one less per band away. That is the reach, and it is the same wherever you draw. What the crowd charges for it is the last column: the longer the odds, the more on stake.</p>}
-      <label className="field"><span>Shares</span><input value={text} onChange={(e) => setText(e.target.value)} inputMode="decimal" /><span className="hint">balance {balance.data !== undefined ? fmtAmount(balance.data, dec) : "—"} {p.quoteSymbol}</span></label>
+      <label className="field" data-tour="order"><span>Shares</span><input value={text} onChange={(e) => setText(e.target.value)} inputMode="decimal" /><span className="hint">balance {balance.data !== undefined ? fmtAmount(balance.data, dec) : "…"} {p.quoteSymbol}</span></label>
       {q && pays !== null && limit !== null && <dl className="quote"><div><dt>You pay</dt><dd className="mono">{fmtAmount(pays, dec)} {p.quoteSymbol}</dd></div>{pays !== q.total && <div><dt>of which the coin's transfer fee</dt><dd className="mono">{fmtAmount(pays - q.total, dec)}</dd></div>}<div><dt>fee</dt><dd className="mono">{(feeBps / 100).toFixed(2)}%{feeBps < stook.FEE_PEAK_BPS ? (Number(l.settlesAt) - p.now > 6 * 3600 ? ", rising to 5% over the last 6 hours" : ", rising to 5% by the lock") : ", its highest: the close is near"}</dd></div><div><dt>at most, if the odds move first</dt><dd className="mono muted">{fmtAmount(limit, dec)}</dd></div><div><dt>best case</dt><dd className="mono amber">{fmtAmount(lands(q.maxPayout), dec)} ({(Number(lands(q.maxPayout)) / Number(pays)).toLocaleString("en-US", { maximumFractionDigits: 1 })}×)<span className="muted small"> if it closes {moveFromOpen(l, Math.floor((s!.lo + s!.hi) / 2))}</span></dd></div></dl>}
       {short && <p className="warn">You hold {fmtAmount(balance.data!, dec)} {p.quoteSymbol}; this can cost up to {fmtAmount(limit!, dec)}.</p>}
       <button className="primary" disabled={!q || !p.tradeable || send.isPending || !publicKey || short} onClick={submit}>{!publicKey ? "Connect a wallet" : !p.tradeable ? "Not trading" : !s ? "Draw a line first" : send.isPending ? "Sending…" : `${p.held || existing ? "Add" : "Buy"} ${text} shares`}</button>
@@ -168,7 +169,7 @@ function Sell(p: Props & { pos: PositionRow }) {
   const submit = () => { if (!q || !publicKey || limit === null) return; send.mutate({ computeUnits: stook.tradeComputeUnits(s), ixs: [ensureAta(l.quoteMint, publicKey, p.refs.tokenProgram), stook.tradeLadderIx(p.refs, { user: publicKey, userToken: ataOf(l.quoteMint, publicKey, p.refs.tokenProgram), shape: s, shares: -size, limit })] }, { onSuccess: () => { if (pct === 100) p.onDeselect(); } }); };
   return (
     <>
-      <label className="height sell-slider">sell <input type="range" min={1} max={100} value={pct} onChange={(e) => setPct(Number(e.target.value))} /><span className="mono">{pct}% = {fmtAmount(size, dec)} sh</span></label>
+      <label className="height sell-slider">sell <Slider min={1} max={100} value={pct} onChange={setPct} width={180} /><span className="mono">{pct}% = {fmtAmount(size, dec)} sh</span></label>
       {q && get !== null && limit !== null && <dl className="quote"><div><dt>You receive</dt><dd className="mono">{fmtAmount(get, dec)} {p.quoteSymbol}</dd></div><div><dt>at least, if the odds move first</dt><dd className="mono muted">{fmtAmount(stook.netOf(limit, p.transferFee), dec)}</dd></div><div><dt>you paid for these</dt><dd className="mono">{fmtAmount(paidFor, dec)}</dd></div><div><dt>result</dt><dd className={`mono ${get >= paidFor ? "up" : "down"}`}>{get >= paidFor ? "+" : "−"}{fmtAmount(get >= paidFor ? get - paidFor : paidFor - get, dec)}</dd></div></dl>}
       <button className="primary" disabled={!q || !p.tradeable || send.isPending || !publicKey} onClick={submit}>{!p.tradeable ? "Locked until the bell" : send.isPending ? "Sending…" : `Sell ${pct}%`}</button>
     </>

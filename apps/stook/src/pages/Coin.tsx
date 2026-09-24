@@ -1,5 +1,5 @@
-// One coin's post: the anchor's price over the last day, and the round slots
-// — one per day, settling at the New York close, for the week ahead. A slot
+// One coin's post: the anchor's price over the last day, and the round slots,
+// one per day, settling at the New York close, up to 31 days ahead. A slot
 // nobody has funded is empty; whoever seeds it first starts the round and is
 // its first LP; everyone after adds liquidity to the same round.
 import { useMemo } from "react";
@@ -10,7 +10,7 @@ import { WallCalendar } from "../components/WallCalendar";
 import { Address } from "../components/Address";
 import { useQuery } from "@tanstack/react-query";
 import { stook } from "@sooth/sdk-solana";
-import { COINS, anchorOf, mintOf, seriesOf, standInNote } from "../lib/coins";
+import { COINS, anchorOf, mintOf, seriesOf } from "../lib/coins";
 import { useSeries } from "../hooks/useChain";
 import { useNow } from "../hooks/useNow";
 import { firstOpenableDay, nyWhen } from "../lib/time";
@@ -33,7 +33,6 @@ export function Coin() {
   const anchor = coin ? anchorOf(coin) : null;
 
   if (!coin || !anchor) return <p className="page muted">No such coin on the street.</p>;
-  const note = standInNote(coin);
   const q = quote.data?.[coin.symbol] as { price: number; change24h: number | null } | undefined;
   const mint = mintOf(coin);
   const firstOpen = series.data ? firstOpenableDay(series.data) : null;
@@ -49,7 +48,6 @@ export function Coin() {
           <p className="live-row">
             {q ? <><span className="mono">${q.price.toLocaleString("en-US", { minimumFractionDigits: coin.anchor.dp, maximumFractionDigits: coin.anchor.dp })}</span>{typeof q.change24h === "number" && <span className={`mono ${q.change24h >= 0 ? "up" : "down"}`}> {q.change24h >= 0 ? "+" : ""}{q.change24h.toFixed(2)}% 24h</span>}</> : <span className="muted">price…</span>}
           </p>
-          {note && <p className="warn">{note}</p>}
           <p className="muted">one round a day on {coin.anchor.name} ({coin.anchor.symbol}), settling at the New York close, paid in ${coin.symbol} · the coin takes {coin.feeBps / 100}% on each transfer</p>
           <p className="addrs"><Address label={`${coin.anchor.symbol} token`} value={coin.anchor.mint} /><Address label={`$${coin.symbol}`} value={coin.mint} dim /></p>
           </div>
@@ -58,7 +56,7 @@ export function Coin() {
 
 
       <section className="slots">
-        <p className="explain">One round a day. Funded a day or more ahead, it trades from 4 PM New York the day before until 3 PM, and the bell rings at the 4 PM close. Its bands are set when it opens, as wide as {coin.anchor.name} is moving then, so you can fund a day weeks ahead. Click a day to trade it, or to fund it. <Link to="/how">How it works</Link></p>
+        <p className="explain">One round a day. Funded a day or more ahead, it trades from 4 PM New York the day before until 3 PM, and the bell rings at the 4 PM close; funded later, it opens a minute after funding. It must open within five minutes or it is void and refunds. Its bands are set when it opens, as wide as {coin.anchor.name} is moving then, so you can fund any day up to 31 days ahead. Click a day to trade it, or to fund it. <Link to="/how">How it works</Link></p>
         {series.data && !stook.warmedUp(series.data) && <p className="hint">Still learning how the price moves from Pyth closes ({series.data.observations} of {stook.WARMUP_OBSERVATIONS}). {firstOpen !== null ? <>The first day that can open is {nyWhen(stook.closeOf(series.data, firstOpen), { weekday: "short", month: "short", day: "numeric" })}; earlier days are greyed out. Later days can be funded now and get their bands when they open.</> : <>Funding is open, and rounds get their bands when they open.</>}</p>}
         {series.data && seriesKey ? <WallCalendar seriesKey={seriesKey} series={series.data} now={now} minLeadSecs={MIN_LEAD_SECS} dp={anchor.dp} coinSymbol={coin.symbol} canStart={!!mint && series.data.active} onStart={setStarting} />
           : <p className="muted">{series.isLoading ? "Reading the calendar…" : "This coin's rounds have not been opened on this network yet."}</p>}

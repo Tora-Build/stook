@@ -14,7 +14,7 @@
   const HAIRS = ["#0b1120", "#5a3a1a", "#c9bfa4", "#a8412f", "#8a8f99"];
   const rnd = (a, b) => a + Math.random() * (b - a);
   const pick = (xs) => xs[Math.floor(Math.random() * xs.length)];
-  const fmt = (v, dp) => (v == null ? "—" : v.toLocaleString("en-US", { minimumFractionDigits: dp, maximumFractionDigits: dp }));
+  const fmt = (v, dp) => (v == null ? "…" : v.toLocaleString("en-US", { minimumFractionDigits: dp, maximumFractionDigits: dp }));
   const pctf = (v) => (v == null ? "flat" : (v >= 0 ? "+" : "") + v.toFixed(2) + "%");
 
   // ── what they say ──────────────────────────────────────────────────────
@@ -24,7 +24,7 @@
     "Bullshit. {anchor} never closes at {level}.", "My line's at {level}. Yours?", "The odds on {anchor} are wrong and I'm gonna get paid.", "Start the {coin} round or I will. Then you pay me fees.", "You still holding that {coin} range? Christ.",
     "Bell's in a few hours. Lines in, mouths shut.", "{anchor} at {price} and you're calling it a top? Fuck outta here.", "I don't care what the crowd thinks, {anchor}'s going to {far}.", "Some asshole started the {coin} round with 10 coins. Ten.",
     "You want the edge on {anchor}? Draw where it hurts.", "Screw the range. Line at {level}, reach 3, done.", "{coin} pool paid me lunch. Twice.", "If {anchor} closes at {near} I'm quitting this floor.", "The tape's the tape. {price}. Deal with it.", "{anchor} {chg} and you're still on the fence?", "I've got 2,000 {coin} on {level}. Say something.", "Whoever's the house on {coin} today owes me a drink.", "Somebody's sitting on the {coin} pool like a hen.",
-    "{anchor} moved {abs}% today. That's {bands} bands.", "A band on {anchor} is about {band} wide right now.", "{anchor} needs {abs}% to get back where it started.", "If {anchor} holds {price} into the close, my line pays.",
+    "{anchor} moved {abs}% today. Lines are scrambling.", "{anchor} needs {abs}% to get back where it started.", "If {anchor} holds {price} into the close, my line pays.",
     "{coin} pool's paying fees. Somebody's trading.", "{anchor} at {price}. Middle band. Nobody wins big there.", "Two bands up on {anchor} is {far}. I'd take it.", "{anchor} {chg} and the crowd hasn't moved. Odd.",
     "Sold my {coin} line, buying it back lower.", "Is the {coin} round started yet?", "Whoever seeded {coin} today is up on fees already.", "Range on {anchor}: {near} to {far}. Sleep easy.",
     "{anchor} at {price}.", "{anchor}'s {chg} today.", "Seen {anchor}? {price}.", "{coin} crowd's quiet.", "Who's starting {coin}'s round?",
@@ -37,7 +37,7 @@
     "Bullshit.", "You're out of your fucking mind.", "That's what you said about {anchor} last week.", "Fine, {level}. Now shut up.", "Then fund the damn pool.", "I'll take that bet. All of it.", "Eat shit. {far} by Friday.",
     "Sure. And I'm the Fed.", "Draw the line, stop talking about it.", "{chg}? That's noise.", "Nobody cares about your line.", "The crowd's got it at {near}, genius.", "Move your ass, bell's soon.", "Wider band, smaller mouth.",
     "Ha! {price}. Pay up.", "No fucking way.", "Bet.", "You'd draw a line on a heart monitor.", "That's the dumbest line I've seen all week.", "Fine. But I'm the house, not you.", "Say it louder, the {coin} table can't hear you.", "Christ, just click the band.", "My grandmother could draw that line.", "Don't be greedy. Range it.", "If you're so sure, be the house.",
-    "{bands} bands? The tent won't cover that.", "Then draw the line at {near}.", "The house made {abs}% just sitting there.", "Start it yourself, it's one click.", "{band} a band. Fine. Reach 2.",
+    "{abs}%? The tent won't cover that.", "Then draw the line at {near}.", "The house made {abs}% just sitting there.", "Start it yourself, it's one click.", "Bands are set at the open. Fine. Reach 2.",
     "{anchor}'s never closed there.", "I'll seed it if you trade it.", "Wider reach. Costs more, pays wider.", "Your line's four bands out. Good luck.", "The odds already say {near}.",
     "No way. {level}, easy.", "I'm long the close.", "Not with my {coin}.", "Line's in. {level}.", "Pool's fine, you fund it then.", "{chg}? That's nothing.", "Told you. {price}.",
     "Range for me. Sleep well.", "I'll take the other side.", "Crowd's got it at {near}.", "Give it an hour.", "Fees pay either way.", "Reach 4, centre {level}.", "That's a {far} print by Friday.",

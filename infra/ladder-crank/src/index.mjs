@@ -8,13 +8,13 @@
 // Every decision is made by `@sooth/sdk-solana`'s `stook.nextStep`,
 // `stook.openProblem` and `stook.settlementProblem`, which are unit-tested.
 // This file is the I/O around them: read ladders, ask Hermes, post the update
-// through the Pyth receiver, and consume it in the same transaction.
+// through the Pyth receiver, and consume it in a transaction of our own.
 //
 // Nothing here is privileged. Anyone may run it; which price settles a market
 // is fixed by the program's rule, not by who cranks.
 //
 // ENV
-//   RPC_URL              Solana RPC (default devnet)
+//   RPC_URL              Solana RPC (default: the devnet proxy, infra/rpc-proxy)
 //   KEYPAIR              fee payer, path to a JSON keypair (default ~/.config/solana/id.json)
 //   PYTH_API_KEY         Hermes has required one since 2026-08-26
 //   HERMES_URL           default https://hermes.pyth.network

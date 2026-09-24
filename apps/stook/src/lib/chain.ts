@@ -181,14 +181,16 @@ export function explain(e: unknown): string {
     UnsupportedMintExtension: "This token cannot be held in a market vault.",
     ProtocolPaused: "The protocol is paused.",
     LadderNotFinal: "The market has not settled yet.",
-    LadderBadTimes: "Too close to the close to start this day, or not its time yet.",
+    LadderBadTimes: "Too close to its close to fund this day, or more than 31 days ahead.",
     LadderNotVoidable: "This round can still finish; it cannot be voided yet.",
+    LadderStillSettleable: "The closing price can still settle this round, so it cannot be voided.",
+    SeriesInactive: "This coin is not starting new rounds right now.",
     LadderTooDeep: "That deposit is larger than one round can take.",
-    AccountNotInitialized: "An account this needs does not exist yet, usually a token account with none of the coin in it. Get test coins first.",
+    AccountNotInitialized: "An account this needs does not exist yet, usually a token account with none of the coin in it. Use test coins in the header first.",
   };
   if (code && known[code]) return known[code]!;
   // The token program's own errors: 0x1 is "insufficient funds".
-  if (/Token(z|kegQ)[A-Za-z0-9]* failed: custom program error: 0x1\b/.test(logs + text) || (m?.[1] === "1" && /Token/.test(logs + text))) return "Not enough of the coin in your wallet for that. On devnet, use Get test coins.";
+  if (/Token(z|kegQ)[A-Za-z0-9]* failed: custom program error: 0x1\b/.test(logs + text) || (m?.[1] === "1" && /Token/.test(logs + text))) return "Not enough of the coin in your wallet for that. On devnet, use test coins in the header.";
   if (m?.[1] === "1") return "Not enough of the coin in your wallet for that.";
   if (text.includes("User rejected")) return "Signature declined.";
   return code ? `Program refused: ${code}` : text.slice(0, 200);

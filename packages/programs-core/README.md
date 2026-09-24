@@ -6,7 +6,7 @@ The Anchor program behind Stook: `sooth_core`, program id
 ```
 programs/sooth-core/src/
 ├── lib.rs              # declare_id!, the 256 KB bump allocator, 21 handlers
-├── error.rs            # SoothCoreError — append-only
+├── error.rs            # SoothCoreError, append-only
 ├── events.rs           # protocol events; market events sit beside their handlers
 ├── oracle.rs           # Pyth PriceUpdateV2 parser and the settlement-instant rule
 ├── token_guard.rs      # which Token-2022 mints a vault may hold, and on whose say-so
@@ -22,9 +22,9 @@ programs/sooth-core/src/
 │   └── protocol_config.rs
 └── math/
     ├── wad.rs          # WAD fixed point, exact to 2^96 divisors
-    ├── lmsr.rs         # exp_wad, ln_wad
+    ├── lmsr.rs         # exp_wad, ln_wad, the binary LMSR
     ├── lmsr_n.rs       # N-outcome LMSR, the reference the ladder is tested against
-    ├── calendar.rs     # civil dates, weekdays, the New York close through daylight saving
+    ├── calendar.rs     # civil dates, the New York close through daylight saving, NYSE holidays
     └── ladder.rs       # the 64-bin ladder: shapes, trades, tranches, band width
 ```
 
@@ -41,7 +41,10 @@ programs/sooth-core/src/
 The protocol authority creates and pauses series; everything after that is
 permissionless. Anyone may fund a day's round (`ladder_create`, up to 31 days
 ahead), teach a series a close, and open, settle, void, sweep and close
-rounds: each is a clock and oracle read that anyone may trigger.
+rounds: each is a clock and oracle read that anyone may trigger. The oracle
+rule picks the one Pyth update for an instant (`prev_publish_time < t <=
+publish_time`), so who calls never changes the outcome; `docs/architecture.md`
+has the rules for opening, settling and voiding.
 
 ## The one thing every caller must know
 
@@ -59,4 +62,6 @@ cargo build-sbf --manifest-path packages/programs-core/programs/sooth-core/Cargo
 pnpm -F @sooth/sdk-solana test                                    # LiteSVM, real binary
 ```
 
-`--features mainnet` raises the oracle bar to fully verified Pyth updates only.
+`--features mainnet` raises the oracle bar to fully verified Pyth updates
+only, and lets only `protocol::INITIALIZER` call `initialize_protocol` (set it
+to the deployer before that build).

@@ -1,17 +1,19 @@
-# Feasibility — measured, not estimated
+# Feasibility: measured, not estimated
 
 Every claim below was tested against the real toolchain (Anchor 0.30.1,
 solana-cli 3.1.8, `cargo build-sbf`, LiteSVM 1.3) or the live devnet on
-2026-09-21. Where a number is a projection it says so.
+2026-09-21, before the ladder was built. The measurements are kept as they
+were taken; where the shipped design moved on, a note says so. The design
+itself is `docs/architecture.md`.
 
 ## Verdict
 
 Buildable on Solana in the current stack, with **one design correction** the
 measurements forced: liquidity depth cannot vary per tick inside the pricing
-rule. Everything else — compute, state, Token-2022, oracle consumption,
-settlement timing — fits with room.
+rule. Everything else (compute, state, Token-2022, oracle consumption,
+settlement timing) fits with room.
 
-## 1. Compute — the N-tick curve fits, incrementally
+## 1. Compute: the N-tick curve fits, incrementally
 
 A probe program (`tools/cu-probe`) ran the actual `lmsr_n` code on SBF.
 Compute units per operation, measured between `sol_log_compute_units` marks:
@@ -28,19 +30,24 @@ scales at ~13K × N. A trade that keeps `Σ exp(qᵢ/b − m)` cached in state
 recomputes **one** exp and is flat in N. That is the design.
 
 Against the shipped binary `trade_positions`, measured the same way:
-**86,787 CU** first buy, **96,586 CU** warm — of which the LMSR math is ~30K
+**86,787 CU** first buy, **96,586 CU** warm, of which the LMSR math is ~30K
 and the rest is account deserialisation, two token CPIs, the LP mint and the
 event. An N-tick trade is therefore projected at **~100K CU**, indistinguishable
 from today.
 
 Cache maintenance: the shift `m = max(qᵢ/b)` moves when a tick becomes the new
-maximum. Every cached term is then multiplied by one scalar `exp(m − m′)` —
+maximum. Every cached term is then multiplied by one scalar `exp(m − m′)`:
 N multiplications, not N exponentials (~26K at N = 32). `exp_wad` saturates
 the negative tail below −64·WAD to zero, so a tick far below the max is
 simply 0 in the cache. A full recompute stays available as a crank and fits at
 N = 32 (421K) with headroom; **N is capped at 32** for that reason, not 64.
 
-## 2. Pricing — per-tick depth is not a scoring rule
+*Shipped differently.* The ladder has 64 bins and stores the weights
+`wᵢ = exp(qᵢ/b)` themselves, capped at `W_MAX`, so there is no shift to move
+and no recompute crank: a trade multiplies the touched weights and costs one
+`exp` and one `ln` (`math/ladder.rs`).
+
+## 2. Pricing: per-tick depth is not a scoring rule
 
 The intended model gave each tick its own depth `bᵢ`, priced as
 `pᵢ ∝ exp(qᵢ/bᵢ)`. Tested for path independence: buy 200 on tick A then 200
@@ -59,12 +66,12 @@ position depends on the order it was built in. A trader who buys in the cheap
 order and unwinds in the dear order extracts ~4.2 per round trip from the LPs,
 indefinitely. **Per-tick `b` is out.**
 
-What survives: **one global `b`**, with LP ranges as an *attribution* layer —
-who earns a tick's fees and who bears a tick's settlement loss — rather than a
+What survives: **one global `b`**, with LP ranges as an *attribution* layer
+(who earns a tick's fees and who bears a tick's settlement loss) rather than a
 pricing layer. Per-tick prior weights `wᵢ` remain available and are
 conservative, but they express a belief, not depth.
 
-## 3. LP attribution — solvent and exact
+## 3. LP attribution: solvent and exact
 
 *Not adopted.* The program has no per-band attribution: every deposit is a
 full-grid tranche and the first funder is an LP like any other
@@ -85,8 +92,8 @@ no LP below zero ✓
 
 The honest economics under a single `b`: a range LP whose span contains the
 outcome bears the loss and gets no depth benefit for being there. Ranges are
-**risk selection plus fee share** — "provide where you think it will not land,
-earn fees where flow is" — and nothing more. Fees do concentrate on the ticks
+**risk selection plus fee share** ("provide where you think it will not land,
+earn fees where flow is") and nothing more. Fees do concentrate on the ticks
 nearest the outcome, so "closer earns more" is true of fees and false of
 inventory. Both facts go in the product copy.
 
@@ -97,20 +104,25 @@ under the program's existing 256 KB bump allocator. One `Position` PDA per
 `(market, user, tick)`, seeds extended with the tick; rent ~0.0018 SOL each,
 reclaimable. No instruction exceeds the account or transaction-size limits.
 
+*Shipped:* `Ladder` is a zero-copy account of 1,928 bytes (64 weights, the
+payout table), a position is one PDA per `(ladder, owner, shape)`, and each
+deposit is a `LadderTranche` of 1,152 bytes (`state/ladder.rs`).
+
 ## 5. Token-2022
 
 `anchor_spl::token_interface` (`InterfaceAccount`, `Interface<TokenInterface>`)
 is present in anchor-spl 0.30.1. The extension guard already ships
 (`token_guard.rs`). Vault paths migrate mechanically; ~75 sites across 20
-files.
+files. *Done:* every ladder path moves tokens through `token_interface`.
 
-## 6. Oracle — Pyth, consumed without the Pyth crate
+## 6. Oracle: Pyth, consumed without the Pyth crate
 
 `pyth-solana-receiver-sdk` fails to compile against Anchor 0.30.1 (18 errors:
 its `>= 0.28` bound pulls a second `anchor-lang`, and `borsh-derive` breaks on
 current `syn`). Pinning did not resolve it. Instead the `PriceUpdateV2` layout
-is **vendored** (~40 lines, `#[account]` with an `owner = receiver` constraint)
-and compiles clean with zero Pyth dependencies.
+is **vendored** and compiles clean with zero Pyth dependencies. (Shipped as a
+hand parser with an owner check in `oracle.rs`, tested against a devnet
+account's bytes.)
 
 Validated against live devnet accounts under the receiver program
 `rec5EKMGg6MxZYaMdyBfgwp4d5rB9T1VQH5pJv5LtFJ`:
@@ -121,14 +133,17 @@ Validated against live devnet accounts under the receiver program
 | NVDA/USD |       48 | ✓             | Partial, 5 sigs  | $205.47  |
 
 Every devnet post is `Partial`; there are **zero** `Full`-verified accounts.
-Settle must accept `Partial { num_signatures ≥ min }` with `min` in protocol
-config — 5 on devnet, `Full` on mainnet.
+Settle must accept `Partial { num_signatures ≥ min }` on devnet and `Full`
+on mainnet. (Shipped as a build constant, `ORACLE_MIN_SIGNATURES`: 3 by
+default, and only `Full` with `--features mainnet`.)
 
 The push oracle (`pythWSn…`) does not exist on devnet (program absent, 0
 accounts), so the settle crank posts the update itself via the receiver, then
 settles. Devnet's existing partial-signature posts prove that path works.
+(The push oracle program is on devnet now; the app reads its accounts for
+the live line only. Settlement still posts its own update.)
 
-## 7. Oracle — off-chain
+## 7. Oracle: off-chain
 
 Hermes moved behind an API key on 2026-08-26 (`hermes.pyth.network`,
 `pyth.dourolabs.app/hermes`, and Benchmarks all return 401). A **free trial**
@@ -139,11 +154,12 @@ against the repo's `^0.30.1`; under pnpm this nests cleanly, and the raw
 instruction is the fallback.
 
 The historical route `/v2/updates/price/{timestamp}` exists (401, not 404),
-so a deterministic "price as of the deadline" is available if needed.
+so a deterministic "price as of the deadline" is available if needed. (It
+is what the keeper now uses for every open, settle and series close.)
 
 ## 8. Settlement timing
 
-`Equity.Index.*` feeds are **24/7** — confirmed by Pyth's 2026-06-10 launch
+`Equity.Index.*` feeds are **24/7**, confirmed by Pyth's 2026-06-10 launch
 (NVDA sourced from extended-hours venues; Coinbase, Kraken and dYdX settle
 perps on them). The metadata `schedule` field shows NYSE hours on both feed
 families and is boilerplate; the description is authoritative. Thirty names
@@ -159,12 +175,13 @@ staleness check.
 ## 9. Prior art
 
 Oracle's Edge (Cypherpunk 2025) pitched this exact design. Its repo's
-`QUICK_FIX.md` is about the program ID still being a placeholder — it was
-never built. The pitch exists; the product does not.
+`QUICK_FIX.md` is about the program ID still being a placeholder: it was
+never built. The pitch exists; the product does not. The wider survey is
+`docs/research/`.
 
-## Open
+## Since
 
-- Migrate the instruction layer: `AmmState` arrays, cached-Σexp trade path,
-  `seed_range`, per-tick `Position`, settle.
-- Token-2022 vault paths.
-- Obtain the Pyth Terminal trial key; wire the crank.
+All three open items from this run are done: the ladder replaced the
+instruction layer, the vault paths are Token-2022 aware, and the keeper
+(`infra/ladder-crank`) runs with a Pyth Terminal key. What is open now is
+listed at the end of `docs/architecture.md`.

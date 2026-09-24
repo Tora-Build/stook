@@ -510,3 +510,59 @@ a.wc-cell:hover { text-decoration: none; border-color: var(--taxi); }
 :root[data-theme="day"] .stmt-h { color: #1c7f7f; }
 :root[data-theme="day"] .stamp-trading { color: #1f7a4d; } :root[data-theme="day"] .stamp-funded, :root[data-theme="day"] .stamp-opening { color: #1c7f7f; } :root[data-theme="day"] .stamp-settled { color: var(--taxi-2); }
 .chart24-h { margin: 1.8rem 0 .6rem; }
+
+/* ── sliders: pixel track, the thumb runs the whole length ─────────────────── */
+.px-range { -webkit-appearance: none; appearance: none; background: transparent; height: 20px; margin: 0; padding: 0; cursor: pointer; --thumb: 12px; }
+.px-range::-webkit-slider-runnable-track { height: 8px; border: 2px solid var(--cream); background: linear-gradient(var(--taxi), var(--taxi)) 0 0 / calc(var(--thumb) / 2 + (100% - var(--thumb)) * var(--f, 0)) 100% no-repeat, var(--ink); }
+.px-range::-webkit-slider-thumb { -webkit-appearance: none; appearance: none; width: var(--thumb); height: 18px; margin-top: -7px; background: var(--taxi); border: 2px solid var(--cream); border-radius: 0; box-shadow: 2px 2px 0 var(--brick-2); }
+.px-range::-moz-range-track { height: 4px; border: 2px solid var(--cream); background: var(--ink); }
+.px-range::-moz-range-progress { height: 4px; background: var(--taxi); }
+.px-range::-moz-range-thumb { width: 8px; height: 14px; border: 2px solid var(--cream); border-radius: 0; background: var(--taxi); box-shadow: 2px 2px 0 var(--brick-2); }
+.px-range:focus-visible { outline: 2px solid var(--teal); outline-offset: 4px; }
+.px-range:active::-webkit-slider-thumb { background: var(--cream); }
+
+/* ── the round page's title: the anchor leads, the coin is what it is paid in ─ */
+.anchor-mark { width: 44px; height: 44px; flex: none; display: grid; place-items: center; border: 3px solid var(--cream); background: var(--ink); box-shadow: 3px 3px 0 var(--brick-2); overflow: hidden; }
+.anchor-mark img { width: 100%; height: 100%; object-fit: cover; }
+.anchor-mark .tick { font-family: var(--px); font-size: .5rem; color: var(--taxi); }
+.paid-in { display: inline-flex; align-items: center; gap: .35rem; margin-left: .6rem; padding: .15rem .5rem .15rem .2rem; border: 2px solid var(--line); background: var(--sky-3); font-family: var(--sans); font-size: .78rem; color: var(--cream-2); vertical-align: middle; white-space: nowrap; }
+.paid-in img { width: 18px; height: 18px; border-radius: 50%; object-fit: cover; }
+.paid-in b { color: var(--cream); font-weight: 600; }
+.tour-btn { font-family: var(--px); font-size: .45rem; background: transparent; color: var(--taxi); border: 2px solid var(--taxi); padding: .45rem .6rem; cursor: pointer; }
+.tour-btn:hover { background: var(--taxi); color: var(--ink); }
+.tour-btn:focus-visible { outline: 2px solid var(--teal); outline-offset: 2px; }
+
+/* ── floor guide: a spotlight on one element, a floor note beside it ─────────── */
+.tour { position: fixed; inset: 0; z-index: 1000; pointer-events: none; }
+.tour-dim { position: fixed; inset: 0; background: rgba(5, 8, 18, .74); pointer-events: auto; }
+.tour-spot { position: fixed; pointer-events: auto; box-shadow: 0 0 0 200vmax rgba(5, 8, 18, .74); outline: 3px solid var(--taxi); outline-offset: 0; transition: top .35s cubic-bezier(.2, .8, .2, 1), left .35s cubic-bezier(.2, .8, .2, 1), width .35s cubic-bezier(.2, .8, .2, 1), height .35s cubic-bezier(.2, .8, .2, 1); }
+/* terminal brackets at the corners, like a quote screen's selection */
+.tour-spot::before, .tour-spot::after { content: ""; position: absolute; width: 14px; height: 14px; border: 3px solid var(--cream); }
+.tour-spot::before { top: -9px; left: -9px; border-right: 0; border-bottom: 0; }
+.tour-spot::after { bottom: -9px; right: -9px; border-left: 0; border-top: 0; }
+.tour-card { position: fixed; pointer-events: auto; background: var(--sky-2); color: var(--cream); border: 3px solid var(--cream); box-shadow: 6px 6px 0 var(--brick-2); transition: top .35s cubic-bezier(.2, .8, .2, 1), left .35s cubic-bezier(.2, .8, .2, 1); animation: tour-in .25s ease-out; }
+.tour-card-centre { top: 50%; left: 50%; transform: translate(-50%, -50%); }
+.tour-card-pinned { left: 50%; bottom: 16px; transform: translateX(-50%); }
+@keyframes tour-in { from { opacity: 0; } to { opacity: 1; } }
+.tour-arrow-up::before, .tour-arrow-down::before { content: ""; position: absolute; left: calc(var(--ax) - 8px); width: 12px; height: 12px; background: var(--sky-2); border: 3px solid var(--cream); }
+.tour-arrow-up::before { top: -9px; border-right: 0; border-bottom: 0; transform: rotate(45deg); }
+.tour-arrow-down::before { bottom: -9px; border-left: 0; border-top: 0; transform: rotate(45deg); }
+.tour-head { display: flex; align-items: center; justify-content: space-between; padding: .5rem .75rem; background: var(--ink); border-bottom: 3px solid var(--taxi); }
+.tour-sign { font-family: var(--px); font-size: .45rem; background: var(--green); color: #f4e9c8; padding: .35rem .5rem; border: 2px solid #f4e9c8; letter-spacing: .04em; }
+.tour-count { color: var(--taxi); font-size: .8rem; letter-spacing: .08em; }
+.tour-body { padding: .8rem .9rem .4rem; }
+.tour-body h4 { font-family: var(--px); font-size: .6rem; line-height: 1.6; color: var(--taxi); margin: 0 0 .5rem; font-weight: 400; text-wrap: balance; }
+.tour-body div { font-size: .88rem; line-height: 1.5; color: var(--cream-2); }
+.tour-body b { color: var(--cream); font-weight: 600; }
+.tour-foot { display: flex; align-items: center; gap: .6rem; padding: .6rem .9rem .8rem; }
+.tour-pips { display: flex; gap: 4px; margin-right: auto; }
+.tour-pips span { width: 8px; height: 8px; background: var(--sky-3); border: 1px solid var(--line); }
+.tour-pips span.past { background: var(--taxi-2); border-color: var(--taxi-2); }
+.tour-pips span.on { background: var(--taxi); border-color: var(--cream); box-shadow: 0 0 6px var(--taxi); }
+button.tour-skip { font-family: var(--sans); font-size: .8rem; color: var(--cream-3); text-decoration: underline; text-underline-offset: 3px; }
+button.tour-skip:hover { color: var(--cream); }
+.tour-back, .tour-next { font-family: var(--px); font-size: .45rem; padding: .55rem .7rem; cursor: pointer; border: 2px solid var(--cream); }
+.tour-back { background: transparent; color: var(--cream); }
+.tour-next { background: var(--taxi); color: #101a2e; box-shadow: 2px 2px 0 var(--brick-2); }
+.tour-back:focus-visible, .tour-next:focus-visible, .tour-skip:focus-visible { outline: 2px solid var(--teal); outline-offset: 2px; }
+@media (prefers-reduced-motion: reduce) { .tour-spot, .tour-card { transition: none; animation: none; } }
