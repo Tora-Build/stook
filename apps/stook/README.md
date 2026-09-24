@@ -30,11 +30,23 @@ Design rules the pages keep to:
   sheet name the stand-in, with a red note; everywhere else shows the coin's
   real anchor.
 - The devnet faucet's key ships in the bundle on purpose: the devnet coins
-  and mock token are worthless and handing them out is the faucet's job. The
-  same key is also the transfer-fee and withheld-withdraw authority of the
-  devnet coins (`scripts/devnet/coins.mjs`); those two should move to a
-  private key. Nothing else secret is ever built in.
+  and mock token are worthless and handing them out is the faucet's job. It
+  only mints: the devnet coins' fee and withheld-withdraw authorities belong
+  to the deployer. Nothing else secret is ever built in.
+- Every coin amount shows its dollar value, from the coin's Jupiter price
+  (the devnet test coins are valued as the real ones).
+- $STOOK's mainnet mint is not in the repo: the build reads
+  `VITE_STOOK_MINT` from `.env.local`, the Worker a `STOOK_MINT` secret.
 
 Deployed by the `stook-street` Worker (`site/`), which serves `dist/` with
-the security headers in `public/_headers`. `wrangler.toml` here is only the
-`app.stooks.xyz` redirect.
+the security headers in `public/_headers`, and these data routes, all cached
+at the edge:
+
+| Route | What | Source |
+|---|---|---|
+| `/prices` | each coin's anchor price and 24h move | the tape's pools, then Yahoo |
+| `/chart?coin=` or `?sym=` | the anchor over the last day | the tape, then Yahoo |
+| `/usd`, `/coins` | each coin's dollar price (and 24h move) | Jupiter's price API |
+| `/supply` | `{"circulatingSupply": n}` for $STOOK | the mint account, less `STOOK_EXCLUDE` token accounts |
+
+`wrangler.toml` here is only the `app.stooks.xyz` redirect.
