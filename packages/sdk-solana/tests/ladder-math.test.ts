@@ -175,3 +175,20 @@ describe("ladder sdk", () => {
     expect(L.ladderFilters()).toHaveLength(2);
   });
 });
+
+describe("NYSE holidays", () => {
+  it("match the program's rule and the exchange's published 2026 and 2027 calendar", () => {
+    const d = (y: number, m: number, dd: number) => L.daysFromCivil(y, m, dd);
+    const listed = new Set([
+      d(2026, 1, 1), d(2026, 1, 19), d(2026, 2, 16), d(2026, 4, 3), d(2026, 5, 25), d(2026, 6, 19), d(2026, 7, 3), d(2026, 9, 7), d(2026, 11, 26), d(2026, 12, 25),
+      d(2027, 1, 1), d(2027, 1, 18), d(2027, 2, 15), d(2027, 3, 26), d(2027, 5, 31), d(2027, 6, 18), d(2027, 7, 5), d(2027, 9, 6), d(2027, 11, 25), d(2027, 12, 24),
+    ]);
+    const s = { periodSecs: 0, clock: L.CLOCK_NEW_YORK_WEEKDAYS };
+    for (let day = d(2026, 1, 1); day < d(2028, 1, 1); day++) {
+      const weekend = [0, 6].includes(((day + 4) % 7 + 7) % 7);
+      expect(L.hasRound(s, day), String(L.civilFromDays(day))).toBe(!weekend && !listed.has(day));
+    }
+    expect(L.nyseHoliday(d(2027, 12, 31))).toBe(false);
+    expect(L.hasRound({ periodSecs: 0, clock: L.CLOCK_NEW_YORK }, d(2026, 12, 25))).toBe(true); // only the weekday clock skips them
+  });
+});

@@ -139,12 +139,14 @@ pub struct SeriesObserved {
 }
 
 /// Teach a series one day's close, whether or not anyone funded a round that
-/// day: the Pyth update that is the price at `close_of(index)` under the same
-/// rule a settlement uses (the first published at or after the close, within
-/// 30 seconds). Anyone may submit it, from Pyth's history, so the series
-/// never depends on a keeper or on rounds to learn. Days go strictly in order
-/// (`Series::may_observe`): a day may be passed over only once its close is
-/// 48 hours old, so nobody chooses which days a series learns from.
+/// day. Anyone may submit it, from Pyth's history, so the series never
+/// depends on a keeper or on rounds to learn. The update must be THE one for
+/// the close, the first published at or after it (`prev_publish_time < at <=
+/// publish_time`), so there is nothing to choose. If it is also a good price
+/// for the instant (within 30 seconds, confidence under 1%), the series learns
+/// the move since the last close; if not, it only moves on to this close
+/// (`Series::rebase`). Either way every day is taken, in order
+/// (`Series::may_observe`), so nobody chooses which days a series learns from.
 pub fn series_observe_handler(ctx: Context<SeriesObserve>, index: u32) -> Result<()> {
     let s = &mut ctx.accounts.series;
     require!(s.has_round(index), SoothCoreError::LadderBadTimes);
@@ -152,9 +154,14 @@ pub fn series_observe_handler(ctx: Context<SeriesObserve>, index: u32) -> Result
     require!(at != s.last_at, SoothCoreError::SeriesAlreadyObserved);
     require!(s.may_observe(index, Clock::get()?.unix_timestamp), SoothCoreError::SeriesOutOfOrder);
     let p = read_price_update(&ctx.accounts.price_update.to_account_info())?;
-    // Confidence under 1% of the price: this price only measures a move.
-    check_settlement_instant(&p, &s.feed_id, ORACLE_MIN_SIGNATURES, at, SETTLE_MAX_GAP_SECS, 200)?;
-    s.observe(p.price, p.exponent, at).map_err(|_| error!(SoothCoreError::MathOverflow))?;
+    // The one update for this close, however late or unsure.
+    check_settlement_instant(&p, &s.feed_id, ORACLE_MIN_SIGNATURES, at, i64::MAX, u16::MAX)?;
+    let good = p.publish_time - at <= SETTLE_MAX_GAP_SECS && (p.conf as u128).saturating_mul(10_000) <= (p.price as u128).saturating_mul(100);
+    if good {
+        s.observe(p.price, p.exponent, at).map_err(|_| error!(SoothCoreError::MathOverflow))?;
+    } else {
+        s.rebase(p.price, p.exponent, at);
+    }
     emit!(SeriesObserved { series: s.key(), index, price: p.price, var_wad: s.var_wad, observations: s.observations });
     Ok(())
 }

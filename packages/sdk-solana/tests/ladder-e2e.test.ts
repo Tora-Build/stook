@@ -117,8 +117,11 @@ function market(e: Env, settlesAt: bigint) {
     createSeries: ser.createIx, indexOfClose: ser.indexOf, closeAt: ser.closeOf,
     /** Teach the series 21 closes from Pyth-shaped updates, ending before `before`. */
     warm: async (before: bigint) => {
-      for (const c of warmCloses(ser.indexOf, ser.closeOf, before, P0)) {
-        warpClockTo(e.ctx, c.at + 1n);
+      // A series starts from 20 closes back, so the whole history is in the
+      // past when it is taught, as a backfill from Pyth's history is.
+      const closes = warmCloses(ser.indexOf, ser.closeOf, before, P0);
+      warpClockTo(e.ctx, closes.at(-1)!.at + 1n);
+      for (const c of closes) {
         const r = await send(e, [L.observeSeriesIx(ser.series, e.trader.kp.publicKey, e.priceAccount(updateAt(c.price, c.at, c.at - 1n)), c.index, PROGRAM)], e.trader.kp);
         expect(r.err, r.logs).toBeNull();
       }

@@ -58,7 +58,7 @@ export function Coin() {
 
 
       <section className="slots">
-        <p className="explain">One round a day. It trades from 4 PM New York the day before until 3 PM, and the bell rings at the 4 PM close. Its bands are set when it opens, as wide as {coin.anchor.name} is moving then, so you can fund a day weeks ahead. Click a day to trade it, or to fund it. <Link to="/how">How it works</Link></p>
+        <p className="explain">One round a day. Funded a day or more ahead, it trades from 4 PM New York the day before until 3 PM, and the bell rings at the 4 PM close. Its bands are set when it opens, as wide as {coin.anchor.name} is moving then, so you can fund a day weeks ahead. Click a day to trade it, or to fund it. <Link to="/how">How it works</Link></p>
         {series.data && !stook.warmedUp(series.data) && <p className="hint">Still learning how the price moves from Pyth closes ({series.data.observations} of {stook.WARMUP_OBSERVATIONS}). {firstOpen !== null ? <>The first day that can open is {nyWhen(stook.closeOf(series.data, firstOpen), { weekday: "short", month: "short", day: "numeric" })}; earlier days are greyed out. Later days can be funded now and get their bands when they open.</> : <>Funding is open, and rounds get their bands when they open.</>}</p>}
         {series.data && seriesKey ? <WallCalendar seriesKey={seriesKey} series={series.data} now={now} minLeadSecs={MIN_LEAD_SECS} dp={anchor.dp} coinSymbol={coin.symbol} canStart={!!mint && series.data.active} onStart={setStarting} />
           : <p className="muted">{series.isLoading ? "Reading the calendar…" : "This coin's rounds have not been opened on this network yet."}</p>}

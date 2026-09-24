@@ -118,10 +118,11 @@ function Buy(p: Props & { held?: boolean }) {
   // coin's transfer fee, and what a payout lands as is net of it again.
   const pays = q ? stook.grossFor(q.total, p.transferFee) : null;
   const lands = (book: bigint) => stook.netOf(book, p.transferFee);
-  const limit = q ? (q.total * 1005n) / 1000n : null;
+  // What may leave the wallet at most, the coin's transfer fee included.
+  const limit = q ? stook.grossFor((q.total * 1005n) / 1000n, p.transferFee) : null;
   // Held to what the transaction may take, not the point quote: a balance
   // between the two would pass here and fail on chain.
-  const short = limit !== null && balance.data !== undefined && balance.data < stook.grossFor(limit, p.transferFee);
+  const short = limit !== null && balance.data !== undefined && balance.data < limit;
   const centre = s && s.h > 1 ? (s.lo + s.hi) / 2 : null;
   const where = !s ? null : s.h === 1 ? rangeName(l, s.lo, s.hi, p.dp) : `${bandName(l, centre!, p.dp)}, reach ${s.h}`;
   const existing = s ? p.positions.find((r) => r.position.shape.lo === s.lo && r.position.shape.hi === s.hi && r.position.shape.h === s.h) : null;
@@ -146,8 +147,8 @@ function Buy(p: Props & { held?: boolean }) {
       )}
       {s && s.h > 1 && <p className="hint">A share pays {s.h} on your band and one less per band away. That is the reach, and it is the same wherever you draw. What the crowd charges for it is the last column: the longer the odds, the more on stake.</p>}
       <label className="field"><span>Shares</span><input value={text} onChange={(e) => setText(e.target.value)} inputMode="decimal" /><span className="hint">balance {balance.data !== undefined ? fmtAmount(balance.data, dec) : "—"} {p.quoteSymbol}</span></label>
-      {q && pays !== null && limit !== null && <dl className="quote"><div><dt>You pay</dt><dd className="mono">{fmtAmount(pays, dec)} {p.quoteSymbol}</dd></div>{pays !== q.total && <div><dt>of which the coin's transfer fee</dt><dd className="mono">{fmtAmount(pays - q.total, dec)}</dd></div>}<div><dt>fee</dt><dd className="mono">{(feeBps / 100).toFixed(2)}%{feeBps < stook.FEE_PEAK_BPS ? (Number(l.settlesAt) - p.now > 6 * 3600 ? ", rising to 5% over the last 6 hours" : ", rising to 5% by the lock") : ", its highest: the close is near"}</dd></div><div><dt>at most, if the odds move first</dt><dd className="mono muted">{fmtAmount(stook.grossFor(limit, p.transferFee), dec)}</dd></div><div><dt>best case</dt><dd className="mono amber">{fmtAmount(lands(q.maxPayout), dec)} ({(Number(lands(q.maxPayout)) / Number(pays)).toLocaleString("en-US", { maximumFractionDigits: 1 })}×)<span className="muted small"> if it closes {moveFromOpen(l, Math.floor((s!.lo + s!.hi) / 2))}</span></dd></div></dl>}
-      {short && <p className="warn">You hold {fmtAmount(balance.data!, dec)} {p.quoteSymbol}; this can cost up to {fmtAmount(stook.grossFor(limit!, p.transferFee), dec)}.</p>}
+      {q && pays !== null && limit !== null && <dl className="quote"><div><dt>You pay</dt><dd className="mono">{fmtAmount(pays, dec)} {p.quoteSymbol}</dd></div>{pays !== q.total && <div><dt>of which the coin's transfer fee</dt><dd className="mono">{fmtAmount(pays - q.total, dec)}</dd></div>}<div><dt>fee</dt><dd className="mono">{(feeBps / 100).toFixed(2)}%{feeBps < stook.FEE_PEAK_BPS ? (Number(l.settlesAt) - p.now > 6 * 3600 ? ", rising to 5% over the last 6 hours" : ", rising to 5% by the lock") : ", its highest: the close is near"}</dd></div><div><dt>at most, if the odds move first</dt><dd className="mono muted">{fmtAmount(limit, dec)}</dd></div><div><dt>best case</dt><dd className="mono amber">{fmtAmount(lands(q.maxPayout), dec)} ({(Number(lands(q.maxPayout)) / Number(pays)).toLocaleString("en-US", { maximumFractionDigits: 1 })}×)<span className="muted small"> if it closes {moveFromOpen(l, Math.floor((s!.lo + s!.hi) / 2))}</span></dd></div></dl>}
+      {short && <p className="warn">You hold {fmtAmount(balance.data!, dec)} {p.quoteSymbol}; this can cost up to {fmtAmount(limit!, dec)}.</p>}
       <button className="primary" disabled={!q || !p.tradeable || send.isPending || !publicKey || short} onClick={submit}>{!publicKey ? "Connect a wallet" : !p.tradeable ? "Not trading" : !s ? "Draw a line first" : send.isPending ? "Sending…" : `${p.held || existing ? "Add" : "Buy"} ${text} shares`}</button>
     </>
   );

@@ -17,8 +17,16 @@ pub struct InitializeProtocol<'info> {
     pub system_program: Program<'info, System>,
 }
 
+/// On mainnet only this key may initialise, so nobody can take the protocol
+/// authority in the moment between the deploy and the first call. Set it to
+/// the deployer before building with `--features mainnet`.
+#[cfg(feature = "mainnet")]
+pub const INITIALIZER: Pubkey = pubkey!("DMUtpDCXfmumuR5kKC5h17u1SVS632KgHVZMK4zbgRre");
+
 pub fn initialize_handler(ctx: Context<InitializeProtocol>, treasury: Pubkey) -> Result<()> {
     require!(treasury != Pubkey::default(), SoothCoreError::Unauthorized);
+    #[cfg(feature = "mainnet")]
+    require_keys_eq!(ctx.accounts.authority.key(), INITIALIZER, SoothCoreError::Unauthorized);
     let c = &mut ctx.accounts.config;
     c.authority = ctx.accounts.authority.key();
     c.treasury = treasury;

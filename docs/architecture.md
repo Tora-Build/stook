@@ -147,10 +147,17 @@ were confirmed on the shipped binary by both audits.
 **A series is one coin's rounds** (`state/series.rs`): a feed, a quote mint,
 and a close ("4 PM New York", computed on chain with the US daylight-saving
 rule). The program also has a New York weekday clock
-(`CLOCK_NEW_YORK_WEEKDAYS`, no Saturday or Sunday round) for stock anchors;
+(`CLOCK_NEW_YORK_WEEKDAYS`: no round on Saturday, Sunday or an NYSE
+holiday) for stock anchors;
 the devnet series run on the every-day clock because their stand-in feeds
-are crypto, and mainnet stock series should use the weekday one. It knows
-no exchange holidays. A round is addressed by `(series, day number)`, so one
+are crypto, and mainnet stock series should use the weekday one. The
+holidays are the exchange's own rule, computed on chain
+(`calendar::nyse_holiday`), so the list never runs out: New Year's Day,
+Martin Luther King Jr. Day, Washington's Birthday, Good Friday, Memorial Day,
+Juneteenth, Independence Day, Labor Day, Thanksgiving and Christmas, moved
+to the Friday before or the Monday after when they fall on a weekend (a
+Saturday New Year's Day is not moved). Early closes at 1 PM are ordinary
+days. A round is addressed by `(series, day number)`, so one
 day has one round because the program says so, and a calendar derives each
 day's address instead of scanning. The protocol authority opens a series; everything after
 is permissionless.
@@ -158,27 +165,29 @@ is permissionless.
 **The series learns its anchor's volatility from Pyth closes, and from
 nothing else.** A program cannot read price history, so the series keeps its
 own: for every day (or period) that has a round, `series_observe` takes the
-Pyth update that is the price at that close, under the same rule a
-settlement uses (the first update published at or after the close, within
-30 seconds, confidence under 1% of the price), and folds the day's log return
-into a running variance. Anyone may submit a close, and nobody chooses which
-price it is; settling a round submits it too, under the same 1% bar. Closes
-go strictly in order: once a series has learned one return, the only close
-it accepts is the next day with a round. A later one is accepted only if
-every close it skips is at least 48 hours old (two periods, for a series of
-periods shorter than a day), so a close Pyth was silent
-across can be passed, but a live day cannot be jumped, and a day that was
-passed is gone for good. The keeper submits each close as it happens (from
-Pyth's history through Hermes if it was down), so the series learns every day
-whether or not anyone funded a round. A skipped close's successor has its
-return scaled to the days it spans; on the weekday clock that is trading
-days, not calendar time, as a stock's volatility is.
+one Pyth update that is the price at that close, the first published at or
+after it (`prev_publish_time < close <= publish_time`). There is exactly one
+such update, so nobody chooses which price it is. If it is also a good price
+for the instant (within 30 seconds of the close, confidence under 1%), the
+day's log return goes into a running variance; if not (Pyth was late or
+unsure), the series only moves on to that close, and the next return runs
+from there. Anyone may submit a close; settling a round submits it too.
 
-A new series is the one place a submitter chooses: until it has learned its
-first return it may start from any close in the last 45 days, and restart
-from an earlier one. The keeper backfills from history when the series is
-created, so the trust here is that the first closes are the honest run of
-days, which anyone can check against Pyth.
+Closes go strictly in order, every day with a round, none skipped: which
+days a series learns from is fixed by the calendar, not by whoever submits
+first. The one exception is a close whose update can no longer be posted at
+all (signed by a Wormhole guardian set since retired): a warmed-up series may
+pass over closes once they are 7 days old, so only a keeper outage that long
+can leave room for a choice. A return is scaled to the time it spans; on the
+weekday clock that is trading days, not calendar time, as a stock's
+volatility is.
+
+A new series starts from a close at least 20 rounds back and inside the last
+45 days, and until its first return it may restart from an earlier one. So it
+warms up from Pyth's history at once (the keeper backfills it when it is
+created), and nobody can delay that by starting it late: after the start
+every close follows in order. The only freedom left is the starting day,
+among closes 20 to 45 days old.
 
 Nothing else sets the number: `series_create` takes no volatility, and
 `series_set` only pauses. A new series' rounds cannot open until it has
@@ -208,9 +217,10 @@ keeper calls at the round's opening second with the Pyth price (and anyone
 may call), reads the series' volatility at that moment and the time left, and
 sets the band width (`sigma_window / 4`, clamped to 20..2000 basis points),
 the opening bell (its width stored as `var_bands_e9`) and the pool's depth
-from every deposit made so far. It waits for the series to have learned the
-latest close at or before the opening, or for 30 minutes past that close if
-Pyth was silent across it, so an opener cannot open on a stale volatility.
+from every deposit made so far. It waits for the series to have taken the
+latest close before the moment it opens (anyone may submit it), or for 30
+minutes past that close, so an opener cannot choose to open before
+yesterday's move is counted.
 A deposit made before open records only its size; its own depth and the odds it joined at are
 recomputed from its size and the stored bell whenever it is paid
 (`tranche_terms`), exactly as `open` computed them. So a day funded weeks
@@ -366,22 +376,28 @@ Ranked by the audits (`design-review/audit-round-*`):
   than it showed.
 - **Mainnet prerequisites.** Build with `--features mainnet` (Full-verified
   Pyth updates only) and run the keeper with `FULL_VERIFICATION=1`.
-  `initialize_protocol` is first-come: initialise in the same breath as the
-  deploy, or bind it to the upgrade authority.
+  With `--features mainnet`, only the key in `protocol::INITIALIZER` may call
+  `initialize_protocol`; set it to the deployer before that build.
 - **LP joins are exact-sequence.** A busy round, or a bot trading dust every
   slot, makes a join retry indefinitely. A bound on depth received
   (`min_b`) would keep the sandwich refused without the retry.
 - **The freeze authority is not read.** A classic mint whose issuer can
   freeze the vault is classed Open while an equivalent Pausable mint needs
   approval. Harmless for the devnet mock; USDC on mainnet has one.
-- **Opener discretion.** Any update up to 60 s old opens a round, so the
-  opener picks the centre from a minute of prints. Now that `opens_at` is
-  fixed by the round, open should use the settlement rule
-  (`prev < opens_at ≤ publish`).
+- **Opener discretion.** Any update up to 60 s old (or 10 s ahead of the
+  cluster clock) opens a round, at any time from `opens_at` to the lock, so
+  the opener picks the centre from about a minute of prints, and a late
+  opener the moment. The keeper opens at `opens_at`. Open could use the
+  settlement rule at `opens_at` (`prev < opens_at ≤ publish`) instead.
+- **Pause is a trusted power.** The authority can unpause, trade and pause
+  again in one transaction, trading while nobody else can. Settlement and
+  every payout ignore the pause, so it cannot hold or take funds.
 - **The void race after the grace.** Once a round has gone 24 hours past its
   close unsettled, a void and a late settle race (see *Who finishes a
   market*). Redundant settlers and an alert on a round unsettled an hour
   after its close keep it from arising.
-- **No exchange holidays.** The weekday clock skips only Saturday and
-  Sunday. On an NYSE holiday a stock anchor's 24/7 feed trades like a
-  weekend, and its round is likely to void on the confidence bar.
+- **Unscheduled exchange closures.** The weekday clock skips the NYSE's
+  scheduled holidays, but a closure announced at short notice (a national
+  day of mourning) cannot be known in advance. A stock anchor's feed trades
+  like a weekend that day, and its round is likely to void on the
+  confidence bar, refunding depositors first.

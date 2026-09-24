@@ -106,8 +106,9 @@ describe("a ladder quoted in a real xStock", () => {
     // ── the trust decision is the authority's, and nobody else's ────────────
     warpClockTo(e.ctx, PUBLISH_TIME - 1000n);
     await ok(e, ser.createIx(), e.admin);
-    for (const c of warmCloses(ser.indexOf, ser.closeOf, PUBLISH_TIME - 1000n, 22_019_000n)) {
-      warpClockTo(e.ctx, c.at + 1n);
+    const closes = warmCloses(ser.indexOf, ser.closeOf, PUBLISH_TIME - 1000n, 22_019_000n);
+    warpClockTo(e.ctx, closes.at(-1)!.at + 1n);          // a backfill: the whole history is past
+    for (const c of closes) {
       await ok(e, L.observeSeriesIx(ser.series, e.trader.kp.publicKey, e.priceAccount(updateAt(c.price, c.at, c.at - 1n)), c.index, PROGRAM), e.trader.kp);
     }
     warpClockTo(e.ctx, PUBLISH_TIME - 1000n);

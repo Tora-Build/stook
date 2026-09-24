@@ -38,11 +38,13 @@ pub const VAR_KEEP_DEN: i128 = 100;
 /// weighted average below. Twenty is about a month of trading days.
 pub const WARMUP_OBSERVATIONS: u32 = 20;
 
-/// A day that has a round can be skipped (its close never learned) only once
-/// its close is this old: long enough that a close Pyth published is always
-/// submitted first, so skipping only ever passes a close Pyth was silent across.
-/// A series of short periods waits two periods instead.
-pub const SKIP_AFTER_SECS: i64 = 48 * 60 * 60;
+/// Every close is taken in order, from the one Pyth update that is its price
+/// (`series_observe`), so nobody chooses which days a series learns from.
+/// The single exception is a close whose update can no longer be posted at
+/// all (signed by a Wormhole guardian set since retired): a warmed-up series
+/// may pass over closes once they are this old. Only a keeper outage this
+/// long leaves such a close unsubmitted.
+pub const SKIP_AFTER_SECS: i64 = 7 * 24 * 60 * 60;
 
 /// How far back a series that has learned nothing may start learning from.
 pub const BACKFILL_WINDOW_SECS: i64 = 45 * 24 * 60 * 60;
@@ -127,13 +129,13 @@ impl Series {
         i
     }
 
-    /// May the close of `index` be learned now? Strictly in order: once a
-    /// return has been learned, only the next day with a round, or a later
-    /// one if every day skipped closed at least `SKIP_AFTER_SECS` ago (a
-    /// close Pyth was silent across can be passed; a live day cannot be
-    /// jumped, so nobody chooses which days a series learns from). A series
-    /// that has learned nothing may start from any recent close, and start
-    /// again from an earlier one until its first return.
+    /// May the close of `index` be taken now? Strictly in order: after the
+    /// first close, only the next day with a round (see `SKIP_AFTER_SECS` for
+    /// the one exception). A series starts from a close at least
+    /// `WARMUP_OBSERVATIONS` rounds back and inside `BACKFILL_WINDOW_SECS`, so
+    /// it warms up from Pyth's history rather than waiting a month, and
+    /// nobody can start it late to delay that. Until its first return it may
+    /// start again from an earlier close.
     pub fn may_observe(&self, index: u32, now: i64) -> bool {
         if !self.has_round(index) {
             return false;
@@ -142,30 +144,50 @@ impl Series {
         if at > now {
             return false;
         }
+        let may_start = || at >= now - BACKFILL_WINDOW_SECS && index <= self.rounds_back(self.index_at_or_before(now), WARMUP_OBSERVATIONS);
         let Some(last) = (self.last_at > 0).then(|| self.index_of(self.last_at)).flatten() else {
-            return at >= now - BACKFILL_WINDOW_SECS;
+            return may_start();
         };
         if index == last {
             return false;
         }
         if index < last {
-            return self.observations == 0 && at >= now - BACKFILL_WINDOW_SECS;
+            return self.observations == 0 && may_start();
         }
         let next = self.next_round(last);
         if index == next {
             return true;
         }
-        // A jump: the latest day skipped must have closed long enough ago.
+        // A jump, only for a warmed-up series and only over closes so old
+        // that their updates may no longer be postable.
         let mut prev = index - 1;
         while prev > last && !self.has_round(prev) {
             prev -= 1;
         }
-        self.close_of(prev) <= now - self.skip_after()
+        self.warmed_up() && self.close_of(prev) <= now - SKIP_AFTER_SECS
     }
 
-    /// How old a close must be before a later one may pass over it.
-    pub fn skip_after(&self) -> i64 {
-        if self.period_secs > 0 { SKIP_AFTER_SECS.min(2 * self.period_secs as i64) } else { SKIP_AFTER_SECS }
+    /// The index `n` rounds before `index` (skipping days without one).
+    pub fn rounds_back(&self, index: u32, n: u32) -> u32 {
+        let (mut i, mut left) = (index, n);
+        while left > 0 && i > 0 {
+            i -= 1;
+            if self.has_round(i) {
+                left -= 1;
+            }
+        }
+        i
+    }
+
+    /// Move to the close at `at` without learning a return: its price is
+    /// known but not good enough to measure a move with (Pyth was late or
+    /// unsure at the close). The next return runs from here.
+    pub fn rebase(&mut self, price: i64, expo: i32, at: i64) {
+        if price > 0 && (at > self.last_at || self.observations == 0) {
+            self.last_price = price;
+            self.last_expo = expo;
+            self.last_at = at;
+        }
     }
 
     /// Seconds the return since the last close stands for. Calendar time,
@@ -185,7 +207,7 @@ impl Series {
     pub fn has_round(&self, index: u32) -> bool {
         self.period_secs > 0
             || self.clock != CLOCK_NEW_YORK_WEEKDAYS
-            || !matches!(crate::math::calendar::weekday(index as i64), 0 | 6)
+            || !(matches!(crate::math::calendar::weekday(index as i64), 0 | 6) || crate::math::calendar::nyse_holiday(index as i64))
     }
 
     /// Has it seen enough closes to size a round's bands?
@@ -265,26 +287,36 @@ mod tests {
     fn closes_are_learned_in_order() {
         let mut s = daily(CLOCK_UTC, 20 * 3600);
         let d = days_from_civil(2026, 9, 1) as u32;
-        let now = s.close_of(d + 10) + 60;
-        // cold: any recent close, and an earlier one again until a return is learned
-        assert!(s.may_observe(d + 5, now));
-        assert!(!s.may_observe(d - 60, now), "too old to start from");
-        assert!(!s.may_observe(d + 11, now), "not closed yet");
+        let now = s.close_of(d + 40) + 60;
+        // cold: only from far enough back that it warms from history, and
+        // not so far back that the history is gone
+        assert!(!s.may_observe(d + 35, now), "too recent to start from: it would delay warm-up");
+        assert!(s.may_observe(d + 20, now));
+        assert!(s.may_observe(d, now));
+        assert!(!s.may_observe(d - 10, now), "outside the backfill window");
+        assert!(!s.may_observe(d + 41, now), "not closed yet");
+        s.observe(100, 0, s.close_of(d + 10)).unwrap();
+        assert!(s.may_observe(d + 5, now), "start again earlier while cold");
         s.observe(100, 0, s.close_of(d + 5)).unwrap();
-        assert!(s.may_observe(d + 3, now), "restart earlier while cold");
-        s.observe(100, 0, s.close_of(d + 3)).unwrap();
-        s.observe(101, 0, s.close_of(d + 4)).unwrap();
+        s.observe(101, 0, s.close_of(d + 6)).unwrap();
         assert_eq!(s.observations, 1);
-        // warm: only the next day, never back, never a jump over a fresh close
-        assert!(!s.may_observe(d + 3, now));
-        assert!(!s.may_observe(d + 4, now));
-        assert!(s.may_observe(d + 5, now));
-        assert!(!s.may_observe(d + 10, now), "day 9 closed a day ago: cannot be skipped");
-        // a jump is fine once every skipped close is 48 h old
+        // then every day, in order: never back, never a jump, however old
+        assert!(!s.may_observe(d + 5, now));
+        assert!(!s.may_observe(d + 6, now));
+        assert!(s.may_observe(d + 7, now));
+        assert!(!s.may_observe(d + 9, now), "a still-cold series never jumps");
+        // a close Pyth was unsure about moves the series on without a return
+        s.rebase(150, 0, s.close_of(d + 7));
+        assert_eq!((s.observations, s.last_price), (1, 150));
         assert!(s.may_observe(d + 8, now));
+        // a warmed-up series may pass closes a week old (updates no longer postable)
+        s.observations = WARMUP_OBSERVATIONS;
+        assert!(!s.may_observe(d + 9, s.close_of(d + 8) + 6 * DAY));
+        assert!(s.may_observe(d + 9, s.close_of(d + 8) + 7 * DAY));
         assert_eq!(s.index_of(s.close_of(d + 7)), Some(d + 7));
         assert_eq!(s.index_at_or_before(s.close_of(d + 7) + 5), d + 7);
         assert_eq!(s.index_at_or_before(s.close_of(d + 7) - 5), d + 6);
+        assert_eq!(s.rounds_back(d + 40, 20), d + 20);
     }
 
     #[test]

@@ -154,9 +154,11 @@ fn one_token(decimals: u8) -> Result<u64> {
 /// believes only what the vault says arrived: the pool's books are credited
 /// with `net`, and a shortfall of any size reverts. A mint whose fee authority
 /// raised the rate between the quote and the send fails here rather than
-/// leaving the vault holding less than the curve believes.
+/// leaving the vault holding less than the curve believes. `max_gross` caps
+/// what leaves the payer's wallet, fee included (a trade's slippage limit).
 fn pull<'info>(
     net: u64,
+    max_gross: u64,
     from: &AccountInfo<'info>,
     authority: &AccountInfo<'info>,
     mint: &InterfaceAccount<'info, Mint>,
@@ -165,6 +167,7 @@ fn pull<'info>(
 ) -> Result<()> {
     let fee = crate::token_guard::transfer_fee(&mint.to_account_info().try_borrow_data()?, Clock::get()?.epoch);
     let gross = crate::token_guard::gross_for(net, fee).ok_or(SoothCoreError::UnsupportedMintExtension)?;
+    require!(gross <= max_gross, SoothCoreError::SlippageExceeded);
     let before = vault.amount;
     token_interface::transfer_checked(
         CpiContext::new(
@@ -361,6 +364,7 @@ pub fn create_handler(ctx: Context<LadderCreate>, args: LadderCreateArgs) -> Res
 
     pull(
         args.seed,
+        u64::MAX,
         &ctx.accounts.creator_token.to_account_info(),
         &ctx.accounts.creator.to_account_info(),
         &ctx.accounts.quote_mint,
@@ -470,12 +474,12 @@ pub fn open_handler(ctx: Context<LadderOpen>) -> Result<()> {
         // guardian rotation) cannot open, and its round refunds after the lock.
         require!(ctx.accounts.series.warmed_up(), SoothCoreError::SeriesWarmingUp);
         // Nor on a stale one: a daily round opens only once its series has
-        // learned the latest close before the opening (or half an hour after
-        // it, if Pyth was silent across it), so whoever opens cannot choose
-        // to open before yesterday's move is counted.
+        // taken the latest close before now (anyone may submit it; after
+        // half an hour the round opens without it), so whoever opens cannot
+        // choose to open before yesterday's move is counted.
         let s = &ctx.accounts.series;
         if s.period_secs == 0 {
-            let prev = s.close_of(s.index_at_or_before(l.opens_at));
+            let prev = s.close_of(s.index_at_or_before(l.opens_at.max(now)));
             require!(s.last_at >= prev || now >= prev + OPEN_LEARN_GRACE_SECS, SoothCoreError::SeriesNotCaughtUp);
         }
         let (step_bps, var_bands) = math(band_width(ctx.accounts.series.var_wad, l.settles_at - now))?;
@@ -508,7 +512,8 @@ pub struct LadderTradeArgs {
     pub h: u8,
     /// Shares in quote base units. Positive buys, negative sells.
     pub shares: i64,
-    /// Buying: the most the trader will pay, fee included.
+    /// Buying: the most that may leave the trader's wallet, the trade fee and
+    /// the coin's transfer fee included.
     /// Selling: the least they will accept, fee deducted.
     pub limit: u64,
 }
@@ -677,8 +682,11 @@ pub fn trade_handler(ctx: Context<LadderTrade>, args: LadderTradeArgs) -> Result
         let total = amount.checked_add(fee).ok_or(SoothCoreError::MathOverflow)?;
         require!(total <= args.limit, SoothCoreError::SlippageExceeded);
 
+        // The limit bounds what leaves the wallet, the coin's transfer fee
+        // included, so a fee raised after the quote cannot take more.
         pull(
             total,
+            args.limit,
             &ctx.accounts.user_token.to_account_info(),
             &ctx.accounts.user.to_account_info(),
             &ctx.accounts.quote_mint,
@@ -828,6 +836,7 @@ pub fn lp_join_handler(ctx: Context<LadderLpJoin>, args: LadderLpJoinArgs) -> Re
 
     pull(
         args.deposit,
+        u64::MAX,
         &ctx.accounts.lp_token.to_account_info(),
         &ctx.accounts.lp.to_account_info(),
         &ctx.accounts.quote_mint,
@@ -953,10 +962,12 @@ pub fn settle_handler(ctx: Context<LadderSettle>) -> Result<()> {
     // `series_observe` must meet: confidence under 1%, and in order. A
     // settlement never fails because of it: a close it cannot teach is
     // skipped, and the round settles.
-    let learnable = (p.conf as u128).saturating_mul(10_000) <= (p.price as u128).saturating_mul(100)
-        && ctx.accounts.series.may_observe(l.index, now);
-    if learnable {
-        let _ = ctx.accounts.series.observe(p.price, p.exponent, l.settles_at);
+    if ctx.accounts.series.may_observe(l.index, now) {
+        if (p.conf as u128).saturating_mul(10_000) <= (p.price as u128).saturating_mul(100) {
+            let _ = ctx.accounts.series.observe(p.price, p.exponent, l.settles_at);
+        } else {
+            ctx.accounts.series.rebase(p.price, p.exponent, l.settles_at);
+        }
     }
 
     emit!(LadderSettled {

@@ -30,7 +30,7 @@ export function How() {
           </>}
           {i === 1 && <>
             <h2>The calendar</h2>
-            <p>One round a day. It trades for the 24 hours before the <b>4:00 PM New York</b> close and stops an hour before it. Whoever funds a day first starts it; everyone after joins that round.</p>
+            <p>One round a day. Funded a day or more ahead, it trades for the 24 hours before the <b>4:00 PM New York</b> close and stops an hour before it; funded later, it opens a minute after funding and stops shortly before the close. Whoever funds a day first starts it; everyone after joins that round.</p>
             <p className="try">Fund a day.</p>
           </>}
           {i === 2 && <>

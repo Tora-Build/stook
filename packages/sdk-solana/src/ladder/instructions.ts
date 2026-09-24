@@ -221,7 +221,8 @@ export interface TradeLadderArgs {
   shape: Shape;
   /** Base units. Positive buys, negative sells. */
   shares: bigint;
-  /** Buying: most to pay, fee included. Selling: least to receive, fee deducted. */
+  /** Buying: most to leave the wallet, the trade fee and the coin's transfer fee included
+   *  (`grossFor(quote.total, fee)` plus any slippage). Selling: least to receive, fee deducted. */
   limit: bigint;
 }
 

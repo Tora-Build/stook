@@ -112,6 +112,23 @@ const nthSunday = (y: number, m: number, n: number) => { const f = daysFromCivil
 export const newYorkDst = (day: number) => { const [y] = civilFromDays(day); return day >= nthSunday(y, 3, 2) && day < nthSunday(y, 11, 1); };
 export const newYorkOffset = (day: number) => (newYorkDst(day) ? -4 * 3600 : -5 * 3600);
 
+const nthWeekday = (y: number, m: number, wd: number, n: number) => { const f = daysFromCivil(y, m, 1); return f + (((wd - weekday(f)) % 7) + 7) % 7 + 7 * (n - 1); };
+const lastWeekday = (y: number, m: number, wd: number) => { const l = daysFromCivil(y, m + 1, 1) - 1; return l - (((weekday(l) - wd) % 7) + 7) % 7; };
+function easter(y: number): number {
+  const a = y % 19, b = Math.floor(y / 100), c = y % 100, d = Math.floor(b / 4), e = b % 4, g = Math.floor((8 * b + 13) / 25);
+  const h = (19 * a + b - d - g + 15) % 30, i = Math.floor(c / 4), k = c % 4, l = (32 + 2 * e + 2 * i - h - k) % 7, m = Math.floor((a + 11 * h + 22 * l) / 451);
+  return daysFromCivil(y, Math.floor((h + l - 7 * m + 114) / 31), ((h + l - 7 * m + 114) % 31) + 1);
+}
+const observed = (day: number) => (weekday(day) === 6 ? day - 1 : weekday(day) === 0 ? day + 1 : day);
+/** `calendar::nyse_holiday`: the exchange's full-day holidays, by rule. */
+export function nyseHoliday(day: number): boolean {
+  const [y] = civilFromDays(day);
+  const ny = daysFromCivil(y, 1, 1);
+  return (weekday(ny) !== 6 && day === observed(ny)) || day === nthWeekday(y, 1, 1, 3) || day === nthWeekday(y, 2, 1, 3) || day === easter(y) - 2
+    || day === lastWeekday(y, 5, 1) || (y >= 2022 && day === observed(daysFromCivil(y, 6, 19))) || day === observed(daysFromCivil(y, 7, 4))
+    || day === nthWeekday(y, 9, 1, 1) || day === nthWeekday(y, 11, 4, 4) || day === observed(daysFromCivil(y, 12, 25));
+}
+
 // ── the account ──────────────────────────────────────────────────────────────
 
 export interface SeriesAccount {
@@ -156,9 +173,9 @@ export function closeOf(s: Pick<SeriesAccount, "periodSecs" | "closeSecs" | "clo
   return s.clock === CLOCK_NEW_YORK || s.clock === CLOCK_NEW_YORK_WEEKDAYS ? local - BigInt(newYorkOffset(index)) : local;
 }
 
-/** `Series::has_round`: a weekday series has no round on Saturday or Sunday. */
+/** `Series::has_round`: a weekday series has no round on Saturday, Sunday or an NYSE holiday. */
 export const hasRound = (s: Pick<SeriesAccount, "periodSecs" | "clock">, index: number) =>
-  s.periodSecs > 0 || s.clock !== CLOCK_NEW_YORK_WEEKDAYS || ![0, 6].includes(weekday(index));
+  s.periodSecs > 0 || s.clock !== CLOCK_NEW_YORK_WEEKDAYS || !([0, 6].includes(weekday(index)) || nyseHoliday(index));
 
 /** A daily series' index for a calendar date: its day number. */
 export const dayIndex = (y: number, m1: number, d: number) => daysFromCivil(y, m1, d);
@@ -313,22 +330,21 @@ export function pendingObservations(s: SeriesAccount, now: bigint, max = 40, set
   return out;
 }
 
-/** A skipped close lets a later one in only once it is this old (`Series::may_observe`). */
-export const SKIP_AFTER_SECS = 48n * 3600n;
-/** The same, for this series: two periods for a series of short periods. */
-export const skipAfterSecs = (s: Pick<SeriesAccount, "periodSecs">): bigint => (s.periodSecs > 0 && BigInt(2 * s.periodSecs) < SKIP_AFTER_SECS ? BigInt(2 * s.periodSecs) : SKIP_AFTER_SECS);
+/** A warmed-up series may pass over closes this old, whose updates may no
+ *  longer be postable (`Series::may_observe`); otherwise every close is taken. */
+export const SKIP_AFTER_SECS = 7n * 86_400n;
 /** How long a daily round waits for its series to learn the close before its opening. */
 export const OPEN_LEARN_GRACE_SECS = 30n * 60n;
 
 /**
  * Why `ladder_open` would refuse this round now for its series' sake, or null:
- * the series has not warmed up, or (daily) has not yet learned the latest
- * close at or before the opening and that close is under half an hour old.
+ * the series has not warmed up, or (daily) has not yet taken the latest close
+ * at or before now (or the opening) and that close is under half an hour old.
  */
 export function openBlocker(s: SeriesAccount, opensAt: bigint, now: bigint): string | null {
   if (!warmedUp(s)) return `series warming up (${s.observations}/${WARMUP_OBSERVATIONS} closes)`;
   if (s.periodSecs === 0) {
-    const prev = closeOf(s, indexAtOrBefore(s, opensAt));
+    const prev = closeOf(s, indexAtOrBefore(s, opensAt > now ? opensAt : now));
     if (s.lastAt < prev && now < prev + OPEN_LEARN_GRACE_SECS) return "series has not learned the last close yet";
   }
   return null;

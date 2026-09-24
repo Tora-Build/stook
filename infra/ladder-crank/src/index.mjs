@@ -274,21 +274,26 @@ async function learn() {
   for (const { pubkey, account } of all) {
     const s = stook.decodeSeries(account.data);
     const feed = hex(s.feedId);
-    // Closes are learned strictly in order. One that can never be learned is
-    // passed over, but the program lets the next one in only once the one
-    // passed over is 48 hours old; until then, wait.
+    // Closes are taken strictly in order, each from the one Pyth update that
+    // is its price; the program decides whether it teaches a return or only
+    // moves the series on. A close whose update cannot be posted at all
+    // (retired guardian set) can be passed only by a warmed-up series, once
+    // it is a week old; until then, wait.
     let skippedAt = 0n;
     for (const index of stook.pendingObservations(s, now, 10)) {
       const key = `${pubkey.toBase58()}:${index}`;
       const at = stook.closeOf(s, index);
       if (unobservable.has(key)) { skippedAt = at; continue; }
-      if (s.observations > 0 && skippedAt > now - stook.skipAfterSecs(s)) break;
+      if (skippedAt && (!stook.warmedUp(s) || skippedAt > now - stook.SKIP_AFTER_SECS) && s.lastAt > 0n) break;
       if (waiting(key)) break;
       const tag = `${pubkey.toBase58().slice(0, 8)} observe ${new Date(Number(at) * 1000).toISOString()}`;
       try {
         const { parsed, vaas } = await hermes(`/v2/updates/price/${at}`, feed);
-        const problem = parsed ? stook.settlementProblem(parsed, { feedId: s.feedId, settlesAt: at, stepBps: 200, p0Expo: parsed.price.expo }) : "hermes returned no update";
-        if (problem) { unobservable.add(key); skippedAt = at; console.log(tag, "skipped:", problem); continue; }
+        // Hermes answering without the update, or without its predecessor's
+        // time, is a glitch to retry, not a close to give up on.
+        if (!parsed?.metadata?.prev_publish_time || !(BigInt(parsed.metadata.prev_publish_time) < at && at <= BigInt(parsed.price.publish_time))) {
+          console.log(tag, "hermes has no usable update yet; retrying later"); failed(key); break;
+        }
         // An RPC node that has not seen the blockhash yet refuses the
         // simulation; that clears in seconds, so try again at once.
         for (let attempt = 0; ; attempt++) {
@@ -306,7 +311,7 @@ async function learn() {
         // Some closes can never be verified: signed by a Wormhole guardian set
         // the receiver no longer accepts, or not the settlement instant after
         // all. Skip those for good; retry anything else next pass, in order.
-        if (/GuardianSetExpired|OracleNotTheSettlementInstant|OracleTooUncertain|OracleWrongFeed|SeriesAlreadyObserved/.test(why)) {
+        if (/GuardianSetExpired|OracleWrongFeed|SeriesAlreadyObserved/.test(why)) {
           unobservable.add(key);
           skippedAt = at;
           console.log(tag, "skipped for good:", (why.match(/Error Code: (\w+)/) ?? [])[1] ?? "unverifiable");

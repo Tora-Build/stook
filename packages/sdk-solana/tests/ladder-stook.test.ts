@@ -84,8 +84,9 @@ describe("a ladder quoted in $STOOK, a 1% transfer-fee mint", () => {
 
     warpClockTo(e.ctx, PUBLISH_TIME - 1000n);
     await ok(e, ser.createIx(), e.admin);
-    for (const c of warmCloses(ser.indexOf, ser.closeOf, PUBLISH_TIME - 1000n, 22_019_000n)) {
-      warpClockTo(e.ctx, c.at + 1n);
+    const closes = warmCloses(ser.indexOf, ser.closeOf, PUBLISH_TIME - 1000n, 22_019_000n);
+    warpClockTo(e.ctx, closes.at(-1)!.at + 1n);          // a backfill: the whole history is past
+    for (const c of closes) {
       await ok(e, L.observeSeriesIx(ser.series, e.trader.kp.publicKey, e.priceAccount(updateAt(c.price, c.at, c.at - 1n)), c.index, PROGRAM), e.trader.kp);
     }
     warpClockTo(e.ctx, PUBLISH_TIME - 1000n);
@@ -112,7 +113,7 @@ describe("a ladder quoted in $STOOK, a 1% transfer-fee mint", () => {
     const buy = async (shape: L.Shape, shares: bigint) => {
       const m = state(), had = balance(e, e.trader.token), vaultHad = balance(e, vault);
       const q = L.quoteTrade({ curve: m.curve, b: m.b, feeBps: L.feeBpsAt(m.feeBps, BigInt((e.svm.getClock() as any).unixTimestamp), m.settlesAt), decimals: m.decimals }, shape, shares);
-      await ok(e, L.tradeLadderIx(refs, { user: e.trader.kp.publicKey, userToken: e.trader.token, shape, shares, limit: q.total }), e.trader.kp);
+      await ok(e, L.tradeLadderIx(refs, { user: e.trader.kp.publicKey, userToken: e.trader.token, shape, shares, limit: L.grossFor(q.total, fee) }), e.trader.kp);
       expect(had - balance(e, e.trader.token)).toBe(L.grossFor(q.total, fee));
       expect(balance(e, vault) - vaultHad).toBe(q.total);
       expect(state().curve.w).toEqual(q.curve.w);
