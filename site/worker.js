@@ -18,7 +18,7 @@ const UA = { "user-agent": "Mozilla/5.0 stook-street", accept: "application/json
 // Each coin's own mint on mainnet, for its dollar price (Jupiter). The app
 // shows what a trade costs and pays in dollars as well as in the coin.
 const MINTS = {
-  STOOK: "GWrd84X5QxdRPAiNUFyiBaNoVZs85oHyWHtonJdd4wqu",
+  STOOK: "",
   ZCAT: "HcRLc9VDgjLeK154xDawfb1dmVJ98DoSqcwTHGqiDeJR",
   KNOTS: "8RVBk8vxLiUHueLUW1f4izFVqN3nWippLhkohKg6EGkS",
   GP: "HTmQz7My6MehV7bjhJ6jde8nDND1yvsz68d24LP7YgUQ",

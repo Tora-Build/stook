@@ -77,7 +77,7 @@ export function StartRound({ coin, seriesKey, series, index, onClose }: { coin: 
             <input value={text} onChange={(e) => setText(e.target.value)} inputMode="decimal" autoFocus aria-label={inUsd ? "Seed in dollars" : `Seed in ${coin.symbol}`} />
             {!inUsd && <span className="amount-unit">{coin.symbol}</span>}
           </div>
-          <span className="hint">{inUsd && seed ? <>{fmtAmount(seed, dec)} {coin.symbol} · </> : !inUsd && seed && rate !== null ? <>{fmtUsd(toUsd(seed, dec, rate))} · </> : null}balance {balance.data !== undefined ? <>{fmtAmount(balance.data, dec)} <Usd units={balance.data} decimals={dec} rate={rate} /></> : "…"}{gross && seed && gross !== seed ? ` · your wallet sends ${fmtAmount(gross, dec)} (the coin's ${coin.feeBps / 100}% transfer fee)` : ""}</span>
+          <span className="hint">{inUsd && seed ? <>{fmtAmount(seed, dec)} {coin.symbol} · </> : !inUsd && seed && rate !== null ? <>{fmtUsd(toUsd(seed, dec, rate))} · </> : null}balance {balance.data !== undefined ? <>{fmtAmount(balance.data, dec)} <Usd units={balance.data} decimals={dec} rate={rate} /></> : "…"}{gross && seed && gross !== seed ? ` · your wallet sends ${fmtAmount(gross, dec)} (the coin's ${(mint.data?.report.transferFee?.bps ?? 0) / 100}% transfer fee)` : ""}</span>
         </div>
         {balance.data !== undefined && !!seed && !!gross && balance.data < gross && <p className="warn">You hold {fmtAmount(balance.data, dec)} {coin.symbol}; this needs {fmtAmount(gross, dec)}. On devnet, use <b>test coins</b> in the header first.</p>}
         <button className="primary" disabled={!publicKey || !seed || !mint.data || send.isPending || (balance.data !== undefined && !!gross && balance.data < gross)} onClick={start}>

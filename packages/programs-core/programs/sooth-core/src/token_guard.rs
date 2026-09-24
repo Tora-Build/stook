@@ -323,8 +323,9 @@ mod tests {
         assert_eq!(classify(&mint_with(&[(TOKEN_METADATA, &[7u8; 90]), (METADATA_POINTER, &[1u8; 64])])), Verdict::Open);
     }
 
-    /// $STOOK, `GWrd84X5QxdRPAiNUFyiBaNoVZs85oHyWHtonJdd4wqu`, read from mainnet
-    /// on 2026-09-22: 6 decimals, 1% transfer fee set by StonkFun, metadata.
+    /// The first $STOOK, `GWrd84X5QxdRPAiNUFyiBaNoVZs85oHyWHtonJdd4wqu` (retired 2026-09-24),
+    /// read from mainnet on 2026-09-22: 6 decimals, 1% transfer fee set by
+    /// StonkFun, metadata. Kept as the fixture for a fee-bearing coin.
     fn stook() -> Vec<u8> {
         let hex = include_str!("../tests-fixtures/stook-mint.hex");
         (0..hex.len() / 2).map(|i| u8::from_str_radix(&hex[2 * i..2 * i + 2], 16).unwrap()).collect()

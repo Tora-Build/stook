@@ -353,8 +353,9 @@ The approval is per mint, made once, and says exactly one thing: *we accept
 this issuer's powers*. It cannot lower the bar for a `Refused` mint. Revoking
 it stops new markets and leaves existing ones to finish.
 
-**Transfer fees.** StonkFun sets a 1% transfer fee on every launch, $STOOK
-included, so refusing fee-bearing mints would refuse Stook's own coin. Every
+**Transfer fees.** StonkFun can launch coins with a 1% transfer fee (the
+first $STOOK had one; the current mint, does not), so refusing
+fee-bearing mints would refuse a whole class of the street's coins. Every
 deposit (a round's first funding, a buy, an LP join) now goes through one
 `pull`: the program reads the mint's fee schedule for the current epoch,
 sends the gross that lands at least the net, then reloads the vault and

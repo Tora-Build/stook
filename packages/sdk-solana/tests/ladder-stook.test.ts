@@ -1,5 +1,5 @@
 // A ladder quoted in $STOOK — the real mint, byte for byte
-// (`GWrd84X5QxdRPAiNUFyiBaNoVZs85oHyWHtonJdd4wqu`, read from mainnet 2026-09-22):
+// (`GWrd84X5QxdRPAiNUFyiBaNoVZs85oHyWHtonJdd4wqu`, the first $STOOK, retired 2026-09-24; kept as the fee-bearing fixture; read from mainnet 2026-09-22):
 // Token-2022, 6 decimals, a 1% transfer fee set by StonkFun on every transfer.
 //
 // What this proves: every deposit is credited by what ARRIVED. The wallet
