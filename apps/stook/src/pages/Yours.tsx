@@ -114,7 +114,7 @@ export function Yours() {
   for (const h of shown) { const d = nyDate(Number(h.ladder.settlesAt)); const last = days.at(-1); if (last && last[0] === d) last[1].push(h); else days.push([d, [h]]); }
   const today = nyDate(now), yesterday = nyDate(now - 86_400);
   const [jump, setJump] = useState<string | null>(null);
-  const pick = (d: string) => { setJump(d); setTimeout(() => document.getElementById(`day-${d}`)?.scrollIntoView({ behavior: "smooth", block: "start" }), 50); };
+  const pick = (d: string) => setJump(d);
   const dayName = (d: string, t: bigint) => `${nyWhen(t, { weekday: "long", month: "short", day: "numeric" })}${d === today ? " · today" : d === yesterday ? " · yesterday" : ""}`;
 
   // The slip's lines and total, in dollars across coins.
@@ -185,8 +185,9 @@ export function Yours() {
 
           {days.length > 1 && <DayPicker days={days.map(([d, hs]) => [d, hs.length])} today={today} onPick={pick} />}
           {days.length === 0 && <p className="stmt-empty">Nothing here with these filters.</p>}
-          {days.map(([d, hs], n) => (
-            <Day key={d} id={`day-${d}`} name={dayName(d, hs[0]!.ladder.settlesAt)} count={hs.length} startOpen={n < 3} force={jump === d}>
+          {jump && <div className="dp-showing"><span>Showing {nyWhen(Number(days.find(([d]) => d === jump)?.[1][0]?.ladder.settlesAt ?? 0), { weekday: "long", month: "short", day: "numeric" })}</span><button className="link" onClick={() => setJump(null)}>show every day</button></div>}
+          {days.filter(([d]) => !jump || d === jump).map(([d, hs], n) => (
+            <Day key={d} id={`day-${d}`} name={dayName(d, hs[0]!.ladder.settlesAt)} count={hs.length} startOpen={n < 3 || jump === d} force={jump === d}>
               {hs.map((h) => <RoundBlock key={h.pubkey.toBase58()} h={h} now={now} own={own} register={register} />)}
             </Day>
           ))}
@@ -308,7 +309,7 @@ function RoundBlock({ h, now, own, register }: { h: Holding; now: number; own: b
       <button className="pb-row" onClick={() => setOpen(!open)} aria-expanded={open}>
         {coin && <span className="logos logos-anchor-first"><img src={coin.anchor.logo} alt="" className="logo-coin" /><img src={coin.logo} alt="" className="logo-anchor" /></span>}
         <span className="pb-name">{shownAnchor ? shownAnchor.name : feed.name}<em>in {sym} · {[calls && `${calls} ${calls === 1 ? "call" : "calls"}`, deps && `${deps} house`].filter(Boolean).join(" · ")}</em></span>
-        <span className={`pb-stamp stamp-${stage.replace(" ", "-")}`}>{stage}</span>
+        <span className={`stamp stamp-${stage.replace(" ", "-")}`}>{stage}</span>
         <span className="pb-num"><em>in</em>{big(cost)}{rate !== null && <small className="pb-usd">{approxUsd(cost, l.decimals, rate)}</small>}</span>
         <span className="pb-num"><em>{final ? "pays" : "now"}</em>{worth === null ? "–" : big(worth)}{worth !== null && rate !== null && <small className="pb-usd">{approxUsd(worth, l.decimals, rate)}</small>}</span>
         <span className={`pb-num pb-res ${result === null ? "muted" : result >= 0n ? "up" : "down"}`}><em>result</em>{result === null ? "at the bell" : `${result >= 0n ? "+" : "−"}${big(result >= 0n ? result : -result)}`}{result !== null && rate !== null && <small className="pb-usd">{approxUsd(result >= 0n ? result : -result, l.decimals, rate).replace("≈ ", result >= 0n ? "≈ +" : "≈ −")}</small>}</span>

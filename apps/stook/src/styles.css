@@ -1126,3 +1126,12 @@ a.tour-btn { text-decoration: none; }
 .dp-held { background: var(--sky-2); border-color: var(--line); color: var(--cream); cursor: pointer; font-weight: 600; }
 .dp-held:hover { border-color: var(--taxi); color: var(--taxi); }
 .dp-today { box-shadow: inset 0 0 0 2px var(--teal); }
+
+/* rubber stamps on finished calendar days */
+.wc-rubber { position: absolute; left: 50%; top: 58%; transform: translate(-50%, -50%) rotate(-12deg); font-size: .5rem; padding: .3rem .45rem; border-width: 3px; background: transparent; opacity: .85; pointer-events: none; }
+.wc-rubber.stamp-passed, .wc-rubber.stamp-closed { color: var(--bad); }
+.stamp-passed, .stamp-closed { color: var(--bad); }
+.dp-showing { display: flex; align-items: center; gap: .8rem; margin: .2rem 0 .6rem; font-size: .85rem; color: var(--cream-2); }
+.pb-row .stamp { font-size: .4rem; }
+.wc-rubber.stamp-settled, .wc-rubber.stamp-void { left: auto; top: auto; right: .35rem; bottom: .45rem; transform: rotate(-10deg); }
+.wc-settled .wc-info .wc-sub { display: none; }

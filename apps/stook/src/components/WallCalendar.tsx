@@ -82,17 +82,21 @@ export function WallCalendar(p: Props) {
           const l = r?.ladder;
           const state = !l ? "" : l.status === "open" ? (p.now < Number(l.locksAt) ? "trading" : "locked") : l.status === "seeding" ? (p.now < Number(l.opensAt) ? "funded" : p.now < Number(l.opensAt) + Number(stook.OPEN_WINDOW_SECS) && p.now < Number(l.locksAt) ? "opening" : "void soon") : l.status;
           const closesIn = offset === 0 && at > p.now && (!l || l.status === "open" || l.status === "seeding") && !early && !learning && !paused ? untilText(BigInt(at), p.now) : null;
+          // Finished days are stamped, as a clerk would: settled, void, or
+          // passed with no round; closed for a market holiday. Today and the
+          // days ahead carry their facts instead.
+          const stamped = l ? (l.status === "settled" ? "settled" : l.status === "void" ? "void" : null) : past ? (noRound ? "closed" : "passed") : null;
           const landed = l && l.status === "settled" && l.settledBin !== null ? stook.binBounds(l.settledBin, l.p0, l.stepBps) : null;
           const body = (
             <>
-              <div className="wc-top"><span className="wc-num">{d}</span>{state && <span className={`wc-state wc-state-${state === "void soon" ? "void" : state}`}>{state}</span>}</div>
+              <div className="wc-top"><span className="wc-num">{d}</span>{state && !stamped && <span className={`wc-state wc-state-${state === "void soon" ? "void" : state}`}>{state}</span>}</div>
+              {stamped && <span className={`stamp wc-rubber stamp-${stamped}`}>{stamped}</span>}
               {l && landed && <div className="wc-info"><span className="mono">{fmtPrice(landed[0], l.p0Expo, p.dp)}</span><span className="wc-sub">landed</span></div>}
               {l && !landed && <div className="wc-info"><span className="mono">{coinText(l.depositTotal, l.decimals, p.coinSymbol)}</span><span className="wc-sub">{l.curveSeq.toString()} trades</span></div>}
               {!l && !past && !early && !learning && !paused && <div className="wc-info wc-empty">Fund it</div>}
               {early && <div className="wc-info wc-sub" title="A day can be funded up to 31 days ahead.">funding opens {nyWhen(terms.fundableFrom, { weekday: "short", month: "short", day: "numeric" })}</div>}
               {learning && <div className="wc-info wc-sub" title="The coin is still learning how its price moves. This day locks before it has learned enough, so its round could not open.">too soon to open</div>}
               {paused && <div className="wc-info wc-sub">paused</div>}
-              {past && !l && <span className="wc-stamp">{noRound ? "closed" : "passed"}</span>}
               {closesIn && <div className="wc-left">closes in {closesIn.replace(/ (d|h|min)\b/g, "$1")}</div>}
               {r && mine.get(r.pubkey.toBase58()) && (() => { const m = mine.get(r.pubkey.toBase58())!; const what = [m.calls && `${m.calls} ${m.calls === 1 ? "call" : "calls"}`, m.house && `${m.house} ${m.house === 1 ? "deposit" : "deposits"}`].filter(Boolean).join(" · "); return <span className="wc-mine" title={`You hold ${what} in this round`}>you: {what}</span>; })()}
             </>
