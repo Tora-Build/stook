@@ -6,6 +6,7 @@ import { useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { Link } from "react-router-dom";
 import { COINS } from "../lib/coins";
+import { Notice } from "../components/Notice";
 import { Slider } from "../components/Slider";
 
 const STOPS = ["The tables", "The calendar", "The call", "The bell", "The house", "The fine print"] as const;
@@ -54,7 +55,7 @@ export function How() {
           </>}
           {i === 5 && <>
             <h2>The fine print</h2>
-            <p>Some coins take a <b>transfer fee</b> on every move; the app shows what your wallet sends and what the round books.</p>
+            <Notice tone="info" title="Transfer fees">Some coins take a fee on every move. The app shows what your wallet sends and what the round books.</Notice>
             <p>Rounds settle on the anchor's <b>Pyth</b> feed; on devnet that is a crypto stand-in, and a round's page says which. The table's live price comes from the anchor's DEX pool and is for display only.</p>
             <p>Collect whenever you like. After <b>30 days</b> anyone can send what a round owes you to your wallet, so a finished round can close.</p>
             <p>Every quote is the program's own maths, exact to the unit.</p>
@@ -114,9 +115,9 @@ function Line() {
       </svg>
       <div className="scene-row">
         <label className="height">reach <Slider min={1} max={6} value={reach} onChange={setReach} width={110} /><span className="mono">{reach}</span></label>
-        {band !== null && <span className="mono">{(reach / cost).toFixed(1)}× your stake</span>}
+        {band !== null && <span className="mono">{(reach / cost).toFixed(1)}×</span>}
       </div>
-      <div className="scene-caption">{band === null ? "Bars are the crowd's odds." : `Spend ${cost.toFixed(2)}, win ${reach} if it closes on your band. Less on each band away.`}</div>
+      <div className="scene-caption">{band === null ? "Bars are the crowd's odds." : `Spend $10, win $${((10 / cost) * reach).toFixed(2)} if it closes on your band. Less on each band away.`}</div>
     </div>
   );
 }
@@ -139,16 +140,16 @@ function Bell() {
 
 function House() {
   const [dep, setDep] = useState(1000);
-  const others = 3000, fees = 400; // a day's fees at the table, for the demo
+  const others = 3000, fees = 400; // dollars: a day's fees at the table, for the demo
   const share = dep / (dep + others);
   return (
     <div className="scene">
-      <div className="scene-row"><label className="height">deposit <Slider min={100} max={5000} step={100} value={dep} onChange={setDep} width={160} /><span className="mono">{dep.toLocaleString()}</span></label></div>
+      <div className="scene-row"><label className="height">deposit <Slider min={100} max={5000} step={100} value={dep} onChange={setDep} width={160} /><span className="mono">${dep.toLocaleString()}</span></label></div>
       <div className="scene-house">
         <div className="scene-bar"><div className="scene-fill" style={{ width: `${share * 100}%` }} /></div>
-        <div className="scene-legend"><span>your share of the pool <b className="mono">{(share * 100).toFixed(0)}%</b></span><span>of {fees} in fees today <b className="mono">{(fees * 0.9 * share).toFixed(0)}</b> is yours</span></div>
+        <div className="scene-legend"><span>your share of the pool <b className="mono">{(share * 100).toFixed(0)}%</b></span><span>of ${fees} in fees today <b className="mono">${(fees * 0.9 * share).toFixed(0)}</b> is yours</span></div>
       </div>
-      <div className="scene-caption muted">Others hold {others.toLocaleString()}. A model.</div>
+      <div className="scene-caption muted">Others hold ${others.toLocaleString()}. A model.</div>
     </div>
   );
 }

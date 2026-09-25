@@ -192,7 +192,7 @@ function Buy(p: Props & { held?: boolean }) {
         </div>
         <span className="hint">balance {balance.data !== undefined ? <>{p.usd !== null ? `${fmtUsd(toUsd(balance.data, dec, p.usd))} · ` : ""}{fmtCompact(balance.data, dec)} {p.quoteSymbol}</> : `… ${p.quoteSymbol}`}</span>
       </div>
-      {budget !== null && pays !== null && pays * 100n < budget * 99n && <Notice tone="warn" title="Pool limit">Only {p.usd !== null ? fmtUsd(toUsd(pays, dec, p.usd)) : `${fmtCompact(pays, dec)} ${p.quoteSymbol}`} fits on this call right now. The order below uses that.</Notice>}
+      {budget !== null && pays !== null && pays * 100n < budget * 99n && <Notice tone="warn" title="Round limit">Only {p.usd !== null ? fmtUsd(toUsd(pays, dec, p.usd)) : `${fmtCompact(pays, dec)} ${p.quoteSymbol}`} more fits on this call: its odds are near the most this round can price. The order below uses that.</Notice>}
       {s && q && pays !== null && limit !== null && <div className="ticket-paper" role="group" aria-label="Your order">
         <div className="tp-head"><span>{existing && !p.held ? "Adding to your call" : "Your call"}</span><b className="mono">{p.symbol} {s.h === 1 ? `range ${where}` : `target ${where}`}</b></div>
         <div className="tp-row"><span>You pay</span><i /><b className="mono">{p.usd !== null ? fmtUsd(toUsd(pays, dec, p.usd)) : `${fmtCompact(pays, dec)} ${p.quoteSymbol}`}</b></div>
