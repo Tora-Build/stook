@@ -4,7 +4,7 @@
 name = "stook-street"
 main = "worker.js"
 compatibility_date = "2026-08-01"
-assets = { directory = "../apps/stook/dist", binding = "ASSETS", not_found_handling = "single-page-application", run_worker_first = ["/prices", "/chart", "/usd", "/coins", "/supply", "/chatter", "/chatter/*", "/pyth", "/tape/*"] }
+assets = { directory = "../apps/stook/dist", binding = "ASSETS", not_found_handling = "single-page-application", run_worker_first = ["/prices", "/chart", "/usd", "/coins", "/supply", "/chatter", "/chatter/*", "/pyth", "/tape/*", "/x"] }
 routes = [
   { pattern = "stooks.xyz", custom_domain = true },
   { pattern = "www.stooks.xyz", custom_domain = true },
@@ -15,7 +15,7 @@ routes = [
 binding = "AI"
 
 [triggers]
-crons = ["7 * * * *", "*/5 * * * *"]
+crons = ["7 * * * *", "*/5 * * * *", "35 13,14 * * 1-5", "10 20,21 * * 1-5"]
 
 [[kv_namespaces]]
 binding = "SERIES"

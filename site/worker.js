@@ -1,4 +1,5 @@
 import { aiChatter, bellIn, grammarChatter } from "./chatter.js";
+import { nyNow, runX } from "./xpost.js";
 import FEEDS from "../apps/stook/src/lib/feeds.json";
 
 // The feeds the app can show; /pyth answers for these only, so the key it
@@ -144,11 +145,26 @@ export default {
   // Every five minutes: one point of history for the pools only we record.
   // Hourly: a fresh batch of AI chatter about what happened.
   async scheduled(event, env, ctx) {
+    // The X posts run on two UTC hours each, so one of them is always the
+    // right New York hour whether or not it is daylight saving time.
+    if (event.cron === "35 13,14 * * 1-5") { if (nyNow().hour === 9) ctx.waitUntil(floorData(env).then((d) => runX(env, "morning", d)).catch((e) => console.log("x morning", String(e)))); return; }
+    if (event.cron === "10 20,21 * * 1-5") { if (nyNow().hour === 16) ctx.waitUntil(floorData(env).then((d) => runX(env, "bell", d)).catch((e) => console.log("x bell", String(e)))); return; }
     if (event.cron === "*/5 * * * *") { ctx.waitUntil(Promise.all(Object.entries(COINS).filter(([, c]) => c.kind === "raydium-clmm").map(([k, c]) => series({ ...c, kv: env.SERIES, key: k }, true).catch(() => null)))); return; }
     ctx.waitUntil(refreshAiChatter(env));
   },
 
   async fetch(request, env, ctx) {
+    {
+      const u = new URL(request.url);
+      if (u.pathname === "/x") {
+        // Anyone may preview the text; only the tape token may post by hand.
+        const post = u.searchParams.has("post");
+        if (post && (!env.TAPE_TOKEN || request.headers.get("authorization") !== `Bearer ${env.TAPE_TOKEN}`)) return new Response("no", { status: 401 });
+        const kind = u.searchParams.get("kind") === "morning" ? "morning" : "bell";
+        try { return Response.json(await runX(env, kind, await floorData(env), { dry: !post, force: post }), { headers: { "cache-control": "no-store" } }); }
+        catch (e) { return Response.json({ error: String(e).slice(0, 300) }, { status: 500 }); }
+      }
+    }
     const url = new URL(request.url);
     // /pyth?id=: the latest Pyth price for one of the app's feeds, from
     // Hermes with the PYTH_API_KEY secret. The round page's live line uses
