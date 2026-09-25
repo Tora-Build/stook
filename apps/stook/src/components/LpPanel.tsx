@@ -51,10 +51,10 @@ export function LpPanel(p: Props) {
   return (
     <Wrap className={p.bare ? "" : "panel"}>
       {!p.bare && <h3>Provide liquidity</h3>}
-      <div className="house-facts">
-        <div><b>Pool</b><span className="mono">{fmtAmount(l.depositTotal, dec, 0)} {p.quoteSymbol}</span><Usd units={l.depositTotal} decimals={dec} rate={rate} /></div>
-        <div><b>Earn</b><span>90% of every fee</span><em>{(l.feeBps / 100).toFixed(0)}% now, 5% near the close</em></div>
-        <div><b>Risk</b><span>up to your deposit</span><em>if traders call the close</em></div>
+      <div className="house-strip">
+        <span><b>Pool</b> <span className="mono">{fmtAmount(l.depositTotal, dec, 0)} {p.quoteSymbol}</span> <Usd units={l.depositTotal} decimals={dec} rate={rate} /></span>
+        <span><b>Earn</b> 90% of fees</span>
+        <span className="hs-risk"><b>Risk</b> up to your deposit</span>
       </div>
       {joinable && (
         <>

@@ -781,3 +781,8 @@ button.tour-skip:hover { color: var(--cream); }
 .amount-head > span, .house-facts b, .ladder-table th, .height { font-family: var(--sans) !important; font-size: .74rem !important; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--cream-2); }
 .house-facts > div:nth-child(1) b { color: var(--taxi); } .house-facts > div:nth-child(3) b { color: var(--bad); }
 .ladder-table th { padding-bottom: .4rem; }
+
+/* the house in one line: pool, earn, risk */
+.house-strip { display: flex; flex-wrap: wrap; gap: .35rem 1.1rem; margin: 0 0 .9rem; padding: .55rem .7rem; border: 2px dashed var(--line); font-size: .86rem; color: var(--cream); }
+.house-strip b { font-size: .72rem; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--taxi); margin-right: .15rem; }
+.house-strip .hs-risk b { color: var(--bad); }

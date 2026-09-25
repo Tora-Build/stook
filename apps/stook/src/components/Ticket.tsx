@@ -188,7 +188,7 @@ function Buy(p: Props & { held?: boolean }) {
           <div className="slip2-cell"><span className="slip2-k">You pay</span><b className="mono">{p.usd !== null ? fmtUsd(toUsd(pays, dec, p.usd)) : fmtAmount(pays, dec)}</b><em className="mono">{fmtAmount(pays, dec)} {p.quoteSymbol}</em></div>
           <div className="slip2-cell slip2-win"><span className="slip2-k">To win, best case</span><b className="mono">{p.usd !== null ? fmtUsd(toUsd(lands(q.maxPayout), dec, p.usd)) : fmtAmount(lands(q.maxPayout), dec)}</b><em className="mono">{fmtAmount(lands(q.maxPayout), dec)} {p.quoteSymbol} · {(Number(lands(q.maxPayout)) / Number(pays)).toLocaleString("en-US", { maximumFractionDigits: 1 })}×</em></div>
         </div>
-        <p className="slip2-note">Best case if it closes {moveFromOpen(l, Math.floor((s!.lo + s!.hi) / 2))}. Fee {(feeBps / 100).toFixed(0)}%{feeBps < stook.FEE_PEAK_BPS ? ", 5% near the close" : ", its highest"}.</p>
+        <p className="slip2-note">Best case if it closes {moveFromOpen(l, Math.floor((s!.lo + s!.hi) / 2))}. Fee {(feeBps / 100).toFixed(feeBps % 100 ? 1 : 0)}%{feeBps < stook.FEE_PEAK_BPS ? ", 5% near the close" : ", its highest"}.</p>
         <details className="slip2-more"><summary>Limits and fees</summary>
           <dl className="quote">
             <div><dt>most it can cost, if the odds move first</dt><dd className="mono">{fmtAmount(limit, dec)} <Usd units={limit} decimals={dec} rate={p.usd} /></dd></div>
