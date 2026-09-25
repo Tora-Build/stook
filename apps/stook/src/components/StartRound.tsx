@@ -62,10 +62,11 @@ export function StartRound({ coin, seriesKey, series, index, onClose }: { coin: 
           <RoundBar opensAt={Number(terms.opensAt)} locksAt={Number(terms.locksAt)} settlesAt={settlesAt} />
         </div>
 
+        {/* The terms as a tape, like a round's board. */}
         <div className="ts-terms">
-          <div><b>Earn</b><span>90% of every fee, 2% rising to 5%</span></div>
-          <div><b>Risk</b><span>up to your seed, if it closes far from the open</span></div>
-          <div><b>Refund</b><span>if it can't open or settle, deposits first</span></div>
+          <div><span className="strip-k">you earn</span><b className="mono tape-up">90%</b><em>of every fee, 2% rising to 5%</em></div>
+          <div><span className="strip-k">you risk</span><b className="mono tape-down">your seed</b><em>at most, if it closes far from the open</em></div>
+          <div><span className="strip-k">if it can't run</span><b className="mono">refund</b><em>deposits come back first</em></div>
         </div>
 
         <div className="field">

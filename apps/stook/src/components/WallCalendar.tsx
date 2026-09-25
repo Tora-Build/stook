@@ -8,7 +8,8 @@ import { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import type { PublicKey } from "@solana/web3.js";
 import { stook } from "@sooth/sdk-solana";
-import { useSeriesRounds } from "../hooks/useChain";
+import { useWallet } from "@solana/wallet-adapter-react";
+import { useHoldings, useSeriesRounds } from "../hooks/useChain";
 import { fmtUsd, toUsd, useUsdRates } from "../lib/usd";
 import { fmtCompact, fmtPrice, untilText } from "../lib/format";
 import { firstOpenableDay, nyDate, nyWhen } from "../lib/time";
@@ -26,6 +27,11 @@ interface Props {
 
 export function WallCalendar(p: Props) {
   const rate = useUsdRates().data?.[p.coinSymbol] ?? null;
+  // Days you hold something in wear a tab, as your calls and deposits do on
+  // the round page: how many calls and how many house deposits.
+  const { publicKey } = useWallet();
+  const held = useHoldings(publicKey ?? null);
+  const mine = useMemo(() => new Map((held.data ?? []).map((h) => [h.pubkey.toBase58(), { calls: h.positions.length, house: h.tranches.length }])), [held.data]);
   const [ty, tm, td] = nyDate(p.now).split("-").map(Number) as [number, number, number];
   const [offset, setOffset] = useState(0);            // months from the current one; −∞..+2 (31 days ahead can reach two pages on)
   const [turning, setTurning] = useState<{ dir: 1 | -1; phase: "out" | "in" } | null>(null);
@@ -89,6 +95,7 @@ export function WallCalendar(p: Props) {
               {paused && <div className="wc-info wc-sub">paused</div>}
               {past && !l && <span className="wc-stamp">{noRound ? "closed" : "passed"}</span>}
               {closesIn && <div className="wc-left">closes in {closesIn.replace(/ (d|h|min)\b/g, "$1")}</div>}
+              {r && mine.get(r.pubkey.toBase58()) && (() => { const m = mine.get(r.pubkey.toBase58())!; return <span className="wc-mine" title="You hold calls or deposits in this round">yours<i>{[m.calls && `${m.calls}c`, m.house && `${m.house}h`].filter(Boolean).join(" ")}</i></span>; })()}
             </>
           );
           const cls = `wc-cell ${isToday ? "wc-today" : ""} ${l ? `wc-${l.status}` : past || early || learning || paused ? "wc-past" : "wc-open-slot"}`;

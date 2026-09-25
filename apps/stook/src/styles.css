@@ -681,13 +681,14 @@ button.tour-skip:hover { color: var(--cream); }
 .ts-bell .ts-dot { border: 0; background: none; width: 22px; height: 22px; margin-top: -3px; }
 .ts-when { font-family: var(--px); font-size: .4rem; color: var(--cream); margin-top: .2rem; }
 .ts-what { font-size: .72rem; color: var(--cream-3); }
-.ts-terms { display: grid; grid-template-columns: repeat(3, 1fr); gap: .5rem; }
-.ts-terms > div { background: var(--ink); border: 2px solid var(--line); padding: .55rem .6rem; display: flex; flex-direction: column; gap: .25rem; }
-.ts-terms b { font-family: var(--px); font-size: .42rem; font-weight: 400; color: var(--taxi); }
-.ts-terms > div:nth-child(2) b { color: var(--bad); }
-.ts-terms > div:nth-child(3) b { color: #5ef0a0; }
-.ts-terms span { font-size: .78rem; color: var(--cream-2); line-height: 1.4; }
-@media (max-width: 520px) { .ts-terms { grid-template-columns: 1fr; } .ts-what { font-size: .65rem; } }
+.ts-terms { display: grid; grid-template-columns: repeat(3, 1fr); background: var(--ink); border: 3px solid var(--cream); }
+.ts-terms > div { display: flex; flex-direction: column; gap: .15rem; padding: .55rem .7rem; border-left: 2px dashed var(--line); }
+.ts-terms > div:first-child { border-left: 0; }
+.ts-terms .strip-k { font-family: var(--sans); font-size: .68rem; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; color: var(--cream-3); }
+.ts-terms b { font-size: 1.05rem; font-weight: 600; color: var(--taxi); }
+.ts-terms b.tape-up { color: var(--good); } .ts-terms b.tape-down { color: var(--bad); }
+.ts-terms em { font-style: normal; font-size: .74rem; color: var(--cream-2); line-height: 1.35; }
+@media (max-width: 520px) { .ts-terms { grid-template-columns: 1fr; } .ts-terms > div { border-left: 0; border-top: 2px dashed var(--line); } .ts-terms > div:first-child { border-top: 0; } .ts-what { font-size: .65rem; } }
 .ts-rent { margin: 0; font-size: .75rem; color: var(--cream-3); text-decoration: underline dotted; text-underline-offset: 3px; cursor: help; align-self: flex-start; }
 .ticket-sheet > button.primary { width: auto; align-self: stretch; }
 
@@ -1013,3 +1014,8 @@ a.tour-btn { text-decoration: none; }
 .scene .payl-head, .scene .payl-row { grid-template-columns: 5.5rem 1fr 4.6rem; }
 .scene-bell { display: flex; justify-content: center; }
 .scene-notes .notice { margin: 0; }
+
+/* calendar: a tab on the days you hold something in */
+.wc-cell { position: relative; }
+.wc-mine { position: absolute; right: -2px; bottom: -2px; display: inline-flex; align-items: center; gap: .3rem; padding: .15rem .35rem; background: var(--crowd-2); color: #f4e9c8; font-family: var(--px); font-size: .36rem; text-transform: uppercase; letter-spacing: .05em; }
+.wc-mine i { font-style: normal; background: #f4e9c8; color: #101a2e; padding: .05rem .2rem; }
