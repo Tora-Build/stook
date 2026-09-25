@@ -15,7 +15,7 @@ routes = [
 binding = "AI"
 
 [triggers]
-crons = ["7 * * * *"]
+crons = ["7 * * * *", "*/5 * * * *"]
 
 [[kv_namespaces]]
 binding = "SERIES"

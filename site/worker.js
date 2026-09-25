@@ -58,8 +58,18 @@ async function clmmPrice(pool, dec0, dec1) {
   return p * p * 10 ** (dec0 - dec1);                          // token1 per token0
 }
 
-/** [ [unix seconds, price], … ] over roughly the last day, oldest first. */
-async function series(src) {
+// KV is read through a minute of memory: an isolate serves many requests, and
+// the free plan counts every read. (A cached-at-the-edge read still counts.)
+const memo = new Map();
+async function kvJson(kv, key, ttl = 60_000) {
+  const m = memo.get(key); if (m && Date.now() - m.at < ttl) return m.v;
+  const v = await kv.get(key, "json"); memo.set(key, { at: Date.now(), v }); return v;
+}
+
+/** [ [unix seconds, price], … ] over roughly the last day, oldest first.
+ *  Requests only read the stored day; `record` (the five-minute cron, one
+ *  writer for the whole world) appends to it. */
+async function series(src, record = false) {
   if (src.kind === "raydium-clmm") {
     const [perQuote, quote] = await Promise.all([clmmPrice(src.pool, src.quoteDecimals, src.baseDecimals), series({ kind: "yahoo", symbol: src.quoteSymbol })]);
     const q = quote[quote.length - 1];
@@ -67,13 +77,10 @@ async function series(src) {
     const point = [Math.floor(Date.now() / 1000), q[1] / perQuote];
     // Keep our own day of history: one point per five minutes in KV.
     if (!src.kv) return [point];
-    const key = `series:${src.key}`;
-    let pts = (await src.kv.get(key, "json")) || [];
-    const dayAgo = point[0] - 86_400;
-    pts = pts.filter((p) => p[0] >= dayAgo);
-    if (!pts.length || point[0] - pts[pts.length - 1][0] >= 300) { pts.push(point); await src.kv.put(key, JSON.stringify(pts)); }
-    else pts[pts.length - 1] = point;
-    return pts;
+    const key = `series:${src.key}`, dayAgo = point[0] - 86_400;
+    let pts = ((record ? await src.kv.get(key, "json") : await kvJson(src.kv, key)) || []).filter((p) => p[0] >= dayAgo);
+    if (record) { pts.push(point); await src.kv.put(key, JSON.stringify(pts)); memo.delete(key); return pts; }
+    return [...pts, point];
   }
   if (src.kind === "yahoo") {
     const j = await (await fetch(`https://query1.finance.yahoo.com/v8/finance/chart/${src.symbol}?range=1d&interval=5m`, { headers: UA })).json();
@@ -125,7 +132,7 @@ async function refreshAiChatter(env, why = {}) {
 }
 
 /** The tape's current public address (a quick tunnel, re-announced when it restarts). */
-async function tapeUrl(env) { return env.SERIES.get("tape:url"); }
+async function tapeUrl(env) { const m = memo.get("tape:url"); if (m && Date.now() - m.at < 60_000) return m.v; const v = await env.SERIES.get("tape:url"); memo.set("tape:url", { at: Date.now(), v }); return v; }
 
 /** Ask the tape; null if it is down or slow. */
 async function fromTape(env, path) {
@@ -134,8 +141,12 @@ async function fromTape(env, path) {
 }
 
 export default {
+  // Every five minutes: one point of history for the pools only we record.
   // Hourly: a fresh batch of AI chatter about what happened.
-  async scheduled(_event, env, ctx) { ctx.waitUntil(refreshAiChatter(env)); },
+  async scheduled(event, env, ctx) {
+    if (event.cron === "*/5 * * * *") { ctx.waitUntil(Promise.all(Object.entries(COINS).filter(([, c]) => c.kind === "raydium-clmm").map(([k, c]) => series({ ...c, kv: env.SERIES, key: k }, true).catch(() => null)))); return; }
+    ctx.waitUntil(refreshAiChatter(env));
+  },
 
   async fetch(request, env, ctx) {
     const url = new URL(request.url);
@@ -171,7 +182,7 @@ export default {
       const cache = caches.default, key = new Request(url.origin + "/chatter");
       const hit = await cache.match(key); if (hit) return hit;
       const data = await floorData(env);
-      const ai = (await env.SERIES.get(AI_KEY, "json"))?.convos ?? [];
+      const ai = (await kvJson(env.SERIES, AI_KEY))?.convos ?? [];
       const minute = Math.floor(Date.now() / 60_000);
       const grammar = grammarChatter(data, 36, minute * 2654435761);
       const mixed = [...ai, ...grammar].map((c, i) => [((i * 2654435761 + minute) >>> 0) % 997, c]).sort((a, b) => a[0] - b[0]).map((x) => x[1]);
@@ -183,7 +194,7 @@ export default {
     if (url.pathname === "/tape/register" && request.method === "POST") {
       if (!env.TAPE_TOKEN || request.headers.get("authorization") !== `Bearer ${env.TAPE_TOKEN}`) return new Response("no", { status: 401 });
       const { url: u } = await request.json(); if (!/^https:\/\/[a-z0-9-]+\.trycloudflare\.com$/.test(u)) return new Response("bad url", { status: 400 });
-      await env.SERIES.put("tape:url", u); return new Response("ok");
+      await env.SERIES.put("tape:url", u); memo.delete("tape:url"); return new Response("ok");
     }
     // Live stream and candles straight from the tape (no cache). Only known
     // coins and plain numbers go through, and what comes back is served as
