@@ -47,6 +47,14 @@ async function tweet(env, text) {
   return JSON.parse(body);
 }
 
+/** Who the keys belong to: a read, no post. For checking the keys work. */
+export async function whoAmI(env) {
+  const url = "https://api.x.com/2/users/me";
+  const r = await fetch(url, { headers: { authorization: await oauthHeader("GET", url, env) } });
+  const body = await r.text();
+  return { status: r.status, body: body.slice(0, 300) };
+}
+
 /** Post `kind` once per New York day, inside the monthly cap. `dry` only returns the text. */
 export async function runX(env, kind, data, { dry = false, force = false, now = Date.now() } = {}) {
   const ny = nyNow(now);

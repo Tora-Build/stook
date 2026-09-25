@@ -1,5 +1,5 @@
 import { aiChatter, bellIn, grammarChatter } from "./chatter.js";
-import { nyNow, runX } from "./xpost.js";
+import { nyNow, runX, whoAmI } from "./xpost.js";
 import FEEDS from "../apps/stook/src/lib/feeds.json";
 
 // The feeds the app can show; /pyth answers for these only, so the key it
@@ -149,6 +149,8 @@ export default {
     // right New York hour whether or not it is daylight saving time.
     if (event.cron === "35 13,14 * * 1-5") { if (nyNow().hour === 9) ctx.waitUntil(floorData(env).then((d) => runX(env, "morning", d)).catch((e) => console.log("x morning", String(e)))); return; }
     if (event.cron === "10 20,21 * * 1-5") { if (nyNow().hour === 16) ctx.waitUntil(floorData(env).then((d) => runX(env, "bell", d)).catch((e) => console.log("x bell", String(e)))); return; }
+    // A check asked for through KV (x:check = "whoami"): runs once, result in x:check:result.
+    if (event.cron === "*/5 * * * *" && (await env.SERIES.get("x:check")) === "whoami") { await env.SERIES.delete("x:check"); await env.SERIES.put("x:check:result", JSON.stringify(await whoAmI(env).catch((e) => ({ error: String(e) }))), { expirationTtl: 86_400 }); }
     if (event.cron === "*/5 * * * *") { ctx.waitUntil(Promise.all(Object.entries(COINS).filter(([, c]) => c.kind === "raydium-clmm").map(([k, c]) => series({ ...c, kv: env.SERIES, key: k }, true).catch(() => null)))); return; }
     ctx.waitUntil(refreshAiChatter(env));
   },
