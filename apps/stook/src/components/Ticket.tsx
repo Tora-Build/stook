@@ -70,9 +70,16 @@ export function Ticket(p: Props) {
   const [tab, setTab] = useState<"trade" | "house">("trade");
   return (
     <section className="panel ticket">
-      <div className="big-tabs" role="tablist">
-        <button role="tab" aria-selected={tab === "trade"} className={tab === "trade" ? "on" : ""} onClick={() => setTab("trade")}><span>Call</span><em>pick the close</em></button>
-        <button role="tab" aria-selected={tab === "house"} className={tab === "house" ? "on" : ""} onClick={() => setTab("house")} data-tour="house"><span>House</span><em>fund the pool</em></button>
+      {/* Folder tabs on the ticket: the side you are on joins the page. */}
+      <div className="folder-tabs" role="tablist">
+        <button role="tab" aria-selected={tab === "trade"} className={`ft-call ${tab === "trade" ? "on" : ""}`} onClick={() => setTab("trade")} title="Pick the close">
+          <svg viewBox="0 0 10 8" width="20" height="16" shapeRendering="crispEdges" aria-hidden="true"><rect x="0" y="6" width="2" height="2" fill="currentColor" /><rect x="3" y="3" width="2" height="5" fill="currentColor" /><rect x="6" y="0" width="2" height="8" fill="currentColor" /><rect x="9" y="4" width="1" height="4" fill="currentColor" /></svg>
+          Call
+        </button>
+        <button role="tab" aria-selected={tab === "house"} className={`ft-house ${tab === "house" ? "on" : ""}`} onClick={() => setTab("house")} data-tour="house" title="Fund the pool">
+          <svg viewBox="0 0 10 8" width="20" height="16" shapeRendering="crispEdges" aria-hidden="true"><rect x="1" y="4" width="8" height="4" fill="currentColor" /><rect x="0" y="3" width="10" height="1" fill="currentColor" /><rect x="2" y="0" width="2" height="3" fill="currentColor" /><rect x="6" y="1" width="2" height="2" fill="currentColor" /><rect x="4" y="5" width="2" height="2" fill="var(--ft-bg)" /></svg>
+          House
+        </button>
       </div>
       {tab === "house" ? <LpPanel refs={p.refs} ladder={p.ladder} quoteSymbol={p.quoteSymbol} now={p.now} transferFee={p.transferFee} usd={p.usd} bare /> : p.final ? <Collect {...p} /> : (
         <>
