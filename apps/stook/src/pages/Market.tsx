@@ -67,6 +67,10 @@ export function Market() {
   const sel = mine.find((r) => r.pubkey.toBase58() === selected) ?? null;
   const setHeightAndShape = (h: number) => { setHeight(h); if (shape && shape.h > 1) setShape(stook.tent((shape.lo + shape.hi) / 2, h)); };
   const livePrice = live.data && live.data.price > 0n ? Number(live.data.price) * 10 ** live.data.expo : null;
+  const openPrice = l.p0 > 0n ? Number(l.p0) * 10 ** l.p0Expo : null;
+  // A band in dollars: the step times the price it is measured from.
+  const stepBps = preview ? preview.stepBps : l.stepBps;
+  const bandUsd = stepBps > 0 && (openPrice ?? livePrice) !== null ? ((openPrice ?? livePrice)! * stepBps) / 10_000 : null;
   // After the close the keeper settles within seconds, or, if the close's
   // price cannot settle it, voids it with that price as proof. If neither has
   // happened after a few minutes, the round waits; with no price to show at
@@ -76,21 +80,38 @@ export function Market() {
 
   return (
     <div className="page market">
-      <header className="strip-head" data-tour="round">
-        <div className="strip-id">
-          {/* What the round is on leads; the coin is what it is paid in. */}
-          <div className="anchor-mark">{coin && !standIn ? <img src={coin.anchor.logo} alt="" /> : <span className="tick">{feed.symbol}</span>}</div>
-          <div>
-            <div className="strip-title">{feed.name} <span className="sym">{feed.symbol}</span>{coin && <span className="paid-in"><img src={coin.logo} alt="" />paid in <b>${coin.symbol}</b></span>}</div>
-            <div className="muted small">{nyWhen(l.settlesAt, { weekday: "short", month: "short", day: "numeric" })} round · {preview ? <>bands about {(preview.stepBps / 100).toFixed(2)}%, set when it opens</> : <>bands of {(l.stepBps / 100).toFixed(2)}%</>}{coin && !standIn && <> · <Address label={`${coin.anchor.symbol}`} value={coin.anchor.mint} /></>}</div>
+      {/* The round's board: who it is and when the bell rings on top, the
+          numbers that move on a tape below. */}
+      <header className="round-board" data-tour="round">
+        <div className="board-top">
+          <div className="strip-id">
+            {/* What the round is on leads; the coin is what it is paid in. */}
+            <div className="anchor-mark">{coin && !standIn ? <img src={coin.anchor.logo} alt="" /> : <span className="tick">{feed.symbol}</span>}</div>
+            <div>
+              <div className="strip-title">{feed.name} <span className="sym">{feed.symbol}</span></div>
+              <div className="board-sub">
+                {coin && <span className="paid-in"><img src={coin.logo} alt="" />paid in <b>${coin.symbol}</b></span>}
+                <span>{nyWhen(l.settlesAt, { weekday: "short", month: "short", day: "numeric" })} · closes {nyWhen(l.settlesAt, { hour: "numeric", minute: "2-digit" })} New York</span>
+                {coin && !standIn && <Address label={`${coin.anchor.symbol}`} value={coin.anchor.mint} />}
+              </div>
+            </div>
+          </div>
+          <div className={`status status-${l.status}`} data-tour="clock"><Bell ringing={l.status === "open" && now >= Number(l.settlesAt)} rung={l.status === "settled"} />{l.status === "open" && now < Number(l.settlesAt)
+            ? <span className="status-lines"><span>rings in {untilText(l.settlesAt, now)}</span><span className="status-sub">{now < Number(l.locksAt) ? `trading · locks in ${untilText(l.locksAt, now)}` : "locked · no more trades"}</span></span>
+            : stateText}</div>
+          <button className="tour-btn" onClick={() => setTouring(true)} aria-label="Open the floor guide">? Floor guide</button>
+        </div>
+        <div className="board-tape">
+          <div className="tape-cell"><span className="strip-k">now</span><b className="mono">{livePrice !== null ? `$${fmtPrice(BigInt(Math.round(livePrice / 10 ** live.data!.expo)), live.data!.expo, feed.dp)}` : "…"}</b>
+            {livePrice !== null && openPrice !== null && <em className={`mono ${livePrice >= openPrice ? "up" : "down"}`}>{livePrice >= openPrice ? "▲" : "▼"} {Math.abs((livePrice / openPrice - 1) * 100).toFixed(2)}% since open</em>}</div>
+          {openPrice !== null && <div className="tape-cell"><span className="strip-k">opened at</span><b className="mono">${fmtPrice(l.p0, l.p0Expo, feed.dp)}</b><em>{nyWhen(l.opensAt, { weekday: "short", hour: "numeric", minute: "2-digit" })} New York</em></div>}
+          <div className="tape-cell"><span className="strip-k">pool</span><b className="mono">{usd !== null ? fmtUsd(toUsd(l.depositTotal, l.decimals, usd)) : `${fmtCompact(l.depositTotal, l.decimals)} ${quoteSymbol}`}</b>{usd !== null && <em className="mono">{fmtCompact(l.depositTotal, l.decimals)} {quoteSymbol}</em>}</div>
+          <div className="tape-cell" title="The chart splits the price into bands of equal percentage steps. A call picks bands; the close lands in exactly one.">
+            <span className="strip-k">each band</span>
+            <b className="mono">{bandUsd !== null ? `$${bandUsd.toLocaleString("en-US", { maximumSignificantDigits: 3 })}` : `${(stepBps / 100).toFixed(2)}%`} wide</b>
+            <em>{(stepBps / 100).toFixed(2)}% of the price{preview ? ", set when it opens" : ""}</em>
           </div>
         </div>
-        <div className="strip-num"><span className="strip-k">price</span><span className="mono strip-v">{livePrice !== null ? `$${fmtPrice(BigInt(Math.round(livePrice / 10 ** live.data!.expo)), live.data!.expo, feed.dp)}` : "…"}</span></div>
-        <div className="strip-num"><span className="strip-k">pool</span>{usd !== null ? <><span className="mono strip-v">{fmtUsd(toUsd(l.depositTotal, l.decimals, usd))}</span><span className="mono strip-usd strip-coin">{fmtCompact(l.depositTotal, l.decimals)} {quoteSymbol}</span></> : <span className="mono strip-v">{fmtCompact(l.depositTotal, l.decimals)} <span className="muted">{quoteSymbol}</span></span>}</div>
-        <div className={`status status-${l.status}`} data-tour="clock"><Bell ringing={l.status === "open" && now >= Number(l.settlesAt)} rung={l.status === "settled"} />{l.status === "open" && now < Number(l.settlesAt)
-          ? <span className="status-lines"><span>rings in {untilText(l.settlesAt, now)}</span><span className="status-sub">{now < Number(l.locksAt) ? `trading · locks in ${untilText(l.locksAt, now)}` : "locked · no more trades"}</span></span>
-          : stateText}</div>
-        <button className="tour-btn" onClick={() => setTouring(true)} aria-label="Open the floor guide">? Guide</button>
       </header>
       <Tour open={touring} onClose={() => setTouring(false)} stops={tourStops(feed.name, quoteSymbol)} />
       {standIn && <Notice tone="info" title="Devnet stand-in" className="standin">{standIn}</Notice>}

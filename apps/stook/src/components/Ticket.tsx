@@ -166,16 +166,36 @@ function Buy(p: Props & { held?: boolean }) {
         ? <div className="pick-hint"><span className="pick-arrow" aria-hidden="true">◀</span><span><b>Pick your price on the board.</b> {p.mode === "line" ? "Click a band." : "Drag across a range."}{p.positions.length > 0 ? " Or pick one of your calls to add to it or sell it." : ""}</span></div>
         : <p className="explain">{l.status === "seeding" ? (p.now < Number(l.opensAt) ? `Funded. Trading opens ${nyWhen(l.opensAt, { weekday: "short", hour: "numeric", minute: "2-digit" })} NY; the House takes deposits now.` : p.now < Number(l.opensAt) + Number(stook.OPEN_WINDOW_SECS) ? "Opening in a moment. Deposits are open." : "This round did not open in time and will be void; deposits come back.") : "Trading is closed; the bell is next."}</p>)
         : null}
-      {s && (
-        <table className="ladder-table">
-          <thead><tr><th>If it lands</th><th>chance</th><th>you get back</th><th>on stake</th></tr></thead>
-          <tbody>
-            {odds.map(([lv, pr]) => { const back = shares ? lands(shares * BigInt(lv)) : 0n, x = pays && pays > 0n ? Number(back) / Number(pays) : null; return <tr key={lv}><td>{s.h === 1 ? "inside" : lv === s.h ? "on your band" : `${s.h - lv} off`}</td><td className="mono">{chance(pr)}</td><td className="mono">{p.usd !== null ? <>{fmtUsd(toUsd(back, dec, p.usd))}<span className="coin-line">{fmtCompact(back, dec)}</span></> : fmtCompact(back, dec)}</td><td className={`mono ${x !== null && x < 1 ? "down" : "amber"}`}>{x !== null ? `${x.toFixed(2)}×` : ""}</td></tr>; })}
-            <tr className="muted"><td>elsewhere</td><td className="mono">{chance(WAD_ONE - odds.reduce((a, [, pr]) => a + pr, 0n))}</td><td className="mono">0</td><td className="mono">0×</td></tr>
-          </tbody>
-        </table>
-      )}
-      {s && s.h > 1 && <p className="hint">Pays most on your band, a little less on each band away.</p>}
+      {/* The payout ladder: each row a bar as long as what it pays, tapering
+          like the target itself, with your stake marked across all of them,
+          so what wins money and what only softens a miss reads at a glance. */}
+      {s && (() => {
+        const rows = odds.map(([lv, pr]) => ({ lv, pr, back: shares ? lands(shares * BigInt(lv)) : 0n }));
+        const top = rows.reduce((a, r) => (r.back > a ? r.back : a), 0n);
+        const stakeAt = top > 0n && pays ? Math.min(100, (Number(pays) / Number(top)) * 100) : null;
+        const money = (v: bigint) => p.usd !== null ? fmtUsd(toUsd(v, dec, p.usd)) : `${fmtCompact(v, dec)} ${p.quoteSymbol}`;
+        const rest = WAD_ONE - odds.reduce((a, [, pr]) => a + pr, 0n);
+        return (
+          <div className="payl" role="table" aria-label="What each landing pays">
+            <div className="payl-head" role="row"><span>If it lands</span><span>it pays{stakeAt !== null && <i className="payl-key"> your stake</i>}</span><span /></div>
+            {rows.map(({ lv, pr, back }) => {
+              const win = pays !== null && back >= pays, x = pays && pays > 0n ? Number(back) / Number(pays) : null;
+              return (
+                <div key={lv} className={`payl-row ${win ? "payl-win" : "payl-soft"}`} role="row">
+                  <span className="payl-k">{s.h === 1 ? "inside" : lv === s.h ? "on your band" : `${s.h - lv} off`}<em>{chance(pr)} chance</em></span>
+                  <span className="payl-track"><span className="payl-fill" style={{ width: `${(lv / s.h) * 100}%` }} />{stakeAt !== null && <span className="payl-stake" style={{ left: `${stakeAt}%` }} />}</span>
+                  <span className="payl-v mono">{money(back)}{x !== null && <em>{x.toFixed(2)}×</em>}</span>
+                </div>
+              );
+            })}
+            <div className="payl-row payl-miss" role="row">
+              <span className="payl-k">elsewhere<em>{chance(rest)} chance</em></span>
+              <span className="payl-track">{stakeAt !== null && <span className="payl-stake" style={{ left: `${stakeAt}%` }} />}</span>
+              <span className="payl-v mono">0</span>
+            </div>
+          </div>
+        );
+      })()}
       <div className="field" data-tour="order">
         <div className="amount-head">
           <span>Spend</span>

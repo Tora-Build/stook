@@ -898,3 +898,34 @@ button.tour-skip:hover { color: var(--cream); }
 .stmt-book .book { margin: 0; }
 .stmt-book .book-rows .chip-k { vertical-align: 2px; }
 .book-extra .down { color: var(--bad); } .book-extra .up { color: var(--good); }
+
+/* The round's board: identity and bell on top, a tape of numbers below */
+.round-board { margin-bottom: 1rem; background: var(--sky-2); border: 3px solid var(--cream); box-shadow: 6px 6px 0 var(--brick-2); }
+.board-top { display: flex; align-items: center; gap: 1rem; flex-wrap: wrap; padding: .8rem 1rem; }
+.board-top .strip-id { flex: 1; min-width: 260px; }
+.board-sub { display: flex; align-items: center; flex-wrap: wrap; gap: .35rem .7rem; margin-top: .35rem; font-size: .8rem; color: var(--cream-2); }
+.board-sub .paid-in { margin-left: 0; }
+.board-tape { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); background: var(--ink); border-top: 3px solid var(--cream); }
+.tape-cell { display: flex; flex-direction: column; gap: .15rem; padding: .6rem 1rem; border-left: 2px dashed var(--line); min-width: 0; }
+.tape-cell:first-child { border-left: 0; }
+.tape-cell b { font-size: 1.2rem; font-weight: 600; color: var(--taxi); letter-spacing: .02em; }
+.tape-cell em { font-style: normal; font-size: .72rem; color: var(--cream-3); }
+.tape-cell em.up { color: var(--good); } .tape-cell em.down { color: var(--bad); }
+@media (max-width: 640px) { .tape-cell { border-left: 0; border-top: 2px dashed var(--line); } .tape-cell:first-child { border-top: 0; } }
+
+/* The payout ladder */
+.payl { margin: 0 0 .8rem; }
+.payl-head, .payl-row { display: grid; grid-template-columns: 7rem 1fr 5.6rem; gap: .7rem; align-items: center; }
+.payl-head { font-size: .74rem; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--cream-2); padding-bottom: .35rem; }
+.payl-key { font-style: normal; text-transform: none; letter-spacing: 0; font-weight: 400; color: var(--cream-3); margin-left: .5rem; }
+.payl-key::before { content: ""; display: inline-block; width: 2px; height: .8rem; background: var(--cream); vertical-align: -2px; margin-right: .3rem; }
+.payl-row { padding: .38rem 0; border-top: 1px dashed var(--line); }
+.payl-k { font-size: .84rem; }
+.payl-k em, .payl-v em { display: block; font-style: normal; font-size: .7rem; color: var(--cream-3); }
+.payl-track { position: relative; height: 16px; background: var(--ink); border: 2px solid var(--line); }
+.payl-fill { position: absolute; left: 0; top: 0; bottom: 0; background: repeating-linear-gradient(90deg, var(--taxi) 0 6px, #d68f25 6px 8px); }
+.payl-soft .payl-fill { background: repeating-linear-gradient(90deg, #7a5a2e 0 6px, #6a4d27 6px 8px); }
+.payl-stake { position: absolute; top: -6px; bottom: -6px; width: 2px; margin-left: -1px; background: var(--cream); }
+.payl-v { text-align: right; font-size: .9rem; }
+.payl-win .payl-v em { color: var(--taxi); } .payl-soft .payl-v em { color: var(--bad); }
+.payl-miss { color: var(--cream-3); }
