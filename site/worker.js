@@ -173,6 +173,17 @@ export default {
     // /pyth?id=: the latest Pyth price for one of the app's feeds, from
     // Hermes with the PYTH_API_KEY secret. The round page's live line uses
     // it when Pyth's on-chain price account is stale (devnet's often are).
+    // Hermes for a keeper running away from the VPS: the price updates at one
+    // second, for our feeds only, behind a token of its own. The Pyth key
+    // stays here.
+    if (url.pathname.startsWith("/hermes/v2/updates/price/")) {
+      if (!env.HERMES_PROXY_TOKEN || request.headers.get("authorization") !== `Bearer ${env.HERMES_PROXY_TOKEN}`) return new Response("no", { status: 401 });
+      const at = url.pathname.slice("/hermes/v2/updates/price/".length), ids = url.searchParams.getAll("ids[]").map((x) => x.toLowerCase().replace(/^0x/, ""));
+      if (!/^\d{9,11}$/.test(at) || !ids.length || !ids.every((x) => FEED_IDS.has(x))) return new Response("bad request", { status: 400 });
+      const q = ids.map((x) => `ids%5B%5D=${x}`).join("&") + "&encoding=base64";
+      const r = await fetch(`https://hermes.pyth.network/v2/updates/price/${at}?${q}`, { headers: { authorization: `Bearer ${env.PYTH_API_KEY}` } });
+      return new Response(r.body, { status: r.status, headers: { "content-type": "application/json" } });
+    }
     if (url.pathname === "/pyth") {
       const id = (url.searchParams.get("id") ?? "").toLowerCase().replace(/^0x/, "");
       if (!FEED_IDS.has(id)) return new Response(JSON.stringify({ error: "unknown feed" }), { status: 404, headers: { "content-type": "application/json" } });
