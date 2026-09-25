@@ -1140,3 +1140,6 @@ a.tour-btn { text-decoration: none; }
 .ticket-sheet { gap: .6rem; }
 .ticket-sheet .ts-clock { margin-top: -.2rem; }
 @media (max-height: 820px) { .sheet-back { place-items: start center; } }
+.theme-btn svg { width: 24px; height: 24px; }
+.faucet-btn svg { width: 24px; height: 24px; }
+.faucet-btn { border-color: #5a4a22; color: var(--taxi); }

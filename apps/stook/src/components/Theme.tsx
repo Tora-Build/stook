@@ -32,7 +32,7 @@ export function ThemeToggle() {
       {name === "day" ? (
         <svg viewBox="0 0 12 12" shapeRendering="crispEdges" aria-hidden="true"><g fill="#f0a83a"><rect x="4" y="3" width="4" height="6"/><rect x="3" y="4" width="6" height="4"/><rect x="5" y="0" width="2" height="1"/><rect x="5" y="11" width="2" height="1"/><rect x="0" y="5" width="1" height="2"/><rect x="11" y="5" width="1" height="2"/><rect x="1" y="1" width="1" height="1"/><rect x="10" y="1" width="1" height="1"/><rect x="1" y="10" width="1" height="1"/><rect x="10" y="10" width="1" height="1"/></g></svg>
       ) : (
-        <svg viewBox="0 0 12 12" shapeRendering="crispEdges" aria-hidden="true"><g fill="#f4e9c8"><rect x="3" y="1" width="5" height="1"/><rect x="2" y="2" width="3" height="1"/><rect x="1" y="3" width="3" height="6"/><rect x="2" y="9" width="3" height="1"/><rect x="3" y="10" width="5" height="1"/><rect x="7" y="9" width="2" height="1"/><rect x="8" y="8" width="1" height="1"/></g><rect x="9" y="2" width="1" height="1" fill="#f0a83a"/><rect x="10" y="5" width="1" height="1" fill="#f0a83a"/></svg>
+        <svg viewBox="0 0 12 12" shapeRendering="crispEdges" aria-hidden="true"><g fill="#f4e9c8"><rect x="3" y="1" width="2" height="1"/><rect x="2" y="2" width="3" height="1"/><rect x="1" y="3" width="3" height="1"/><rect x="1" y="4" width="3" height="1"/><rect x="1" y="5" width="4" height="1"/><rect x="1" y="6" width="4" height="1"/><rect x="1" y="7" width="5" height="1"/><rect x="10" y="7" width="1" height="1"/><rect x="1" y="8" width="10" height="1"/><rect x="2" y="9" width="8" height="1"/><rect x="3" y="10" width="6" height="1"/></g><g fill="#f0a83a"><rect x="8" y="2" width="1" height="1"/><rect x="10" y="4" width="1" height="1"/></g></svg>
       )}
     </button>
   );

@@ -42,8 +42,14 @@ export function Faucet() {
   // A little pixel tap: devnet coins on demand.
   return (
     <button className="faucet-btn" onClick={mint} disabled={busy} title="Devnet faucet: 10,000 each of $STOOK, $ZCAT, $KNOTS, $GP and test USDC">
-      <svg viewBox="0 0 12 12" shapeRendering="crispEdges" aria-hidden="true"><g fill="#c9bfa4"><rect x="1" y="3" width="8" height="3"/><rect x="8" y="3" width="3" height="2"/><rect x="2" y="1" width="2" height="2"/><rect x="0" y="4" width="1" height="1"/><rect x="9" y="5" width="2" height="2"/></g><rect x="9" y="8" width="2" height="1" fill="#35c4c4"/><rect x="9" y="10" width="2" height="1" fill="#35c4c4"/></svg>
-      <span>{busy ? "minting…" : "test coins"}</span>
+      {/* A stack of gold coins with a plus: free coins, here. */}
+      <svg viewBox="0 0 12 12" shapeRendering="crispEdges" aria-hidden="true">
+        <g fill="#b47416"><rect x="1" y="10" width="7" height="1"/><rect x="1" y="7" width="7" height="1"/><rect x="1" y="4" width="7" height="1"/></g>
+        <g fill="#f0a83a"><rect x="1" y="8" width="7" height="2"/><rect x="1" y="5" width="7" height="2"/><rect x="2" y="3" width="5" height="1"/></g>
+        <g fill="#ffe3a3"><rect x="2" y="5" width="2" height="1"/><rect x="2" y="8" width="2" height="1"/><rect x="3" y="3" width="2" height="1"/></g>
+        <g fill="#5ef0a0"><rect x="9" y="0" width="1" height="3"/><rect x="8" y="1" width="3" height="1"/></g>
+      </svg>
+      <span>{busy ? "minting…" : "free test coins"}</span>
     </button>
   );
 }
