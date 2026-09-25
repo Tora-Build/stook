@@ -758,3 +758,26 @@ button.tour-skip:hover { color: var(--cream); }
 /* the ticket's round bar is the whole timeline now */
 .ts-clock { padding-top: 1.4rem; }
 .rb-track { height: 18px; }
+
+/* ── the order slip, clean: two numbers, one sentence, the rest on request */
+.slip2 { margin: .8rem 0; display: flex; flex-direction: column; gap: .55rem; }
+.slip2-cells { display: grid; grid-template-columns: 1fr 1fr; gap: .5rem; }
+.slip2-cell { display: flex; flex-direction: column; gap: .2rem; padding: .7rem .8rem; background: var(--ink); border: 2px solid var(--line); min-width: 0; }
+.slip2-k { font-size: .78rem; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--cream-2); }
+.slip2-cell b { font-size: 1.45rem; font-weight: 600; color: var(--cream); line-height: 1.15; overflow-wrap: anywhere; }
+.slip2-cell em { font-style: normal; font-size: .8rem; color: var(--cream-3); overflow-wrap: anywhere; }
+.slip2-win { border-color: #1f9d5c; } .slip2-win b { color: #5ec48f; }
+.slip2-up b { color: #5ec48f; } .slip2-down b { color: var(--bad); }
+.slip2-note { margin: 0; font-size: .85rem; color: var(--cream-2); }
+.slip2-more summary { cursor: pointer; font-size: .8rem; color: var(--cream-3); list-style: none; }
+.slip2-more summary::before { content: "▸ "; } .slip2-more[open] summary::before { content: "▾ "; }
+.slip2-more summary:hover { color: var(--cream); }
+.slip2-more .quote { margin-top: .4rem; }
+.house-intro { margin: 0 0 .6rem; font-size: .88rem; color: var(--cream-2); }
+.house-how { margin: .7rem 0 0; font-size: .82rem; }
+@media (max-width: 420px) { .slip2-cells { grid-template-columns: 1fr; } }
+
+/* small labels: readable sans caps instead of tiny pixel type */
+.amount-head > span, .house-facts b, .ladder-table th, .height { font-family: var(--sans) !important; font-size: .74rem !important; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--cream-2); }
+.house-facts > div:nth-child(1) b { color: var(--taxi); } .house-facts > div:nth-child(3) b { color: var(--bad); }
+.ladder-table th { padding-bottom: .4rem; }

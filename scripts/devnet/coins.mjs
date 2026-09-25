@@ -13,7 +13,7 @@ import { TOKEN_2022_PROGRAM_ID, ExtensionType, getMintLen, createInitializeMint2
 import { stook } from "@sooth/sdk-solana";
 
 const COINS = [
-  { symbol: "STOOK", decimals: 6, feeBps: 100 },
+  { symbol: "STOOK", decimals: 6, feeBps: 0 },   // like mainnet $STOOK since its relaunch
   { symbol: "ZCAT", decimals: 9, feeBps: 300 },
   { symbol: "KNOTS", decimals: 6, feeBps: 300 },
   { symbol: "GP", decimals: 6, feeBps: 300 },

@@ -51,12 +51,12 @@ export function LpPanel(p: Props) {
   return (
     <Wrap className={p.bare ? "" : "panel"}>
       {!p.bare && <h3>Provide liquidity</h3>}
+      <p className="house-intro">Be the house: take the other side of every trade, shared with the pool by what you put in.</p>
       <div className="house-facts">
         <div><b>Pool</b><span className="mono">{fmtAmount(l.depositTotal, dec, 0)} {p.quoteSymbol}</span><Usd units={l.depositTotal} decimals={dec} rate={rate} /></div>
         <div><b>Earn</b><span>90% of every fee</span><em>{(l.feeBps / 100).toFixed(0)}% now, 5% near the close</em></div>
         <div><b>Risk</b><span>up to your deposit</span><em>if traders call the close</em></div>
       </div>
-      <p className="hint">You take the other side of every trade, shared with the pool by what you put in. <a href="/how">How the house works</a></p>
       {joinable && (
         <>
           <div className="field">
@@ -90,6 +90,7 @@ export function LpPanel(p: Props) {
           </button>
         </>
       )}
+      <p className="house-how"><a href="/how">How the house works ›</a></p>
       {(mine.data ?? []).length > 0 && (
         <ul className="rows">
           {mine.data!.map(({ tranche: t }) => {

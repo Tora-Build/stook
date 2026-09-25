@@ -183,15 +183,19 @@ function Buy(p: Props & { held?: boolean }) {
         <span className="hint">{unit !== "shares" && shares ? <>{fmtAmount(shares, dec)} shares · </> : null}balance {balance.data !== undefined ? <>{fmtAmount(balance.data, dec)} {p.quoteSymbol} <Usd units={balance.data} decimals={dec} rate={p.usd} /></> : `… ${p.quoteSymbol}`}</span>
       </div>
       {budget !== null && pays !== null && pays * 100n < budget * 99n && <p className="warn">This round can take about {fmtAmount(pays, dec)} {p.quoteSymbol}{p.usd !== null ? ` (${fmtUsd(toUsd(pays, dec, p.usd))})` : ""} on this line right now, less than you entered. That is what the order below spends.</p>}
-      {q && pays !== null && limit !== null && <div className="slip">
-        <div className="slip-big"><span className="slip-k">You pay</span><span className="slip-v"><b className="mono">{p.usd !== null ? fmtUsd(toUsd(pays, dec, p.usd)) : fmtAmount(pays, dec)}</b><span className="slip-sub mono">{fmtAmount(pays, dec)} {p.quoteSymbol}</span></span></div>
-        <div className="slip-big slip-win"><span className="slip-k">To win, best case</span><span className="slip-v"><b className="mono">{p.usd !== null ? fmtUsd(toUsd(lands(q.maxPayout), dec, p.usd)) : fmtAmount(lands(q.maxPayout), dec)}</b><span className="slip-sub mono">{fmtAmount(lands(q.maxPayout), dec)} {p.quoteSymbol} · {(Number(lands(q.maxPayout)) / Number(pays)).toLocaleString("en-US", { maximumFractionDigits: 1 })}×</span></span></div>
-        <p className="slip-note">Best case if it closes {moveFromOpen(l, Math.floor((s!.lo + s!.hi) / 2))}.</p>
-        <dl className="quote">
-          {pays !== q.total && <div><dt>of which the coin's transfer fee</dt><dd className="mono">{fmtAmount(pays - q.total, dec)} <Usd units={pays - q.total} decimals={dec} rate={p.usd} /></dd></div>}
-          <div><dt>fee</dt><dd className="mono">{(feeBps / 100).toFixed(2)}%{feeBps < stook.FEE_PEAK_BPS ? (Number(l.settlesAt) - p.now > 6 * 3600 ? ", rising to 5% over the last 6 hours" : ", rising to 5% by the lock") : ", its highest: the close is near"}</dd></div>
-          <div><dt>at most, if the odds move first</dt><dd className="mono muted">{fmtAmount(limit, dec)} <Usd units={limit} decimals={dec} rate={p.usd} /></dd></div>
-        </dl>
+      {q && pays !== null && limit !== null && <div className="slip2">
+        <div className="slip2-cells">
+          <div className="slip2-cell"><span className="slip2-k">You pay</span><b className="mono">{p.usd !== null ? fmtUsd(toUsd(pays, dec, p.usd)) : fmtAmount(pays, dec)}</b><em className="mono">{fmtAmount(pays, dec)} {p.quoteSymbol}</em></div>
+          <div className="slip2-cell slip2-win"><span className="slip2-k">To win, best case</span><b className="mono">{p.usd !== null ? fmtUsd(toUsd(lands(q.maxPayout), dec, p.usd)) : fmtAmount(lands(q.maxPayout), dec)}</b><em className="mono">{fmtAmount(lands(q.maxPayout), dec)} {p.quoteSymbol} · {(Number(lands(q.maxPayout)) / Number(pays)).toLocaleString("en-US", { maximumFractionDigits: 1 })}×</em></div>
+        </div>
+        <p className="slip2-note">Best case if it closes {moveFromOpen(l, Math.floor((s!.lo + s!.hi) / 2))}. Fee {(feeBps / 100).toFixed(0)}%{feeBps < stook.FEE_PEAK_BPS ? ", 5% near the close" : ", its highest"}.</p>
+        <details className="slip2-more"><summary>Limits and fees</summary>
+          <dl className="quote">
+            <div><dt>most it can cost, if the odds move first</dt><dd className="mono">{fmtAmount(limit, dec)} <Usd units={limit} decimals={dec} rate={p.usd} /></dd></div>
+            {pays !== q.total && <div><dt>of which the coin's transfer fee</dt><dd className="mono">{fmtAmount(pays - q.total, dec)} <Usd units={pays - q.total} decimals={dec} rate={p.usd} /></dd></div>}
+            <div><dt>trading fee</dt><dd className="mono">{(feeBps / 100).toFixed(2)}%{feeBps < stook.FEE_PEAK_BPS ? (Number(l.settlesAt) - p.now > 6 * 3600 ? ", rising to 5% over the last 6 hours" : ", rising to 5% by the lock") : ", its highest"}</dd></div>
+          </dl>
+        </details>
       </div>}
       {short && <p className="warn">You hold {fmtAmount(balance.data!, dec)} {p.quoteSymbol}; this can cost up to {fmtAmount(limit!, dec)}.</p>}
       <button className="primary" disabled={!q || !p.tradeable || send.isPending || !publicKey || short} onClick={submit}>{!publicKey ? "Connect a wallet" : !p.tradeable ? "Not trading" : !s ? "Draw a line first" : send.isPending ? "Sending…" : `${p.held || existing ? "Add" : "Buy"} ${shares ? fmtAmount(shares, dec) : 0} shares${pays !== null && p.usd !== null ? ` · ${fmtUsd(toUsd(pays, dec, p.usd))}` : ""}`}</button>
@@ -214,13 +218,14 @@ function Sell(p: Props & { pos: PositionRow }) {
   return (
     <>
       <label className="height sell-slider">sell <Slider min={1} max={100} value={pct} onChange={setPct} width={180} /><span className="mono">{pct}% = {fmtAmount(size, dec)} sh</span></label>
-      {q && get !== null && limit !== null && <div className="slip">
-        <div className="slip-big slip-win"><span className="slip-k">You receive</span><span className="slip-v"><b className="mono">{p.usd !== null ? fmtUsd(toUsd(get, dec, p.usd)) : fmtAmount(get, dec)}</b><span className="slip-sub mono">{fmtAmount(get, dec)} {p.quoteSymbol}</span></span></div>
-        <dl className="quote">
-          <div><dt>at least, if the odds move first</dt><dd className="mono muted">{fmtAmount(stook.netOf(limit, p.transferFee), dec)} <Usd units={stook.netOf(limit, p.transferFee)} decimals={dec} rate={p.usd} /></dd></div>
-          <div><dt>you paid for these</dt><dd className="mono">{fmtAmount(paidFor, dec)} <Usd units={paidFor} decimals={dec} rate={p.usd} /></dd></div>
-          <div><dt>result</dt><dd className={`mono ${get >= paidFor ? "up" : "down"}`}>{get >= paidFor ? "+" : "−"}{fmtAmount(get >= paidFor ? get - paidFor : paidFor - get, dec)} {p.usd !== null && <span className="usd">{get >= paidFor ? "+" : "−"}{fmtUsd(toUsd(get >= paidFor ? get - paidFor : paidFor - get, dec, p.usd))}</span>}</dd></div>
-        </dl>
+      {q && get !== null && limit !== null && <div className="slip2">
+        <div className="slip2-cells">
+          <div className="slip2-cell slip2-win"><span className="slip2-k">You receive</span><b className="mono">{p.usd !== null ? fmtUsd(toUsd(get, dec, p.usd)) : fmtAmount(get, dec)}</b><em className="mono">{fmtAmount(get, dec)} {p.quoteSymbol}</em></div>
+          <div className={`slip2-cell ${get >= paidFor ? "slip2-up" : "slip2-down"}`}><span className="slip2-k">Result</span><b className="mono">{get >= paidFor ? "+" : "−"}{p.usd !== null ? fmtUsd(toUsd(get >= paidFor ? get - paidFor : paidFor - get, dec, p.usd)) : fmtAmount(get >= paidFor ? get - paidFor : paidFor - get, dec)}</b><em className="mono">paid {fmtAmount(paidFor, dec)} {p.quoteSymbol}</em></div>
+        </div>
+        <details className="slip2-more"><summary>Limits</summary>
+          <dl className="quote"><div><dt>at least, if the odds move first</dt><dd className="mono">{fmtAmount(stook.netOf(limit, p.transferFee), dec)} <Usd units={stook.netOf(limit, p.transferFee)} decimals={dec} rate={p.usd} /></dd></div></dl>
+        </details>
       </div>}
       <button className="primary" disabled={!q || !p.tradeable || send.isPending || !publicKey} onClick={submit}>{!p.tradeable ? "Locked until the bell" : send.isPending ? "Sending…" : `Sell ${pct}%`}</button>
     </>
