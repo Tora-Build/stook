@@ -69,7 +69,7 @@ export function Markets() {
             {STOOK_MINT && <div><dt>mint</dt><dd className="muted mono">{STOOK_MINT}</dd></div>}
             {stookQ?.usd ? <div><dt>price</dt><dd className="mono">{fmtUsd(stookQ.usd)}{typeof stookQ.change24h === "number" && <span className={stookQ.change24h >= 0 ? "up" : "down"}> {stookQ.change24h >= 0 ? "+" : ""}{stookQ.change24h.toFixed(1)}% 24h</span>}</dd></div> : null}
             <div><dt>on</dt><dd>StonkFun, Solana</dd></div>
-            <div><dt>what it does</dt><dd>$STOOK is the money in $STOOK rounds. You place calls with it, you fund the pool with it, and winners are paid in it.</dd></div>
+            <div><dt>its table</dt><dd>The S&amp;P 500 table is paid in $STOOK: calls, the pool and the payouts. Every other table is paid in its own coin.</dd></div>
           </dl>
         </div>
       </section>
