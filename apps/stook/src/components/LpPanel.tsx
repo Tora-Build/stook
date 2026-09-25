@@ -1,7 +1,8 @@
 import { useMemo, useState } from "react";
 import { useWallet } from "@solana/wallet-adapter-react";
+import { Link } from "react-router-dom";
 import { stook } from "@sooth/sdk-solana";
-import { fmtAmount, parseAmount } from "../lib/format";
+import { fmtAmount, fmtCompact, parseAmount } from "../lib/format";
 import { ataOf, ensureAta } from "../lib/chain";
 import { useBalance, useSend, useTranches } from "../hooks/useChain";
 import { Usd, fmtUsd, fromUsd, toUsd } from "../lib/usd";
@@ -66,6 +67,20 @@ export function LpPanel(p: Props) {
     try { for (let n = 0; n < chunks.length; n++) await claim.mutateAsync({ computeUnits: chunks[n]!.units, ixs: [...(n === 0 ? [ensureAta(l.quoteMint, publicKey, p.refs.tokenProgram)] : []), ...chunks[n]!.ixs] }); } catch { /* the toast says why */ }
   };
 
+  // Your share of the house now and after this deposit: by depth once the
+  // round is open (it shares fees), by deposit before (depth is set at open).
+  const share = (() => {
+    const mineIn = rows.reduce((a, r) => a + r.t.deposit, 0n);
+    if (seeding) {
+      const tot = Number(l.depositTotal);
+      return { now: tot > 0 ? (Number(mineIn) / tot) * 100 : 0, after: deposit ? ((Number(mineIn) + Number(deposit)) / (tot + Number(deposit))) * 100 : 0 };
+    }
+    const myDepth = (mine.data ?? []).reduce((a, r) => a + stook.trancheTerms(l, r.tranche).b, 0n), add = depth && !seeding ? depth : 0n;
+    return { now: l.b > 0n ? (Number(myDepth) / Number(l.b)) * 100 : 0, after: (Number(myDepth + add) / Number(l.b + add)) * 100 };
+  })();
+
+  const pctOf = (v: number) => (v > 0 && v < 0.1 ? "under 0.1%" : `${v.toFixed(1)}%`);
+
   const Wrap = p.bare ? "div" : "section";
   return (
     <Wrap className={p.bare ? "" : "panel"}>
@@ -73,9 +88,13 @@ export function LpPanel(p: Props) {
       {/* This round's house, live: what it holds, what it has earned, and
           what traders have riding on it. The rules are on the How page. */}
       <div className="slip2-cells house-cells" aria-label="The house, this round">
-        <div className="slip2-cell"><span className="slip2-k">Pool</span><b className="mono">{fmtAmount(l.depositTotal, dec, 0)}</b><em className="mono">{rate !== null ? fmtUsd(toUsd(l.depositTotal, dec, rate)) : p.quoteSymbol}</em></div>
-        <div className="slip2-cell slip2-win"><span className="slip2-k">Fees earned</span><b className="mono">{fmtAmount(l.feesLp, dec, 2)}</b><em className="mono">{rate !== null ? fmtUsd(toUsd(l.feesLp, dec, rate)) : p.quoteSymbol}</em></div>
-        <div className="slip2-cell" title="What traders have paid for lines still open in this round"><span className="slip2-k">Traders in</span><b className="mono">{fmtAmount(l.basisTotal, dec, 0)}</b><em className="mono">{rate !== null ? fmtUsd(toUsd(l.basisTotal, dec, rate)) : p.quoteSymbol}</em></div>
+        {([["Pool", l.depositTotal, ""], ["Fees earned", l.feesLp, "slip2-win"], ["Traders in", l.basisTotal, ""]] as const).map(([k, v, cls]) => (
+          <div key={k} className={`slip2-cell ${cls}`} title={k === "Traders in" ? "What traders have paid for lines still open in this round" : undefined}>
+            <span className="slip2-k">{k}</span>
+            <b className="mono">{rate !== null ? fmtUsd(toUsd(v, dec, rate)) : fmtCompact(v, dec)}</b>
+            <em className="mono">{fmtCompact(v, dec)} {p.quoteSymbol}</em>
+          </div>
+        ))}
       </div>
       {joinable && (
         <>
@@ -92,26 +111,22 @@ export function LpPanel(p: Props) {
               <input value={text} onChange={(e) => setText(e.target.value)} inputMode="decimal" aria-label={inUsd ? "Deposit in dollars" : `Deposit in ${p.quoteSymbol}`} />
               {!inUsd && <span className="amount-unit">{p.quoteSymbol}</span>}
             </div>
-            <span className="hint">{inUsd && deposit ? <>{fmtAmount(deposit, dec)} {p.quoteSymbol} · </> : !inUsd && deposit && rate !== null ? <>{fmtUsd(toUsd(deposit, dec, rate))} · </> : null}balance {balance.data !== undefined ? <>{fmtAmount(balance.data, dec)} {p.quoteSymbol}</> : "…"}</span>
+            <span className="hint">{inUsd && deposit ? <>{fmtCompact(deposit, dec)} {p.quoteSymbol} · </> : !inUsd && deposit && rate !== null ? <>{fmtUsd(toUsd(deposit, dec, rate))} · </> : null}balance {balance.data !== undefined ? <>{fmtCompact(balance.data, dec)} {p.quoteSymbol}</> : "…"}</span>
           </div>
           {depth && (
             <dl className="quote">
-              {seeding ? <>
-                <div><dt>your share of the pool</dt><dd className="mono">{(Number(deposit) / (Number(l.depositTotal) + Number(deposit)) * 100).toFixed(1)}%, if nobody else joins</dd></div>
-              </> : <>
-                <div><dt>your share of fees from now</dt><dd className="mono">{(Number(depth) / (Number(l.b) + Number(depth)) * 100).toFixed(1)}%</dd></div>
-              </>}
-              {p.transferFee && <div><dt>your wallet sends</dt><dd className="mono">{fmtAmount(stook.grossFor(deposit!, p.transferFee), dec)} <Usd units={stook.grossFor(deposit!, p.transferFee)} decimals={dec} rate={rate} /> (incl. the token's {(p.transferFee.bps / 100).toFixed(1)}% transfer fee)</dd></div>}
+              <div><dt>your share of the house</dt><dd className="mono">{share.now > 0 ? `${pctOf(share.now)} → ` : ""}{pctOf(share.after)}</dd></div>
+              {p.transferFee && <div><dt>wallet sends</dt><dd className="mono">{fmtCompact(stook.grossFor(deposit!, p.transferFee), dec)} {p.quoteSymbol} <Usd units={stook.grossFor(deposit!, p.transferFee)} decimals={dec} rate={rate} />, incl. {(p.transferFee.bps / 100).toFixed(0)}% transfer fee</dd></div>}
             </dl>
           )}
           {short && <p className="warn">You hold {fmtAmount(balance.data!, dec)} {p.quoteSymbol}; this needs {fmtAmount(gross!, dec)}. On devnet, use <b>test coins</b> in the header.</p>}
           <button className="primary" disabled={!depth || join.isPending || !publicKey || short} onClick={submit}>
-            {!publicKey ? "Connect a wallet" : join.isPending ? "Sending…" : `Deposit ${deposit ? fmtAmount(deposit, dec) : 0} ${p.quoteSymbol}${deposit && rate !== null ? ` · ${fmtUsd(toUsd(deposit, dec, rate))}` : ""}`}
+            {!publicKey ? "Connect a wallet" : join.isPending ? "Sending…" : `Deposit ${deposit ? fmtCompact(deposit, dec) : 0} ${p.quoteSymbol}${deposit && rate !== null ? ` · ${fmtUsd(toUsd(deposit, dec, rate))}` : ""}`}
           </button>
         </>
       )}
-      {joinable && <p className="house-fine">Winners are paid from the pool: you can lose up to what you deposit. <a href="/how">How the house works ›</a></p>}
-      {!joinable && <p className="house-how"><a href="/how">How the house works ›</a></p>}
+      {joinable && <p className="house-fine">Winners are paid from the pool: you can lose up to what you deposit. <Link to="/how?step=house">How the house works ›</Link></p>}
+      {!joinable && <p className="house-how"><Link to="/how?step=house">How the house works ›</Link></p>}
       {/* Your deposits, as one stake. On chain each deposit is its own
           tranche (it joined at that moment's odds and earns fees from then),
           so they cannot merge; here they add up, with the detail on request. */}
@@ -119,9 +134,9 @@ export function LpPanel(p: Props) {
         <div className="stake">
           <div className="stake-head"><span className="slip2-k">Your stake</span><span className="stake-n">{rows.length === 1 ? "1 deposit" : `${rows.length} deposits`}</span></div>
           <div className="stake-nums">
-            <div><span>in</span><b className="mono">{fmtAmount(sum.in, dec)}</b><Usd units={sum.in} decimals={dec} rate={rate} /></div>
-            <div><span>fees earned</span><b className="mono up">{fmtAmount(sum.fees, dec)}</b><Usd units={sum.fees} decimals={dec} rate={rate} /></div>
-            {sum.worth !== null && <div><span>worth now</span><b className="mono">{fmtAmount(sum.worth, dec)}</b><Usd units={sum.worth} decimals={dec} rate={rate} /></div>}
+            <div><span>in</span><b className="mono">{fmtCompact(sum.in, dec)}</b><Usd units={sum.in} decimals={dec} rate={rate} /></div>
+            <div><span>fees earned</span><b className="mono up">{fmtCompact(sum.fees, dec)}</b><Usd units={sum.fees} decimals={dec} rate={rate} /></div>
+            {sum.worth !== null && <div><span>worth now</span><b className="mono">{fmtCompact(sum.worth, dec)}</b><Usd units={sum.worth} decimals={dec} rate={rate} /></div>}
           </div>
           {rows.length > 1 && <details className="slip2-more"><summary>Each deposit</summary>
             <ul className="rows">{rows.map((r) => <li key={r.t.index}><span>#{r.t.index}</span><span className="mono">{fmtAmount(r.t.deposit, dec)} in · fees {fmtAmount(r.fees, dec)}{r.worth !== null && <> · worth {fmtAmount(r.worth, dec)}</>}</span></li>)}</ul>

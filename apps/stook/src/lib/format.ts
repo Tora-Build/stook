@@ -44,3 +44,12 @@ export const untilText = (t: bigint, now: number): string => {
 };
 
 export const short = (k: { toBase58(): string }) => { const s = k.toBase58(); return `${s.slice(0, 4)}…${s.slice(-4)}`; };
+
+/** A coin amount short enough for a cell: 16.12M, 281.6K, 950.25. */
+export const fmtCompact = (units: bigint, decimals: number): string => {
+  const v = Number(units) / 10 ** decimals, a = Math.abs(v);
+  if (a >= 1e9) return (v / 1e9).toLocaleString("en-US", { maximumFractionDigits: 2 }) + "B";
+  if (a >= 1e6) return (v / 1e6).toLocaleString("en-US", { maximumFractionDigits: 2 }) + "M";
+  if (a >= 1e4) return (v / 1e3).toLocaleString("en-US", { maximumFractionDigits: 1 }) + "K";
+  return fmtAmount(units, decimals);
+};

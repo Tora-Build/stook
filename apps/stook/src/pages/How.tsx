@@ -3,6 +3,7 @@
 // needs to know is here and nothing that isn't.
 
 import { useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import { Link } from "react-router-dom";
 import { COINS } from "../lib/coins";
 import { Slider } from "../components/Slider";
@@ -10,7 +11,9 @@ import { Slider } from "../components/Slider";
 const STOPS = ["The tables", "The calendar", "The line", "The bell", "The house", "The fine print"] as const;
 
 export function How() {
-  const [i, setI] = useState(0);
+  // ?step=house (or tables, calendar, line, bell, fine-print) opens that stop
+  const [params] = useSearchParams();
+  const [i, setI] = useState(() => Math.max(0, ["tables", "calendar", "line", "bell", "house", "fine-print"].indexOf(params.get("step") ?? "")));
   const go = (n: number) => setI(Math.max(0, Math.min(STOPS.length - 1, n)));
   return (
     <div className="page tour-page">
