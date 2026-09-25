@@ -14,7 +14,10 @@ import { stook } from "@sooth/sdk-solana";
 import { COINS, anchorOf, mintOf, seriesOf } from "../lib/coins";
 import { useSeries } from "../hooks/useChain";
 import { useNow } from "../hooks/useNow";
-import { firstOpenableDay, nyWhen } from "../lib/time";
+import { firstOpenableDay, nyAt, nyDate, nyWhen } from "../lib/time";
+import { fmtUsd, useCoinQuotes } from "../lib/usd";
+import { untilText } from "../lib/format";
+import { Notice } from "../components/Notice";
 
 const DATA = "";
 /** A slot can be started until this long before it settles: the program's
@@ -32,26 +35,41 @@ export function Coin() {
   const quote = useQuery({ queryKey: ["quote", coin?.symbol], queryFn: async () => (await fetch(`${DATA}/prices`)).json(), enabled: !!coin, refetchInterval: 60_000 });
 
   const anchor = coin ? anchorOf(coin) : null;
+  const cq = useCoinQuotes().data?.[coin?.symbol ?? ""];
 
   if (!coin || !anchor) return <p className="page muted">No such coin on the street.</p>;
   const q = quote.data?.[coin.symbol] as { price: number; change24h: number | null } | undefined;
   const mint = mintOf(coin);
   const firstOpen = series.data ? firstOpenableDay(series.data) : null;
+  const [y, mo, d] = nyDate(now).split("-").map(Number) as [number, number, number];
+  const todayBell = nyAt(y, mo - 1, d, 16), bell = now < todayBell ? todayBell : nyAt(y, mo - 1, d + 1, 16);
 
   return (
     <div className="page">
-      <header className="market-head">
-        <div className="coin-head-row">
-          <div className="logos logos-big logos-anchor-first"><img src={coin.anchor.logo} alt={coin.anchor.symbol} className="logo-coin" /><img src={coin.logo} alt={coin.symbol} className="logo-anchor" /></div>
-          <div>
-          <span className="sign">${coin.symbol} · {coin.name.toUpperCase()}</span>
-          <h1>{coin.anchor.name} <span className="sym">{coin.anchor.symbol}</span></h1>
-          <p className="live-row">
-            {q ? <><span className="mono">${q.price.toLocaleString("en-US", { minimumFractionDigits: coin.anchor.dp, maximumFractionDigits: coin.anchor.dp })}</span>{typeof q.change24h === "number" && <span className={`mono ${q.change24h >= 0 ? "up" : "down"}`}> {q.change24h >= 0 ? "+" : ""}{q.change24h.toFixed(2)}% 24h</span>}</> : <span className="muted">price…</span>}
-          </p>
-          <p className="coin-intro">Where does {coin.anchor.name} close at 4 PM New York? Call it, paid in ${coin.symbol}. <Link to="/how">How it works</Link></p>
-          <p className="addrs"><Address label={`${coin.anchor.symbol} token`} value={coin.anchor.mint} />{coin.mint && <Address label={`$${coin.symbol}`} value={coin.mint} dim />}{coin.feeBps > 0 && <span className="fee-chip" title={`$${coin.symbol} takes ${coin.feeBps / 100}% on every transfer; the app shows it in every quote.`}>{coin.feeBps / 100}% transfer fee</span>}</p>
+      {/* The coin's board, as a round's: who it is on top, the numbers that
+          move on a tape below. */}
+      <header className="round-board coin-board">
+        <div className="board-top">
+          <div className="strip-id">
+            <div className="logos logos-big logos-anchor-first"><img src={coin.anchor.logo} alt={coin.anchor.symbol} className="logo-coin" /><img src={coin.logo} alt={coin.symbol} className="logo-anchor" /></div>
+            <div>
+              <span className="sign">${coin.symbol} · {coin.name.toUpperCase()}</span>
+              <h1>{coin.anchor.name} <span className="sym">{coin.anchor.symbol}</span></h1>
+              <div className="board-sub">
+                <span>Where does it close at 4 PM New York? Call it, paid in ${coin.symbol}.</span>
+                <Address label={`${coin.anchor.symbol} token`} value={coin.anchor.mint} />{coin.mint && <Address label={`$${coin.symbol}`} value={coin.mint} dim />}
+              </div>
+            </div>
           </div>
+          <Link className="tour-btn" to="/how">? How it works</Link>
+        </div>
+        <div className="board-tape">
+          <div className="tape-cell"><span className="strip-k">{coin.anchor.symbol} now</span><b className="mono">{q ? `$${q.price.toLocaleString("en-US", { minimumFractionDigits: coin.anchor.dp, maximumFractionDigits: coin.anchor.dp })}` : "…"}</b>
+            {typeof q?.change24h === "number" && <em className={`mono ${q.change24h >= 0 ? "up" : "down"}`}>{q.change24h >= 0 ? "▲" : "▼"} {Math.abs(q.change24h).toFixed(2)}% in 24h</em>}</div>
+          <div className="tape-cell"><span className="strip-k">${coin.symbol}</span><b className="mono">{cq?.usd ? fmtUsd(cq.usd) : "…"}</b>
+            {typeof cq?.change24h === "number" && <em className={`mono ${cq.change24h >= 0 ? "up" : "down"}`}>{cq.change24h >= 0 ? "▲" : "▼"} {Math.abs(cq.change24h).toFixed(1)}% in 24h</em>}</div>
+          <div className="tape-cell"><span className="strip-k">next bell</span><b className="mono">4:00 PM</b><em>in {untilText(BigInt(bell), now)}, New York</em></div>
+          <div className="tape-cell" title={coin.feeBps > 0 ? `$${coin.symbol} takes ${coin.feeBps / 100}% on every transfer; the app shows it in every quote.` : undefined}><span className="strip-k">transfer fee</span><b className="mono">{coin.feeBps > 0 ? `${coin.feeBps / 100}%` : "none"}</b><em>{coin.feeBps > 0 ? "on every move of the coin" : "the coin moves whole"}</em></div>
         </div>
       </header>
 
@@ -62,7 +80,7 @@ export function Coin() {
         <div className="plan-head"><h3>Plan ahead</h3><span className="hint">Fund any day up to 31 days out and be its house. Its bands are set the moment it opens.</span></div>
         {/* A new coin learns from 20 daily closes before its first round, once.
             Say so only while that holds back the next round anyone could fund. */}
-        {series.data && firstOpen !== null && firstOpen > stook.indexAtOrBefore(series.data, BigInt(now)) + 1 && <p className="hint">New on the street: {coin.anchor.name}'s rounds start {nyWhen(stook.closeOf(series.data, firstOpen), { weekday: "short", month: "short", day: "numeric" })}, once it has seen 20 daily closes ({series.data.observations} so far). After that it learns every day on its own.</p>}
+        {series.data && firstOpen !== null && firstOpen > stook.indexAtOrBefore(series.data, BigInt(now)) + 1 && <Notice tone="info" title="New on the street">{coin.anchor.name}'s rounds start {nyWhen(stook.closeOf(series.data, firstOpen), { weekday: "short", month: "short", day: "numeric" })}, once it has seen 20 daily closes ({series.data.observations} so far). After that it learns every day on its own.</Notice>}
         {series.data && seriesKey ? <WallCalendar seriesKey={seriesKey} series={series.data} now={now} minLeadSecs={MIN_LEAD_SECS} dp={anchor.dp} coinSymbol={coin.symbol} canStart={!!mint && series.data.active} onStart={setStarting} />
           : <p className="muted">{series.isLoading ? "Reading the calendar…" : "This coin's rounds have not been opened on this network yet."}</p>}
       </section>

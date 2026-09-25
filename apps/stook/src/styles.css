@@ -949,3 +949,40 @@ button.tour-skip:hover { color: var(--cream); }
 .payl-scale { position: relative; text-transform: none; letter-spacing: 0; font-weight: 400; color: var(--cream-3); padding-bottom: 1.3rem; }
 .payl-tag { position: absolute; bottom: 0; transform: translateX(-50%); font-style: normal; white-space: nowrap; font-size: .72rem; font-weight: 600; color: #101a2e; background: var(--cream); padding: .05rem .35rem; }
 .payl-tag::after { content: ""; position: absolute; left: 50%; bottom: -5px; margin-left: -4px; border: 4px solid transparent; border-top-color: var(--cream); border-bottom: 0; }
+
+/* Yours: the passbook */
+.payout-slip { margin: 0 0 1.4rem; max-width: 560px; }
+.payout-slip .tp-row + .tp-row { margin-top: .25rem; }
+.payout-slip .primary { width: 100%; margin-top: .4rem; }
+.tp-dim { color: #8d8670; font-weight: 400; }
+.pb-filters { display: flex; justify-content: space-between; align-items: center; gap: .8rem; flex-wrap: wrap; margin: 0 0 .8rem; }
+.pb-coins { display: flex; gap: .35rem; flex-wrap: wrap; }
+.pb-chip { display: inline-flex; align-items: center; gap: .35rem; padding: .35rem .6rem; background: var(--ink); border: 2px solid var(--line); color: var(--cream-2); font: inherit; font-size: .8rem; cursor: pointer; }
+.pb-chip img { width: 16px; height: 16px; border-radius: 50%; }
+.pb-chip.on { border-color: var(--taxi); color: var(--cream); }
+.pb-day { margin-bottom: 1.1rem; }
+.pb-date { display: flex; align-items: center; gap: .7rem; margin: 1rem 0 .5rem; font-family: var(--px); font-size: .5rem; font-weight: 400; color: var(--teal); }
+.pb-date::after { content: ""; flex: 1; border-top: 2px dashed var(--line); }
+.pb-round { background: var(--sky-2); border: 2px solid var(--line); margin-bottom: .4rem; }
+.pb-round.stage-settled, .pb-round.stage-void { border-left: 6px solid var(--taxi); }
+.pb-round.stage-trading { border-left: 6px solid var(--good); }
+.pb-open { border-color: var(--cream); box-shadow: 4px 4px 0 var(--brick-2); }
+.pb-row { display: grid; grid-template-columns: auto minmax(0, 1.6fr) auto repeat(3, minmax(0, 1fr)) auto; align-items: center; gap: .9rem; width: 100%; padding: .6rem .9rem; background: none; border: 0; color: var(--cream); font: inherit; text-align: left; cursor: pointer; }
+.pb-row:hover { background: var(--sky-3); }
+.pb-row .logos img.logo-coin { width: 30px; height: 30px; }
+.pb-name { font-weight: 600; min-width: 0; }
+.pb-name em { display: block; font-style: normal; font-weight: 400; font-size: .75rem; color: var(--cream-3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.pb-stamp { font-family: var(--px); font-size: .4rem; text-transform: uppercase; padding: .25rem .4rem; border: 2px solid currentColor; white-space: nowrap; }
+.pb-num { font-family: var(--mono); font-variant-numeric: tabular-nums; text-align: right; font-size: .92rem; white-space: nowrap; }
+.pb-num em { display: block; font-family: var(--sans); font-style: normal; font-size: .66rem; letter-spacing: .06em; text-transform: uppercase; color: var(--cream-3); }
+.pb-res.up { color: var(--good); } .pb-res.down { color: var(--bad); }
+.pb-caret { color: var(--taxi); }
+.pb-body { border-top: 2px dashed var(--line); }
+.pb-when { padding: .6rem 1rem 0; }
+@media (max-width: 720px) {
+  .pb-row { grid-template-columns: auto minmax(0, 1fr) auto auto; }
+  .pb-row .pb-stamp, .pb-row .pb-num:not(.pb-res) { display: none; }
+}
+.coin-board h1 { margin: .35rem 0 0; }
+.coin-board .strip-id { gap: 1.1rem; }
+a.tour-btn { text-decoration: none; }

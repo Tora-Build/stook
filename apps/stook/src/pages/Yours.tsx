@@ -2,7 +2,7 @@
 // wallet is in, what it put where, what that is worth now or pays, and one
 // button per finished round to collect all of it. Amounts stay in each
 // round's own coin: $STOOK and $KNOTS do not add up, so they are never summed.
-import { useMemo } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { PublicKey } from "@solana/web3.js";
 import { useWallet } from "@solana/wallet-adapter-react";
@@ -10,13 +10,13 @@ import { stook } from "@sooth/sdk-solana";
 import { useHoldings, useMint, useSend } from "../hooks/useChain";
 import { useNow } from "../hooks/useNow";
 import { ataOf, ensureAta, type Holding } from "../lib/chain";
-import { anchorOf, coinByMint } from "../lib/coins";
+import { COINS, anchorOf, coinByMint } from "../lib/coins";
 import { feedByHex, feedHex } from "../lib/feeds";
 import { fmtCompact, short } from "../lib/format";
 import { fmtUsd, toUsd, useUsdRates } from "../lib/usd";
 import { bandName, rangeName } from "../components/Ticket";
 import { Book } from "../components/Book";
-import { nyWhen } from "../lib/time";
+import { nyDate, nyWhen } from "../lib/time";
 
 type Stage = "funded" | "opening" | "void soon" | "trading" | "locked" | "settling" | "settled" | "void";
 
@@ -91,7 +91,35 @@ export function Yours() {
     return rows.length ? <>{rows.some(([c]) => rates[c]) && <div className="tote-usd mono">{fmtUsd(usd)}</div>}{rows.map(([c, x]) => <div key={c} className={`tote-v mono ${rows.some(([k]) => rates[k]) ? "tote-sub" : ""}`}>{fmtCompact(pick(x), x.dec)} <span className="tote-c">${c}</span></div>)}</> : <div className="tote-v mono muted">$0</div>;
   };
   const finished = rounds.filter((h) => { const s = stageOf(h.ladder, now); return s === "settled" || s === "void"; });
-  const running = rounds.filter((h) => !finished.includes(h));
+
+  // One button collects every finished round: each round's row registers
+  // how to collect it, and the slip runs them one after another.
+  const collectors = useRef(new Map<string, () => Promise<void>>());
+  const register = useCallback((k: string, fn: (() => Promise<void>) | null) => { if (fn) collectors.current.set(k, fn); else collectors.current.delete(k); }, []);
+  const [allProgress, setAllProgress] = useState<[number, number] | null>(null);
+  const collectAll = async () => {
+    const keys = finished.map((h) => h.pubkey.toBase58()).filter((k) => collectors.current.has(k));
+    for (let n = 0; n < keys.length; n++) { setAllProgress([n + 1, keys.length]); await collectors.current.get(keys[n]!)!(); }
+    setAllProgress(null);
+  };
+
+  // The passbook: newest day first, filtered by coin and by state, each round
+  // one line that opens into its detail.
+  const [coinF, setCoinF] = useState("all");
+  const [view, setView] = useState<"all" | "open" | "done">("all");
+  const coinsHeld = [...new Set(rounds.map((h) => coinByMint(h.ladder.quoteMint)?.symbol).filter(Boolean) as string[])];
+  const shown = [...rounds].reverse().filter((h) => (coinF === "all" || coinByMint(h.ladder.quoteMint)?.symbol === coinF) && (view === "all" || (view === "done") === finished.includes(h)));
+  const days: [string, Holding[]][] = [];
+  for (const h of shown) { const d = nyDate(Number(h.ladder.settlesAt)); const last = days.at(-1); if (last && last[0] === d) last[1].push(h); else days.push([d, [h]]); }
+  const today = nyDate(now), yesterday = nyDate(now - 86_400);
+  const dayName = (d: string, t: bigint) => `${nyWhen(t, { weekday: "long", month: "short", day: "numeric" })}${d === today ? " · today" : d === yesterday ? " · yesterday" : ""}`;
+
+  // The slip's lines and total, in dollars across coins.
+  const slip = finished.map((h) => {
+    const c = coinByMint(h.ladder.quoteMint), v = value(h, now, c ? anchorOf(c).dp : 2), rate = c ? rates[c.symbol] ?? null : null;
+    return { h, c, ready: v.ready, usd: rate !== null ? toUsd(v.ready, h.ladder.decimals, rate) : null };
+  });
+  const slipUsd = slip.reduce((a, x) => a + (x.usd ?? 0), 0);
 
   return (
     <div className="page statement">
@@ -115,17 +143,52 @@ export function Yours() {
             <div className="tote-cell"><div className="tote-k">calls at work</div>{tote((x) => x.atWork)}</div>
             <div className="tote-cell"><div className="tote-k">in the house</div>{tote((x) => x.inHouse)}</div>
           </section>
-          {finished.length > 0 && <h2 className="stmt-h">To collect</h2>}
-          {finished.map((h) => <RoundBlock key={h.pubkey.toBase58()} h={h} now={now} own={own} />)}
-          {running.length > 0 && <h2 className="stmt-h">Running</h2>}
-          {running.map((h) => <RoundBlock key={h.pubkey.toBase58()} h={h} now={now} own={own} />)}
+
+          {slip.length > 0 && (
+            <div className="ticket-paper payout-slip" role="group" aria-label="Payout slip">
+              <div className="tp-head"><span>Payout slip</span><b className="mono">{slip.length} finished {slip.length === 1 ? "round" : "rounds"}</b></div>
+              {slip.map(({ h, c, ready, usd }) => (
+                <div key={h.pubkey.toBase58()} className="tp-row">
+                  <span>{c ? c.anchor.name : "round"} in ${c?.symbol ?? ""} · {nyWhen(h.ladder.settlesAt, { weekday: "short", month: "short", day: "numeric" })}{h.ladder.status === "void" ? " · void" : ""}</span><i />
+                  <b className="mono">{ready === 0n ? <span className="tp-dim">nothing won</span> : usd !== null ? fmtUsd(usd) : `${fmtCompact(ready, h.ladder.decimals)} $${c?.symbol ?? ""}`}</b>
+                </div>
+              ))}
+              <div className="tp-win">
+                <div className="tp-win-top"><span>Total to collect</span></div>
+                <b className="mono">{fmtUsd(slipUsd)}</b>
+                <div className="tp-note">{slip.filter((x) => x.ready > 0n).map((x) => `${fmtCompact(x.ready, x.h.ladder.decimals)} $${x.c?.symbol ?? ""}`).join(" + ") || "rounds that paid nothing, to close"}</div>
+              </div>
+              {own
+                ? <button className="primary" disabled={!!allProgress} onClick={() => void collectAll()}>{allProgress ? `Collecting ${allProgress[0]} of ${allProgress[1]}…` : slipUsd > 0 ? `Collect all ${fmtUsd(slipUsd)}` : "Close them all"}</button>
+                : <p className="tp-dim small">Only the account's own wallet can collect.</p>}
+            </div>
+          )}
+
+          <div className="pb-filters">
+            <div className="seg seg-sm" role="group" aria-label="Show">
+              {(["all", "open", "done"] as const).map((k) => <button key={k} className={view === k ? "on" : ""} onClick={() => setView(k)}>{k === "all" ? "All" : k === "open" ? "Running" : "Finished"}</button>)}
+            </div>
+            {coinsHeld.length > 1 && <div className="pb-coins" role="group" aria-label="Coin">
+              <button className={`pb-chip ${coinF === "all" ? "on" : ""}`} onClick={() => setCoinF("all")}>every coin</button>
+              {coinsHeld.map((c) => { const coin = COINS.find((x) => x.symbol === c); return <button key={c} className={`pb-chip ${coinF === c ? "on" : ""}`} onClick={() => setCoinF(c)}>{coin && <img src={coin.logo} alt="" />}${c}</button>; })}
+            </div>}
+          </div>
+
+          {days.length === 0 && <p className="stmt-empty">Nothing here with these filters.</p>}
+          {days.map(([d, hs]) => (
+            <section key={d} className="pb-day">
+              <h2 className="pb-date"><span>{dayName(d, hs[0]!.ladder.settlesAt)}</span></h2>
+              {hs.map((h) => <RoundBlock key={h.pubkey.toBase58()} h={h} now={now} own={own} register={register} />)}
+            </section>
+          ))}
           <p className="stmt-foot">Amounts are in dollars at today's price, with each round's coin beneath, and before the coin's own transfer fee. A call's worth while trading is what selling it now would pay. Collect what a finished round owes you whenever you like; 30 days after its close, anyone may send it to your wallet for you.</p>
         </>}
     </div>
   );
 }
 
-function RoundBlock({ h, now, own }: { h: Holding; now: number; own: boolean }) {
+function RoundBlock({ h, now, own, register }: { h: Holding; now: number; own: boolean; register: (k: string, fn: (() => Promise<void>) | null) => void }) {
+  const [open, setOpen] = useState(false);
   const { publicKey } = useWallet();
   const l = h.ladder, coin = coinByMint(l.quoteMint), feed = feedByHex(feedHex(l.feedId));
   const mint = useMint(l.quoteMint);
@@ -159,16 +222,27 @@ function RoundBlock({ h, now, own }: { h: Holding; now: number; own: boolean }) 
   const shownAnchor = coin ? coin.anchor : null;
   const final = stage === "settled" || stage === "void";
   const pnl = (x: Line) => (x.value === null ? null : x.value - x.cost);
+  const key = h.pubkey.toBase58();
+  useEffect(() => { register(key, collectable ? collect : null); return () => register(key, null); });
+  // The line: what went in, what it is worth now (or pays), and the result.
+  const cost = v.lines.reduce((a, x) => a + x.cost, 0n);
+  const valued = v.lines.filter((x) => x.value !== null);
+  const worth = final ? v.ready : valued.length ? v.lines.reduce((a, x) => a + (x.value ?? x.cost), 0n) : null;
+  const result = final ? v.ready - cost : valued.length ? valued.reduce((a, x) => a + x.value! - x.cost, 0n) : null;
+  const calls = h.positions.length, deps = h.tranches.length;
   return (
-    <article className={`stmt-round stage-${stage.replace(" ", "-")}`}>
-      <header className="stmt-round-head">
-        {coin && <div className="logos logos-anchor-first"><img src={coin.anchor.logo} alt="" className="logo-coin" /><img src={coin.logo} alt="" className="logo-anchor" /></div>}
-        <div className="stmt-round-id">
-          <Link to={`/m/${h.pubkey.toBase58()}`} className="stmt-round-name">{shownAnchor ? shownAnchor.name : feed.name} <span className="sym">{shownAnchor ? shownAnchor.symbol : feed.symbol}</span> in {sym}</Link>
-          <div className="muted small">closes {nyWhen(l.settlesAt, { weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })} New York</div>
-        </div>
-        <span className={`stamp stamp-${stage.replace(" ", "-")}`}>{stage}</span>
-      </header>
+    <article className={`pb-round stage-${stage.replace(" ", "-")} ${open ? "pb-open" : ""}`}>
+      <button className="pb-row" onClick={() => setOpen(!open)} aria-expanded={open}>
+        {coin && <span className="logos logos-anchor-first"><img src={coin.anchor.logo} alt="" className="logo-coin" /><img src={coin.logo} alt="" className="logo-anchor" /></span>}
+        <span className="pb-name">{shownAnchor ? shownAnchor.name : feed.name}<em>in {sym} · {[calls && `${calls} ${calls === 1 ? "call" : "calls"}`, deps && `${deps} house`].filter(Boolean).join(" · ")}</em></span>
+        <span className={`pb-stamp stamp-${stage.replace(" ", "-")}`}>{stage}</span>
+        <span className="pb-num"><em>in</em>{big(cost)}</span>
+        <span className="pb-num"><em>{final ? "pays" : "now"}</em>{worth === null ? "–" : big(worth)}</span>
+        <span className={`pb-num pb-res ${result === null ? "muted" : result >= 0n ? "up" : "down"}`}><em>result</em>{result === null ? "at the bell" : `${result >= 0n ? "+" : "−"}${big(result >= 0n ? result : -result)}`}</span>
+        <span className="pb-caret" aria-hidden="true">{open ? "▾" : "▸"}</span>
+      </button>
+      {open && <div className="pb-body">
+      <div className="pb-when muted small">closes {nyWhen(l.settlesAt, { weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })} New York</div>
       {/* A finished round reads as a book: what each holding pays, the
           total, and one button for all of it, as on the round page. */}
       {final ? (() => {
@@ -205,6 +279,7 @@ function RoundBlock({ h, now, own }: { h: Holding; now: number; own: boolean }) 
       <footer className="stmt-round-foot">
         <Link to={`/m/${h.pubkey.toBase58()}`} className="small as-link">{stage === "trading" ? "To the table ›" : "Open the round ›"}</Link>
       </footer>
+      </div>}
     </article>
   );
 }
