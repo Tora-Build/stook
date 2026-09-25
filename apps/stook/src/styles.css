@@ -582,7 +582,7 @@ button.tour-skip:hover { color: var(--cream); }
 /* ── amount entry: shares, the coin, or dollars ──────────────────────────────── */
 .amount-head { display: flex; align-items: center; justify-content: space-between; gap: .5rem; margin-bottom: .35rem; }
 .amount-head > span { font-family: var(--px); font-size: .5rem; color: var(--cream-2); }
-.seg-sm button { font-size: .4rem !important; padding: .35rem .5rem !important; }
+.seg-sm button { font-size: .5rem !important; padding: .6rem .85rem !important; min-width: 3.4rem; }
 .amount-input { display: flex; align-items: center; background: var(--ink); border: 3px solid var(--line); }
 .amount-input:focus-within { border-color: var(--taxi); }
 .amount-input input { flex: 1; min-width: 0; border: 0 !important; outline: none; background: transparent; box-shadow: none !important; }

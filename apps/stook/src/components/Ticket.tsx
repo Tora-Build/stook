@@ -90,7 +90,7 @@ function Mine(p: Props) {
   const paid = p.positions.reduce((a, r) => a + r.position.netPaid, 0n);
   const money = (v: bigint) => p.usd !== null ? <>{fmtUsd(toUsd(v, dec, p.usd))}<small>{fmtCompact(v, dec)} {p.quoteSymbol}</small></> : <>{fmtCompact(v, dec)} {p.quoteSymbol}</>;
   return (
-    <Book kind="call" title="Your calls" count={p.positions.length} open={!!p.selected}
+    <Book kind="call" title="Your calls" count={p.positions.length} open={!!p.selected} onFold={p.onDeselect}
       total={<>{p.usd !== null ? fmtUsd(toUsd(paid, dec, p.usd)) : `${fmtCompact(paid, dec)} ${p.quoteSymbol}`} in</>}
       rows={p.positions.map((r) => { const on = !!p.selected?.pubkey.equals(r.pubkey); return {
         key: r.pubkey.toBase58(), on, label: name(r.position.shape), sub: on ? "open below: add or sell" : undefined,
@@ -101,10 +101,9 @@ function Mine(p: Props) {
 // ── one of your lines: add to it, or sell some of it ─────────────────────────
 function Held(p: Props & { pos: PositionRow }) {
   const [side, setSide] = useState<"buy" | "sell">("sell");
-  const pos = p.pos.position, s = pos.shape, dec = p.ladder.decimals;
+  const s = p.pos.position.shape;
   return (
     <>
-      <div className="shape-desc">Your {s.h > 1 ? `target, reach ${s.h}` : "range"} · paid {p.usd !== null ? fmtUsd(toUsd(pos.netPaid, dec, p.usd)) : `${fmtCompact(pos.netPaid, dec)} ${p.quoteSymbol}`} <button className="link" onClick={p.onDeselect}>· place a new one</button></div>
       <div className="seg held-side"><button className={side === "buy" ? "on" : ""} onClick={() => setSide("buy")}>Add more</button><button className={side === "sell" ? "on" : ""} onClick={() => setSide("sell")}>Sell</button></div>
       {side === "buy" ? <Buy {...p} shape={s} held /> : <Sell {...p} pos={p.pos} />}
     </>
