@@ -1143,3 +1143,9 @@ a.tour-btn { text-decoration: none; }
 .theme-btn svg { width: 24px; height: 24px; }
 .faucet-btn svg { width: 24px; height: 24px; }
 .faucet-btn { border-color: #5a4a22; color: var(--taxi); }
+
+/* the coin page: today's card beside the anchor's day */
+.desk-side { display: flex; flex-direction: column; gap: .5rem; background: var(--ink); border: 3px solid var(--line); padding: .8rem .9rem; min-width: 0; }
+.desk-side .chart-wrap { flex: 1; display: flex; align-items: center; border: 0; box-shadow: none; padding: 0; background: none; }
+.desk-side .chart { width: 100%; height: auto; }
+.desk-side .lbl { font-size: 11px; }

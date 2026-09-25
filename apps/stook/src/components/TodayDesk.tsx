@@ -2,7 +2,7 @@
 // about it, and the next few days on a strip beside it. Only one round
 // trades at a time, so that is what a visitor sees first; the month's
 // calendar is for planning and sits below.
-import { useMemo } from "react";
+import { useMemo, type ReactNode } from "react";
 import { Link } from "react-router-dom";
 import type { PublicKey } from "@solana/web3.js";
 import { stook } from "@sooth/sdk-solana";
@@ -22,6 +22,8 @@ interface Props {
   anchorName: string;
   canStart: boolean;
   onStart: (index: number) => void;
+  /** What sits beside today's card; the days ahead are on the calendar below. */
+  side?: ReactNode;
 }
 
 /** The next `n` days with a round whose close is still ahead, from `now`. */
@@ -95,7 +97,7 @@ export function TodayDesk(p: Props) {
         </div>
       </div>
 
-      <div className="desk-next">
+      {p.side ?? <div className="desk-next">
         <div className="desk-next-h">Up next</div>
         <ol>
           {next.map((i) => {
@@ -107,7 +109,7 @@ export function TodayDesk(p: Props) {
             return <li key={i}>{nr ? <Link to={`/m/${nr.pubkey.toBase58()}`}>{body}<span className="dn-go">›</span></Link> : fundable(i) ? <button onClick={() => p.onStart(i)}>{body}<span className="dn-go">+</span></button> : <div>{body}</div>}</li>;
           })}
         </ol>
-      </div>
+      </div>}
     </section>
   );
 }

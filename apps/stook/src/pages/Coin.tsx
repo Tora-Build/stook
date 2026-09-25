@@ -14,9 +14,8 @@ import { stook } from "@sooth/sdk-solana";
 import { COINS, anchorOf, mintOf, seriesOf } from "../lib/coins";
 import { useSeries } from "../hooks/useChain";
 import { useNow } from "../hooks/useNow";
-import { firstOpenableDay, nyAt, nyDate, nyWhen } from "../lib/time";
+import { firstOpenableDay, nyWhen } from "../lib/time";
 import { fmtUsd, useCoinQuotes } from "../lib/usd";
-import { untilText } from "../lib/format";
 import { Notice } from "../components/Notice";
 
 const DATA = "";
@@ -41,8 +40,6 @@ export function Coin() {
   const q = quote.data?.[coin.symbol] as { price: number; change24h: number | null } | undefined;
   const mint = mintOf(coin);
   const firstOpen = series.data ? firstOpenableDay(series.data) : null;
-  const [y, mo, d] = nyDate(now).split("-").map(Number) as [number, number, number];
-  const todayBell = nyAt(y, mo - 1, d, 16), bell = now < todayBell ? todayBell : nyAt(y, mo - 1, d + 1, 16);
 
   return (
     <div className="page">
@@ -65,13 +62,13 @@ export function Coin() {
             {typeof q?.change24h === "number" && <em className={`mono ${q.change24h >= 0 ? "up" : "down"}`}>{q.change24h >= 0 ? "▲" : "▼"} {Math.abs(q.change24h).toFixed(2)}% in 24h</em>}</div>
           <div className="tape-cell"><span className="strip-k">${coin.symbol}</span><b className="mono">{cq?.usd ? fmtUsd(cq.usd) : "…"}</b>
             {typeof cq?.change24h === "number" && <em className={`mono ${cq.change24h >= 0 ? "up" : "down"}`}>{cq.change24h >= 0 ? "▲" : "▼"} {Math.abs(cq.change24h).toFixed(1)}% in 24h</em>}</div>
-          <div className="tape-cell"><span className="strip-k">next bell</span><b className="mono">4:00 PM</b><em>in {untilText(BigInt(bell), now)}, New York</em></div>
           <div className="tape-cell" title={coin.feeBps > 0 ? `$${coin.symbol} takes ${coin.feeBps / 100}% on every transfer; the app shows it in every quote.` : undefined}><span className="strip-k">transfer fee</span><b className="mono">{coin.feeBps > 0 ? `${coin.feeBps / 100}%` : "none"}</b><em>{coin.feeBps > 0 ? "on every move of the coin" : "the coin moves whole"}</em></div>
         </div>
       </header>
 
 
-      {series.data && seriesKey && <TodayDesk seriesKey={seriesKey} series={series.data} now={now} minLeadSecs={MIN_LEAD_SECS} dp={anchor.dp} coinSymbol={coin.symbol} anchorName={coin.anchor.name} canStart={!!mint && series.data.active} onStart={setStarting} />}
+      {series.data && seriesKey && <TodayDesk seriesKey={seriesKey} series={series.data} now={now} minLeadSecs={MIN_LEAD_SECS} dp={anchor.dp} coinSymbol={coin.symbol} anchorName={coin.anchor.name} canStart={!!mint && series.data.active} onStart={setStarting}
+        side={<div className="desk-side"><div className="desk-next-h">{coin.anchor.symbol}, the last 24 hours, New York time</div><Chart24 points={chart.data?.points ?? []} dp={coin.anchor.dp} /></div>} />}
 
       <section className="slots">
         <div className="plan-head"><h3>Plan ahead</h3><span className="hint">Fund any day up to 31 days out and be its house. Its bands are set the moment it opens.</span></div>
@@ -81,8 +78,6 @@ export function Coin() {
         {series.data && seriesKey ? <WallCalendar seriesKey={seriesKey} series={series.data} now={now} minLeadSecs={MIN_LEAD_SECS} dp={anchor.dp} coinSymbol={coin.symbol} canStart={!!mint && series.data.active} onStart={setStarting} />
           : <p className="muted">{series.isLoading ? "Reading the calendar…" : "This coin's rounds have not been opened on this network yet."}</p>}
       </section>
-      <h3 className="chart24-h">{coin.anchor.symbol} over the last day (New York time)</h3>
-      <Chart24 points={chart.data?.points ?? []} dp={coin.anchor.dp} />
       {starting !== null && series.data && seriesKey && <StartRound coin={coin} seriesKey={seriesKey} series={series.data} index={starting} onClose={() => setStarting(null)} />}
     </div>
   );
@@ -90,14 +85,15 @@ export function Coin() {
 
 /** The anchor over the last day, as a stepped pixel line. */
 function Chart24({ points, dp }: { points: [number, number][]; dp: number }) {
-  const W = 960, H = 200, P = { l: 8, r: 64, t: 12, b: 24 };
+  // Drawn at the size it is shown, beside today's card, so its labels read.
+  const W = 420, H = 230, P = { l: 4, r: 58, t: 12, b: 22 };
   if (points.length < 2) return <div className="chart-wrap chart24"><div className="chart-hover"><span className="muted">Loading the last 24 hours…</span></div></div>;
   const ys = points.map((p) => p[1]), lo = Math.min(...ys), hi = Math.max(...ys), span = hi - lo || 1;
   const x = (i: number) => P.l + (i / (points.length - 1)) * (W - P.l - P.r);
   const y = (v: number) => P.t + (1 - (v - lo) / span) * (H - P.t - P.b);
   const d = points.map((p, i) => `${i ? "L" : "M"}${x(i).toFixed(1)},${y(p[1]).toFixed(1)}`).join(" ");
   const last = points[points.length - 1]!, first = points[0]!;
-  const ticks = [0, Math.floor(points.length / 4), Math.floor(points.length / 2), Math.floor((3 * points.length) / 4), points.length - 1];
+  const ticks = [0, Math.floor(points.length / 2), points.length - 1];
   return (
     <div className="chart-wrap chart24">
       <svg viewBox={`0 0 ${W} ${H}`} className="chart" role="img" aria-label="Price over the last 24 hours">
