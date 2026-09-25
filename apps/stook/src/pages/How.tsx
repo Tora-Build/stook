@@ -8,13 +8,14 @@ import { Link } from "react-router-dom";
 import { COINS } from "../lib/coins";
 import { Notice } from "../components/Notice";
 import { Slider } from "../components/Slider";
+import { Bell as PixelBell } from "../components/Bell";
 
-const STOPS = ["The tables", "The calendar", "The call", "The bell", "The house", "The fine print"] as const;
+const STOPS = ["The tables", "The calendar", "The call", "The bell", "The house", "Your statement", "The fine print"] as const;
 
 export function How() {
   // ?step=house (or tables, calendar, line, bell, fine-print) opens that stop
   const [params] = useSearchParams();
-  const [i, setI] = useState(() => Math.max(0, ["tables", "calendar", "line", "bell", "house", "fine-print"].indexOf(params.get("step") ?? "")));
+  const [i, setI] = useState(() => Math.max(0, ["tables", "calendar", "line", "bell", "house", "statement", "fine-print"].indexOf(params.get("step") ?? "")));
   const go = (n: number) => setI(Math.max(0, Math.min(STOPS.length - 1, n)));
   return (
     <div className="page tour-page">
@@ -26,7 +27,7 @@ export function How() {
       </div>
 
       <div className="placard" key={i}>
-        <div className="placard-scene">{[<Tables />, <Calendar />, <Line />, <Bell />, <House />, <FinePrint />][i]}</div>
+        <div className="placard-scene">{[<Tables />, <Calendar />, <Line />, <Bell />, <House />, <Statement />, <FinePrint />][i]}</div>
         <div className="placard-text">
           {i === 0 && <>
             <h2>The tables</h2>
@@ -40,7 +41,8 @@ export function How() {
           </>}
           {i === 2 && <>
             <h2>The call</h2>
-            <p>64 bands around the opening price, set when the round opens: each a quarter of an ordinary day's move for the anchor, learned on chain from its Pyth closes. Thin for a quiet anchor, wide for a wild one. Click the one you expect at the close: that is your call, a <b>target</b>. It pays most there, one step less per band it misses by, out to its <b>reach</b>. A <b>range</b> pays the same anywhere inside. Price is the crowd's odds; a round opens with an ordinary day already priced in. Sell any time before the lock.</p>
+            <p>The price is split into 64 <b>bands</b>, each a quarter of an ordinary day's move for the anchor, learned on chain. Click the band you expect at the close: that is a <b>target</b>. It pays most there and less on each band away, out to its <b>reach</b>. A <b>range</b> pays the same anywhere inside.</p>
+            <p>Enter what you spend in dollars or the coin. The <b>bars</b> show what each landing pays against the line for what you pay; the <b>ticket</b> sums it up before you sign. Sell any time before the lock.</p>
             <p className="try">Click a band. Change the reach.</p>
           </>}
           {i === 3 && <>
@@ -54,11 +56,14 @@ export function How() {
             <p className="try">Move the deposit.</p>
           </>}
           {i === 5 && <>
+            <h2>Your statement</h2>
+            <p>Everything you hold, by day, one line per round: what went in, what it is worth now, and the result. Open a line for the detail.</p>
+            <p>Finished rounds gather on the <b>payout slip</b>: unfold a round to see each call and deposit, and <b>Collect all</b> in one go. On a round's own page, your calls and deposits fold into the same kind of book.</p>
+            <p className="try">Unfold a round.</p>
+          </>}
+          {i === 6 && <>
             <h2>The fine print</h2>
-            <Notice tone="info" title="Transfer fees">Some coins take a fee on every move. The app shows what your wallet sends and what the round books.</Notice>
-            <p>Rounds settle on the anchor's <b>Pyth</b> feed; on devnet that is a crypto stand-in, and a round's page says which. The table's live price comes from the anchor's DEX pool and is for display only.</p>
-            <p>Collect whenever you like. After <b>30 days</b> anyone can send what a round owes you to your wallet, so a finished round can close.</p>
-            <p>Every quote is the program's own maths, exact to the unit.</p>
+            <p>Read once; it rarely comes up.</p>
           </>}
           <div className="placard-nav">
             <button className="small" onClick={() => go(i - 1)} disabled={i === 0}>‹ back</button>
@@ -101,11 +106,15 @@ function Calendar() {
 }
 
 function Line() {
-  const [band, setBand] = useState<number | null>(null);
+  const [band, setBand] = useState<number | null>(7);
   const [reach, setReach] = useState(3);
   const probs = [1, 2, 3, 5, 8, 11, 14, 16, 14, 11, 8, 5, 3, 2, 1]; // a crowd, in %
   const level = (i: number) => (band === null ? 0 : Math.max(0, reach - Math.abs(i - band)));
   const cost = band === null ? 0 : probs.reduce((a, p, i) => a + (p / 100) * level(i), 0);
+  // $10 spent, as the ticket works it: the same ladder and paper as a round.
+  const spend = 10, perLevel = cost > 0 ? spend / cost : 0;
+  const rows = Array.from({ length: reach }, (_, n) => reach - n);
+  const stakeAt = Math.min(100, (spend / (perLevel * reach)) * 100);
   return (
     <div className="scene">
       <svg viewBox="0 0 150 70" className="scene-svg" shapeRendering="crispEdges">
@@ -113,11 +122,24 @@ function Line() {
         {band !== null && probs.map((_, i) => level(i) ? <rect key={"l" + i} x={i * 10 + 1} y={60 - (level(i) / reach) * 55} width={8} height={2} fill="#f0a83a" /> : null)}
         <text x={2} y={68} className="lbl lbl-xs">← lower</text><text x={148} y={68} className="lbl lbl-xs" textAnchor="end">higher →</text>
       </svg>
-      <div className="scene-row">
-        <label className="height">reach <Slider min={1} max={6} value={reach} onChange={setReach} width={110} /><span className="mono">{reach}</span></label>
-        {band !== null && <span className="mono">{(reach / cost).toFixed(1)}×</span>}
-      </div>
-      <div className="scene-caption">{band === null ? "Bars are the crowd's odds." : `Spend $10, win $${((10 / cost) * reach).toFixed(2)} if it closes on your band. Less on each band away.`}</div>
+      <div className="scene-row"><label className="height">reach <Slider min={1} max={6} value={reach} onChange={setReach} width={110} /><span className="mono">{reach}</span></label></div>
+      {band !== null && <>
+        <div className="payl">
+          <div className="payl-head"><span>If it lands</span><span className="payl-scale">bar: what it pays<i className="payl-tag" style={{ left: `${stakeAt}%` }}>you pay ${spend}</i></span><span /></div>
+          {rows.map((lv) => { const back = perLevel * lv, win = back >= spend; return (
+            <div key={lv} className={`payl-row ${win ? "payl-win" : "payl-soft"}`}>
+              <span className="payl-k">{lv === reach ? "on your band" : `${reach - lv} off`}</span>
+              <span className="payl-track"><span className="payl-fill" style={{ width: `${(lv / reach) * 100}%` }} /><span className="payl-stake" style={{ left: `${stakeAt}%` }} /></span>
+              <span className="payl-v mono">${back.toFixed(2)}<em>{(back / spend).toFixed(2)}×</em></span>
+            </div>); })}
+        </div>
+        <div className="ticket-paper scene-paper">
+          <div className="tp-head"><span>Your call</span><b className="mono">target, reach {reach}</b></div>
+          <div className="tp-row"><span>You pay</span><i /><b className="mono">${spend.toFixed(2)}</b></div>
+          <div className="tp-win"><div className="tp-win-top"><span>To win</span><em className="mono">{(reach / cost).toFixed(1)}×</em></div><b className="mono">${(perLevel * reach).toFixed(2)}</b></div>
+        </div>
+      </>}
+      <div className="scene-caption muted">A model: fees left out.</div>
     </div>
   );
 }
@@ -128,6 +150,7 @@ function Bell() {
   const hit = 4;
   return (
     <div className="scene">
+      <div className="scene-bell"><PixelBell scale={4} ringing={rung} rung={rung} /></div>
       <svg viewBox="0 0 150 70" className="scene-svg" shapeRendering="crispEdges">
         {probs.map((p, i) => <rect key={i} x={i * 18 + 3} y={60 - p * 3} width={14} height={p * 3} className={rung ? (i === hit ? "bar-settled" : "bar") : "bar"} />)}
         {rung && <><line x1={hit * 18 + 10} x2={hit * 18 + 10} y1={2} y2={62} className="line-live" /><text x={hit * 18 + 14} y={10} className="lbl lbl-live lbl-xs">Pyth: here</text></>}
@@ -145,24 +168,57 @@ function House() {
   return (
     <div className="scene">
       <div className="scene-row"><label className="height">deposit <Slider min={100} max={5000} step={100} value={dep} onChange={setDep} width={160} /><span className="mono">${dep.toLocaleString()}</span></label></div>
-      <div className="scene-house">
-        <div className="scene-bar"><div className="scene-fill" style={{ width: `${share * 100}%` }} /></div>
-        <div className="scene-legend"><span>your share of the pool <b className="mono">{(share * 100).toFixed(0)}%</b></span><span>of ${fees} in fees today <b className="mono">${(fees * 0.9 * share).toFixed(0)}</b> is yours</span></div>
+      <div className="ticket-paper scene-paper">
+        <div className="tp-head"><span>Your deposit</span><b className="mono">the house, today</b></div>
+        <div className="tp-row"><span>You pay</span><i /><b className="mono">${dep.toLocaleString()}</b></div>
+        <div className="tp-row tp-small"><span>others hold ${others.toLocaleString()}; ${fees} in fees today</span></div>
+        <div className="tp-win">
+          <div className="tp-win-top"><span>Your share</span><em className="mono">${(fees * 0.9 * share).toFixed(0)} of fees</em></div>
+          <b className="mono">{(share * 100).toFixed(0)}%</b>
+          <div className="tp-note">of the house: 90% of every fee, split by share</div>
+        </div>
       </div>
-      <div className="scene-caption muted">Others hold ${others.toLocaleString()}. A model.</div>
+      <div className="scene-caption muted">A model.</div>
+    </div>
+  );
+}
+
+function Statement() {
+  const [open, setOpen] = useState<number | null>(0);
+  const days = [
+    { name: "S&P 500 in $STOOK · Thu", total: 42.1, lines: [["call: target, reach 4 · paid $10", 31.6], ["house deposit · put in $20", 10.5]] as [string, number][] },
+    { name: "Gold in $GP · Thu", total: 0, lines: [["call: range · paid $5", 0]] as [string, number][] },
+  ];
+  return (
+    <div className="scene">
+      <div className="ticket-paper scene-paper">
+        <div className="tp-head"><span>Payout slip</span><b className="mono">2 finished rounds</b></div>
+        {days.map((d, n) => (
+          <div key={n} className={`tp-line ${open === n ? "tp-line-open" : ""}`}>
+            <button className="tp-row tp-row-btn" onClick={() => setOpen(open === n ? null : n)} aria-expanded={open === n}>
+              <span><span className="tp-caret" aria-hidden="true">{open === n ? "▾" : "▸"}</span>{d.name}</span><i />
+              <b className="mono">{d.total ? `$${d.total.toFixed(2)}` : <span className="tp-dim">nothing won</span>}</b>
+            </button>
+            <div className="tp-fold tp-fold-sub"><div className="tp-fold-in">
+              {d.lines.map(([k, v]) => <div key={k} className="tp-row tp-sub"><span>{k}</span><i /><span className="mono">{v ? `$${v.toFixed(2)}` : "0"}</span></div>)}
+            </div></div>
+          </div>
+        ))}
+        <div className="tp-win"><div className="tp-win-top"><span>Total to collect</span></div><b className="mono">$42.10</b></div>
+        <button className="primary" disabled>Collect all $42.10</button>
+      </div>
+      <div className="scene-caption muted">A model.</div>
     </div>
   );
 }
 
 function FinePrint() {
   return (
-    <div className="scene">
-      <svg viewBox="0 0 150 70" className="scene-svg" shapeRendering="crispEdges">
-        <rect x="10" y="10" width="130" height="50" fill="#f4e9c8" /><rect x="14" y="14" width="122" height="42" fill="#fbf7ea" />
-        {[20, 27, 34, 41, 48].map((y, n) => <rect key={y} x="20" y={y} width={n === 4 ? 40 : 110 - n * 8} height="2" fill="#8d8670" />)}
-        <rect x="112" y="40" width="18" height="12" fill="#a8412f" /><rect x="115" y="43" width="12" height="6" fill="#f4e9c8" />
-      </svg>
-      <div className="scene-caption muted">Read once.</div>
+    <div className="scene scene-notes">
+      <Notice tone="info" title="Transfer fees">Some coins take a fee on every move. The app shows what your wallet sends and what the round books.</Notice>
+      <Notice tone="info" title="Settled by Pyth">Rounds settle on the anchor's Pyth feed; on devnet a crypto stand-in, named on the round. The table's live price is for display only.</Notice>
+      <Notice tone="warn" title="30 days">Collect whenever you like. After 30 days anyone can send what a round owes you to your wallet, so it can close.</Notice>
+      <Notice tone="info" title="Exact quotes">Every quote is the program's own maths, to the unit.</Notice>
     </div>
   );
 }

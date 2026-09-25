@@ -1005,3 +1005,11 @@ a.tour-btn { text-decoration: none; }
 .tp-line-open { background: linear-gradient(180deg, rgba(16, 26, 46, .05), transparent); }
 .tp-unfold { display: block; width: 100%; margin: .4rem 0 .2rem; padding: .45rem; background: repeating-linear-gradient(90deg, rgba(16, 26, 46, .08) 0 6px, transparent 6px 12px); border: 0; border-top: 2px dashed rgba(16, 26, 46, .35); border-bottom: 2px dashed rgba(16, 26, 46, .35); color: #101a2e; font: inherit; font-size: .8rem; font-weight: 600; cursor: pointer; }
 @media (prefers-reduced-motion: reduce) { .tp-fold, .tp-fold-in { transition: none; } }
+
+/* How: scenes use the app's own ladder, paper and notices */
+.scene-paper { margin: 0; }
+.scene-paper .primary { width: 100%; margin-top: .5rem; }
+.scene .payl { margin: 0; }
+.scene .payl-head, .scene .payl-row { grid-template-columns: 5.5rem 1fr 4.6rem; }
+.scene-bell { display: flex; justify-content: center; }
+.scene-notes .notice { margin: 0; }
