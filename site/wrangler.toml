@@ -15,7 +15,10 @@ routes = [
 binding = "AI"
 
 [triggers]
-crons = ["7 * * * *", "*/5 * * * *", "35 13,14 * * 1-5", "10 20,21 * * 1-5"]
+# The X posts (the morning question, the closing bell) are off for now:
+# they are posted by hand with the poster studio's videos. To turn them back
+# on, add "35 13,14 * * 1-5" and "10 20,21 * * 1-5" here.
+crons = ["7 * * * *", "*/5 * * * *"]
 
 [[kv_namespaces]]
 binding = "SERIES"
