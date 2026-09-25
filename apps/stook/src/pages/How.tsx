@@ -6,7 +6,6 @@ import { useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { Link } from "react-router-dom";
 import { COINS } from "../lib/coins";
-import { Fold } from "../components/Fold";
 import { Slider } from "../components/Slider";
 import { Bell as PixelBell } from "../components/Bell";
 
@@ -21,7 +20,7 @@ function Details({ children }: { children: React.ReactNode }) {
   return (
     <div className="how-more">
       <button className="how-more-btn" onClick={() => setOpen(!open)} aria-expanded={open}><span className="pb-caret" aria-hidden="true">{open ? "▾" : "▸"}</span> The details</button>
-      <Fold open={open}><div className="how-more-in">{children}</div></Fold>
+      {open && <div className="how-more-in">{children}</div>}
     </div>
   );
 }

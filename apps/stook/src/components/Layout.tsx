@@ -32,8 +32,8 @@ export function Layout() {
       <footer className="foot">
         <span>Stook Street · devnet</span>
         <span className="foot-links">
-          <a href="https://x.com/StookStreet" target="_blank" rel="noreferrer">X</a>
-          <a href="https://t.me/StookStreet" target="_blank" rel="noreferrer">Telegram</a>
+          <a href="https://x.com/StookStreet" target="_blank" rel="noreferrer">x</a>
+          <a href="https://t.me/StookStreet" target="_blank" rel="noreferrer">telegram</a>
           <a href="https://github.com/Tora-Build/stook" target="_blank" rel="noreferrer">source</a>
         </span>
       </footer>

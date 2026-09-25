@@ -66,7 +66,7 @@ h3 { font-family: var(--px); font-size: .6rem; color: var(--teal); margin: 0 0 .
 .wallet-adapter-button { background: var(--taxi) !important; color: var(--ink) !important; font-family: var(--px) !important; font-size: .55rem !important; height: 38px !important; border-radius: 0 !important; border: 3px solid var(--ink) !important; box-shadow: 3px 3px 0 var(--brick-2) !important; }
 .wallet-adapter-button:hover { background: #f7b95c !important; }
 .skyline { display: block; width: 100%; height: 66px; image-rendering: pixelated; image-rendering: crisp-edges; border-bottom: 3px solid var(--taxi); }
-.foot { margin-top: auto; padding: 1rem; background: var(--ink); border-top: 3px solid var(--taxi); display: flex; justify-content: space-between; color: var(--cream-2); font-size: .8rem; }
+.foot { margin-top: auto; padding: 1rem; background: var(--ink); border-top: 1px solid var(--line); display: flex; justify-content: space-between; color: var(--cream-2); font-size: .8rem; }
 main { padding: 0 1rem; }
 .page { max-width: 1100px; margin: 1.5rem auto; }
 .page.narrow { max-width: 640px; }
@@ -1113,3 +1113,16 @@ a.tour-btn { text-decoration: none; }
 .coin-board .logos-big img.logo-coin { width: 56px; height: 56px; }
 .tour-btn { display: inline-flex; align-items: center; gap: .45rem; }
 .tour-ico { flex: none; }
+
+.pb-usd { display: block; font-size: .72rem; color: var(--cream-3); font-family: var(--mono); }
+.pb-res .pb-usd { color: inherit; opacity: .7; }
+.dp { position: relative; margin: 0 0 .6rem; }
+.dp-card { position: absolute; z-index: 5; top: calc(100% + .4rem); left: 0; width: 280px; padding: .7rem; background: var(--ink); border: 3px solid var(--cream); box-shadow: 6px 6px 0 var(--brick-2); }
+.dp-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: .5rem; font-weight: 600; }
+.dp-head button { background: none; border: 2px solid var(--line); color: var(--taxi); cursor: pointer; padding: .1rem .5rem; font: inherit; }
+.dp-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 3px; }
+.dp-dow { font-size: .65rem; color: var(--cream-3); text-align: center; }
+.dp-day { aspect-ratio: 1; background: none; border: 1px solid transparent; color: var(--cream-3); font: inherit; font-size: .8rem; cursor: default; }
+.dp-held { background: var(--sky-2); border-color: var(--line); color: var(--cream); cursor: pointer; font-weight: 600; }
+.dp-held:hover { border-color: var(--taxi); color: var(--taxi); }
+.dp-today { box-shadow: inset 0 0 0 2px var(--teal); }

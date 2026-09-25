@@ -42,7 +42,6 @@ import type { DrawMode } from "./Chart";
 import { LpPanel } from "./LpPanel";
 import { Book } from "./Book";
 import { PaperFold } from "./PaperFold";
-import { Fold } from "./Fold";
 import { Notice } from "./Notice";
 import { Slider } from "./Slider";
 import { Amount, approxUsd, coinText, fromUsd } from "../lib/usd";
@@ -322,7 +321,7 @@ function FoldLine({ label, children }: { label: string; children: React.ReactNod
   return (
     <div className="how-more">
       <button className="how-more-btn" onClick={() => setOpen(!open)} aria-expanded={open}><span className="pb-caret" aria-hidden="true">{open ? "▾" : "▸"}</span> {label}</button>
-      <Fold open={open}><p className="how-more-in explain">{children}</p></Fold>
+      {open && <p className="how-more-in explain">{children}</p>}
     </div>
   );
 }

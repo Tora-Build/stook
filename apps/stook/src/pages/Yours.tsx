@@ -113,6 +113,8 @@ export function Yours() {
   const days: [string, Holding[]][] = [];
   for (const h of shown) { const d = nyDate(Number(h.ladder.settlesAt)); const last = days.at(-1); if (last && last[0] === d) last[1].push(h); else days.push([d, [h]]); }
   const today = nyDate(now), yesterday = nyDate(now - 86_400);
+  const [jump, setJump] = useState<string | null>(null);
+  const pick = (d: string) => { setJump(d); setTimeout(() => document.getElementById(`day-${d}`)?.scrollIntoView({ behavior: "smooth", block: "start" }), 50); };
   const dayName = (d: string, t: bigint) => `${nyWhen(t, { weekday: "long", month: "short", day: "numeric" })}${d === today ? " · today" : d === yesterday ? " · yesterday" : ""}`;
 
   // The slip's lines and total, in dollars across coins.
@@ -181,9 +183,10 @@ export function Yours() {
             </div>}
           </div>
 
+          {days.length > 1 && <DayPicker days={days.map(([d, hs]) => [d, hs.length])} today={today} onPick={pick} />}
           {days.length === 0 && <p className="stmt-empty">Nothing here with these filters.</p>}
           {days.map(([d, hs], n) => (
-            <Day key={d} name={dayName(d, hs[0]!.ladder.settlesAt)} count={hs.length} startOpen={n < 3}>
+            <Day key={d} id={`day-${d}`} name={dayName(d, hs[0]!.ladder.settlesAt)} count={hs.length} startOpen={n < 3} force={jump === d}>
               {hs.map((h) => <RoundBlock key={h.pubkey.toBase58()} h={h} now={now} own={own} register={register} />)}
             </Day>
           ))}
@@ -193,12 +196,39 @@ export function Yours() {
   );
 }
 
+/** A month of dates, the days you hold something in marked: pick one to
+ *  open it in the passbook below. For a long history, faster than scrolling. */
+function DayPicker({ days, today, onPick }: { days: [string, number][]; today: string; onPick: (d: string) => void }) {
+  const held = new Map(days);
+  const [open, setOpen] = useState(false);
+  const [ym, setYm] = useState(() => (days[0]?.[0] ?? today).slice(0, 7));
+  const [y, m] = ym.split("-").map(Number) as [number, number];
+  const first = new Date(Date.UTC(y, m - 1, 1)).getUTCDay(), len = new Date(Date.UTC(y, m, 0)).getUTCDate();
+  const shift = (n: number) => { const d = new Date(Date.UTC(y, m - 1 + n, 1)); setYm(d.toISOString().slice(0, 7)); };
+  const cells = [...Array(first).fill(null), ...Array.from({ length: len }, (_, i) => `${ym}-${String(i + 1).padStart(2, "0")}`)];
+  return (
+    <div className="dp">
+      <button className="pb-chip" onClick={() => setOpen(!open)} aria-expanded={open}>{open ? "Close the calendar" : "Go to a day"}</button>
+      {open && <div className="dp-card">
+        <div className="dp-head"><button onClick={() => shift(-1)} aria-label="Earlier month">‹</button><span>{new Date(Date.UTC(y, m - 1, 1)).toLocaleString("en-US", { month: "long", year: "numeric", timeZone: "UTC" })}</span><button onClick={() => shift(1)} aria-label="Later month">›</button></div>
+        <div className="dp-grid">
+          {["S", "M", "T", "W", "T", "F", "S"].map((w, n) => <span key={n} className="dp-dow">{w}</span>)}
+          {cells.map((d, n) => d === null ? <span key={"b" + n} /> : (
+            <button key={d} className={`dp-day ${held.has(d) ? "dp-held" : ""} ${d === today ? "dp-today" : ""}`} disabled={!held.has(d)} onClick={() => { onPick(d); setOpen(false); }} title={held.has(d) ? `${held.get(d)} ${held.get(d) === 1 ? "round" : "rounds"}` : undefined}>{Number(d.slice(8))}</button>
+          ))}
+        </div>
+      </div>}
+    </div>
+  );
+}
+
 /** A day in the passbook: the three latest open, older ones folded to their
  *  header, so a long history is a column of dates to open, not a scroll. */
-function Day({ name, count, startOpen, children }: { name: string; count: number; startOpen: boolean; children: React.ReactNode }) {
+function Day({ id, name, count, startOpen, force, children }: { id: string; name: string; count: number; startOpen: boolean; force: boolean; children: React.ReactNode }) {
   const [open, setOpen] = useState(startOpen);
+  useEffect(() => { if (force) setOpen(true); }, [force]);
   return (
-    <section className="pb-day">
+    <section className="pb-day" id={id}>
       <h2 className="pb-date"><button onClick={() => setOpen(!open)} aria-expanded={open}><span className="pb-caret" aria-hidden="true">{open ? "▾" : "▸"}</span>{name}<em>{count} {count === 1 ? "round" : "rounds"}</em></button></h2>
       <Fold open={open}>{children}</Fold>
     </section>
@@ -279,12 +309,12 @@ function RoundBlock({ h, now, own, register }: { h: Holding; now: number; own: b
         {coin && <span className="logos logos-anchor-first"><img src={coin.anchor.logo} alt="" className="logo-coin" /><img src={coin.logo} alt="" className="logo-anchor" /></span>}
         <span className="pb-name">{shownAnchor ? shownAnchor.name : feed.name}<em>in {sym} · {[calls && `${calls} ${calls === 1 ? "call" : "calls"}`, deps && `${deps} house`].filter(Boolean).join(" · ")}</em></span>
         <span className={`pb-stamp stamp-${stage.replace(" ", "-")}`}>{stage}</span>
-        <span className="pb-num"><em>in</em>{big(cost)}</span>
-        <span className="pb-num"><em>{final ? "pays" : "now"}</em>{worth === null ? "–" : big(worth)}</span>
-        <span className={`pb-num pb-res ${result === null ? "muted" : result >= 0n ? "up" : "down"}`}><em>result</em>{result === null ? "at the bell" : `${result >= 0n ? "+" : "−"}${big(result >= 0n ? result : -result)}`}</span>
+        <span className="pb-num"><em>in</em>{big(cost)}{rate !== null && <small className="pb-usd">{approxUsd(cost, l.decimals, rate)}</small>}</span>
+        <span className="pb-num"><em>{final ? "pays" : "now"}</em>{worth === null ? "–" : big(worth)}{worth !== null && rate !== null && <small className="pb-usd">{approxUsd(worth, l.decimals, rate)}</small>}</span>
+        <span className={`pb-num pb-res ${result === null ? "muted" : result >= 0n ? "up" : "down"}`}><em>result</em>{result === null ? "at the bell" : `${result >= 0n ? "+" : "−"}${big(result >= 0n ? result : -result)}`}{result !== null && rate !== null && <small className="pb-usd">{approxUsd(result >= 0n ? result : -result, l.decimals, rate).replace("≈ ", result >= 0n ? "≈ +" : "≈ −")}</small>}</span>
         <span className="pb-caret" aria-hidden="true">{open ? "▾" : "▸"}</span>
       </button>
-      <Fold open={open}><div className="pb-body">
+      {open && <div className="pb-body">
       <div className="pb-when muted small">closes {nyWhen(l.settlesAt, { weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })} New York</div>
       {/* A finished round reads as a book: what each holding pays, the
           total, and one button for all of it, as on the round page. */}
@@ -322,7 +352,7 @@ function RoundBlock({ h, now, own, register }: { h: Holding; now: number; own: b
       <footer className="stmt-round-foot">
         <Link to={`/m/${h.pubkey.toBase58()}`} className="small as-link">{stage === "trading" ? "To the table ›" : "Open the round ›"}</Link>
       </footer>
-      </div></Fold>
+      </div>}
     </article>
   );
 }
