@@ -6,16 +6,30 @@ import { useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { Link } from "react-router-dom";
 import { COINS } from "../lib/coins";
-import { Notice } from "../components/Notice";
+import { Fold } from "../components/Fold";
 import { Slider } from "../components/Slider";
 import { Bell as PixelBell } from "../components/Bell";
 
-const STOPS = ["The tables", "The calendar", "The call", "The bell", "The house", "Your statement", "The fine print"] as const;
+const STOPS = ["The tables", "The call", "The bell", "The house", "Your statement"] as const;
+const KEYS = ["tables", "line", "bell", "house", "statement"];
+// Older links name stops that were merged into these.
+const ALIAS: Record<string, string> = { calendar: "house", "fine-print": "statement" };
+
+/** The rules behind a stop, folded until asked for. */
+function Details({ children }: { children: React.ReactNode }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <div className="how-more">
+      <button className="how-more-btn" onClick={() => setOpen(!open)} aria-expanded={open}><span className="pb-caret" aria-hidden="true">{open ? "▾" : "▸"}</span> The details</button>
+      <Fold open={open}><div className="how-more-in">{children}</div></Fold>
+    </div>
+  );
+}
 
 export function How() {
-  // ?step=house (or tables, calendar, line, bell, fine-print) opens that stop
+  // ?step=house (or tables, line, bell, statement) opens that stop
   const [params] = useSearchParams();
-  const [i, setI] = useState(() => Math.max(0, ["tables", "calendar", "line", "bell", "house", "statement", "fine-print"].indexOf(params.get("step") ?? "")));
+  const [i, setI] = useState(() => { const k = params.get("step") ?? ""; return Math.max(0, KEYS.indexOf(ALIAS[k] ?? k)); });
   const go = (n: number) => setI(Math.max(0, Math.min(STOPS.length - 1, n)));
   return (
     <div className="page tour-page">
@@ -27,43 +41,47 @@ export function How() {
       </div>
 
       <div className="placard" key={i}>
-        <div className="placard-scene">{[<Tables />, <Calendar />, <Line />, <Bell />, <House />, <Statement />, <FinePrint />][i]}</div>
+        <div className="placard-scene">{[<Tables />, <Line />, <Bell />, <House />, <Statement />][i]}</div>
         <div className="placard-text">
           {i === 0 && <>
             <h2>The tables</h2>
-            <p>Every coin has a table and follows one asset, its <b>anchor</b>. Everything at the table is paid in that coin.</p>
+            <p>Every coin has a table and follows one stock or asset, its <b>anchor</b>. Each day asks one question: where does the anchor close at <b>4 PM New York</b>? Everything at a table is paid in its coin.</p>
             <p className="try">Pick a table.</p>
           </>}
           {i === 1 && <>
-            <h2>The calendar</h2>
-            <p>One round a day, and any day up to 31 days out can be funded. Funded a day or more ahead, it trades for the 24 hours before the <b>4:00 PM New York</b> close and stops an hour before it; funded later, it opens a minute after funding and stops shortly before the close. Whoever funds a day first starts it; everyone after joins that round. A round that does not open within five minutes of its opening time is <b>void</b>, and deposits come back.</p>
-            <p className="try">Fund a day.</p>
-          </>}
-          {i === 2 && <>
             <h2>The call</h2>
-            <p>The price is split into 64 <b>bands</b>, each a quarter of an ordinary day's move for the anchor, learned on chain. Click the band you expect at the close: that is a <b>target</b>. It pays most there and less on each band away, out to its <b>reach</b>. A <b>range</b> pays the same anywhere inside.</p>
-            <p>Enter what you spend in dollars or the coin. The <b>bars</b> show what each landing pays against the line for what you pay; the <b>ticket</b> sums it up before you sign. Sell any time before the lock.</p>
+            <p>Click the band where you think it closes. A <b>target</b> pays most there and less on each band away; a <b>range</b> pays the same anywhere inside. The bars show what each landing pays against what you pay.</p>
+            <Details>
+              <p>The price is split into 64 bands, each a quarter of an ordinary day's move for the anchor, learned on chain from its Pyth closes. <b>Reach</b> sets how far a target tapers: wide catches more closes, narrow pays more.</p>
+              <p>Enter what you spend in dollars or the coin; the ticket shows what you pay, the fee and what you win before you sign. Sell any time before the lock.</p>
+            </Details>
             <p className="try">Click a band. Change the reach.</p>
           </>}
-          {i === 3 && <>
+          {i === 2 && <>
             <h2>The bell</h2>
-            <p>At the close, the first <b>Pyth price</b> published at or after 4:00 PM New York lands in a band, if it came within 30 seconds. That band pays; the rest pay nothing. If that price came late or unsure, the round is <b>void</b>; if there is no price to show at all, it can be voided a week after the close. Nobody can void a round that could settle. In a void, deposits come back first and open calls share the rest.</p>
+            <p>At 4 PM New York the first <b>Pyth price</b> lands in one band. That band pays; the rest pay nothing. Nobody picks the result.</p>
+            <Details>
+              <p>The price must come within 30 seconds of the close. If it came late or unsure the round is <b>void</b>: deposits come back first and open calls share the rest. With no price at all, a round can be voided a week after the close. Nobody can void a round that could settle.</p>
+            </Details>
             <p className="try">Ring it.</p>
           </>}
-          {i === 4 && <>
+          {i === 3 && <>
             <h2>The house</h2>
-            <p>The pool takes the other side of every call; anyone can add to it until the lock. Trades pay a <b>2% fee</b>, rising to <b>5%</b> over the last six hours, when the close is nearly known: 90% to the pool by depth, 5% to whoever rings the bell, 5% to the protocol. At the close the pool pays the winning band and keeps the rest. A close far from the open can cost the pool its whole deposit; an ordinary one costs it little.</p>
+            <p>Fund a day's pool and take the other side of every call. The house keeps <b>90% of the fees</b>; the most it can lose is what it put in.</p>
+            <Details>
+              <p>Any day up to 31 days out can be funded from the coin's calendar; whoever funds it first starts it, and anyone can add until the lock. Funded a day ahead, it trades for the 24 hours before the close and stops an hour before it.</p>
+              <p>Trades pay 2%, rising to 5% over the last six hours: 90% to the pool, 5% to whoever rings the bell, 5% to the protocol. A close far from the open can cost the pool its deposit; an ordinary one costs it little. A round that cannot open in time is void and deposits come back.</p>
+            </Details>
             <p className="try">Move the deposit.</p>
           </>}
-          {i === 5 && <>
+          {i === 4 && <>
             <h2>Your statement</h2>
-            <p>Everything you hold, by day, one line per round: what went in, what it is worth now, and the result. Open a line for the detail.</p>
-            <p>Finished rounds gather on the <b>payout slip</b>: unfold a round to see each call and deposit, and <b>Collect all</b> in one go. On a round's own page, your calls and deposits fold into the same kind of book.</p>
+            <p>Everything you hold, one line per round by day. Finished rounds gather on the <b>payout slip</b>: unfold one to see it, and <b>Collect all</b> at once.</p>
+            <Details>
+              <p>Amounts are in the round's coin, as the chain holds them; ≈ dollars move with today's price. Some coins take a fee on every move, and the app shows it.</p>
+              <p>Collect whenever you like. Thirty days after a close anyone may send what a round owes you to your wallet, so it can close. Every quote is the program's own maths, to the unit.</p>
+            </Details>
             <p className="try">Unfold a round.</p>
-          </>}
-          {i === 6 && <>
-            <h2>The fine print</h2>
-            <p>Read once; it rarely comes up.</p>
           </>}
           <div className="placard-nav">
             <button className="small" onClick={() => go(i - 1)} disabled={i === 0}>‹ back</button>
@@ -89,21 +107,6 @@ function Tables() {
   );
 }
 
-function Calendar() {
-  const [started, setStarted] = useState<Set<number>>(new Set([2]));
-  return (
-    <div className="scene">
-      <div className="scene-cal">
-        {["M", "T", "W", "T", "F", "S", "S"].map((d, n) => <div key={n} className="scene-dow">{d}</div>)}
-        {Array.from({ length: 7 }, (_, n) => {
-          const on = started.has(n), today = n === 2;
-          return <button key={n} className={`scene-day ${on ? "on" : ""} ${today ? "today" : ""}`} onClick={() => setStarted(new Set(started).add(n))}>{on ? (today ? "trading" : "funded") : "fund"}</button>;
-        })}
-      </div>
-      <div className="scene-caption muted">A model.</div>
-    </div>
-  );
-}
 
 function Line() {
   const [band, setBand] = useState<number | null>(7);
@@ -132,11 +135,6 @@ function Line() {
               <span className="payl-track"><span className="payl-fill" style={{ width: `${(lv / reach) * 100}%` }} /><span className="payl-stake" style={{ left: `${stakeAt}%` }} /></span>
               <span className="payl-v mono">${back.toFixed(2)}<em>{(back / spend).toFixed(2)}×</em></span>
             </div>); })}
-        </div>
-        <div className="ticket-paper scene-paper">
-          <div className="tp-head"><span>Your call</span><b className="mono">target, reach {reach}</b></div>
-          <div className="tp-row"><span>You pay</span><i /><b className="mono">${spend.toFixed(2)}</b></div>
-          <div className="tp-win"><div className="tp-win-top"><span>To win</span><em className="mono">{(reach / cost).toFixed(1)}×</em></div><b className="mono">${(perLevel * reach).toFixed(2)}</b></div>
         </div>
       </>}
       <div className="scene-caption muted">A model: fees left out.</div>
@@ -212,13 +210,3 @@ function Statement() {
   );
 }
 
-function FinePrint() {
-  return (
-    <div className="scene scene-notes">
-      <Notice tone="info" title="Transfer fees">Some coins take a fee on every move. The app shows what your wallet sends and what the round books.</Notice>
-      <Notice tone="info" title="Settled by Pyth">Rounds settle on the anchor's Pyth feed; on devnet a crypto stand-in, named on the round. The table's live price is for display only.</Notice>
-      <Notice tone="warn" title="30 days">Collect whenever you like. After 30 days anyone can send what a round owes you to your wallet, so it can close.</Notice>
-      <Notice tone="info" title="Exact quotes">Every quote is the program's own maths, to the unit.</Notice>
-    </div>
-  );
-}

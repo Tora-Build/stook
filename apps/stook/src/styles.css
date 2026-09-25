@@ -1099,3 +1099,10 @@ a.tour-btn { text-decoration: none; }
 .fold-open > .fold-in::before { animation: shade .55s ease-out both; }
 .fold:not(.fold-open) { min-height: 6px; border-top: 1px solid rgba(255, 255, 255, .10); background: linear-gradient(180deg, rgba(0, 0, 0, .40), rgba(0, 0, 0, .06)); }
 @media (prefers-reduced-motion: reduce) { .fold { transition: none; } .fold-in, .fold-in::before { animation: none !important; transform: none; } }
+
+/* How: shorter stops, rules folded under "The details" */
+.how-more { margin: .2rem 0 .8rem; border: 2px solid var(--line); background: var(--ink); }
+.how-more-btn { width: 100%; text-align: left; background: none; border: 0; padding: .5rem .7rem; color: var(--cream); font: inherit; font-size: .85rem; font-weight: 600; cursor: pointer; }
+.how-more-in { padding: .2rem .8rem .6rem; }
+.how-more-in p { font-size: .88rem !important; }
+.placard-scene .scene-svg { max-height: 150px; }
