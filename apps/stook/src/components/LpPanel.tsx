@@ -116,7 +116,7 @@ export function LpPanel(p: Props) {
           {depth && (
             <dl className="quote">
               <div><dt>your share of the house</dt><dd className="mono">{share.now > 0 ? `${pctOf(share.now)} → ` : ""}{pctOf(share.after)}</dd></div>
-              {p.transferFee && <div><dt>wallet sends</dt><dd className="mono">{fmtCompact(stook.grossFor(deposit!, p.transferFee), dec)} {p.quoteSymbol} <Usd units={stook.grossFor(deposit!, p.transferFee)} decimals={dec} rate={rate} />, incl. {(p.transferFee.bps / 100).toFixed(0)}% transfer fee</dd></div>}
+              {p.transferFee && (() => { const g = stook.grossFor(deposit!, p.transferFee!); return <div title={`${fmtAmount(g, dec)} ${p.quoteSymbol} leaves your wallet: the deposit plus the coin's own ${(p.transferFee!.bps / 100).toFixed(0)}% transfer fee`}><dt>you pay (incl. {(p.transferFee!.bps / 100).toFixed(0)}% coin fee)</dt><dd className="mono">{rate !== null ? fmtUsd(toUsd(g, dec, rate)) : `${fmtCompact(g, dec)} ${p.quoteSymbol}`}</dd></div>; })()}
             </dl>
           )}
           {short && <p className="warn">You hold {fmtAmount(balance.data!, dec)} {p.quoteSymbol}; this needs {fmtAmount(gross!, dec)}. On devnet, use <b>test coins</b> in the header.</p>}
