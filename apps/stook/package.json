@@ -3,7 +3,7 @@
   "private": true,
   "version": "0.0.0",
   "type": "module",
-  "description": "Stook's front end: draw a line, trade the band, provide the depth.",
+  "description": "Stook's front end: call the close, pick the band, provide the depth.",
   "scripts": {
     "dev": "vite",
     "build": "tsc -p tsconfig.json --noEmit && vite build",

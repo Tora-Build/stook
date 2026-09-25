@@ -16,10 +16,10 @@ Files in this folder, for the StonkFun launch form and socials:
 **Anchor / pair:** SPY
 
 **Short description (under 200 chars):**
-The coin you play Stook Street with. Draw a line where the S&P will land, get paid by how close you were, or be the house. Rounds settle on Pyth. Built on Solana.
+The coin you play Stook Street with. Call where the S&P closes, get paid by how close you were, or be the house. Rounds settle on Pyth. Built on Solana.
 
 **Longer description:**
-Stook Street is a corner of the financial district for memecoins anchored to stocks. Each coin's community bets on the stock its coin is anchored to, in the coin. $STOOK is anchored to SPY, so $STOOK rounds ask where the S&P 500 closes each day at 4 PM New York. You draw a line at the price you expect and buy it: land on it and you're paid the most, a band or two off pays less, a mile off pays nothing. Or take the other side: put your coin in a round's pool, which keeps 90% of every fee (2%, rising to 5% over the last six hours) shared by depth, and never risk more than you put in. Bands are sized to how the anchor has been moving, learned on-chain from Pyth, and set when the round opens. Settlement is the Pyth price at the close, on-chain, no committee. $STOOK is the first coin the street's rounds are quoted in. Series are opened by the team one coin at a time; anyone can fund a day's round.
+Stook Street is a corner of the financial district for memecoins anchored to stocks. Each coin's community bets on the stock its coin is anchored to, in the coin. $STOOK is anchored to SPY, so $STOOK rounds ask where the S&P 500 closes each day at 4 PM New York. You call the price you expect and buy it: land on it and you're paid the most, a band or two off pays less, a mile off pays nothing. Or take the other side: put your coin in a round's pool, which keeps 90% of every fee (2%, rising to 5% over the last six hours) shared by depth, and never risk more than you put in. Bands are sized to how the anchor has been moving, learned on-chain from Pyth, and set when the round opens. Settlement is the Pyth price at the close, on-chain, no committee. $STOOK is the first coin the street's rounds are quoted in. Series are opened by the team one coin at a time; anyone can fund a day's round.
 
 **Website:** https://stooks.xyz  (Cloudflare Worker `stook-street`; redeploy with `pnpm -F @stook/app build && cd site && npx wrangler deploy`)
 **Source:** https://github.com/Tora-Build/stook (private until launch)

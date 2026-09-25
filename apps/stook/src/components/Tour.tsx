@@ -119,7 +119,7 @@ export function Tour({ stops, open, onClose }: { stops: TourStop[]; open: boolea
           <div className="tour-pips" aria-hidden="true">{live.map((_, k) => <span key={k} className={k === i ? "on" : k < i ? "past" : ""} />)}</div>
           {i < live.length - 1 && <button className="link tour-skip" onClick={close}>Skip tour</button>}
           {i > 0 && <button className="tour-back" onClick={() => go(-1)}>Back</button>}
-          <button ref={next} className="tour-next" onClick={() => go(1)}>{i === live.length - 1 ? "Start trading" : "Next"}</button>
+          <button ref={next} className="tour-next" onClick={() => go(1)}>{i === live.length - 1 ? "Place a call" : "Next"}</button>
         </div>
       </div>
     </div>,

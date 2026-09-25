@@ -47,7 +47,7 @@ export function TodayDesk(p: Props) {
   if (l && l.status === "open" && p.now < Number(l.locksAt)) {
     kicker = "On the floor now"; title = "Trading";
     line = "";
-    cta = { label: "Trade today's round", to: `/m/${r!.pubkey.toBase58()}` };
+    cta = { label: "Call today's close", to: `/m/${r!.pubkey.toBase58()}` };
   } else if (l && l.status === "open") {
     kicker = "Locked"; title = "Waiting for the bell";
     line = "No more trades. The first Pyth price at the bell settles it.";

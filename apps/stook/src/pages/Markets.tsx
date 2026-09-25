@@ -19,7 +19,7 @@ export function Markets() {
         <Skyline hero ticker={ticker} />
         <div className="hero-copy">
           <h1>Where will it land?</h1>
-          <p className="lede">Memecoins anchored to stocks. Draw a line where the stock closes, in your coin. The closer you are, the more it pays.</p>
+          <p className="lede">Memecoins anchored to stocks. Call where the stock closes, in your coin. The closer you are, the more it pays.</p>
           <div><Link className="cta" to="/#floor">Walk onto the floor</Link><Link className="cta alt" to="/how">How it works</Link></div>
         </div>
       </div>
@@ -66,7 +66,7 @@ export function Markets() {
             {/* the mint comes from the build's environment, not the repo */}
             {STOOK_MINT && <div><dt>mint</dt><dd className="muted mono">{STOOK_MINT}</dd></div>}
             <div><dt>on</dt><dd>StonkFun, Solana</dd></div>
-            <div><dt>what it does</dt><dd>$STOOK is the money in $STOOK rounds. You buy lines with it, you fund the pool with it, and winners are paid in it.</dd></div>
+            <div><dt>what it does</dt><dd>$STOOK is the money in $STOOK rounds. You place calls with it, you fund the pool with it, and winners are paid in it.</dd></div>
           </dl>
         </div>
       </section>

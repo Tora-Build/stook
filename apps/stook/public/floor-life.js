@@ -20,46 +20,46 @@
   // ── what they say ──────────────────────────────────────────────────────
   // {coin} {anchor} {price} {chg} {up} {level} {near} {far} are filled from data.
   const OPENERS = [
-    "Fuck me, {anchor} at {price}.", "Who the hell drew a line at {far}?", "{coin} pool's thin as shit. Fund it or shut up.", "Reach 8? Grow a pair, reach 2 and pick a band.", "Where's {anchor} closing? Don't say {near}, everyone says {near}.",
-    "Bullshit. {anchor} never closes at {level}.", "My line's at {level}. Yours?", "The odds on {anchor} are wrong and I'm gonna get paid.", "Start the {coin} round or I will. Then you pay me fees.", "You still holding that {coin} range? Christ.",
-    "Bell's in a few hours. Lines in, mouths shut.", "{anchor} at {price} and you're calling it a top? Fuck outta here.", "I don't care what the crowd thinks, {anchor}'s going to {far}.", "Some asshole started the {coin} round with 10 coins. Ten.",
-    "You want the edge on {anchor}? Draw where it hurts.", "Screw the range. Line at {level}, reach 3, done.", "{coin} pool paid me lunch. Twice.", "If {anchor} closes at {near} I'm quitting this floor.", "The tape's the tape. {price}. Deal with it.", "{anchor} {chg} and you're still on the fence?", "I've got 2,000 {coin} on {level}. Say something.", "Whoever's the house on {coin} today owes me a drink.", "Somebody's sitting on the {coin} pool like a hen.",
-    "{anchor} moved {abs}% today. Lines are scrambling.", "{anchor} needs {abs}% to get back where it started.", "If {anchor} holds {price} into the close, my line pays.",
+    "Fuck me, {anchor} at {price}.", "Who the hell called {far}?", "{coin} pool's thin as shit. Fund it or shut up.", "Reach 8? Grow a pair, reach 2 and pick a band.", "Where's {anchor} closing? Don't say {near}, everyone says {near}.",
+    "Bullshit. {anchor} never closes at {level}.", "My call's at {level}. Yours?", "The odds on {anchor} are wrong and I'm gonna get paid.", "Start the {coin} round or I will. Then you pay me fees.", "You still holding that {coin} range? Christ.",
+    "Bell's in a few hours. Calls in, mouths shut.", "{anchor} at {price} and you're calling it a top? Fuck outta here.", "I don't care what the crowd thinks, {anchor}'s going to {far}.", "Some asshole started the {coin} round with 10 coins. Ten.",
+    "You want the edge on {anchor}? Call where it hurts.", "Screw the range. Target {level}, reach 3, done.", "{coin} pool paid me lunch. Twice.", "If {anchor} closes at {near} I'm quitting this floor.", "The tape's the tape. {price}. Deal with it.", "{anchor} {chg} and you're still on the fence?", "I've got 2,000 {coin} on {level}. Say something.", "Whoever's the house on {coin} today owes me a drink.", "Somebody's sitting on the {coin} pool like a hen.",
+    "{anchor} moved {abs}% today. Calls are scrambling.", "{anchor} needs {abs}% to get back where it started.", "If {anchor} holds {price} into the close, my call pays.",
     "{coin} pool's paying fees. Somebody's trading.", "{anchor} at {price}. Middle band. Nobody wins big there.", "Two bands up on {anchor} is {far}. I'd take it.", "{anchor} {chg} and the crowd hasn't moved. Odd.",
-    "Sold my {coin} line, buying it back lower.", "Is the {coin} round started yet?", "Whoever seeded {coin} today is up on fees already.", "Range on {anchor}: {near} to {far}. Sleep easy.",
+    "Sold my {coin} call, buying it back lower.", "Is the {coin} round started yet?", "Whoever seeded {coin} today is up on fees already.", "Range on {anchor}: {near} to {far}. Sleep easy.",
     "{anchor} at {price}.", "{anchor}'s {chg} today.", "Seen {anchor}? {price}.", "{coin} crowd's quiet.", "Who's starting {coin}'s round?",
-    "{anchor} {up}. You in?", "I've got a line at {level}.", "Anyone above {far}? Madness.", "{near} by the close, I'd say.", "Bands are tight on {coin}.",
+    "{anchor} {up}. You in?", "I've got a call at {level}.", "Anyone above {far}? Madness.", "{near} by the close, I'd say.", "Bands are tight on {coin}.",
     "The pool on {coin} is thin.", "{anchor} hasn't moved since lunch.", "Coffee? Then {coin}.", "Odds on {anchor} look wrong to me.", "Where does {anchor} land? {level}?",
-    "I'm the house on {coin} today.", "{anchor} {chg}. Line's holding.", "Sold out of {coin} at the top.", "{price} on {anchor}, printed a minute ago.", "Reach 8 on {coin}. Don't tell anyone.",
-    "Pyth says {price}.", "{anchor}: {chg}. Boring. Good.", "Close is at four. Get your line in.", "Whoever starts Friday's {coin} round eats the fees.", "Range {near}–{far}? Coward's bet.",
+    "I'm the house on {coin} today.", "{anchor} {chg}. Call's holding.", "Sold out of {coin} at the top.", "{price} on {anchor}, printed a minute ago.", "Reach 8 on {coin}. Don't tell anyone.",
+    "Pyth says {price}.", "{anchor}: {chg}. Boring. Good.", "Close is at four. Get your call in.", "Whoever starts Friday's {coin} round eats the fees.", "Range {near}–{far}? Coward's bet.",
   ];
   const REPLIES = [
     "Bullshit.", "You're out of your fucking mind.", "That's what you said about {anchor} last week.", "Fine, {level}. Now shut up.", "Then fund the damn pool.", "I'll take that bet. All of it.", "Eat shit. {far} by Friday.",
-    "Sure. And I'm the Fed.", "Draw the line, stop talking about it.", "{chg}? That's noise.", "Nobody cares about your line.", "The crowd's got it at {near}, genius.", "Move your ass, bell's soon.", "Wider band, smaller mouth.",
-    "Ha! {price}. Pay up.", "No fucking way.", "Bet.", "You'd draw a line on a heart monitor.", "That's the dumbest line I've seen all week.", "Fine. But I'm the house, not you.", "Say it louder, the {coin} table can't hear you.", "Christ, just click the band.", "My grandmother could draw that line.", "Don't be greedy. Range it.", "If you're so sure, be the house.",
-    "{abs}%? The tent won't cover that.", "Then draw the line at {near}.", "The house made {abs}% just sitting there.", "Start it yourself, it's one click.", "Bands are set at the open. Fine. Reach 2.",
-    "{anchor}'s never closed there.", "I'll seed it if you trade it.", "Wider reach. Costs more, pays wider.", "Your line's four bands out. Good luck.", "The odds already say {near}.",
-    "No way. {level}, easy.", "I'm long the close.", "Not with my {coin}.", "Line's in. {level}.", "Pool's fine, you fund it then.", "{chg}? That's nothing.", "Told you. {price}.",
+    "Sure. And I'm the Fed.", "Make the call, stop talking about it.", "{chg}? That's noise.", "Nobody cares about your call.", "The crowd's got it at {near}, genius.", "Move your ass, bell's soon.", "Wider band, smaller mouth.",
+    "Ha! {price}. Pay up.", "No fucking way.", "Bet.", "You'd call the close on a heart monitor.", "That's the dumbest call I've seen all week.", "Fine. But I'm the house, not you.", "Say it louder, the {coin} table can't hear you.", "Christ, just click the band.", "My grandmother could make that call.", "Don't be greedy. Range it.", "If you're so sure, be the house.",
+    "{abs}%? The tent won't cover that.", "Then call it at {near}.", "The house made {abs}% just sitting there.", "Start it yourself, it's one click.", "Bands are set at the open. Fine. Reach 2.",
+    "{anchor}'s never closed there.", "I'll seed it if you trade it.", "Wider reach. Costs more, pays wider.", "Your call's four bands out. Good luck.", "The odds already say {near}.",
+    "No way. {level}, easy.", "I'm long the close.", "Not with my {coin}.", "Call's in. {level}.", "Pool's fine, you fund it then.", "{chg}? That's nothing.", "Told you. {price}.",
     "Range for me. Sleep well.", "I'll take the other side.", "Crowd's got it at {near}.", "Give it an hour.", "Fees pay either way.", "Reach 4, centre {level}.", "That's a {far} print by Friday.",
     "Wider bands, more chance.", "You said that yesterday.", "Fine. Ten shares.", "The house always eats.", "Below {near}? I doubt it.", "Show me the odds.", "Sure. After the close.",
   ];
   const CLOSERS = ["Deal.", "We'll see.", "Ha.", "Fine.", "Back to it.", "Watch the tape.", "Later.", "Mm.", "Nope.", "Coffee.", "Fuck off.", "Don't be a hero.", "Buy the dip, idiot.", "Size down.", "Get fucked, then.", "Your funeral.", "Tape doesn't lie.", "Shut up and trade.", "Bell's at four.", "Wake me at the close."];
   // The floor has moods. What the anchor did today picks the pool of lines.
   const HOT = [ // up hard
-    "{anchor} ripping. {chg}. Holy shit.", "Told you {anchor} was going. {price}, and it's not fucking done.", "Whoever shorted {coin} today is getting their face ripped off.", "{chg} on {anchor}! Ring the goddamn bell already.", "Bands can't keep up with {anchor}. Every line's out of range.",
-    "Buy {level}. No, buy {far}. Fuck it, buy both.", "Pool on {coin} is getting drained, someone drew the right line.", "{anchor} at {price}. I've been long since breakfast, kiss my ass.", "Reach 8 on {coin} and I'm still not wide enough.",
+    "{anchor} ripping. {chg}. Holy shit.", "Told you {anchor} was going. {price}, and it's not fucking done.", "Whoever shorted {coin} today is getting their face ripped off.", "{chg} on {anchor}! Ring the goddamn bell already.", "Bands can't keep up with {anchor}. Every call's out of range.",
+    "Buy {level}. No, buy {far}. Fuck it, buy both.", "Pool on {coin} is getting drained, someone made the right call.", "{anchor} at {price}. I've been long since breakfast, kiss my ass.", "Reach 8 on {coin} and I'm still not wide enough.",
   ];
   const COLD = [ // down hard
-    "{anchor}'s getting fucking murdered. {chg}.", "Who drew a line at {far}? Jesus. It's {price}.", "Every long on {coin} is toast. Every single one.", "{anchor} {chg}. The pool's eating well today.", "Stop the bleeding on {anchor}. Sell, then think.",
-    "I said range, you said line. {chg}. Enjoy.", "Don't catch that knife. {anchor}'s at {price} and dropping.", "The house on {coin} just bought a boat.", "Fuck this tape. Coffee.",
+    "{anchor}'s getting fucking murdered. {chg}.", "Who called {far}? Jesus. It's {price}.", "Every long on {coin} is toast. Every single one.", "{anchor} {chg}. The pool's eating well today.", "Stop the bleeding on {anchor}. Sell, then think.",
+    "I said range, you said target. {chg}. Enjoy.", "Don't catch that knife. {anchor}'s at {price} and dropping.", "The house on {coin} just bought a boat.", "Fuck this tape. Coffee.",
   ];
   const FLAT = [ // nothing happening
     "{anchor} hasn't moved a fucking inch. {price}.", "Dead tape. {coin} pool's just collecting fees.", "{anchor} {chg}. My grandma trades with more range.", "Somebody wake {anchor} up.", "Middle band all day on {coin}. Boring. Profitable.",
-    "I could draw a line blindfolded on {anchor} today.", "Is the {coin} round even open? Feels closed.", "Nobody's started tomorrow's {coin} round. Cowards.", "{price}. Same as an hour ago. Same as yesterday.",
+    "I could call {anchor} blindfolded today.", "Is the {coin} round even open? Feels closed.", "Nobody's started tomorrow's {coin} round. Cowards.", "{price}. Same as an hour ago. Same as yesterday.",
   ];
   const mood = (chg) => (chg == null ? FLAT : chg > 2.5 ? HOT : chg < -2.5 ? COLD : Math.random() < 0.5 ? FLAT : null);
 
-  const GENERIC = ["Coffee?", "Long day.", "Close is at four.", "Watch the tape.", "Who's on the board today?", "Nothing moves before lunch.", "You seen the new post?", "Same as yesterday.", "Lines in?", "I'll be at the $STOOK table."];
+  const GENERIC = ["Coffee?", "Long day.", "Close is at four.", "Watch the tape.", "Who's on the board today?", "Nothing moves before lunch.", "You seen the new post?", "Same as yesterday.", "Calls in?", "I'll be at the $STOOK table."];
   function line(tpl, k, q) {
     if (!q || q.price == null) return pick(GENERIC);       // no number to talk about: small talk
     const dp = q.dp ?? 2, p = q.price, chg = q.change24h;

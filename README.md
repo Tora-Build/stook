@@ -1,11 +1,12 @@
 # Stook
 
-Price prediction on Solana. You draw a line where you think an asset lands, and
-you trade against a curve that prices every band at once.
+Price prediction on Solana. You call where an asset closes, and you trade
+against a curve that prices every band at once: a target pays most on its
+band and less on each band away, a range pays the same anywhere inside.
 
 A Stook market is not "will X happen" but "where will X be". The answer is
 a distribution across price bands, and the market's job is to price all of them
-together so they always sum to one. Draw your line, buy the band it falls in,
+together so they always sum to one. Place your call, buy the band it falls in,
 and sell out any time before settlement.
 
 ## How it works

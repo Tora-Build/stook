@@ -37,7 +37,7 @@ function value(h: Holding, now: number, dp: number): Valued {
     const p = r.position;
     if (!final && p.shares === 0n) continue;
     const s = p.shape;
-    const what = s.h > 1 ? `${bandName(l, Math.floor((s.lo + s.hi) / 2), dp)}, reach ${s.h}` : `${rangeName(l, s.lo, s.hi, dp)} range`;
+    const what = s.h > 1 ? `target at ${bandName(l, Math.floor((s.lo + s.hi) / 2), dp)}, reach ${s.h}` : `${rangeName(l, s.lo, s.hi, dp)} range`;
     let v: bigint | null = null;
     if (final) { v = stook.owedTo(l, p); ready += v > 0n ? v : 0n; }
     else if (l.status === "open" && now < Number(l.locksAt) && p.shares > 0n) {
@@ -112,14 +112,14 @@ export function Yours() {
         : <>
           <section className="tote">
             <div className="tote-cell tote-ready"><div className="tote-k">ready to collect</div>{tote((x) => x.ready)}</div>
-            <div className="tote-cell"><div className="tote-k">lines at work</div>{tote((x) => x.atWork)}</div>
+            <div className="tote-cell"><div className="tote-k">calls at work</div>{tote((x) => x.atWork)}</div>
             <div className="tote-cell"><div className="tote-k">in the house</div>{tote((x) => x.inHouse)}</div>
           </section>
           {finished.length > 0 && <h2 className="stmt-h">To collect</h2>}
           {finished.map((h) => <RoundBlock key={h.pubkey.toBase58()} h={h} now={now} own={own} />)}
           {running.length > 0 && <h2 className="stmt-h">Running</h2>}
           {running.map((h) => <RoundBlock key={h.pubkey.toBase58()} h={h} now={now} own={own} />)}
-          <p className="stmt-foot">Amounts are in each round's coin and before the coin's own transfer fee. A line's worth while trading is what selling it now would pay. Collect what a finished round owes you whenever you like; 30 days after its close, anyone may send it to your wallet for you.</p>
+          <p className="stmt-foot">Amounts are in each round's coin and before the coin's own transfer fee. A call's worth while trading is what selling it now would pay. Collect what a finished round owes you whenever you like; 30 days after its close, anyone may send it to your wallet for you.</p>
         </>}
     </div>
   );
@@ -169,7 +169,7 @@ function RoundBlock({ h, now, own }: { h: Holding; now: number; own: boolean }) 
         <tbody>
           {v.lines.map((x) => { const r = pnl(x); return (
             <tr key={x.key} className={x.kind}>
-              <td><span className={`chip-k ${x.kind}`}>{x.kind === "line" ? "LINE" : "HOUSE"}</span> {x.what}{x.note && <div className="ledger-note">{x.note}</div>}</td>
+              <td><span className={`chip-k ${x.kind}`}>{x.kind === "line" ? "CALL" : "HOUSE"}</span> {x.what}{x.note && <div className="ledger-note">{x.note}</div>}</td>
               <td className="mono">{x.kind === "line" ? `${fmtAmount(x.size, l.decimals, 0)} sh` : fmtAmount(x.size, l.decimals)}</td>
               <td className="mono">{fmtAmount(x.cost, l.decimals)}{$(x.cost)}</td>
               <td className="mono">{x.value === null ? "–" : <>{fmtAmount(x.value, l.decimals)}{$(x.value)}</>}</td>

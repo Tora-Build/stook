@@ -49,7 +49,7 @@ export function Coin() {
           <p className="live-row">
             {q ? <><span className="mono">${q.price.toLocaleString("en-US", { minimumFractionDigits: coin.anchor.dp, maximumFractionDigits: coin.anchor.dp })}</span>{typeof q.change24h === "number" && <span className={`mono ${q.change24h >= 0 ? "up" : "down"}`}> {q.change24h >= 0 ? "+" : ""}{q.change24h.toFixed(2)}% 24h</span>}</> : <span className="muted">price…</span>}
           </p>
-          <p className="coin-intro">Where does {coin.anchor.name} close at 4 PM New York? Draw it, paid in ${coin.symbol}. <Link to="/how">How it works</Link></p>
+          <p className="coin-intro">Where does {coin.anchor.name} close at 4 PM New York? Call it, paid in ${coin.symbol}. <Link to="/how">How it works</Link></p>
           <p className="addrs"><Address label={`${coin.anchor.symbol} token`} value={coin.anchor.mint} />{coin.mint && <Address label={`$${coin.symbol}`} value={coin.mint} dim />}{coin.feeBps > 0 && <span className="fee-chip" title={`$${coin.symbol} takes ${coin.feeBps / 100}% on every transfer; the app shows it in every quote.`}>{coin.feeBps / 100}% transfer fee</span>}</p>
           </div>
         </div>

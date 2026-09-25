@@ -115,13 +115,13 @@ export function Market() {
 function tourStops(anchor: string, coin: string): TourStop[] {
   const c = coin === "USDC" || coin === "tokens" ? coin : `$${coin}`;
   return [
-    { title: "Welcome to the floor", body: <>One round, one question: where does <b>{anchor}</b> close at 4 PM New York? You draw your answer on the board and pay in <b>{c}</b>. The closer the close lands to your line, the more it pays.</> },
+    { title: "Welcome to the floor", body: <>One round, one question: where does <b>{anchor}</b> close at 4 PM New York? You call it on the board and pay in <b>{c}</b>. The closer the close lands to your call, the more it pays.</> },
     { target: "round", title: "The ticket", body: <>What this round follows, when it closes, the price now and how much is in the pool. Its bands are set when it opens, as wide as the price has been moving.</> },
-    { target: "board", title: "The board", body: <>Each row is a price band. The blue bars are the crowd's odds: a long bar is a likely close, a short one a long shot. <b>Click a band</b> to draw your line there.</> },
-    { target: "shape", title: "Line or range", body: <>A <b>line</b> pays most on its centre band and a little less on each band away. A <b>range</b> pays the same anywhere inside it: drag across the board to draw one.</> },
-    { target: "reach", title: "Reach", body: <>How far a line tapers out. A wide reach catches more closes; a narrow one pays more when you are right.</> },
-    { target: "order", title: "Your order", body: <>A range pays one {c} a share if the close lands inside; a line pays up to its reach on its centre band. Before you buy you see what you pay, the fee (2%, rising to 5% over the last six hours) and your best case. Nothing is sent until you sign.</> },
-    { target: "house", title: "Or be the house", body: <>Fund the pool instead. The house takes the other side of every trade and keeps 90% of the fees. The most it can lose is what you put in.</> },
-    { target: "clock", title: "The bell", body: <>Trading stops shortly before the close (an hour, for a round funded a day ahead). The first Pyth price at or after 4 PM settles the round, and winners collect here. If that price came late or unsure, the round is void: deposits come back first and open lines share the rest.</> },
+    { target: "board", title: "The board", body: <>Each row is a price band. The blue bars are the crowd's odds: a long bar is a likely close, a short one a long shot. <b>Click a band</b> to place your call there.</> },
+    { target: "shape", title: "Target or range", body: <>A <b>target</b> pays most on its band and less on each band away. A <b>range</b> pays the same anywhere inside it: drag across the board to mark one.</> },
+    { target: "reach", title: "Reach", body: <>How far a target tapers out. A wide reach catches more closes; a narrow one pays more when you are right.</> },
+    { target: "order", title: "Your order", body: <>A range pays one {c} a share if the close lands inside; a target pays up to its reach on its band. Before you place a call you see what you pay, the fee (2%, rising to 5% over the last six hours) and your best case. Nothing is sent until you sign.</> },
+    { target: "house", title: "Or be the house", body: <>Fund the pool instead. The house takes the other side of every call and keeps 90% of the fees. The most it can lose is what you put in.</> },
+    { target: "clock", title: "The bell", body: <>Trading stops shortly before the close (an hour, for a round funded a day ahead). The first Pyth price at or after 4 PM settles the round, and winners collect here. If that price came late or unsure, the round is void: deposits come back first and open calls share the rest.</> },
   ];
 }

@@ -8,7 +8,7 @@ import { Link } from "react-router-dom";
 import { COINS } from "../lib/coins";
 import { Slider } from "../components/Slider";
 
-const STOPS = ["The tables", "The calendar", "The line", "The bell", "The house", "The fine print"] as const;
+const STOPS = ["The tables", "The calendar", "The call", "The bell", "The house", "The fine print"] as const;
 
 export function How() {
   // ?step=house (or tables, calendar, line, bell, fine-print) opens that stop
@@ -38,18 +38,18 @@ export function How() {
             <p className="try">Fund a day.</p>
           </>}
           {i === 2 && <>
-            <h2>The line</h2>
-            <p>64 bands around the opening price, set when the round opens: each a quarter of an ordinary day's move for the anchor, learned on chain from its Pyth closes. Thin for a quiet anchor, wide for a wild one. Click the one you expect at the close: your <b>line</b>. It pays most there, one step less per band it misses by, out to its <b>reach</b>. A <b>range</b> pays the same anywhere inside. Price is the crowd's odds; a round opens with an ordinary day already priced in. Sell any time before the lock.</p>
+            <h2>The call</h2>
+            <p>64 bands around the opening price, set when the round opens: each a quarter of an ordinary day's move for the anchor, learned on chain from its Pyth closes. Thin for a quiet anchor, wide for a wild one. Click the one you expect at the close: that is your call, a <b>target</b>. It pays most there, one step less per band it misses by, out to its <b>reach</b>. A <b>range</b> pays the same anywhere inside. Price is the crowd's odds; a round opens with an ordinary day already priced in. Sell any time before the lock.</p>
             <p className="try">Click a band. Change the reach.</p>
           </>}
           {i === 3 && <>
             <h2>The bell</h2>
-            <p>At the close, the first <b>Pyth price</b> published at or after 4:00 PM New York lands in a band, if it came within 30 seconds. That band pays; the rest pay nothing. If that price came late or unsure, the round is <b>void</b>; if there is no price to show at all, it can be voided a week after the close. Nobody can void a round that could settle. In a void, deposits come back first and open lines share the rest.</p>
+            <p>At the close, the first <b>Pyth price</b> published at or after 4:00 PM New York lands in a band, if it came within 30 seconds. That band pays; the rest pay nothing. If that price came late or unsure, the round is <b>void</b>; if there is no price to show at all, it can be voided a week after the close. Nobody can void a round that could settle. In a void, deposits come back first and open calls share the rest.</p>
             <p className="try">Ring it.</p>
           </>}
           {i === 4 && <>
             <h2>The house</h2>
-            <p>The pool takes the other side of every line; anyone can add to it until the lock. Trades pay a <b>2% fee</b>, rising to <b>5%</b> over the last six hours, when the close is nearly known: 90% to the pool by depth, 5% to whoever rings the bell, 5% to the protocol. At the close the pool pays the winning band and keeps the rest. A close far from the open can cost the pool its whole deposit; an ordinary one costs it little.</p>
+            <p>The pool takes the other side of every call; anyone can add to it until the lock. Trades pay a <b>2% fee</b>, rising to <b>5%</b> over the last six hours, when the close is nearly known: 90% to the pool by depth, 5% to whoever rings the bell, 5% to the protocol. At the close the pool pays the winning band and keeps the rest. A close far from the open can cost the pool its whole deposit; an ordinary one costs it little.</p>
             <p className="try">Move the deposit.</p>
           </>}
           {i === 5 && <>
