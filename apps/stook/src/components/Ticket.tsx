@@ -43,7 +43,7 @@ import { LpPanel } from "./LpPanel";
 import { Book } from "./Book";
 import { Notice } from "./Notice";
 import { Slider } from "./Slider";
-import { fmtUsd, fromUsd, toUsd } from "../lib/usd";
+import { Amount, approxUsd, coinText, fromUsd } from "../lib/usd";
 
 interface Props {
   refs: stook.LadderRefs;
@@ -88,10 +88,10 @@ function Mine(p: Props) {
   const dec = p.ladder.decimals, l = p.ladder;
   const name = (s: stook.Shape) => s.h > 1 ? `target at ${bandName(l, (s.lo + s.hi) / 2, p.dp)}, reach ${s.h}` : `range ${rangeName(l, s.lo, s.hi, p.dp)}`;
   const paid = p.positions.reduce((a, r) => a + r.position.netPaid, 0n);
-  const money = (v: bigint) => p.usd !== null ? <>{fmtUsd(toUsd(v, dec, p.usd))}<small>{fmtCompact(v, dec)} {p.quoteSymbol}</small></> : <>{fmtCompact(v, dec)} {p.quoteSymbol}</>;
+  const money = (v: bigint) => <Amount units={v} decimals={dec} symbol={p.quoteSymbol} rate={p.usd} />;
   return (
     <Book tour="book" kind="call" title="Your calls" count={p.positions.length} open={!!p.selected} onFold={p.onDeselect}
-      total={<>{p.usd !== null ? fmtUsd(toUsd(paid, dec, p.usd)) : `${fmtCompact(paid, dec)} ${p.quoteSymbol}`} in</>}
+      total={<>{coinText(paid, dec, p.quoteSymbol)} in</>}
       rows={p.positions.map((r) => { const on = !!p.selected?.pubkey.equals(r.pubkey); return {
         key: r.pubkey.toBase58(), on, label: name(r.position.shape), sub: on ? "open below: add or sell" : undefined,
         amount: money(r.position.netPaid), onClick: () => (on ? p.onDeselect() : p.onSelect(r)) }; })} />
@@ -173,7 +173,7 @@ function Buy(p: Props & { held?: boolean }) {
         const rows = odds.map(([lv, pr]) => ({ lv, pr, back: shares ? lands(shares * BigInt(lv)) : 0n }));
         const top = rows.reduce((a, r) => (r.back > a ? r.back : a), 0n);
         const stakeAt = top > 0n && pays ? Math.min(100, (Number(pays) / Number(top)) * 100) : null;
-        const money = (v: bigint) => p.usd !== null ? fmtUsd(toUsd(v, dec, p.usd)) : `${fmtCompact(v, dec)} ${p.quoteSymbol}`;
+        const money = (v: bigint) => coinText(v, dec, p.quoteSymbol);
         const rest = WAD_ONE - odds.reduce((a, [, pr]) => a + pr, 0n);
         return (
           <div className="payl" role="table" aria-label="What each landing pays" data-tour="ladder">
@@ -209,26 +209,26 @@ function Buy(p: Props & { held?: boolean }) {
           <input value={text} onChange={(e) => setText(e.target.value)} inputMode="decimal" aria-label={`Spend in ${unit === "usd" ? "dollars" : p.quoteSymbol}`} />
           {unit === "coin" && <span className="amount-unit">{p.quoteSymbol}</span>}
         </div>
-        <span className="hint">balance {balance.data !== undefined ? <>{p.usd !== null ? `${fmtUsd(toUsd(balance.data, dec, p.usd))} · ` : ""}{fmtCompact(balance.data, dec)} {p.quoteSymbol}</> : `… ${p.quoteSymbol}`}</span>
+        <span className="hint">balance {balance.data !== undefined ? <>{coinText(balance.data, dec, p.quoteSymbol)}{p.usd !== null ? ` · ${approxUsd(balance.data, dec, p.usd)}` : ""}</> : `… ${p.quoteSymbol}`}</span>
       </div>
-      {budget !== null && pays !== null && pays * 100n < budget * 99n && <Notice tone="warn" title="Round limit">Only {p.usd !== null ? fmtUsd(toUsd(pays, dec, p.usd)) : `${fmtCompact(pays, dec)} ${p.quoteSymbol}`} more fits on this call: its odds are near the most this round can price. The order below uses that.</Notice>}
+      {budget !== null && pays !== null && pays * 100n < budget * 99n && <Notice tone="warn" title="Round limit">Only {coinText(pays, dec, p.quoteSymbol)} more fits on this call: its odds are near the most this round can price. The order below uses that.</Notice>}
       {s && q && pays !== null && limit !== null && <div className="ticket-paper" role="group" aria-label="Your order" data-tour="paper">
         <div className="tp-head"><span>{existing && !p.held ? "Adding to your call" : "Your call"}</span><b className="mono">{p.symbol} {s.h === 1 ? `range ${where}` : `target ${where}`}</b></div>
-        <div className="tp-row"><span>You pay</span><i /><b className="mono">{p.usd !== null ? fmtUsd(toUsd(pays, dec, p.usd)) : `${fmtCompact(pays, dec)} ${p.quoteSymbol}`}</b></div>
-        <div className="tp-row tp-small"><span>{fmtCompact(pays, dec)} {p.quoteSymbol}</span></div>
-        <div className="tp-row tp-small"><span>Fee {(feeBps / 100).toFixed(feeBps % 100 ? 1 : 0)}%{feeBps >= stook.FEE_PEAK_BPS ? ", its highest" : Number(l.settlesAt) - p.now < 6 * 3600 ? ", rising to 5% by the lock" : ""}</span><i /><span className="mono">{p.usd !== null ? fmtUsd(toUsd(q.fee, dec, p.usd)) : `${fmtCompact(q.fee, dec)} ${p.quoteSymbol}`}</span></div>
+        <div className="tp-row"><span>You pay</span><i /><b className="mono">{coinText(pays, dec, p.quoteSymbol)}</b></div>
+        {p.usd !== null && <div className="tp-row tp-small"><span>{approxUsd(pays, dec, p.usd)} today</span></div>}
+        <div className="tp-row tp-small"><span>Fee {(feeBps / 100).toFixed(feeBps % 100 ? 1 : 0)}%{feeBps >= stook.FEE_PEAK_BPS ? ", its highest" : Number(l.settlesAt) - p.now < 6 * 3600 ? ", rising to 5% by the lock" : ""}</span><i /><span className="mono">{coinText(q.fee, dec, p.quoteSymbol)}</span></div>
         <div className="tp-win">
           <div className="tp-win-top"><span>To win</span><em className="mono">{(Number(lands(q.maxPayout)) / Number(pays)).toLocaleString("en-US", { maximumFractionDigits: 1 })}×</em></div>
-          <b className="mono">{p.usd !== null ? fmtUsd(toUsd(lands(q.maxPayout), dec, p.usd)) : `${fmtCompact(lands(q.maxPayout), dec)} ${p.quoteSymbol}`}</b>
-          <div className="tp-note">{fmtCompact(lands(q.maxPayout), dec)} {p.quoteSymbol}, if it closes {moveFromOpen(l, Math.floor((s.lo + s.hi) / 2))}</div>
+          <b className="mono">{coinText(lands(q.maxPayout), dec, p.quoteSymbol)}</b>
+          <div className="tp-note">{p.usd !== null ? `${approxUsd(lands(q.maxPayout), dec, p.usd)} today, ` : ""}if it closes {moveFromOpen(l, Math.floor((s.lo + s.hi) / 2))}</div>
         </div>
         <details className="tp-more"><summary>Limits</summary>
-          <div className="tp-row"><span>Most it can cost</span><i /><b className="mono">{p.usd !== null ? fmtUsd(toUsd(limit, dec, p.usd)) : `${fmtCompact(limit, dec)} ${p.quoteSymbol}`}</b></div>
-          {pays !== q.total && <div className="tp-row"><span>Coin's transfer fee</span><i /><b className="mono">{p.usd !== null ? fmtUsd(toUsd(pays - q.total, dec, p.usd)) : `${fmtCompact(pays - q.total, dec)} ${p.quoteSymbol}`}</b></div>}
+          <div className="tp-row"><span>Most it can cost</span><i /><b className="mono">{coinText(limit, dec, p.quoteSymbol)}</b></div>
+          {pays !== q.total && <div className="tp-row"><span>Coin's transfer fee</span><i /><b className="mono">{coinText(pays - q.total, dec, p.quoteSymbol)}</b></div>}
         </details>
       </div>}
       {short && <Notice tone="stop" title={`Not enough ${p.quoteSymbol}`}>You hold {fmtCompact(balance.data!, dec)}; this can cost up to {fmtCompact(limit!, dec)}. On devnet, get <b>test coins</b> in the header.</Notice>}
-      <button className="primary" disabled={!q || !p.tradeable || send.isPending || !publicKey || short} onClick={submit}>{!publicKey ? "Connect a wallet" : !p.tradeable ? "Not trading" : !s ? "Pick a price first" : send.isPending ? "Sending…" : `${p.held || existing ? "Add to call" : "Place call"}${pays !== null && p.usd !== null ? ` · ${fmtUsd(toUsd(pays, dec, p.usd))}` : ""}`}</button>
+      <button className="primary" disabled={!q || !p.tradeable || send.isPending || !publicKey || short} onClick={submit}>{!publicKey ? "Connect a wallet" : !p.tradeable ? "Not trading" : !s ? "Pick a price first" : send.isPending ? "Sending…" : `${p.held || existing ? "Add to call" : "Place call"}${pays !== null ? ` · ${coinText(pays, dec, p.quoteSymbol)}` : ""}`}</button>
     </>
   );
 }
@@ -249,11 +249,11 @@ function Sell(p: Props & { pos: PositionRow }) {
     <>
       <label className="height sell-slider">sell <Slider min={1} max={100} value={pct} onChange={setPct} width={180} /><span className="mono">{pct}%</span></label>
       {q && get !== null && limit !== null && <div className="ticket-paper" role="group" aria-label="Your sale">
-        <div className="tp-win"><span>You get</span><b className="mono">{p.usd !== null ? fmtUsd(toUsd(get, dec, p.usd)) : `${fmtCompact(get, dec)} ${p.quoteSymbol}`}</b></div>
-        <div className="tp-sub mono">{fmtCompact(get, dec)} {p.quoteSymbol}</div>
-        <div className="tp-row"><span>{get >= paidFor ? "Profit" : "Loss"}</span><i /><b className={`mono ${get >= paidFor ? "tp-up" : "tp-down"}`}>{get >= paidFor ? "+" : "−"}{p.usd !== null ? fmtUsd(toUsd(get >= paidFor ? get - paidFor : paidFor - get, dec, p.usd)) : fmtCompact(get >= paidFor ? get - paidFor : paidFor - get, dec)}</b></div>
+        <div className="tp-win"><span>You get</span><b className="mono">{coinText(get, dec, p.quoteSymbol)}</b></div>
+        {p.usd !== null && <div className="tp-sub mono">{approxUsd(get, dec, p.usd)} today</div>}
+        <div className="tp-row"><span>{get >= paidFor ? "Profit" : "Loss"}</span><i /><b className={`mono ${get >= paidFor ? "tp-up" : "tp-down"}`}>{get >= paidFor ? "+" : "−"}{coinText(get >= paidFor ? get - paidFor : paidFor - get, dec, p.quoteSymbol)}</b></div>
         <details className="tp-more"><summary>Limits</summary>
-          <div className="tp-row"><span>At least, if the odds move first</span><i /><b className="mono">{p.usd !== null ? fmtUsd(toUsd(stook.netOf(limit, p.transferFee), dec, p.usd)) : fmtCompact(stook.netOf(limit, p.transferFee), dec)}</b></div>
+          <div className="tp-row"><span>At least, if the odds move first</span><i /><b className="mono">{coinText(stook.netOf(limit, p.transferFee), dec, p.quoteSymbol)}</b></div>
         </details>
       </div>}
       <button className="primary" disabled={!q || !p.tradeable || send.isPending || !publicKey} onClick={submit}>{!p.tradeable ? "Locked until the bell" : send.isPending ? "Sending…" : `Sell ${pct}%`}</button>
@@ -266,8 +266,8 @@ function Collect(p: Props) {
   const { publicKey } = useWallet();
   const send = useSend(p.ladder.status === "void" ? "Refunded" : "Collected");
   const l = p.ladder, dec = l.decimals;
-  const big = (v: bigint) => p.usd !== null ? fmtUsd(toUsd(v, dec, p.usd)) : `${fmtCompact(v, dec)} ${p.quoteSymbol}`;
-  const money = (v: bigint) => p.usd !== null ? <>{fmtUsd(toUsd(v, dec, p.usd))}<small>{fmtCompact(v, dec)} {p.quoteSymbol}</small></> : <>{fmtCompact(v, dec)} {p.quoteSymbol}</>;
+  const big = (v: bigint) => coinText(v, dec, p.quoteSymbol);
+  const money = (v: bigint) => <Amount units={v} decimals={dec} symbol={p.quoteSymbol} rate={p.usd} />;
   // Shown as it lands in the wallet: the pool sends the book amount and the
   // coin's transfer fee, if any, comes off on the way.
   const lands = (book: bigint) => stook.netOf(book, p.transferFee);

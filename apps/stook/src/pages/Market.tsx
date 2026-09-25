@@ -8,14 +8,14 @@ import { Chart, type DrawMode } from "../components/Chart";
 import { Ticket } from "../components/Ticket";
 import { Address } from "../components/Address";
 import { Tour, tourSeen, type TourStop } from "../components/Tour";
-import { fmtUsd, toUsd, useUsdPerCoin } from "../lib/usd";
+import { approxUsd, coinText, useUsdPerCoin } from "../lib/usd";
 import { Bell } from "../components/Bell";
 import { Notice } from "../components/Notice";
 import { useLadder, useLivePrice, useMint, usePositions, useRefs, useSend, useSeries, useTranches } from "../hooks/useChain";
 import { useNow } from "../hooks/useNow";
 import { feedByHex, feedHex } from "../lib/feeds";
 import { coinByMint, standInNote } from "../lib/coins";
-import { fmtCompact, fmtPrice, untilText } from "../lib/format";
+import { fmtPrice, untilText } from "../lib/format";
 import { nyWhen } from "../lib/time";
 
 export function Market() {
@@ -118,9 +118,9 @@ export function Market() {
           <div className="tape-cell"><span className="strip-k">now</span><b className="mono">{livePrice !== null ? `$${fmtPrice(BigInt(Math.round(livePrice / 10 ** live.data!.expo)), live.data!.expo, feed.dp)}` : "…"}</b>
             {livePrice !== null && openPrice !== null && <em className={`mono ${livePrice >= openPrice ? "up" : "down"}`}>{livePrice >= openPrice ? "▲" : "▼"} {Math.abs((livePrice / openPrice - 1) * 100).toFixed(2)}% since open</em>}</div>
           {openPrice !== null && <div className="tape-cell"><span className="strip-k">opened at</span><b className="mono">${fmtPrice(l.p0, l.p0Expo, feed.dp)}</b><em>{nyWhen(l.opensAt, { weekday: "short", hour: "numeric", minute: "2-digit" })} New York</em></div>}
-          <div className="tape-cell"><span className="strip-k">pool</span><b className="mono">{usd !== null ? fmtUsd(toUsd(l.depositTotal, l.decimals, usd)) : `${fmtCompact(l.depositTotal, l.decimals)} ${quoteSymbol}`}</b>{usd !== null && <em className="mono">{fmtCompact(l.depositTotal, l.decimals)} {quoteSymbol}</em>}</div>
-          <div className="tape-cell"><span className="strip-k">house fees</span><b className="mono tape-up">{usd !== null ? fmtUsd(toUsd(l.feesLp, l.decimals, usd)) : `${fmtCompact(l.feesLp, l.decimals)} ${quoteSymbol}`}</b><em>90% of every fee, to the pool</em></div>
-          <div className="tape-cell" title="What traders have paid for calls still open in this round"><span className="strip-k">traders in</span><b className="mono">{usd !== null ? fmtUsd(toUsd(l.basisTotal, l.decimals, usd)) : `${fmtCompact(l.basisTotal, l.decimals)} ${quoteSymbol}`}</b><em>on open calls</em></div>
+          <div className="tape-cell"><span className="strip-k">pool</span><b className="mono">{coinText(l.depositTotal, l.decimals, quoteSymbol)}</b>{usd !== null && <em className="mono">{approxUsd(l.depositTotal, l.decimals, usd)}</em>}</div>
+          <div className="tape-cell"><span className="strip-k">house fees</span><b className="mono tape-up">{coinText(l.feesLp, l.decimals, quoteSymbol)}</b><em>{usd !== null ? `${approxUsd(l.feesLp, l.decimals, usd)} · ` : ""}90% of fees, to the pool</em></div>
+          <div className="tape-cell" title="What traders have paid for calls still open in this round"><span className="strip-k">traders in</span><b className="mono">{coinText(l.basisTotal, l.decimals, quoteSymbol)}</b><em>{usd !== null ? `${approxUsd(l.basisTotal, l.decimals, usd)} · ` : ""}on open calls</em></div>
           <div className="tape-cell" title="The chart splits the price into bands of equal percentage steps. A call picks bands; the close lands in exactly one.">
             <span className="strip-k">each band</span>
             <b className="mono">{bandUsd !== null ? `$${bandUsd.toLocaleString("en-US", { maximumSignificantDigits: 3 })}` : `${(stepBps / 100).toFixed(2)}%`} wide</b>
@@ -137,7 +137,7 @@ export function Market() {
           shape={shape} onShape={setShape} mode={mode} height={height}
           live={live.data && live.data.price > 0n ? { price: live.data.price } : null} history={history.data?.points} settlesAt={l.settlesAt} now={now}
           settledBin={l.settledBin} disabled={!tradeable}
-          positions={mine.map((r) => ({ key: r.pubkey.toBase58(), shape: r.position.shape, shares: r.position.shares, label: usd !== null ? fmtUsd(toUsd(r.position.netPaid, l.decimals, usd)) : `${fmtCompact(r.position.netPaid, l.decimals)} ${quoteSymbol}` }))}
+          positions={mine.map((r) => ({ key: r.pubkey.toBase58(), shape: r.position.shape, shares: r.position.shares, label: coinText(r.position.netPaid, l.decimals, quoteSymbol) }))}
           selected={selected} onSelect={setSelected}
         />
         <Ticket refs={refs} ladder={shown} shape={shape} selected={sel} onSelect={(r) => { setSelected(r.pubkey.toBase58()); setShape(r.position.shape); }} onDeselect={() => { setSelected(null); setShape(null); }} mode={mode} setMode={setMode} height={height} setHeight={setHeightAndShape}

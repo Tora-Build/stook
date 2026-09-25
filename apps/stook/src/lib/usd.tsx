@@ -1,28 +1,29 @@
 import { useQuery } from "@tanstack/react-query";
 import type { PublicKey } from "@solana/web3.js";
 import { coinByMint } from "./coins";
+import { fmtCompact } from "./format";
 
-// Dollars beside every coin amount. A coin's price comes from Jupiter
-// through the site's `/usd` route (its mainnet mint; the devnet test coins
-// are valued as the real ones). The mock USDC is a dollar. Display only:
-// nothing on chain reads it.
+// Dollars beside coin amounts. Every amount on chain is in the coin; the
+// dollar figure is that amount at today's price, so it is shown as an
+// estimate (≈) under the coin, except where dollars are the only way to add
+// coins up or are what you type. One price per coin, fetched once a minute
+// from Jupiter through the site's `/coins` route and shared by every place on
+// the page, so no two numbers disagree. The mock USDC is a dollar. Display
+// only: nothing on chain reads it.
 
+/** Dollars per whole coin, by symbol, from the same fetch as `useCoinQuotes`. */
 export function useUsdRates() {
-  return useQuery({
-    queryKey: ["usd"],
-    queryFn: async () => (await fetch("/usd")).json() as Promise<Record<string, number>>,
-    refetchInterval: 60_000,
-    staleTime: 30_000,
-  });
+  const q = useCoinQuotes();
+  return { ...q, data: q.data ? Object.fromEntries(Object.entries(q.data).map(([k, v]) => [k, v.usd])) as Record<string, number> : undefined };
 }
 
-/** Each coin's dollar price and 24h move, for the street's LED rings. */
+/** Each coin's dollar price and 24h move: the one price source. */
 export function useCoinQuotes() {
   return useQuery({
     queryKey: ["coins"],
     queryFn: async () => (await fetch("/coins")).json() as Promise<Record<string, { usd: number; change24h: number | null }>>,
     refetchInterval: 60_000,
-    staleTime: 30_000,
+    staleTime: 60_000,
   });
 }
 
@@ -68,4 +69,15 @@ export function Usd({ units, decimals, rate, sign, className }: { units: bigint;
   if (rate === null) return null;
   const v = toUsd(units, decimals, rate);
   return <span className={`usd ${className ?? ""}`}>{sign && v > 0 ? "+" : ""}{fmtUsd(v)}</span>;
+}
+
+/** A coin amount as it stands on chain: "3.26M STOOK". */
+export const coinText = (units: bigint, decimals: number, symbol: string): string => `${fmtCompact(units, decimals)} ${symbol}`;
+
+/** Its dollar value today, marked as an estimate: "≈ $20.20", or "" with no price. */
+export const approxUsd = (units: bigint, decimals: number, rate: number | null): string => (rate === null ? "" : `≈ ${fmtUsd(toUsd(units, decimals, rate))}`);
+
+/** The coin amount, with its dollar estimate small beneath. */
+export function Amount({ units, decimals, symbol, rate, sign = "" }: { units: bigint; decimals: number; symbol: string; rate: number | null; sign?: string }) {
+  return <>{sign}{coinText(units, decimals, symbol)}{rate !== null && <small className="approx">{approxUsd(units, decimals, rate)}</small>}</>;
 }

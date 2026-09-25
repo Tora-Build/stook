@@ -1019,3 +1019,6 @@ a.tour-btn { text-decoration: none; }
 .wc-cell { position: relative; }
 .wc-mine { position: absolute; right: -2px; bottom: -2px; display: inline-flex; align-items: center; gap: .3rem; padding: .15rem .35rem; background: var(--crowd-2); color: #f4e9c8; font-family: var(--px); font-size: .36rem; text-transform: uppercase; letter-spacing: .05em; }
 .wc-mine i { font-style: normal; background: #f4e9c8; color: #101a2e; padding: .05rem .2rem; }
+.approx { display: block; font-size: .72em; color: var(--cream-3); font-weight: 400; }
+.ticket-paper .approx { color: #6b6452; }
+.payl-head, .payl-row { grid-template-columns: 7rem 1fr 7rem; }

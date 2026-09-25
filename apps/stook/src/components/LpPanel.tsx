@@ -5,7 +5,7 @@ import { stook } from "@sooth/sdk-solana";
 import { fmtCompact, parseAmount } from "../lib/format";
 import { ataOf, ensureAta } from "../lib/chain";
 import { useBalance, useSend, useTranches } from "../hooks/useChain";
-import { fmtUsd, fromUsd, toUsd } from "../lib/usd";
+import { Amount, approxUsd, coinText, fromUsd } from "../lib/usd";
 import { Book } from "./Book";
 import { Notice } from "./Notice";
 
@@ -20,8 +20,9 @@ export function LpPanel(p: Props) {
   const [typed, setText] = useState<string | null>(null);
   const text = typed ?? (inUsd ? "20" : "100");
   // Amounts lead in dollars when there is a rate, the coin beneath.
-  const money = (v: bigint) => rate !== null ? <>{fmtUsd(toUsd(v, dec, rate))}<small>{fmtCompact(v, dec)} {p.quoteSymbol}</small></> : <>{fmtCompact(v, dec)} {p.quoteSymbol}</>;
-  const big = (v: bigint) => rate !== null ? fmtUsd(toUsd(v, dec, rate)) : `${fmtCompact(v, dec)} ${p.quoteSymbol}`;
+  // The coin first, as it stands on chain; dollars as an estimate beneath.
+  const money = (v: bigint) => <Amount units={v} decimals={dec} symbol={p.quoteSymbol} rate={rate} />;
+  const big = (v: bigint) => coinText(v, dec, p.quoteSymbol);
   const join = useSend("Liquidity added");
   const claim = useSend("Claimed");
   const mine = useTranches(p.refs.ladder, true);
@@ -124,7 +125,7 @@ export function LpPanel(p: Props) {
             <div className="ticket-paper" role="group" aria-label="Your deposit">
               <div className="tp-head"><span>Your deposit</span><b className="mono">the {p.quoteSymbol} house, this round</b></div>
               <div className="tp-row"><span>You pay</span><i /><b className="mono">{big(gross)}</b></div>
-              <div className="tp-row tp-small"><span>{fmtCompact(gross, dec)} {p.quoteSymbol}{p.transferFee && gross !== deposit ? `, with the coin's ${(p.transferFee.bps / 100).toFixed(0)}% transfer fee` : ""}</span></div>
+              <div className="tp-row tp-small"><span>{[rate !== null && `${approxUsd(gross, dec, rate)} today`, p.transferFee && gross !== deposit && `with the coin's ${(p.transferFee.bps / 100).toFixed(0)}% transfer fee`].filter(Boolean).join(", ")}</span></div>
               <div className="tp-win">
                 <div className="tp-win-top"><span>Your share</span>{share.now > 0 && <em className="mono">was {pctOf(share.now)}</em>}</div>
                 <b className="mono">{pctOf(share.after)}</b>
@@ -134,7 +135,7 @@ export function LpPanel(p: Props) {
           )}
           {short && <Notice tone="stop" title={`Not enough ${p.quoteSymbol}`}>You hold {fmtCompact(balance.data!, dec)}; this needs {fmtCompact(gross!, dec)}. On devnet, get <b>test coins</b> in the header.</Notice>}
           <button className="primary" disabled={!depth || join.isPending || !publicKey || short} onClick={submit}>
-            {!publicKey ? "Connect a wallet" : join.isPending ? "Sending…" : `Deposit ${deposit ? fmtCompact(deposit, dec) : 0} ${p.quoteSymbol}${deposit && rate !== null ? ` · ${fmtUsd(toUsd(deposit, dec, rate))}` : ""}`}
+            {!publicKey ? "Connect a wallet" : join.isPending ? "Sending…" : `Deposit ${deposit ? coinText(deposit, dec, p.quoteSymbol) : `0 ${p.quoteSymbol}`}`}
           </button>
         </>
       )}

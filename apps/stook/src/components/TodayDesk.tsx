@@ -7,9 +7,9 @@ import { Link } from "react-router-dom";
 import type { PublicKey } from "@solana/web3.js";
 import { stook } from "@sooth/sdk-solana";
 import { useSeriesRounds } from "../hooks/useChain";
-import { fmtCompact, fmtPrice, untilText } from "../lib/format";
+import { fmtPrice, untilText } from "../lib/format";
 import { nyWhen } from "../lib/time";
-import { fmtUsd, toUsd, useUsdRates } from "../lib/usd";
+import { approxUsd, coinText, useUsdRates } from "../lib/usd";
 import { PocketWatch } from "./PocketWatch";
 
 interface Props {
@@ -87,7 +87,7 @@ export function TodayDesk(p: Props) {
         <div className="desk-title">{title}</div>
         <div className="desk-when">bell {nyWhen(stook.closeOf(p.series, today), { weekday: "short", hour: "numeric", minute: "2-digit" })} · in {untilText(BigInt(closes), p.now)}{l && l.status === "open" && p.now < Number(l.locksAt) ? <> · trading stops {nyWhen(l.locksAt, { hour: "numeric", minute: "2-digit" })}</> : null}</div>
         {l && <div className="desk-nums">
-          <div><span className="desk-k">pool</span>{rate !== null ? <><span className="mono">{fmtUsd(toUsd(l.depositTotal, l.decimals, rate))}</span><span className="mono desk-coin">{fmtCompact(l.depositTotal, l.decimals)} {p.coinSymbol}</span></> : <span className="mono">{fmtCompact(l.depositTotal, l.decimals)} {p.coinSymbol}</span>}</div>
+          <div><span className="desk-k">pool</span><span className="mono">{coinText(l.depositTotal, l.decimals, p.coinSymbol)}</span>{rate !== null && <span className="mono desk-coin">{approxUsd(l.depositTotal, l.decimals, rate)}</span>}</div>
           <div><span className="desk-k">trades</span><span className="mono">{l.curveSeq.toString()}</span></div>
         </div>}
         {line && <p className="desk-line">{line}</p>}
@@ -102,7 +102,7 @@ export function TodayDesk(p: Props) {
             const nr = rounds.data?.get(i), nl = nr?.ladder;
             const body = <>
               <span className="dn-day">{when(i)}</span>
-              {nl ? <span className="dn-state"><span className="mono">{rate !== null ? fmtUsd(toUsd(nl.depositTotal, nl.decimals, rate)) : `${fmtCompact(nl.depositTotal, nl.decimals)} ${p.coinSymbol}`}</span> in the house</span> : fundable(i) ? <span className="dn-state dn-open">open to fund</span> : <span className="dn-state muted">funding opens later</span>}
+              {nl ? <span className="dn-state"><span className="mono">{coinText(nl.depositTotal, nl.decimals, p.coinSymbol)}</span> in the house</span> : fundable(i) ? <span className="dn-state dn-open">open to fund</span> : <span className="dn-state muted">funding opens later</span>}
             </>;
             return <li key={i}>{nr ? <Link to={`/m/${nr.pubkey.toBase58()}`}>{body}<span className="dn-go">›</span></Link> : fundable(i) ? <button onClick={() => p.onStart(i)}>{body}<span className="dn-go">+</span></button> : <div>{body}</div>}</li>;
           })}

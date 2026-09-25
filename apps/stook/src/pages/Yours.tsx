@@ -13,7 +13,7 @@ import { ataOf, ensureAta, type Holding } from "../lib/chain";
 import { COINS, anchorOf, coinByMint } from "../lib/coins";
 import { feedByHex, feedHex } from "../lib/feeds";
 import { fmtCompact, short } from "../lib/format";
-import { fmtUsd, toUsd, useUsdRates } from "../lib/usd";
+import { Amount, approxUsd, coinText, fmtUsd, toUsd, useUsdRates } from "../lib/usd";
 import { bandName, rangeName } from "../components/Ticket";
 import { Book } from "../components/Book";
 import { nyDate, nyWhen } from "../lib/time";
@@ -88,7 +88,7 @@ export function Yours() {
     const rows = [...byCoin.entries()].filter(([, x]) => pick(x) > 0n);
     // In dollars across every coin, then each coin as held.
     const usd = rows.reduce((a, [c, x]) => (rates[c] ? a + toUsd(pick(x), x.dec, rates[c]!) : a), 0);
-    return rows.length ? <>{rows.some(([c]) => rates[c]) && <div className="tote-usd mono">{fmtUsd(usd)}</div>}<div className="tote-coins">{rows.map(([c, x]) => { const coin = COINS.find((k) => k.symbol === c); return <span key={c} className="tote-chip mono" title={`$${c}`}>{coin && <img src={coin.logo} alt={`$${c}`} />}{fmtCompact(pick(x), x.dec)}</span>; })}</div></> : <div className="tote-v mono muted">$0</div>;
+    return rows.length ? <>{rows.some(([c]) => rates[c]) && <div className="tote-usd mono" title="Every coin at today's price">≈ {fmtUsd(usd)}</div>}<div className="tote-coins">{rows.map(([c, x]) => { const coin = COINS.find((k) => k.symbol === c); return <span key={c} className="tote-chip mono" title={`$${c}`}>{coin && <img src={coin.logo} alt={`$${c}`} />}{fmtCompact(pick(x), x.dec)}</span>; })}</div></> : <div className="tote-v mono muted">$0</div>;
   };
   const finished = rounds.filter((h) => { const s = stageOf(h.ladder, now); return s === "settled" || s === "void"; });
 
@@ -120,6 +120,9 @@ export function Yours() {
     return { h, c, ready: v.ready, usd: rate !== null ? toUsd(v.ready, h.ladder.decimals, rate) : null };
   });
   const slipUsd = slip.reduce((a, x) => a + (x.usd ?? 0), 0);
+  const slipCoins = [...new Set(slip.filter((x) => x.ready > 0n).map((x) => x.c?.symbol ?? ""))];
+  const oneCoin = slipCoins.length <= 1 ? slip.find((x) => x.ready > 0n) : undefined;
+  const slipTotal = oneCoin ? coinText(slip.reduce((a, x) => a + x.ready, 0n), oneCoin.h.ladder.decimals, `$${oneCoin.c?.symbol ?? ""}`) : `≈ ${fmtUsd(slipUsd)}`;
   const [slipOpen, setSlipOpen] = useState(false);
   const SLIP_SHOWN = 4;
 
@@ -149,20 +152,20 @@ export function Yours() {
           {slip.length > 0 && (
             <div className="ticket-paper payout-slip" role="group" aria-label="Payout slip">
               <div className="tp-head"><span>Payout slip</span><b className="mono">{slip.length} finished {slip.length === 1 ? "round" : "rounds"}</b></div>
-              {slip.slice(0, SLIP_SHOWN).map((x) => <SlipLine key={x.h.pubkey.toBase58()} {...x} now={now} rate={x.c ? rates[x.c.symbol] ?? null : null} />)}
+              {slip.slice(0, SLIP_SHOWN).map((x) => <SlipLine key={x.h.pubkey.toBase58()} {...x} now={now} />)}
               {slip.length > SLIP_SHOWN && <>
                 <div className={`tp-fold ${slipOpen ? "tp-fold-open" : ""}`}>
-                  <div className="tp-fold-in">{slip.slice(SLIP_SHOWN).map((x) => <SlipLine key={x.h.pubkey.toBase58()} {...x} now={now} rate={x.c ? rates[x.c.symbol] ?? null : null} />)}</div>
+                  <div className="tp-fold-in">{slip.slice(SLIP_SHOWN).map((x) => <SlipLine key={x.h.pubkey.toBase58()} {...x} now={now} />)}</div>
                 </div>
                 <button className="tp-unfold" onClick={() => setSlipOpen(!slipOpen)} aria-expanded={slipOpen}>{slipOpen ? "Fold it back" : `Unfold ${slip.length - SLIP_SHOWN} more ${slip.length - SLIP_SHOWN === 1 ? "round" : "rounds"}`}</button>
               </>}
               <div className="tp-win">
                 <div className="tp-win-top"><span>Total to collect</span></div>
-                <b className="mono">{fmtUsd(slipUsd)}</b>
-                <div className="tp-note">{slip.filter((x) => x.ready > 0n).map((x) => `${fmtCompact(x.ready, x.h.ladder.decimals)} $${x.c?.symbol ?? ""}`).join(" + ") || "rounds that paid nothing, to close"}</div>
+                <b className="mono">{slipTotal}</b>
+                <div className="tp-note">{oneCoin ? (slipUsd > 0 ? `≈ ${fmtUsd(slipUsd)} today` : "") : slip.filter((x) => x.ready > 0n).map((x) => `${fmtCompact(x.ready, x.h.ladder.decimals)} $${x.c?.symbol ?? ""}`).join(" + ") || "rounds that paid nothing, to close"}</div>
               </div>
               {own
-                ? <button className="primary" disabled={!!allProgress} onClick={() => void collectAll()}>{allProgress ? `Collecting ${allProgress[0]} of ${allProgress[1]}…` : slipUsd > 0 ? `Collect all ${fmtUsd(slipUsd)}` : "Close them all"}</button>
+                ? <button className="primary" disabled={!!allProgress} onClick={() => void collectAll()}>{allProgress ? `Collecting ${allProgress[0]} of ${allProgress[1]}…` : slipUsd > 0 || oneCoin ? `Collect all ${slipTotal}` : "Close them all"}</button>
                 : <p className="tp-dim small">Only the account's own wallet can collect.</p>}
             </div>
           )}
@@ -184,22 +187,22 @@ export function Yours() {
               {hs.map((h) => <RoundBlock key={h.pubkey.toBase58()} h={h} now={now} own={own} register={register} />)}
             </section>
           ))}
-          <p className="stmt-foot">Amounts are in dollars at today's price, with each round's coin beneath, and before the coin's own transfer fee. A call's worth while trading is what selling it now would pay. Collect what a finished round owes you whenever you like; 30 days after its close, anyone may send it to your wallet for you.</p>
+          <p className="stmt-foot">Amounts are in each round's coin, as the chain holds them, before the coin's own transfer fee; ≈ dollars are today's price and move with it. A call's worth while trading is what selling it now would pay. Collect what a finished round owes you whenever you like; 30 days after its close, anyone may send it to your wallet for you.</p>
         </>}
     </div>
   );
 }
 
 /** One round on the payout slip; its holdings unfold beneath it. */
-function SlipLine({ h, c, ready, usd, now, rate }: { h: Holding; c: ReturnType<typeof coinByMint>; ready: bigint; usd: number | null; now: number; rate: number | null }) {
+function SlipLine({ h, c, ready, usd, now }: { h: Holding; c: ReturnType<typeof coinByMint>; ready: bigint; usd: number | null; now: number }) {
   const [open, setOpen] = useState(false);
   const v = value(h, now, c ? anchorOf(c).dp : 2), dec = h.ladder.decimals, sym = `$${c?.symbol ?? ""}`;
-  const money = (u: bigint) => (rate !== null ? fmtUsd(toUsd(u, dec, rate)) : `${fmtCompact(u, dec)} ${sym}`);
+  const money = (u: bigint) => coinText(u, dec, sym);
   return (
     <div className={`tp-line ${open ? "tp-line-open" : ""}`}>
       <button className="tp-row tp-row-btn" onClick={() => setOpen(!open)} aria-expanded={open}>
         <span><span className="tp-caret" aria-hidden="true">{open ? "▾" : "▸"}</span>{c ? c.anchor.name : "round"} in {sym} · {nyWhen(h.ladder.settlesAt, { weekday: "short", month: "short", day: "numeric" })}{h.ladder.status === "void" ? " · void" : ""}</span><i />
-        <b className="mono">{ready === 0n ? <span className="tp-dim">nothing won</span> : usd !== null ? fmtUsd(usd) : `${fmtCompact(ready, dec)} ${sym}`}</b>
+        <b className="mono">{ready === 0n ? <span className="tp-dim">nothing won</span> : coinText(ready, dec, sym)}{ready > 0n && usd !== null && <small className="approx">≈ {fmtUsd(usd)}</small>}</b>
       </button>
       <div className="tp-fold tp-fold-sub">
         <div className="tp-fold-in">
@@ -228,9 +231,9 @@ function RoundBlock({ h, now, own, register }: { h: Holding; now: number; own: b
   const rate = coin ? rates?.[coin.symbol] ?? null : null;
   // Dollars lead when the coin has a price; the coin amount sits beneath.
   const amt = (u: bigint, sign = "") => rate !== null
-    ? <><span className="amt-big">{sign}{fmtUsd(toUsd(u, l.decimals, rate))}</span><span className="amt-coin">{sign}{fmtCompact(u, l.decimals)} {sym}</span></>
-    : <span className="amt-big">{sign}{fmtCompact(u, l.decimals)} {sym}</span>;
-  const big = (u: bigint) => rate !== null ? fmtUsd(toUsd(u, l.decimals, rate)) : `${fmtCompact(u, l.decimals)} ${sym}`;
+    ? <><span className="amt-big">{sign}{coinText(u, l.decimals, sym)}</span><span className="amt-coin">{approxUsd(u, l.decimals, rate)}</span></>
+    : <span className="amt-big">{sign}{coinText(u, l.decimals, sym)}</span>;
+  const big = (u: bigint) => coinText(u, l.decimals, sym);
   const collectable = own && (stage === "settled" || stage === "void") && (h.positions.length + h.tranches.length) > 0;
   const collect = async () => {
     if (!publicKey || !mint.data) return;
@@ -283,7 +286,7 @@ function RoundBlock({ h, now, own, register }: { h: Holding; now: number; own: b
                 key: x.key,
                 label: <><span className={`chip-k ${x.kind}`}>{x.kind === "line" ? "CALL" : "HOUSE"}</span> {x.what}</>,
                 sub: <>{x.kind === "line" ? "paid" : "put in"} {big(x.cost)}</>,
-                amount: x.value !== null && x.value > 0n ? <span className="up">{rate !== null ? <>{fmtUsd(toUsd(x.value, l.decimals, rate))}<small>{fmtCompact(x.value, l.decimals)} {sym}</small></> : `${fmtCompact(x.value, l.decimals)} ${sym}`}</span> : <span className="muted">0</span>,
+                amount: x.value !== null && x.value > 0n ? <span className="up"><Amount units={x.value} decimals={l.decimals} symbol={sym} rate={rate} /></span> : <span className="muted">0</span>,
               }))}
               footer={!collectable ? <span className="muted small">Only the account's own wallet can collect.</span>
                 : v.ready > 0n ? <button className="primary" disabled={!publicKey || send.isPending} onClick={() => void collect()}>{send.isPending ? "Collecting…" : `Collect ${big(v.ready)}`}</button>

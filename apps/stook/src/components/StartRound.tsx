@@ -12,7 +12,7 @@ import { ataOf, ensureAta } from "../lib/chain";
 import { useBalance, useMint, useSend } from "../hooks/useChain";
 import { fmtCompact, parseAmount } from "../lib/format";
 import { Notice } from "./Notice";
-import { fmtUsd, fromUsd, toUsd, useUsdRates } from "../lib/usd";
+import { approxUsd, coinText, fromUsd, useUsdRates } from "../lib/usd";
 import { nyWhen } from "../lib/time";
 import { RoundBar } from "./RoundBar";
 
@@ -82,14 +82,14 @@ export function StartRound({ coin, seriesKey, series, index, onClose }: { coin: 
             <input value={text} onChange={(e) => setText(e.target.value)} inputMode="decimal" autoFocus aria-label={inUsd ? "Seed in dollars" : `Seed in ${coin.symbol}`} />
             {!inUsd && <span className="amount-unit">{coin.symbol}</span>}
           </div>
-          <span className="hint">balance {balance.data !== undefined ? <>{rate !== null ? `${fmtUsd(toUsd(balance.data, dec, rate))} · ` : ""}{fmtCompact(balance.data, dec)} {coin.symbol}</> : "…"}</span>
+          <span className="hint">balance {balance.data !== undefined ? <>{coinText(balance.data, dec, coin.symbol)}{rate !== null ? ` · ${approxUsd(balance.data, dec, rate)}` : ""}</> : "…"}</span>
         </div>
         {/* The order, on paper, as a deposit on the round page reads. */}
         {!!seed && !!gross && (
           <div className="ticket-paper" role="group" aria-label="Your seed">
             <div className="tp-head"><span>Your seed</span><b className="mono">the ${coin.symbol} house, {nyWhen(settlesAt, { weekday: "short", month: "short", day: "numeric" })}</b></div>
-            <div className="tp-row"><span>You pay</span><i /><b className="mono">{rate !== null ? fmtUsd(toUsd(gross, dec, rate)) : `${fmtCompact(gross, dec)} ${coin.symbol}`}</b></div>
-            <div className="tp-row tp-small"><span>{fmtCompact(gross, dec)} {coin.symbol}{gross !== seed ? `, with the coin's ${(mint.data?.report.transferFee?.bps ?? 0) / 100}% transfer fee` : ""}</span></div>
+            <div className="tp-row"><span>You pay</span><i /><b className="mono">{coinText(gross, dec, coin.symbol)}</b></div>
+            <div className="tp-row tp-small"><span>{[rate !== null && `${approxUsd(gross, dec, rate)} today`, gross !== seed && `with the coin's ${(mint.data?.report.transferFee?.bps ?? 0) / 100}% transfer fee`].filter(Boolean).join(", ")}</span></div>
             <div className="tp-win">
               <div className="tp-win-top"><span>Your share</span><em className="mono">first in</em></div>
               <b className="mono">100%</b>
@@ -99,7 +99,7 @@ export function StartRound({ coin, seriesKey, series, index, onClose }: { coin: 
         )}
         {balance.data !== undefined && !!seed && !!gross && balance.data < gross && <Notice tone="stop" title={`Not enough ${coin.symbol}`}>You hold {fmtCompact(balance.data, dec)}; this needs {fmtCompact(gross, dec)}. On devnet, get <b>test coins</b> in the header first.</Notice>}
         <button className="primary" disabled={!publicKey || !seed || !mint.data || send.isPending || (balance.data !== undefined && !!gross && balance.data < gross)} onClick={start}>
-          {!publicKey ? "Connect a wallet" : send.isPending ? "Funding…" : `Fund the round${seed ? ` with ${rate !== null ? fmtUsd(toUsd(seed, dec, rate)) : `${fmtCompact(seed, dec)} ${coin.symbol}`}` : ""}`}
+          {!publicKey ? "Connect a wallet" : send.isPending ? "Funding…" : `Fund the round${seed ? ` with ${coinText(seed, dec, coin.symbol)}` : ""}`}
         </button>
         <p className="ts-rent" title={`Account rent for the round, not a payment: about 0.009 SOL comes back when you claim your deposit, the rest when the round closes.${isDevnet ? " Devnet SOL: set your wallet to devnet." : ""}`}>+ about 0.026 {isDevnet ? "devnet " : ""}SOL rent, returned to you later</p>
       </section>
