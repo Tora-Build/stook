@@ -23,9 +23,14 @@ const pt = (deg: number, r: number) => [CX + r * Math.sin((deg * Math.PI) / 180)
 const onFace = (h: number) => ((h % 12) / 12) * 360;
 /** A clockwise arc on the face from `d0` to `d1` degrees. */
 function arc(d0: number, d1: number, r: number) {
-  const span = Math.max(0.01, d1 - d0);
-  const [x0, y0] = pt(d0, r), [x1, y1] = pt(d0 + Math.min(span, 359.99), r);
-  return `M ${x0.toFixed(2)} ${y0.toFixed(2)} A ${r} ${r} 0 ${span > 180 ? 1 : 0} 1 ${x1.toFixed(2)} ${y1.toFixed(2)}`;
+  // Drawn in pieces of at most 120 degrees: a whole lap as one arc has both
+  // ends on one point and SVG draws nothing (the ring flickered as the hand
+  // moved), and a half lap is ambiguous. Short pieces are never either.
+  const span = Math.min(360, Math.max(0.01, d1 - d0)), n = Math.ceil(span / 120);
+  const at = (k: number) => pt(d0 + (span * k) / n, r).map((v) => v.toFixed(2)).join(" ");
+  let d = `M ${at(0)}`;
+  for (let k = 1; k <= n; k++) d += ` A ${r} ${r} 0 0 1 ${at(k)}`;
+  return d;
 }
 
 export function PocketWatch({ now, at, locksAt, settlesAt, size = 150, title }: {
