@@ -119,6 +119,7 @@ export function Chart(p: ChartProps) {
 
   const fmt = (v: number) => v.toLocaleString("en-US", { minimumFractionDigits: p.dp, maximumFractionDigits: p.dp });
   const labelEvery = nVis > 30 ? 3 : nVis > 16 ? 2 : 1;
+  const top = levels ? Math.max(...levels) : 0;
   const hoverBox = hover !== null ? { range: hover === 0 ? `below ${fmt(edge(1))}` : hover === BINS - 1 ? `above ${fmt(edge(BINS - 1))}` : `${fmt(edge(hover))} – ${fmt(edge(hover + 1))}`, prob: chance(probs[hover]!), pays: levels ? levels[hover]! : null } : null;
 
   return (
@@ -160,7 +161,7 @@ export function Chart(p: ChartProps) {
         <text x={oddsX + oddsW / 2} y={H - 8} className="lbl" textAnchor="middle">the crowd's odds</text>
       </svg>
       <div className="chart-hover">
-        {hoverBox ? (<><span className="mono">{hoverBox.range}</span><span>{hoverBox.prob} chance</span>{hoverBox.pays !== null && <span className="amber">{hoverBox.pays ? `pays ${hoverBox.pays} a share` : "pays nothing"}</span>}</>)
+        {hoverBox ? (<><span className="mono">{hoverBox.range}</span><span>{hoverBox.prob} chance</span>{hoverBox.pays !== null && <span className="amber">{hoverBox.pays ? hoverBox.pays === top ? "your call pays in full" : `pays ${Math.round((hoverBox.pays / top) * 100)}% of full` : "pays nothing"}</span>}</>)
           : (<span className="muted">{p.disabled ? (p.opened === false ? "Not trading yet." : "Trading is closed.") : "Hover a band for its chance and what it pays."}</span>)}
       </div>
     </div>

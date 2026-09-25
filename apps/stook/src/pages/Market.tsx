@@ -8,13 +8,13 @@ import { Chart, type DrawMode } from "../components/Chart";
 import { Ticket } from "../components/Ticket";
 import { Address } from "../components/Address";
 import { Tour, tourSeen, type TourStop } from "../components/Tour";
-import { Usd, useUsdPerCoin } from "../lib/usd";
+import { Usd, fmtUsd, toUsd, useUsdPerCoin } from "../lib/usd";
 import { Bell } from "../components/Bell";
 import { useLadder, useLivePrice, useMint, usePositions, useRefs, useSend, useSeries, useTranches } from "../hooks/useChain";
 import { useNow } from "../hooks/useNow";
 import { feedByHex, feedHex } from "../lib/feeds";
 import { coinByMint, standInNote } from "../lib/coins";
-import { fmtAmount, fmtPrice, untilText } from "../lib/format";
+import { fmtAmount, fmtCompact, fmtPrice, untilText } from "../lib/format";
 import { nyWhen } from "../lib/time";
 
 export function Market() {
@@ -100,7 +100,7 @@ export function Market() {
           shape={shape} onShape={setShape} mode={mode} height={height}
           live={live.data && live.data.price > 0n ? { price: live.data.price } : null} history={history.data?.points} settlesAt={l.settlesAt} now={now}
           settledBin={l.settledBin} disabled={!tradeable}
-          positions={mine.map((r) => ({ key: r.pubkey.toBase58(), shape: r.position.shape, shares: r.position.shares, label: `${fmtAmount(r.position.shares, l.decimals, 0)} sh` }))}
+          positions={mine.map((r) => ({ key: r.pubkey.toBase58(), shape: r.position.shape, shares: r.position.shares, label: usd !== null ? fmtUsd(toUsd(r.position.netPaid, l.decimals, usd)) : `${fmtCompact(r.position.netPaid, l.decimals)} ${quoteSymbol}` }))}
           selected={selected} onSelect={setSelected}
         />
         <Ticket refs={refs} ladder={shown} shape={shape} selected={sel} onSelect={(r) => { setSelected(r.pubkey.toBase58()); setShape(r.position.shape); }} onDeselect={() => { setSelected(null); setShape(null); }} mode={mode} setMode={setMode} height={height} setHeight={setHeightAndShape}
@@ -120,7 +120,7 @@ function tourStops(anchor: string, coin: string): TourStop[] {
     { target: "board", title: "The board", body: <>Each row is a price band. The blue bars are the crowd's odds: a long bar is a likely close, a short one a long shot. <b>Click a band</b> to place your call there.</> },
     { target: "shape", title: "Target or range", body: <>A <b>target</b> pays most on its band and less on each band away. A <b>range</b> pays the same anywhere inside it: drag across the board to mark one.</> },
     { target: "reach", title: "Reach", body: <>How far a target tapers out. A wide reach catches more closes; a narrow one pays more when you are right.</> },
-    { target: "order", title: "Your order", body: <>A range pays one {c} a share if the close lands inside; a target pays up to its reach on its band. Before you place a call you see what you pay, the fee (2%, rising to 5% over the last six hours) and your best case. Nothing is sent until you sign.</> },
+    { target: "order", title: "Your order", body: <>Enter what you want to spend, in dollars or {c}. A range pays in full if the close lands inside it; a target pays in full on its band and less on each band away. Before you place a call you see what you pay, the fee (2%, rising to 5% over the last six hours) and your best case. Nothing is sent until you sign.</> },
     { target: "house", title: "Or be the house", body: <>Fund the pool instead. The house takes the other side of every call and keeps 90% of the fees. The most it can lose is what you put in.</> },
     { target: "clock", title: "The bell", body: <>Trading stops shortly before the close (an hour, for a round funded a day ahead). The first Pyth price at or after 4 PM settles the round, and winners collect here. If that price came late or unsure, the round is void: deposits come back first and open calls share the rest.</> },
   ];

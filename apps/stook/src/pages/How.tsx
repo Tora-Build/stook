@@ -114,9 +114,9 @@ function Line() {
       </svg>
       <div className="scene-row">
         <label className="height">reach <Slider min={1} max={6} value={reach} onChange={setReach} width={110} /><span className="mono">{reach}</span></label>
-        {band !== null && <span className="mono">1 share ≈ {cost.toFixed(2)}</span>}
+        {band !== null && <span className="mono">{(reach / cost).toFixed(1)}× your stake</span>}
       </div>
-      <div className="scene-caption">{band === null ? "Bars are the crowd's odds." : `Pays ${reach} for ${cost.toFixed(2)}: ${(reach / cost).toFixed(1)}× your stake.`}</div>
+      <div className="scene-caption">{band === null ? "Bars are the crowd's odds." : `Spend ${cost.toFixed(2)}, win ${reach} if it closes on your band. Less on each band away.`}</div>
     </div>
   );
 }

@@ -165,12 +165,11 @@ function RoundBlock({ h, now, own }: { h: Holding; now: number; own: boolean }) 
         <span className={`stamp stamp-${stage.replace(" ", "-")}`}>{stage}</span>
       </header>
       <table className="ledger">
-        <thead><tr><th>holding</th><th>size</th><th>cost</th><th>{stage === "settled" || stage === "void" ? "pays" : "worth"}</th><th>result</th></tr></thead>
+        <thead><tr><th>holding</th><th>cost</th><th>{stage === "settled" || stage === "void" ? "pays" : "worth"}</th><th>result</th></tr></thead>
         <tbody>
           {v.lines.map((x) => { const r = pnl(x); return (
             <tr key={x.key} className={x.kind}>
               <td><span className={`chip-k ${x.kind}`}>{x.kind === "line" ? "CALL" : "HOUSE"}</span> {x.what}{x.note && <div className="ledger-note">{x.note}</div>}</td>
-              <td className="mono">{x.kind === "line" ? `${fmtAmount(x.size, l.decimals, 0)} sh` : fmtAmount(x.size, l.decimals)}</td>
               <td className="mono">{fmtAmount(x.cost, l.decimals)}{$(x.cost)}</td>
               <td className="mono">{x.value === null ? "–" : <>{fmtAmount(x.value, l.decimals)}{$(x.value)}</>}</td>
               <td className={`mono ${r === null ? "muted" : r >= 0n ? "up" : "down"}`}>{r === null ? "at the bell" : <>{`${r >= 0n ? "+" : "−"}${fmtAmount(r >= 0n ? r : -r, l.decimals)}`}{rate !== null && <span className="usd-line">{r >= 0n ? "+" : "−"}{fmtUsd(toUsd(r >= 0n ? r : -r, l.decimals, rate))}</span>}</>}</td>

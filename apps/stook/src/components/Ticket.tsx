@@ -99,7 +99,7 @@ function Mine(p: Props) {
         {p.positions.map((r) => { const on = p.selected?.pubkey.equals(r.pubkey); return (
           <li key={r.pubkey.toBase58()}><button className={on ? "on" : ""} onClick={() => (on ? p.onDeselect() : p.onSelect(r))}>
             <span>{name(r.position.shape)}</span>
-            <span className="mono">{p.usd !== null ? fmtUsd(toUsd(r.position.netPaid, dec, p.usd)) : fmtCompact(r.position.netPaid, dec)} · {fmtCompact(r.position.shares, dec)} sh</span>
+            <span className="mono">{p.usd !== null ? fmtUsd(toUsd(r.position.netPaid, dec, p.usd)) : fmtCompact(r.position.netPaid, dec)}</span>
           </button></li>); })}
       </ul>}
     </div>
@@ -112,7 +112,7 @@ function Held(p: Props & { pos: PositionRow }) {
   const pos = p.pos.position, s = pos.shape, dec = p.ladder.decimals;
   return (
     <>
-      <div className="shape-desc">Your {s.h > 1 ? `target, reach ${s.h}` : "range"} · {fmtAmount(pos.shares, dec)} shares · paid {fmtAmount(pos.netPaid, dec)} <Usd units={pos.netPaid} decimals={dec} rate={p.usd} /> <button className="link" onClick={p.onDeselect}>· place a new one</button></div>
+      <div className="shape-desc">Your {s.h > 1 ? `target, reach ${s.h}` : "range"} · paid {p.usd !== null ? fmtUsd(toUsd(pos.netPaid, dec, p.usd)) : `${fmtCompact(pos.netPaid, dec)} ${p.quoteSymbol}`} <button className="link" onClick={p.onDeselect}>· place a new one</button></div>
       <div className="seg held-side"><button className={side === "buy" ? "on" : ""} onClick={() => setSide("buy")}>Add more</button><button className={side === "sell" ? "on" : ""} onClick={() => setSide("sell")}>Sell</button></div>
       {side === "buy" ? <Buy {...p} shape={s} held /> : <Sell {...p} pos={p.pos} />}
     </>
@@ -122,9 +122,13 @@ function Held(p: Props & { pos: PositionRow }) {
 // ── buy a line: a new one, or (`held`) more of one you already hold ──────────
 function Buy(p: Props & { held?: boolean }) {
   const { publicKey } = useWallet();
-  const [text, setText] = useState("10");
+  // The amount is what you spend, in dollars or the coin: shares are the
+  // program's unit, not the player's. Dollars first when the coin has a price.
+  const [unitPicked, setUnit] = useState<"coin" | "usd" | null>(null);
+  const unit = unitPicked ?? (p.usd !== null ? "usd" : "coin");
+  const [typed, setText] = useState<string | null>(null);
+  const text = typed ?? (unit === "usd" ? "5" : "100");
   // What the number means: shares, or an amount to spend in the coin or in dollars.
-  const [unit, setUnit] = useState<"shares" | "coin" | "usd">("shares");
   const send = useSend("Call placed");
   const balance = useBalance(p.ladder.quoteMint, p.refs.tokenProgram);
   const l = p.ladder, dec = l.decimals, s = p.shape;
@@ -132,9 +136,8 @@ function Buy(p: Props & { held?: boolean }) {
   const feeBps = stook.feeBpsAt(l.feeBps, BigInt(p.now), l.settlesAt);
   const quote = (n: bigint) => { try { return stook.quoteTrade({ curve: l.curve, b: l.b, feeBps, decimals: dec }, s!, n); } catch { return null; } };
   // A spend becomes the most shares it buys, the coin's transfer fee included.
-  const budget = unit === "shares" ? null : unit === "coin" ? parseAmount(text, dec) : p.usd ? fromUsd(Number(text.replace(/,/g, "")) || 0, dec, p.usd) : null;
+  const budget = unit === "coin" ? parseAmount(text, dec) : p.usd ? fromUsd(Number(text.replace(/,/g, "")) || 0, dec, p.usd) : null;
   const shares = useMemo(() => {
-    if (unit === "shares") return parseAmount(text, dec);
     if (!s || !budget || budget <= 0n) return null;
     const cost = (n: bigint) => { const x = quote(n); return x ? stook.grossFor(x.total, p.transferFee) : null; };
     let lo = 0n, hi = budget > 0n ? budget : 1n;
@@ -171,7 +174,7 @@ function Buy(p: Props & { held?: boolean }) {
       {!s ? (p.tradeable
         ? <div className="pick-hint"><span className="pick-arrow" aria-hidden="true">◀</span><span><b>Pick your price on the board.</b> {p.mode === "line" ? "Click a band." : "Drag across a range."}{p.positions.length > 0 ? " Or pick one of your calls to add to it or sell it." : ""}</span></div>
         : <p className="explain">{l.status === "seeding" ? (p.now < Number(l.opensAt) ? `Funded. Trading opens ${nyWhen(l.opensAt, { weekday: "short", hour: "numeric", minute: "2-digit" })} NY; the House takes deposits now.` : p.now < Number(l.opensAt) + Number(stook.OPEN_WINDOW_SECS) ? "Opening in a moment. Deposits are open." : "This round did not open in time and will be void; deposits come back.") : "Trading is closed; the bell is next."}</p>)
-        : <div className="shape-desc">{p.symbol} at {where}{existing && !p.held && <span className="muted"> · same as your {fmtAmount(existing.position.shares, dec)} sh call: this adds to it</span>}</div>}
+        : null}
       {s && (
         <table className="ladder-table">
           <thead><tr><th>If it lands</th><th>chance</th><th>you get back</th><th>on stake</th></tr></thead>
@@ -181,29 +184,33 @@ function Buy(p: Props & { held?: boolean }) {
           </tbody>
         </table>
       )}
-      {s && s.h > 1 && <p className="hint">A share pays {s.h} on your band, one less per band away.</p>}
+      {s && s.h > 1 && <p className="hint">Pays most on your band, a little less on each band away.</p>}
       <div className="field" data-tour="order">
         <div className="amount-head">
-          <span>{unit === "shares" ? "Shares" : "Spend"}</span>
+          <span>Spend</span>
           <div className="seg seg-sm" role="group" aria-label="Enter the amount in">
-            <button className={unit === "shares" ? "on" : ""} onClick={() => setUnit("shares")}>Shares</button>
-            <button className={unit === "coin" ? "on" : ""} onClick={() => setUnit("coin")}>{p.quoteSymbol}</button>
-            {p.usd !== null && <button className={unit === "usd" ? "on" : ""} onClick={() => setUnit("usd")}>USD</button>}
+            {p.usd !== null && <button className={unit === "usd" ? "on" : ""} onClick={() => { setUnit("usd"); setText(null); }}>USD</button>}
+            <button className={unit === "coin" ? "on" : ""} onClick={() => { setUnit("coin"); setText(null); }}>{p.quoteSymbol}</button>
           </div>
         </div>
         <div className={`amount-input ${unit === "usd" ? "amount-usd" : ""}`}>
           {unit === "usd" && <span className="amount-sign">$</span>}
-          <input value={text} onChange={(e) => setText(e.target.value)} inputMode="decimal" aria-label={unit === "shares" ? "Shares" : `Spend in ${unit === "usd" ? "dollars" : p.quoteSymbol}`} />
+          <input value={text} onChange={(e) => setText(e.target.value)} inputMode="decimal" aria-label={`Spend in ${unit === "usd" ? "dollars" : p.quoteSymbol}`} />
           {unit === "coin" && <span className="amount-unit">{p.quoteSymbol}</span>}
         </div>
-        <span className="hint">{unit !== "shares" && shares ? <>{fmtAmount(shares, dec)} shares · </> : null}balance {balance.data !== undefined ? <>{fmtAmount(balance.data, dec)} {p.quoteSymbol} <Usd units={balance.data} decimals={dec} rate={p.usd} /></> : `… ${p.quoteSymbol}`}</span>
+        <span className="hint">balance {balance.data !== undefined ? <>{fmtAmount(balance.data, dec)} {p.quoteSymbol} <Usd units={balance.data} decimals={dec} rate={p.usd} /></> : `… ${p.quoteSymbol}`}</span>
       </div>
       {budget !== null && pays !== null && pays * 100n < budget * 99n && <p className="warn">This round can take about {fmtAmount(pays, dec)} {p.quoteSymbol}{p.usd !== null ? ` (${fmtUsd(toUsd(pays, dec, p.usd))})` : ""} on this call right now, less than you entered. That is what the order below spends.</p>}
-      {q && pays !== null && limit !== null && <div className="ticket-paper" role="group" aria-label="Your order">
+      {s && q && pays !== null && limit !== null && <div className="ticket-paper" role="group" aria-label="Your order">
+        <div className="tp-head"><span>{existing && !p.held ? "Adding to your call" : "Your call"}</span><b className="mono">{p.symbol} {s.h === 1 ? `range ${where}` : `target ${where}`}</b></div>
         <div className="tp-row"><span>You pay</span><i /><b className="mono">{p.usd !== null ? fmtUsd(toUsd(pays, dec, p.usd)) : `${fmtCompact(pays, dec)} ${p.quoteSymbol}`}</b></div>
-        <div className="tp-sub mono">{fmtCompact(pays, dec)} {p.quoteSymbol} · fee {(feeBps / 100).toFixed(feeBps % 100 ? 1 : 0)}%{feeBps >= stook.FEE_PEAK_BPS ? ", its highest" : Number(l.settlesAt) - p.now < 6 * 3600 ? ", rising to 5% by the lock" : ""}</div>
-        <div className="tp-win"><span>To win</span><b className="mono">{p.usd !== null ? fmtUsd(toUsd(lands(q.maxPayout), dec, p.usd)) : `${fmtCompact(lands(q.maxPayout), dec)} ${p.quoteSymbol}`}</b><em className="mono">{(Number(lands(q.maxPayout)) / Number(pays)).toLocaleString("en-US", { maximumFractionDigits: 1 })}×</em></div>
-        <div className="tp-sub">best case, if it closes {moveFromOpen(l, Math.floor((s!.lo + s!.hi) / 2))}</div>
+        <div className="tp-row tp-small"><span>{fmtCompact(pays, dec)} {p.quoteSymbol}</span></div>
+        <div className="tp-row tp-small"><span>Fee {(feeBps / 100).toFixed(feeBps % 100 ? 1 : 0)}%{feeBps >= stook.FEE_PEAK_BPS ? ", its highest" : Number(l.settlesAt) - p.now < 6 * 3600 ? ", rising to 5% by the lock" : ""}</span><i /><span className="mono">{p.usd !== null ? fmtUsd(toUsd(q.fee, dec, p.usd)) : `${fmtCompact(q.fee, dec)} ${p.quoteSymbol}`}</span></div>
+        <div className="tp-win">
+          <div className="tp-win-top"><span>To win</span><em className="mono">{(Number(lands(q.maxPayout)) / Number(pays)).toLocaleString("en-US", { maximumFractionDigits: 1 })}×</em></div>
+          <b className="mono">{p.usd !== null ? fmtUsd(toUsd(lands(q.maxPayout), dec, p.usd)) : `${fmtCompact(lands(q.maxPayout), dec)} ${p.quoteSymbol}`}</b>
+          <div className="tp-note">{fmtCompact(lands(q.maxPayout), dec)} {p.quoteSymbol}, if it closes {moveFromOpen(l, Math.floor((s.lo + s.hi) / 2))}</div>
+        </div>
         <details className="tp-more"><summary>Limits</summary>
           <div className="tp-row"><span>Most it can cost</span><i /><b className="mono">{p.usd !== null ? fmtUsd(toUsd(limit, dec, p.usd)) : `${fmtCompact(limit, dec)} ${p.quoteSymbol}`}</b></div>
           {pays !== q.total && <div className="tp-row"><span>Coin's transfer fee</span><i /><b className="mono">{p.usd !== null ? fmtUsd(toUsd(pays - q.total, dec, p.usd)) : `${fmtCompact(pays - q.total, dec)} ${p.quoteSymbol}`}</b></div>}
@@ -229,7 +236,7 @@ function Sell(p: Props & { pos: PositionRow }) {
   const submit = () => { if (!q || !publicKey || limit === null) return; send.mutate({ computeUnits: stook.tradeComputeUnits(s), ixs: [ensureAta(l.quoteMint, publicKey, p.refs.tokenProgram), stook.tradeLadderIx(p.refs, { user: publicKey, userToken: ataOf(l.quoteMint, publicKey, p.refs.tokenProgram), shape: s, shares: -size, limit })] }, { onSuccess: () => { if (pct === 100) p.onDeselect(); } }); };
   return (
     <>
-      <label className="height sell-slider">sell <Slider min={1} max={100} value={pct} onChange={setPct} width={180} /><span className="mono">{pct}% = {fmtAmount(size, dec)} sh</span></label>
+      <label className="height sell-slider">sell <Slider min={1} max={100} value={pct} onChange={setPct} width={180} /><span className="mono">{pct}%</span></label>
       {q && get !== null && limit !== null && <div className="ticket-paper" role="group" aria-label="Your sale">
         <div className="tp-win"><span>You get</span><b className="mono">{p.usd !== null ? fmtUsd(toUsd(get, dec, p.usd)) : `${fmtCompact(get, dec)} ${p.quoteSymbol}`}</b></div>
         <div className="tp-sub mono">{fmtCompact(get, dec)} {p.quoteSymbol}</div>
@@ -278,7 +285,7 @@ function Collect(p: Props) {
       <p className="explain">{l.status === "void" ? `The round was void. Deposits come back first, up to what was put in; open calls share what is left${linesPct !== null && Math.abs(linesPct - 100) >= 0.005 ? `, ${linesPct.toFixed(2)}% of what they cost, because sellers took their gains before the void` : ", at cost"}.` : `The bell rang. Band ${l.settledBin} landed.`}</p>
       {nothing ? <p className="muted">You had nothing in this round.</p> : (
         <ul className="rows">
-          {owed.map(({ r, amount }) => <li key={r.pubkey.toBase58()}><span>{r.position.shape.h > 1 ? `target, reach ${r.position.shape.h}` : "range"} · {fmtAmount(r.position.shares, dec)} sh</span><span className={`mono ${amount > 0n ? "up" : "muted"}`}>{amount > 0n ? `+${fmtAmount(amount, dec)}` : "0"} {amount > 0n && <Usd units={amount} decimals={dec} rate={p.usd} />}</span></li>)}
+          {owed.map(({ r, amount }) => <li key={r.pubkey.toBase58()}><span>{r.position.shape.h > 1 ? `target, reach ${r.position.shape.h}` : "range"} · paid {fmtCompact(r.position.netPaid, dec)}</span><span className={`mono ${amount > 0n ? "up" : "muted"}`}>{amount > 0n ? `+${fmtAmount(amount, dec)}` : "0"} {amount > 0n && <Usd units={amount} decimals={dec} rate={p.usd} />}</span></li>)}
           {lp.map(({ t, v }) => <li key={t.pubkey.toBase58()}><span>deposit #{t.tranche.index} · {fmtAmount(t.tranche.deposit, dec)}</span><span className="mono">{fmtAmount(v, dec)} <Usd units={v} decimals={dec} rate={p.usd} /></span></li>)}
         </ul>
       )}
