@@ -1106,3 +1106,10 @@ a.tour-btn { text-decoration: none; }
 .how-more-in { padding: .2rem .8rem .6rem; }
 .how-more-in p { font-size: .88rem !important; }
 .placard-scene .scene-svg { max-height: 150px; }
+
+.coin-board h1 { font-size: 1.35rem; margin: 0; }
+.coin-board .coin-in { font-family: var(--sans); font-size: .9rem; color: var(--cream-2); font-weight: 600; }
+.coin-board .board-top { padding: .6rem 1rem; }
+.coin-board .logos-big img.logo-coin { width: 56px; height: 56px; }
+.tour-btn { display: inline-flex; align-items: center; gap: .45rem; }
+.tour-ico { flex: none; }

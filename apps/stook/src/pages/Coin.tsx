@@ -3,7 +3,7 @@
 // nobody has funded is empty; whoever seeds it first starts the round and is
 // its first LP; everyone after adds liquidity to the same round.
 import { useMemo } from "react";
-import { Link, useParams } from "react-router-dom";
+import { useParams } from "react-router-dom";
 import { useState } from "react";
 import { StartRound } from "../components/StartRound";
 import { WallCalendar } from "../components/WallCalendar";
@@ -53,15 +53,12 @@ export function Coin() {
           <div className="strip-id">
             <div className="logos logos-big logos-anchor-first"><img src={coin.anchor.logo} alt={coin.anchor.symbol} className="logo-coin" /><img src={coin.logo} alt={coin.symbol} className="logo-anchor" /></div>
             <div>
-              <span className="sign">${coin.symbol} · {coin.name.toUpperCase()}</span>
-              <h1>{coin.anchor.name} <span className="sym">{coin.anchor.symbol}</span></h1>
+              <h1>{coin.anchor.name} <span className="sym">{coin.anchor.symbol}</span> <span className="coin-in">in ${coin.symbol}</span></h1>
               <div className="board-sub">
-                <span>Where does it close at 4 PM New York? Call it, paid in ${coin.symbol}.</span>
                 <Address label={`${coin.anchor.symbol} token`} value={coin.anchor.mint} />{coin.mint && <Address label={`$${coin.symbol}`} value={coin.mint} dim />}
               </div>
             </div>
           </div>
-          <Link className="tour-btn" to="/how">? How it works</Link>
         </div>
         <div className="board-tape">
           <div className="tape-cell"><span className="strip-k">{coin.anchor.symbol} now</span><b className="mono">{q ? `$${q.price.toLocaleString("en-US", { minimumFractionDigits: coin.anchor.dp, maximumFractionDigits: coin.anchor.dp })}` : "…"}</b>

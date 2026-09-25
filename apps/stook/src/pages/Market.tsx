@@ -112,7 +112,7 @@ export function Market() {
           <div className={`status status-${l.status}`} data-tour="clock"><Bell ringing={l.status === "open" && now >= Number(l.settlesAt)} rung={l.status === "settled"} />{l.status === "open" && now < Number(l.settlesAt)
             ? <span className="status-lines"><span>rings in {untilText(l.settlesAt, now)}</span><span className="status-sub">{now < Number(l.locksAt) ? `trading · locks in ${untilText(l.locksAt, now)}` : "locked · no more trades"}</span></span>
             : stateText}</div>
-          <button className="tour-btn" onClick={startTour} aria-label="Open the floor guide">? Floor guide</button>
+          <button className="tour-btn" onClick={startTour} aria-label="Open the floor guide"><svg className="tour-ico" viewBox="0 0 10 10" width="14" height="14" shapeRendering="crispEdges" aria-hidden="true"><rect x="4" y="0" width="2" height="10" fill="currentColor" /><rect x="1" y="1" width="7" height="3" fill="currentColor" /><rect x="8" y="2" width="1" height="1" fill="currentColor" /><rect x="3" y="5" width="6" height="3" fill="currentColor" /><rect x="2" y="6" width="1" height="1" fill="currentColor" /></svg>Floor guide</button>
         </div>
         <div className="board-tape">
           <div className="tape-cell"><span className="strip-k">now</span><b className="mono">{livePrice !== null ? `$${fmtPrice(BigInt(Math.round(livePrice / 10 ** live.data!.expo)), live.data!.expo, feed.dp)}` : "…"}</b>
