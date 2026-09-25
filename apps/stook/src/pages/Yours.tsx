@@ -177,13 +177,13 @@ export function Yours() {
             <div className="seg seg-sm" role="group" aria-label="Show">
               {(["all", "open", "done"] as const).map((k) => <button key={k} className={view === k ? "on" : ""} onClick={() => setView(k)}>{k === "all" ? "All" : k === "open" ? "Running" : "Finished"}</button>)}
             </div>
+            {days.length > 1 && <DayPicker days={days.map(([d, hs]) => [d, hs.length])} today={today} onPick={pick} />}
             {coinsHeld.length > 1 && <div className="pb-coins" role="group" aria-label="Coin">
               <button className={`pb-chip ${coinF === "all" ? "on" : ""}`} onClick={() => setCoinF("all")}>every coin</button>
               {coinsHeld.map((c) => { const coin = COINS.find((x) => x.symbol === c); return <button key={c} className={`pb-chip ${coinF === c ? "on" : ""}`} onClick={() => setCoinF(c)}>{coin && <img src={coin.logo} alt="" />}${c}</button>; })}
             </div>}
           </div>
 
-          {days.length > 1 && <DayPicker days={days.map(([d, hs]) => [d, hs.length])} today={today} onPick={pick} />}
           {days.length === 0 && <p className="stmt-empty">Nothing here with these filters.</p>}
           {jump && <div className="dp-showing"><span>Showing {nyWhen(Number(days.find(([d]) => d === jump)?.[1][0]?.ladder.settlesAt ?? 0), { weekday: "long", month: "short", day: "numeric" })}</span><button className="link" onClick={() => setJump(null)}>show every day</button></div>}
           {days.filter(([d]) => !jump || d === jump).map(([d, hs], n) => (

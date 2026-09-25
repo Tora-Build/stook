@@ -358,8 +358,8 @@ a.wc-cell:hover { text-decoration: none; border-color: var(--taxi); }
 @keyframes drop-in { from { transform: perspective(1400px) rotateX(-92deg); } to { transform: perspective(1400px) rotateX(0); } }
 @media (max-width: 640px) { .wallcal { padding: 1.2rem .5rem .6rem; } .wc-grid { gap: 2px; } .wc-cell { min-height: 54px; padding: .25rem; } .wc-state, .wc-sub, .wc-left, .wc-empty { display: none; } .wc-info { font-size: .62rem; word-break: break-word; } .wc-stamp { font-size: .55rem; } }
 @media (prefers-reduced-motion: reduce) { .turn-out-fwd, .turn-in-fwd, .turn-out-back, .turn-in-back { animation: none; } }
-.sheet-back { position: fixed; inset: 0; background: rgba(11, 17, 32, .7); display: grid; place-items: center; z-index: 40; padding: 1rem; }
-.sheet { width: min(520px, 100%); margin: 0; }
+.sheet-back { position: fixed; inset: 0; background: rgba(11, 17, 32, .7); display: grid; place-items: center; z-index: 40; padding: 1rem; overflow-y: auto; }
+.sheet { width: min(520px, 100%); margin: auto 0; max-height: none; }
 @media (max-width: 640px) { .cal-cell { min-height: 54px; padding: .3rem; } .cal-status { display: none; } }
 
 /* the tour */
@@ -1135,3 +1135,8 @@ a.tour-btn { text-decoration: none; }
 .pb-row .stamp { font-size: .4rem; }
 .wc-rubber.stamp-settled, .wc-rubber.stamp-void { left: auto; top: auto; right: .35rem; bottom: .45rem; transform: rotate(-10deg); }
 .wc-settled .wc-info .wc-sub { display: none; }
+.pb-filters .dp { margin: 0; } .pb-filters .pb-coins { margin-left: auto; }
+/* the fund sheet: tighter, and it scrolls when the window is short */
+.ticket-sheet { gap: .6rem; }
+.ticket-sheet .ts-clock { margin-top: -.2rem; }
+@media (max-height: 820px) { .sheet-back { place-items: start center; } }
