@@ -1039,3 +1039,6 @@ a.tour-btn { text-decoration: none; }
 @keyframes crawl { from { transform: translateX(0); } to { transform: translateX(-50%); } }
 @media (prefers-reduced-motion: reduce) { .crawl-run { animation: none; } .crawl-track { overflow-x: auto; } }
 .crawl .led-down { color: #ff7a6a; text-shadow: 0 0 6px rgba(255,122,106,.6); }
+.crawl-mid { flex: 1; display: flex; align-items: center; justify-content: center; font-size: .55rem; letter-spacing: .1em; }
+.jup-buy { display: inline-block; margin-left: .6rem; padding: .2rem .55rem; background: var(--taxi); color: var(--ink) !important; font-family: var(--px); font-size: .45rem; text-decoration: none; }
+.jup-buy:hover { background: var(--cream); }

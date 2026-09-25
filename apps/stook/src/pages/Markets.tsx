@@ -66,10 +66,9 @@ export function Markets() {
             <div><dt>coin</dt><dd>$STOOK · Stook Street · the street's own</dd></div>
             <div><dt>follows</dt><dd>S&amp;P 500 · SPYx · <span className="mono">XsoCS1TfEyfFhfvj8EtZ528L3CaKBDBRqRapnBbDF2W</span></dd></div>
             {/* the mint comes from the build's environment, not the repo */}
-            {STOOK_MINT && <div><dt>mint</dt><dd className="muted mono">{STOOK_MINT}</dd></div>}
+            {STOOK_MINT && <div><dt>mint</dt><dd className="mono"><a href={`https://jup.ag/swap/SOL-${STOOK_MINT}`} target="_blank" rel="noopener noreferrer" title="Swap for $STOOK on Jupiter">{STOOK_MINT} ↗</a> <a className="jup-buy" href={`https://jup.ag/swap/SOL-${STOOK_MINT}`} target="_blank" rel="noopener noreferrer">Buy on Jupiter</a></dd></div>}
             {stookQ?.usd ? <div><dt>price</dt><dd className="mono">{fmtUsd(stookQ.usd)}{typeof stookQ.change24h === "number" && <span className={stookQ.change24h >= 0 ? "up" : "down"}> {stookQ.change24h >= 0 ? "+" : ""}{stookQ.change24h.toFixed(1)}% 24h</span>}</dd></div> : null}
             <div><dt>on</dt><dd>StonkFun, Solana</dd></div>
-            <div><dt>its table</dt><dd>The S&amp;P 500 table is paid in $STOOK: calls, the pool and the payouts. Every other table is paid in its own coin.</dd></div>
           </dl>
         </div>
       </section>
