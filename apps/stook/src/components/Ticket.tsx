@@ -214,13 +214,12 @@ function Buy(p: Props & { held?: boolean }) {
       {budget !== null && pays !== null && pays * 100n < budget * 99n && <Notice tone="warn" title="Round limit">Only {coinText(pays, dec, p.quoteSymbol)} more fits on this call: its odds are near the most this round can price. The order below uses that.</Notice>}
       {s && q && pays !== null && limit !== null && <div className="ticket-paper" role="group" aria-label="Your order" data-tour="paper">
         <div className="tp-head"><span>{existing && !p.held ? "Adding to your call" : "Your call"}</span><b className="mono">{p.symbol} {s.h === 1 ? `range ${where}` : `target ${where}`}</b></div>
-        <div className="tp-row"><span>You pay</span><i /><b className="mono">{coinText(pays, dec, p.quoteSymbol)}</b></div>
-        {p.usd !== null && <div className="tp-row tp-small"><span>{approxUsd(pays, dec, p.usd)} today</span></div>}
+        <div className="tp-row"><span>You pay</span><i /><b className="mono">{coinText(pays, dec, p.quoteSymbol)}{p.usd !== null && <span className="tp-usd">{approxUsd(pays, dec, p.usd)}</span>}</b></div>
         <div className="tp-row tp-small"><span>Fee {(feeBps / 100).toFixed(feeBps % 100 ? 1 : 0)}%{feeBps >= stook.FEE_PEAK_BPS ? ", its highest" : Number(l.settlesAt) - p.now < 6 * 3600 ? ", rising to 5% by the lock" : ""}</span><i /><span className="mono">{coinText(q.fee, dec, p.quoteSymbol)}</span></div>
         <div className="tp-win">
           <div className="tp-win-top"><span>To win</span><em className="mono">{(Number(lands(q.maxPayout)) / Number(pays)).toLocaleString("en-US", { maximumFractionDigits: 1 })}×</em></div>
-          <b className="mono">{coinText(lands(q.maxPayout), dec, p.quoteSymbol)}</b>
-          <div className="tp-note">{p.usd !== null ? `${approxUsd(lands(q.maxPayout), dec, p.usd)} today, ` : ""}if it closes {moveFromOpen(l, Math.floor((s.lo + s.hi) / 2))}</div>
+          <div className="tp-win-amt"><b className="mono">{coinText(lands(q.maxPayout), dec, p.quoteSymbol)}</b>{p.usd !== null && <span className="tp-usd mono">{approxUsd(lands(q.maxPayout), dec, p.usd)}</span>}</div>
+          <div className="tp-note">if it closes {moveFromOpen(l, Math.floor((s.lo + s.hi) / 2))}</div>
         </div>
         <details className="tp-more"><summary>Limits</summary>
           <div className="tp-row"><span>Most it can cost</span><i /><b className="mono">{coinText(limit, dec, p.quoteSymbol)}</b></div>
@@ -249,8 +248,7 @@ function Sell(p: Props & { pos: PositionRow }) {
     <>
       <label className="height sell-slider">sell <Slider min={1} max={100} value={pct} onChange={setPct} width={180} /><span className="mono">{pct}%</span></label>
       {q && get !== null && limit !== null && <div className="ticket-paper" role="group" aria-label="Your sale">
-        <div className="tp-win"><span>You get</span><b className="mono">{coinText(get, dec, p.quoteSymbol)}</b></div>
-        {p.usd !== null && <div className="tp-sub mono">{approxUsd(get, dec, p.usd)} today</div>}
+        <div className="tp-win"><span>You get</span><div className="tp-win-amt"><b className="mono">{coinText(get, dec, p.quoteSymbol)}</b>{p.usd !== null && <span className="tp-usd mono">{approxUsd(get, dec, p.usd)}</span>}</div></div>
         <div className="tp-row"><span>{get >= paidFor ? "Profit" : "Loss"}</span><i /><b className={`mono ${get >= paidFor ? "tp-up" : "tp-down"}`}>{get >= paidFor ? "+" : "−"}{coinText(get >= paidFor ? get - paidFor : paidFor - get, dec, p.quoteSymbol)}</b></div>
         <details className="tp-more"><summary>Limits</summary>
           <div className="tp-row"><span>At least, if the odds move first</span><i /><b className="mono">{coinText(stook.netOf(limit, p.transferFee), dec, p.quoteSymbol)}</b></div>

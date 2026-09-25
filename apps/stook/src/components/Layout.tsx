@@ -31,7 +31,11 @@ export function Layout() {
       <main className={home ? "main-street" : ""}><PageGuard key={location.pathname}><Outlet /></PageGuard></main>
       <footer className="foot">
         <span>Stook Street · devnet</span>
-        <a href="https://github.com/Tora-Build/stook" target="_blank" rel="noreferrer">source</a>
+        <span className="foot-links">
+          <a href="https://x.com/StookStreet" target="_blank" rel="noreferrer">X</a>
+          <a href="https://t.me/StookStreet" target="_blank" rel="noreferrer">Telegram</a>
+          <a href="https://github.com/Tora-Build/stook" target="_blank" rel="noreferrer">source</a>
+        </span>
       </footer>
     </div>
   );

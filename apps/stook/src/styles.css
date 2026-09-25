@@ -997,10 +997,17 @@ a.tour-btn { text-decoration: none; }
 .tp-row-btn { width: 100%; background: none; border: 0; padding: .15rem 0; font: inherit; color: inherit; text-align: left; cursor: pointer; }
 .tp-row-btn:hover span:first-child { text-decoration: underline; text-decoration-style: dotted; }
 .tp-caret { display: inline-block; width: 1rem; color: #8d6a2a; }
-.tp-fold { display: grid; grid-template-rows: 0fr; transition: grid-template-rows .35s ease; }
-.tp-fold-in { overflow: hidden; transform-origin: top; transform: perspective(600px) rotateX(-70deg); opacity: 0; transition: transform .35s ease, opacity .25s ease; }
+.tp-fold { display: grid; grid-template-rows: 0fr; transition: grid-template-rows .45s cubic-bezier(.3, .7, .3, 1); perspective: 900px; }
+/* The hidden part is a sheet folded back under the crease above it. Opening
+   swings it down on that crease, darker while it faces away from the light,
+   and leaves the crease on the paper: a fine line with a lit edge, the way a
+   slip that was folded never lies quite flat again. */
+.tp-fold-in { position: relative; overflow: hidden; transform-origin: top center; transform: rotateX(-88deg); transition: transform .45s cubic-bezier(.3, .7, .3, 1); backface-visibility: hidden; }
+.tp-fold-in::before { content: ""; position: absolute; inset: 0; pointer-events: none; background: linear-gradient(180deg, rgba(60, 45, 20, .35), rgba(60, 45, 20, .08)); opacity: 1; transition: opacity .45s ease; }
+.tp-fold-in::after { content: ""; position: absolute; left: 0; right: 0; top: 0; height: 2px; pointer-events: none; background: linear-gradient(180deg, rgba(80, 60, 30, .28), rgba(255, 252, 240, .9)); }
 .tp-fold-open, .tp-line-open > .tp-fold-sub { grid-template-rows: 1fr; }
-.tp-fold-open > .tp-fold-in, .tp-line-open > .tp-fold-sub > .tp-fold-in { transform: none; opacity: 1; }
+.tp-fold-open > .tp-fold-in, .tp-line-open > .tp-fold-sub > .tp-fold-in { transform: none; }
+.tp-fold-open > .tp-fold-in::before, .tp-line-open > .tp-fold-sub > .tp-fold-in::before { opacity: 0; }
 .tp-fold-sub .tp-fold-in { margin-left: 1rem; border-left: 2px dotted rgba(16, 26, 46, .3); padding-left: .6rem; }
 .tp-sub { font-size: .8rem; color: #4d4638; padding: .15rem 0; }
 .tp-line-open { background: linear-gradient(180deg, rgba(16, 26, 46, .05), transparent); }
@@ -1042,3 +1049,10 @@ a.tour-btn { text-decoration: none; }
 .crawl-mid { flex: 1; display: flex; align-items: center; justify-content: center; font-size: .55rem; letter-spacing: .1em; }
 .jup-buy { display: inline-block; margin-left: .6rem; padding: .2rem .55rem; background: var(--taxi); color: var(--ink) !important; font-family: var(--px); font-size: .45rem; text-decoration: none; }
 .jup-buy:hover { background: var(--cream); }
+
+/* dollars beside the coin, on the same line */
+.tp-usd { margin-left: .5rem; font-weight: 400; color: #6b6452; }
+.tp-win-amt { display: flex; align-items: baseline; flex-wrap: wrap; gap: 0 .7rem; }
+.tp-win-amt .tp-usd { margin-left: 0; font-size: 1.05rem; color: #3f6b52; }
+.ticket-paper .tp-win .tp-win-amt > b { font-size: 2.2rem; font-weight: 700; line-height: 1.15; }
+.foot-links { display: flex; gap: 1rem; }

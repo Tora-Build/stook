@@ -124,8 +124,8 @@ export function LpPanel(p: Props) {
           {depth && deposit && gross !== null && (
             <div className="ticket-paper" role="group" aria-label="Your deposit">
               <div className="tp-head"><span>Your deposit</span><b className="mono">the {p.quoteSymbol} house, this round</b></div>
-              <div className="tp-row"><span>You pay</span><i /><b className="mono">{big(gross)}</b></div>
-              <div className="tp-row tp-small"><span>{[rate !== null && `${approxUsd(gross, dec, rate)} today`, p.transferFee && gross !== deposit && `with the coin's ${(p.transferFee.bps / 100).toFixed(0)}% transfer fee`].filter(Boolean).join(", ")}</span></div>
+              <div className="tp-row"><span>You pay</span><i /><b className="mono">{big(gross)}{rate !== null && <span className="tp-usd">{approxUsd(gross, dec, rate)}</span>}</b></div>
+              {p.transferFee && gross !== deposit && <div className="tp-row tp-small"><span>with the coin's {(p.transferFee.bps / 100).toFixed(0)}% transfer fee</span></div>}
               <div className="tp-win">
                 <div className="tp-win-top"><span>Your share</span>{share.now > 0 && <em className="mono">was {pctOf(share.now)}</em>}</div>
                 <b className="mono">{pctOf(share.after)}</b>

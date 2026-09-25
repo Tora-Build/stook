@@ -88,8 +88,8 @@ export function StartRound({ coin, seriesKey, series, index, onClose }: { coin: 
         {!!seed && !!gross && (
           <div className="ticket-paper" role="group" aria-label="Your seed">
             <div className="tp-head"><span>Your seed</span><b className="mono">the ${coin.symbol} house, {nyWhen(settlesAt, { weekday: "short", month: "short", day: "numeric" })}</b></div>
-            <div className="tp-row"><span>You pay</span><i /><b className="mono">{coinText(gross, dec, coin.symbol)}</b></div>
-            <div className="tp-row tp-small"><span>{[rate !== null && `${approxUsd(gross, dec, rate)} today`, gross !== seed && `with the coin's ${(mint.data?.report.transferFee?.bps ?? 0) / 100}% transfer fee`].filter(Boolean).join(", ")}</span></div>
+            <div className="tp-row"><span>You pay</span><i /><b className="mono">{coinText(gross, dec, coin.symbol)}{rate !== null && <span className="tp-usd">{approxUsd(gross, dec, rate)}</span>}</b></div>
+            {gross !== seed && <div className="tp-row tp-small"><span>with the coin's {(mint.data?.report.transferFee?.bps ?? 0) / 100}% transfer fee</span></div>}
             <div className="tp-win">
               <div className="tp-win-top"><span>Your share</span><em className="mono">first in</em></div>
               <b className="mono">100%</b>
