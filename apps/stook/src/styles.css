@@ -859,3 +859,13 @@ button.tour-skip:hover { color: var(--cream); }
 @media (max-width: 420px) { .quote-line b { font-size: 1.05rem; } .quote-line > div { padding: 0 .45rem; } }
 .stake-paper .primary { width: 100%; margin-top: .7rem; }
 .stake-paper .tp-more .tp-row .mono { font-size: .76rem; }
+
+/* Yours, dollars first: the coin amount rides beneath, small */
+.tote-usd { font-size: 2rem; line-height: 1.1; margin-bottom: .35rem; }
+.tote-ready .tote-usd { color: var(--taxi); }
+.tote-v.tote-sub { font-size: .85rem; color: var(--cream-2); }
+.ledger .amt-big { display: block; font-size: .95rem; }
+.ledger .amt-coin { display: block; font-size: .72rem; color: var(--cream-3); margin-top: .1rem; }
+.stmt-paper { margin: .8rem 1rem .2rem; }
+.stmt-paper .tp-win { margin-top: 0; padding-top: 0; border-top: 0; }
+.stmt-paper .primary { width: 100%; margin-top: .3rem; }

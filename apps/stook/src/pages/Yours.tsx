@@ -12,7 +12,7 @@ import { useNow } from "../hooks/useNow";
 import { ataOf, ensureAta, type Holding } from "../lib/chain";
 import { anchorOf, coinByMint } from "../lib/coins";
 import { feedByHex, feedHex } from "../lib/feeds";
-import { fmtAmount, short } from "../lib/format";
+import { fmtCompact, short } from "../lib/format";
 import { fmtUsd, toUsd, useUsdRates } from "../lib/usd";
 import { bandName, rangeName } from "../components/Ticket";
 import { nyWhen } from "../lib/time";
@@ -24,7 +24,7 @@ const stageOf = (l: stook.LadderAccount, now: number): Stage =>
     : l.status === "seeding" ? (now < Number(l.opensAt) ? "funded" : now < Number(l.opensAt) + Number(stook.OPEN_WINDOW_SECS) && now < Number(l.locksAt) ? "opening" : "void soon")
     : now < Number(l.locksAt) ? "trading" : now < Number(l.settlesAt) ? "locked" : "settling";
 
-interface Line { key: string; what: string; size: bigint; cost: bigint; value: bigint | null; kind: "line" | "house"; note?: string }
+interface Line { key: string; what: string; size: bigint; cost: bigint; value: bigint | null; kind: "line" | "house"; note?: string; fees?: bigint }
 interface Valued { lines: Line[]; ready: bigint; atWork: bigint; inHouse: bigint }
 
 /** What each thing in a round is worth: paid out if final, sold now if trading. */
@@ -48,7 +48,7 @@ function value(h: Holding, now: number, dp: number): Valued {
   }
   for (const r of h.tranches) {
     const t = r.tranche;
-    let v: bigint | null = null, note: string | undefined;
+    let v: bigint | null = null, note: string | undefined, fees: bigint | undefined;
     if (l.status === "settled" && l.settledBin !== null) {
       const k = l.settledBin, tt = stook.trancheTerms(l, t);
       v = stook.tranchePrincipal(t.deposit, stook.tranchePnl(tt.b, tt.join.w[k]!, tt.join.sum, l.curve.w[k]!, l.curve.sum), l.decimals) + stook.trancheFees(tt.b, l.decimals, l.accFee, t.feeSnap);
@@ -58,10 +58,9 @@ function value(h: Holding, now: number, dp: number): Valued {
     } else {
       inHouse += t.deposit;
       const tt = stook.trancheTerms(l, t);
-      const fees = tt.b > 0n ? stook.trancheFees(tt.b, l.decimals, l.accFee, t.feeSnap) : 0n;
-      note = `fees so far ${fmtAmount(fees, l.decimals)} · the rest is settled at the bell`;
+      fees = tt.b > 0n ? stook.trancheFees(tt.b, l.decimals, l.accFee, t.feeSnap) : 0n;
     }
-    lines.push({ key: r.pubkey.toBase58(), kind: "house", what: `house deposit #${t.index}`, size: t.deposit, cost: t.deposit, value: v, note });
+    lines.push({ key: r.pubkey.toBase58(), kind: "house", what: `house deposit #${t.index}`, size: t.deposit, cost: t.deposit, value: v, note, fees });
   }
   return { lines, ready, atWork, inHouse };
 }
@@ -88,7 +87,7 @@ export function Yours() {
     const rows = [...byCoin.entries()].filter(([, x]) => pick(x) > 0n);
     // In dollars across every coin, then each coin as held.
     const usd = rows.reduce((a, [c, x]) => (rates[c] ? a + toUsd(pick(x), x.dec, rates[c]!) : a), 0);
-    return rows.length ? <>{rows.some(([c]) => rates[c]) && <div className="tote-usd mono">{fmtUsd(usd)}</div>}{rows.map(([c, x]) => <div key={c} className="tote-v mono">{fmtAmount(pick(x), x.dec)} <span className="tote-c">${c}</span></div>)}</> : <div className="tote-v mono muted">$0</div>;
+    return rows.length ? <>{rows.some(([c]) => rates[c]) && <div className="tote-usd mono">{fmtUsd(usd)}</div>}{rows.map(([c, x]) => <div key={c} className={`tote-v mono ${rows.some(([k]) => rates[k]) ? "tote-sub" : ""}`}>{fmtCompact(pick(x), x.dec)} <span className="tote-c">${c}</span></div>)}</> : <div className="tote-v mono muted">$0</div>;
   };
   const finished = rounds.filter((h) => { const s = stageOf(h.ladder, now); return s === "settled" || s === "void"; });
   const running = rounds.filter((h) => !finished.includes(h));
@@ -119,7 +118,7 @@ export function Yours() {
           {finished.map((h) => <RoundBlock key={h.pubkey.toBase58()} h={h} now={now} own={own} />)}
           {running.length > 0 && <h2 className="stmt-h">Running</h2>}
           {running.map((h) => <RoundBlock key={h.pubkey.toBase58()} h={h} now={now} own={own} />)}
-          <p className="stmt-foot">Amounts are in each round's coin and before the coin's own transfer fee. A call's worth while trading is what selling it now would pay. Collect what a finished round owes you whenever you like; 30 days after its close, anyone may send it to your wallet for you.</p>
+          <p className="stmt-foot">Amounts are in dollars at today's price, with each round's coin beneath, and before the coin's own transfer fee. A call's worth while trading is what selling it now would pay. Collect what a finished round owes you whenever you like; 30 days after its close, anyone may send it to your wallet for you.</p>
         </>}
     </div>
   );
@@ -135,7 +134,11 @@ function RoundBlock({ h, now, own }: { h: Holding; now: number; own: boolean }) 
   const v = value(h, now, dp);
   const rates = useUsdRates().data;
   const rate = coin ? rates?.[coin.symbol] ?? null : null;
-  const $ = (u: bigint) => (rate !== null ? <span className="usd-line">{fmtUsd(toUsd(u, l.decimals, rate))}</span> : null);
+  // Dollars lead when the coin has a price; the coin amount sits beneath.
+  const amt = (u: bigint, sign = "") => rate !== null
+    ? <><span className="amt-big">{sign}{fmtUsd(toUsd(u, l.decimals, rate))}</span><span className="amt-coin">{sign}{fmtCompact(u, l.decimals)} {sym}</span></>
+    : <span className="amt-big">{sign}{fmtCompact(u, l.decimals)} {sym}</span>;
+  const big = (u: bigint) => rate !== null ? fmtUsd(toUsd(u, l.decimals, rate)) : `${fmtCompact(u, l.decimals)} ${sym}`;
   const collectable = own && (stage === "settled" || stage === "void") && (h.positions.length + h.tranches.length) > 0;
   const collect = async () => {
     if (!publicKey || !mint.data) return;
@@ -169,15 +172,25 @@ function RoundBlock({ h, now, own }: { h: Holding; now: number; own: boolean }) 
         <tbody>
           {v.lines.map((x) => { const r = pnl(x); return (
             <tr key={x.key} className={x.kind}>
-              <td><span className={`chip-k ${x.kind}`}>{x.kind === "line" ? "CALL" : "HOUSE"}</span> {x.what}{x.note && <div className="ledger-note">{x.note}</div>}</td>
-              <td className="mono">{fmtAmount(x.cost, l.decimals)}{$(x.cost)}</td>
-              <td className="mono">{x.value === null ? "–" : <>{fmtAmount(x.value, l.decimals)}{$(x.value)}</>}</td>
-              <td className={`mono ${r === null ? "muted" : r >= 0n ? "up" : "down"}`}>{r === null ? "at the bell" : <>{`${r >= 0n ? "+" : "−"}${fmtAmount(r >= 0n ? r : -r, l.decimals)}`}{rate !== null && <span className="usd-line">{r >= 0n ? "+" : "−"}{fmtUsd(toUsd(r >= 0n ? r : -r, l.decimals, rate))}</span>}</>}</td>
+              <td><span className={`chip-k ${x.kind}`}>{x.kind === "line" ? "CALL" : "HOUSE"}</span> {x.what}{x.fees !== undefined ? <div className="ledger-note">fees so far {big(x.fees)} · the rest is settled at the bell</div> : x.note && <div className="ledger-note">{x.note}</div>}</td>
+              <td className="mono">{amt(x.cost)}</td>
+              <td className="mono">{x.value === null ? "–" : amt(x.value)}</td>
+              <td className={`mono ${r === null ? "muted" : r >= 0n ? "up" : "down"}`}>{r === null ? "at the bell" : amt(r >= 0n ? r : -r, r >= 0n ? "+" : "−")}</td>
             </tr>); })}
         </tbody>
       </table>
+      {(stage === "settled" || stage === "void") && (
+        <div className="ticket-paper stmt-paper">
+          <div className="tp-win">
+            <div className="tp-win-top"><span>{stage === "void" ? "Refund to collect" : "Yours to collect"}</span>{v.lines.length > 0 && (() => { const c = v.lines.reduce((a, x) => a + x.cost, 0n); const d = v.ready - c; return c > 0n ? <em className={`mono ${d < 0n ? "tp-down" : ""}`}>{d >= 0n ? "+" : "−"}{big(d >= 0n ? d : -d)}</em> : null; })()}</div>
+            <b className="mono">{big(v.ready)}</b>
+            <div className="tp-note">{rate !== null ? `${fmtCompact(v.ready, l.decimals)} ${sym}, ` : ""}{own ? "one click sends it to your wallet" : "only the account's wallet can collect"}</div>
+          </div>
+          {collectable && v.ready > 0n && <button className="primary" disabled={!publicKey || send.isPending} onClick={() => void collect()}>{send.isPending ? "Collecting…" : `Collect ${big(v.ready)}`}</button>}
+        </div>
+      )}
       <footer className="stmt-round-foot">
-        {collectable ? <button className="primary" disabled={!publicKey || send.isPending} onClick={() => void collect()}>{send.isPending ? "Collecting…" : `Collect ${fmtAmount(v.ready, l.decimals)} ${sym}${rate !== null ? ` · ${fmtUsd(toUsd(v.ready, l.decimals, rate))}` : ""}`}</button>
+        {collectable && v.ready === 0n ? <button className="small as-link" disabled={!publicKey || send.isPending} onClick={() => void collect()}>{send.isPending ? "Closing…" : "Nothing won: close these out ›"}</button>
           : <Link to={`/m/${h.pubkey.toBase58()}`} className="small as-link">{stage === "trading" ? "To the table ›" : "Open the round ›"}</Link>}
       </footer>
     </article>
