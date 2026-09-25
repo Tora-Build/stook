@@ -1,6 +1,7 @@
-// Posts to X as @StookStreet, from the worker's own cron: the morning
-// question and the closing bell, weekdays only. About 44 posts a month, and a
-// hard monthly cap, so the pay-per-use bill stays small. Keys live in
+// Posts to X as @StookStreet, from the worker's own cron: one post a weekday,
+// the morning question (Tue, Thu) or the closing bell (Mon, Wed, Fri). About
+// 22 posts a month, under a hard monthly cap that leaves room for a few
+// extra posts, so the pay-per-use bill stays small. Keys live in
 // Cloudflare secrets (X_API_KEY, X_API_SECRET, X_ACCESS_TOKEN,
 // X_ACCESS_SECRET), set with `wrangler secret put`; never in the repo.
 
@@ -24,7 +25,7 @@ export function bellText(data, ny) {
 
 export function morningText(data, ny) {
   // A different table each weekday.
-  const order = { Mon: 0, Tue: 1, Wed: 2, Thu: 3, Fri: 0 }, c = data.coins[order[ny.weekday] ?? 0] ?? data.coins[0];
+  const order = { Tue: 0, Thu: 3, Mon: 1, Wed: 2, Fri: 0 }, c = data.coins[order[ny.weekday] ?? 0] ?? data.coins[0];
   return `Where does ${c.anchor} close today? 🔔\n\n${num(c.price, c.dp)} now. Bell at 4 PM New York.\nCall it with $${c.coin}. The closer you call, the more you're paid.\n\n👉 stooks.xyz (devnet, free test coins)`;
 }
 
