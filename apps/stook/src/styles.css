@@ -787,15 +787,9 @@ button.tour-skip:hover { color: var(--cream); }
 .house-strip b { font-size: .72rem; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--taxi); margin-right: .15rem; }
 .house-strip .hs-risk b { color: var(--bad); }
 
-/* the house's board: green LED numbers, like the street's board */
-.house-board { margin: 0 0 .9rem; background: #06120d; border: 3px solid #2f3a52; box-shadow: inset 0 0 0 2px #000; }
-.hb-head { display: flex; justify-content: space-between; padding: .45rem .7rem; border-bottom: 2px solid #12251b; font-family: var(--px); font-size: .45rem; color: #5ef0a0; letter-spacing: .08em; }
-.hb-dim { color: rgba(94, 240, 160, .45); }
-.hb-cells { display: grid; grid-template-columns: repeat(3, 1fr); }
-.hb-cells > div { display: flex; flex-direction: column; gap: .15rem; padding: .6rem .7rem; min-width: 0; }
-.hb-cells > div + div { border-left: 2px solid #12251b; }
-.hb-k { font-size: .66rem; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; color: rgba(94, 240, 160, .6); }
-.hb-cells b { font-family: var(--mono); font-size: 1.15rem; font-weight: 600; color: #5ef0a0; text-shadow: 0 0 8px rgba(94, 240, 160, .45); overflow-wrap: anywhere; }
-.hb-usd { margin: 0; font-size: .74rem; color: rgba(244, 233, 200, .6); }
+/* the house, live: three cells in the order slip's style */
+.house-cells { grid-template-columns: repeat(3, 1fr); margin: 0 0 .9rem; }
+.house-cells .slip2-cell b { font-size: 1.2rem; }
+@media (max-width: 420px) { .house-cells { grid-template-columns: repeat(3, 1fr); } .house-cells .slip2-cell { padding: .55rem .5rem; } .house-cells .slip2-cell b { font-size: 1rem; } }
 .house-fine { margin: .6rem 0 0; font-size: .78rem; color: var(--cream-3); }
 @media (max-width: 420px) { .hb-cells b { font-size: 1rem; } }

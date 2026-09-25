@@ -51,16 +51,12 @@ export function LpPanel(p: Props) {
   return (
     <Wrap className={p.bare ? "" : "panel"}>
       {!p.bare && <h3>Provide liquidity</h3>}
-      {/* The house's board: what it holds, what it has earned this round,
-          and what traders have riding on it, live. The rules live on the How
-          page and the fund ticket; this is the scoreboard. */}
-      <div className="house-board" aria-label="The house, this round">
-        <div className="hb-head"><span>THE HOUSE</span><span className="hb-dim">this round</span></div>
-        <div className="hb-cells">
-          <div><span className="hb-k">pool</span><b>{fmtAmount(l.depositTotal, dec, 0)}</b><Usd units={l.depositTotal} decimals={dec} rate={rate} className="hb-usd" /></div>
-          <div><span className="hb-k">fees earned</span><b>{fmtAmount(l.feesLp, dec, 2)}</b><Usd units={l.feesLp} decimals={dec} rate={rate} className="hb-usd" /></div>
-          <div><span className="hb-k">lines out</span><b>{fmtAmount(l.basisTotal, dec, 0)}</b><Usd units={l.basisTotal} decimals={dec} rate={rate} className="hb-usd" /></div>
-        </div>
+      {/* This round's house, live: what it holds, what it has earned, and
+          what traders have riding on it. The rules are on the How page. */}
+      <div className="slip2-cells house-cells" aria-label="The house, this round">
+        <div className="slip2-cell"><span className="slip2-k">Pool</span><b className="mono">{fmtAmount(l.depositTotal, dec, 0)}</b><em className="mono">{rate !== null ? fmtUsd(toUsd(l.depositTotal, dec, rate)) : p.quoteSymbol}</em></div>
+        <div className="slip2-cell slip2-win"><span className="slip2-k">Fees earned</span><b className="mono">{fmtAmount(l.feesLp, dec, 2)}</b><em className="mono">{rate !== null ? fmtUsd(toUsd(l.feesLp, dec, rate)) : p.quoteSymbol}</em></div>
+        <div className="slip2-cell"><span className="slip2-k">Lines out</span><b className="mono">{fmtAmount(l.basisTotal, dec, 0)}</b><em className="mono">{rate !== null ? fmtUsd(toUsd(l.basisTotal, dec, rate)) : p.quoteSymbol}</em></div>
       </div>
       {joinable && (
         <>
