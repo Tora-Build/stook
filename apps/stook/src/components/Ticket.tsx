@@ -42,6 +42,7 @@ import type { DrawMode } from "./Chart";
 import { LpPanel } from "./LpPanel";
 import { Book } from "./Book";
 import { PaperFold } from "./PaperFold";
+import { Fold } from "./Fold";
 import { Notice } from "./Notice";
 import { Slider } from "./Slider";
 import { Amount, approxUsd, coinText, fromUsd } from "../lib/usd";
@@ -294,7 +295,8 @@ function Collect(p: Props) {
   };
   return (
     <>
-      <p className="explain">{l.status === "void" ? `The round was void. Deposits come back first, up to what was put in; open calls share what is left${linesPct !== null && Math.abs(linesPct - 100) >= 0.005 ? `, ${linesPct.toFixed(2)}% of what they cost, because sellers took their gains before the void` : ", at cost"}.` : `The bell rang. Band ${l.settledBin} landed.`}</p>
+      <p className="explain">{l.status === "void" ? "The round was void: deposits come back first, open calls share the rest." : `The bell rang: it closed between ${rangeName(l, l.settledBin!, l.settledBin!, p.dp).replace(" – ", " and ")}.`}</p>
+      {l.status === "void" && <FoldLine label="How the rest is shared">Deposits come back first, up to what was put in. Open calls share what is left{linesPct !== null && Math.abs(linesPct - 100) >= 0.005 ? `: ${linesPct.toFixed(2)}% of what they cost, because sellers took their gains before the void` : ", at cost"}.</FoldLine>}
       {nothing ? <p className="muted">You had nothing in this round.</p> : (
         <Book kind="call" title="To collect" count={owed.length + lp.length} open total={big(total)}
           rows={[
@@ -312,4 +314,15 @@ function Collect(p: Props) {
 function ShapeIcon({ kind }: { kind: "line" | "range" }) {
   const hs = kind === "line" ? [2, 4, 8, 4, 2] : [0, 6, 6, 6, 0];
   return <svg className="shape-icon" viewBox="0 0 19 9" width={25} height={12} aria-hidden="true">{hs.map((h, i) => <rect key={i} x={i * 4} y={9 - h} width={3} height={h} fill="currentColor" />)}</svg>;
+}
+
+/** A line of explanation folded until asked for, on the dark panel. */
+function FoldLine({ label, children }: { label: string; children: React.ReactNode }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <div className="how-more">
+      <button className="how-more-btn" onClick={() => setOpen(!open)} aria-expanded={open}><span className="pb-caret" aria-hidden="true">{open ? "▾" : "▸"}</span> {label}</button>
+      <Fold open={open}><p className="how-more-in explain">{children}</p></Fold>
+    </div>
+  );
 }

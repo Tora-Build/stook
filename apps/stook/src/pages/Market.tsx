@@ -152,16 +152,13 @@ export function Market() {
 function tourStops(anchor: string, coin: string): TourStop[] {
   const c = coin === "USDC" || coin === "tokens" ? coin : `$${coin}`;
   return [
-    { title: "Welcome to the floor", body: <>One round, one question: where does <b>{anchor}</b> close at 4 PM New York? You call it on the board and pay in <b>{c}</b>. The closer the close lands to your call, the more it pays.</> },
-    { target: "round", title: "The ticket", body: <>What this round follows, when it closes, the price now and how much is in the pool. Its bands are set when it opens, as wide as the price has been moving.</> },
-    { target: "board", title: "The board", body: <>Each row is a price band. The blue bars are the crowd's odds: a long bar is a likely close, a short one a long shot. <b>Click a band</b> to place your call there.</> },
-    { target: "shape", title: "Target or range", body: <>A <b>target</b> pays most on its band and less on each band away. A <b>range</b> pays the same anywhere inside it: drag across the board to mark one.</> },
-    { target: "reach", title: "Reach", body: <>How far a target tapers out. A wide reach catches more closes; a narrow one pays more when you are right.</> },
-    { target: "ladder", title: "What it pays", body: <>Each bar is what your call pays if the close lands there, longest on your band. The tag marks what you pay: bars that reach past it make money, shorter ones only soften a miss.</> },
-    { target: "order", title: "Spend", body: <>Enter what you want to spend, in dollars or {c}. If the round can't take it all on this call, a notice says how much fits.</> },
-    { target: "paper", title: "Your ticket", body: <>What you pay, the fee (2%, rising to 5% over the last six hours) and what you win if it lands on your band. Nothing is sent until you sign.</> },
-    { target: "book", title: "Your calls", body: <>Calls you already hold in this round, folded here. Open one to add to it or sell it; fold the list to go back to a new call. Deposits in the House tab fold the same way.</> },
-    { target: "house", title: "Or be the house", body: <>Fund the pool instead. The house takes the other side of every call and keeps 90% of the fees. The most it can lose is what you put in.</> },
-    { target: "clock", title: "The bell", body: <>Trading stops shortly before the close (an hour, for a round funded a day ahead). The first Pyth price at or after 4 PM settles the round, and winners collect here. If that price came late or unsure, the round is void: deposits come back first and open calls share the rest.</> },
+    { title: "Welcome to the floor", body: <>Where does <b>{anchor}</b> close at 4 PM New York? Call it on the board, paid in <b>{c}</b>. The closer it lands, the more it pays.</> },
+    { target: "board", title: "The board", body: <>Each row is a price band; the blue bars are the crowd's odds. <b>Click a band</b> to call it.</> },
+    { target: "shape", title: "Target or range", body: <>A <b>target</b> pays most on its band and tapers out to its <b>reach</b>. A <b>range</b> pays the same anywhere inside.</> },
+    { target: "ladder", title: "What it pays", body: <>What each landing pays. Bars past the tag, your stake, make money; shorter ones soften a miss.</> },
+    { target: "paper", title: "Your ticket", body: <>Spend in dollars or {c}. The ticket shows what you pay, the fee and what you win. Nothing is sent until you sign.</> },
+    { target: "book", title: "Your calls", body: <>Calls you already hold here. Open one to add to it or sell it.</> },
+    { target: "house", title: "Or be the house", body: <>Fund the pool instead: the house keeps 90% of the fees and risks at most what it puts in.</> },
+    { target: "clock", title: "The bell", body: <>Trading stops shortly before the close. The first Pyth price at 4 PM settles the round; collect here after.</> },
   ];
 }
