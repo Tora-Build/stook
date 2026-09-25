@@ -181,15 +181,26 @@ export function Yours() {
           </div>
 
           {days.length === 0 && <p className="stmt-empty">Nothing here with these filters.</p>}
-          {days.map(([d, hs]) => (
-            <section key={d} className="pb-day">
-              <h2 className="pb-date"><span>{dayName(d, hs[0]!.ladder.settlesAt)}</span></h2>
+          {days.map(([d, hs], n) => (
+            <Day key={d} name={dayName(d, hs[0]!.ladder.settlesAt)} count={hs.length} startOpen={n < 3}>
               {hs.map((h) => <RoundBlock key={h.pubkey.toBase58()} h={h} now={now} own={own} register={register} />)}
-            </section>
+            </Day>
           ))}
-          <p className="stmt-foot">Amounts are in each round's coin, as the chain holds them, before the coin's own transfer fee; ≈ dollars are today's price and move with it. A call's worth while trading is what selling it now would pay. Collect what a finished round owes you whenever you like; 30 days after its close, anyone may send it to your wallet for you.</p>
+          <p className="stmt-foot">Amounts are in each round's coin; ≈ dollars move with today's price. Thirty days after a close, anyone may send what it owes you to your wallet.</p>
         </>}
     </div>
+  );
+}
+
+/** A day in the passbook: the three latest open, older ones folded to their
+ *  header, so a long history is a column of dates to open, not a scroll. */
+function Day({ name, count, startOpen, children }: { name: string; count: number; startOpen: boolean; children: React.ReactNode }) {
+  const [open, setOpen] = useState(startOpen);
+  return (
+    <section className="pb-day">
+      <h2 className="pb-date"><button onClick={() => setOpen(!open)} aria-expanded={open}><span className="pb-caret" aria-hidden="true">{open ? "▾" : "▸"}</span>{name}<em>{count} {count === 1 ? "round" : "rounds"}</em></button></h2>
+      {open && children}
+    </section>
   );
 }
 

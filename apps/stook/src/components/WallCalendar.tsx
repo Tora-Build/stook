@@ -94,7 +94,7 @@ export function WallCalendar(p: Props) {
               {paused && <div className="wc-info wc-sub">paused</div>}
               {past && !l && <span className="wc-stamp">{noRound ? "closed" : "passed"}</span>}
               {closesIn && <div className="wc-left">closes in {closesIn.replace(/ (d|h|min)\b/g, "$1")}</div>}
-              {r && mine.get(r.pubkey.toBase58()) && (() => { const m = mine.get(r.pubkey.toBase58())!; return <span className="wc-mine" title="You hold calls or deposits in this round">yours<i>{[m.calls && `${m.calls}c`, m.house && `${m.house}h`].filter(Boolean).join(" ")}</i></span>; })()}
+              {r && mine.get(r.pubkey.toBase58()) && (() => { const m = mine.get(r.pubkey.toBase58())!; const what = [m.calls && `${m.calls} ${m.calls === 1 ? "call" : "calls"}`, m.house && `${m.house} ${m.house === 1 ? "deposit" : "deposits"}`].filter(Boolean).join(" · "); return <span className="wc-mine" title={`You hold ${what} in this round`}>you: {what}</span>; })()}
             </>
           );
           const cls = `wc-cell ${isToday ? "wc-today" : ""} ${l ? `wc-${l.status}` : past || early || learning || paused ? "wc-past" : "wc-open-slot"}`;

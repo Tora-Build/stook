@@ -1030,8 +1030,8 @@ a.tour-btn { text-decoration: none; }
 
 /* calendar: a tab on the days you hold something in */
 .wc-cell { position: relative; }
-.wc-mine { position: absolute; right: -2px; bottom: -2px; display: inline-flex; align-items: center; gap: .3rem; padding: .15rem .35rem; background: var(--crowd-2); color: #f4e9c8; font-family: var(--px); font-size: .36rem; text-transform: uppercase; letter-spacing: .05em; }
-.wc-mine i { font-style: normal; background: #f4e9c8; color: #101a2e; padding: .05rem .2rem; }
+.wc-mine { position: absolute; left: 0; right: 0; bottom: 0; padding: .15rem .4rem; background: var(--crowd-2); color: #f4e9c8; font-size: .66rem; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
 .approx { margin-left: .45rem; font-size: .8em; color: var(--cream-3); font-weight: 400; white-space: nowrap; }
 .ticket-paper .approx { color: #6b6452; }
 .payl-head, .payl-row { grid-template-columns: 7rem 1fr 7rem; }
@@ -1067,3 +1067,18 @@ a.tour-btn { text-decoration: none; }
 .tp-more-fold .tp-fold-in .tp-row { font-size: .8rem; margin: .25rem 0; }
 .tp-more-fold .tp-fold-sub .tp-fold-in { margin-left: 0; border-left: 0; padding-left: 0; }
 .tape-cell b .approx { font-size: .7em; }
+
+/* the passbook's days fold to their dates */
+.pb-date button { display: inline-flex; align-items: baseline; gap: .5rem; background: none; border: 0; padding: 0; color: inherit; font: inherit; cursor: pointer; }
+.pb-date em { font-style: normal; font-family: var(--sans); font-size: .72rem; color: var(--cream-3); letter-spacing: 0; }
+.pb-caret { color: var(--taxi); }
+.book-head { flex-wrap: nowrap; } .book-total, .book-extra { white-space: nowrap; }
+
+/* The crease. A flap that is folded shows its folded edge: a band under the
+   line, shaded like paper turned under. Unfolded, the paper keeps a valley
+   crease across its width: shade either side of a dark line with a lit lip. */
+.tp-line:not(.tp-line-open) > .tp-row-btn { position: relative; padding-bottom: .5rem; }
+.tp-line:not(.tp-line-open) > .tp-row-btn::after { content: ""; position: absolute; left: -1rem; right: -1rem; bottom: 0; height: 6px; background: linear-gradient(180deg, rgba(90, 70, 35, .22), rgba(90, 70, 35, .04)); border-top: 1px solid rgba(90, 70, 35, .35); }
+.tp-line-open > .tp-fold-sub, .tp-fold-open { position: relative; border-top: 0; box-shadow: none; }
+.tp-line-open > .tp-fold-sub::before, .tp-fold-open::before { content: ""; position: absolute; left: -1rem; right: -1rem; top: -5px; height: 10px; pointer-events: none; z-index: 1;
+  background: linear-gradient(180deg, transparent 0, rgba(90, 70, 35, .10) 40%, rgba(90, 70, 35, .45) 50%, rgba(255, 253, 244, .95) 55%, rgba(90, 70, 35, .08) 65%, transparent 100%); }
