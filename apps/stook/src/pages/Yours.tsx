@@ -88,7 +88,7 @@ export function Yours() {
     const rows = [...byCoin.entries()].filter(([, x]) => pick(x) > 0n);
     // In dollars across every coin, then each coin as held.
     const usd = rows.reduce((a, [c, x]) => (rates[c] ? a + toUsd(pick(x), x.dec, rates[c]!) : a), 0);
-    return rows.length ? <>{rows.some(([c]) => rates[c]) && <div className="tote-usd mono">{fmtUsd(usd)}</div>}{rows.map(([c, x]) => <div key={c} className={`tote-v mono ${rows.some(([k]) => rates[k]) ? "tote-sub" : ""}`}>{fmtCompact(pick(x), x.dec)} <span className="tote-c">${c}</span></div>)}</> : <div className="tote-v mono muted">$0</div>;
+    return rows.length ? <>{rows.some(([c]) => rates[c]) && <div className="tote-usd mono">{fmtUsd(usd)}</div>}<div className="tote-coins">{rows.map(([c, x]) => { const coin = COINS.find((k) => k.symbol === c); return <span key={c} className="tote-chip mono" title={`$${c}`}>{coin && <img src={coin.logo} alt={`$${c}`} />}{fmtCompact(pick(x), x.dec)}</span>; })}</div></> : <div className="tote-v mono muted">$0</div>;
   };
   const finished = rounds.filter((h) => { const s = stageOf(h.ladder, now); return s === "settled" || s === "void"; });
 
@@ -120,6 +120,8 @@ export function Yours() {
     return { h, c, ready: v.ready, usd: rate !== null ? toUsd(v.ready, h.ladder.decimals, rate) : null };
   });
   const slipUsd = slip.reduce((a, x) => a + (x.usd ?? 0), 0);
+  const [slipOpen, setSlipOpen] = useState(false);
+  const SLIP_SHOWN = 4;
 
   return (
     <div className="page statement">
@@ -147,12 +149,13 @@ export function Yours() {
           {slip.length > 0 && (
             <div className="ticket-paper payout-slip" role="group" aria-label="Payout slip">
               <div className="tp-head"><span>Payout slip</span><b className="mono">{slip.length} finished {slip.length === 1 ? "round" : "rounds"}</b></div>
-              {slip.map(({ h, c, ready, usd }) => (
-                <div key={h.pubkey.toBase58()} className="tp-row">
-                  <span>{c ? c.anchor.name : "round"} in ${c?.symbol ?? ""} · {nyWhen(h.ladder.settlesAt, { weekday: "short", month: "short", day: "numeric" })}{h.ladder.status === "void" ? " · void" : ""}</span><i />
-                  <b className="mono">{ready === 0n ? <span className="tp-dim">nothing won</span> : usd !== null ? fmtUsd(usd) : `${fmtCompact(ready, h.ladder.decimals)} $${c?.symbol ?? ""}`}</b>
+              {slip.slice(0, SLIP_SHOWN).map((x) => <SlipLine key={x.h.pubkey.toBase58()} {...x} now={now} rate={x.c ? rates[x.c.symbol] ?? null : null} />)}
+              {slip.length > SLIP_SHOWN && <>
+                <div className={`tp-fold ${slipOpen ? "tp-fold-open" : ""}`}>
+                  <div className="tp-fold-in">{slip.slice(SLIP_SHOWN).map((x) => <SlipLine key={x.h.pubkey.toBase58()} {...x} now={now} rate={x.c ? rates[x.c.symbol] ?? null : null} />)}</div>
                 </div>
-              ))}
+                <button className="tp-unfold" onClick={() => setSlipOpen(!slipOpen)} aria-expanded={slipOpen}>{slipOpen ? "Fold it back" : `Unfold ${slip.length - SLIP_SHOWN} more ${slip.length - SLIP_SHOWN === 1 ? "round" : "rounds"}`}</button>
+              </>}
               <div className="tp-win">
                 <div className="tp-win-top"><span>Total to collect</span></div>
                 <b className="mono">{fmtUsd(slipUsd)}</b>
@@ -183,6 +186,31 @@ export function Yours() {
           ))}
           <p className="stmt-foot">Amounts are in dollars at today's price, with each round's coin beneath, and before the coin's own transfer fee. A call's worth while trading is what selling it now would pay. Collect what a finished round owes you whenever you like; 30 days after its close, anyone may send it to your wallet for you.</p>
         </>}
+    </div>
+  );
+}
+
+/** One round on the payout slip; its holdings unfold beneath it. */
+function SlipLine({ h, c, ready, usd, now, rate }: { h: Holding; c: ReturnType<typeof coinByMint>; ready: bigint; usd: number | null; now: number; rate: number | null }) {
+  const [open, setOpen] = useState(false);
+  const v = value(h, now, c ? anchorOf(c).dp : 2), dec = h.ladder.decimals, sym = `$${c?.symbol ?? ""}`;
+  const money = (u: bigint) => (rate !== null ? fmtUsd(toUsd(u, dec, rate)) : `${fmtCompact(u, dec)} ${sym}`);
+  return (
+    <div className={`tp-line ${open ? "tp-line-open" : ""}`}>
+      <button className="tp-row tp-row-btn" onClick={() => setOpen(!open)} aria-expanded={open}>
+        <span><span className="tp-caret" aria-hidden="true">{open ? "▾" : "▸"}</span>{c ? c.anchor.name : "round"} in {sym} · {nyWhen(h.ladder.settlesAt, { weekday: "short", month: "short", day: "numeric" })}{h.ladder.status === "void" ? " · void" : ""}</span><i />
+        <b className="mono">{ready === 0n ? <span className="tp-dim">nothing won</span> : usd !== null ? fmtUsd(usd) : `${fmtCompact(ready, dec)} ${sym}`}</b>
+      </button>
+      <div className="tp-fold tp-fold-sub">
+        <div className="tp-fold-in">
+          {v.lines.map((x) => (
+            <div key={x.key} className="tp-row tp-sub">
+              <span>{x.kind === "line" ? `call: ${x.what}` : x.what} · {x.kind === "line" ? "paid" : "put in"} {money(x.cost)}</span><i />
+              <span className="mono">{x.value && x.value > 0n ? money(x.value) : "0"}</span>
+            </div>
+          ))}
+        </div>
+      </div>
     </div>
   );
 }

@@ -951,7 +951,7 @@ button.tour-skip:hover { color: var(--cream); }
 .payl-tag::after { content: ""; position: absolute; left: 50%; bottom: -5px; margin-left: -4px; border: 4px solid transparent; border-top-color: var(--cream); border-bottom: 0; }
 
 /* Yours: the passbook */
-.payout-slip { margin: 0 0 1.4rem; max-width: 560px; }
+.payout-slip { margin: 0 0 1.4rem; }
 .payout-slip .tp-row + .tp-row { margin-top: .25rem; }
 .payout-slip .primary { width: 100%; margin-top: .4rem; }
 .tp-dim { color: #8d8670; font-weight: 400; }
@@ -986,3 +986,22 @@ button.tour-skip:hover { color: var(--cream); }
 .coin-board h1 { margin: .35rem 0 0; }
 .coin-board .strip-id { gap: 1.1rem; }
 a.tour-btn { text-decoration: none; }
+
+/* tote coins as chips with their icons */
+.tote-coins { display: flex; flex-wrap: wrap; gap: .3rem; }
+.tote-chip { display: inline-flex; align-items: center; gap: .3rem; padding: .15rem .45rem .15rem .2rem; background: var(--sky-2); border: 1px solid var(--line); font-size: .8rem; color: var(--cream-2); }
+.tote-chip img { width: 16px; height: 16px; border-radius: 50%; }
+
+/* the slip folds: a round's lines, and the rounds past four, unfold like paper */
+.tp-row-btn { width: 100%; background: none; border: 0; padding: .15rem 0; font: inherit; color: inherit; text-align: left; cursor: pointer; }
+.tp-row-btn:hover span:first-child { text-decoration: underline; text-decoration-style: dotted; }
+.tp-caret { display: inline-block; width: 1rem; color: #8d6a2a; }
+.tp-fold { display: grid; grid-template-rows: 0fr; transition: grid-template-rows .35s ease; }
+.tp-fold-in { overflow: hidden; transform-origin: top; transform: perspective(600px) rotateX(-70deg); opacity: 0; transition: transform .35s ease, opacity .25s ease; }
+.tp-fold-open, .tp-line-open > .tp-fold-sub { grid-template-rows: 1fr; }
+.tp-fold-open > .tp-fold-in, .tp-line-open > .tp-fold-sub > .tp-fold-in { transform: none; opacity: 1; }
+.tp-fold-sub .tp-fold-in { margin-left: 1rem; border-left: 2px dotted rgba(16, 26, 46, .3); padding-left: .6rem; }
+.tp-sub { font-size: .8rem; color: #4d4638; padding: .15rem 0; }
+.tp-line-open { background: linear-gradient(180deg, rgba(16, 26, 46, .05), transparent); }
+.tp-unfold { display: block; width: 100%; margin: .4rem 0 .2rem; padding: .45rem; background: repeating-linear-gradient(90deg, rgba(16, 26, 46, .08) 0 6px, transparent 6px 12px); border: 0; border-top: 2px dashed rgba(16, 26, 46, .35); border-bottom: 2px dashed rgba(16, 26, 46, .35); color: #101a2e; font: inherit; font-size: .8rem; font-weight: 600; cursor: pointer; }
+@media (prefers-reduced-motion: reduce) { .tp-fold, .tp-fold-in { transition: none; } }
