@@ -6,7 +6,9 @@ import { Link } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { COINS, type Coin } from "../lib/coins";
 import { useNow } from "../hooks/useNow";
-import { useCoinQuotes } from "../lib/usd";
+import { fmtUsd, useCoinQuotes } from "../lib/usd";
+import { untilText } from "../lib/format";
+import { nyAt, nyDate } from "../lib/time";
 import { LedRing } from "./LedRing";
 
 const DATA = "";
@@ -14,6 +16,10 @@ const DATA = "";
 export function Floor() {
   const quotes = useQuery({ queryKey: ["quotes"], queryFn: async () => (await fetch(`${DATA}/prices`)).json() as Promise<Record<string, { price: number; change24h: number | null }>>, refetchInterval: 60_000 });
   const now = useNow();
+  const stook = useCoinQuotes().data?.STOOK;
+  // The next 4 PM in New York.
+  const [y, mo, d] = nyDate(now).split("-").map(Number) as [number, number, number];
+  const today = nyAt(y, mo - 1, d, 16), bell = now < today ? today : nyAt(y, mo - 1, d + 1, 16);
   const posts = useRef<HTMLDivElement>(null);
   const latest = useRef(quotes.data); latest.current = quotes.data;
   // The living floor is one script shared with stooks.xyz, loaded from there.
@@ -33,7 +39,14 @@ export function Floor() {
   }, []);
   return (
     <section className="floor">
-      <div className="board"><span>STOOK STREET · THE BOARD</span><span className="dim">ROUNDS ON THE ANCHOR · PAID IN THE COIN</span><span className="dim">{new Date(now * 1000).toLocaleTimeString("en-US", { timeZone: "America/New_York", hour12: false })} NY</span></div>
+      {/* The board over the floor: the clock, the next bell, the street's own
+          coin and how many tables are open, as LED cells. */}
+      <div className="board board-tape-led">
+        <div><span className="dim">new york</span><b>{new Date(now * 1000).toLocaleTimeString("en-US", { timeZone: "America/New_York", hour12: false })}</b></div>
+        <div><span className="dim">next bell</span><b>4:00 PM · in {untilText(BigInt(bell), now)}</b></div>
+        <div><span className="dim">$STOOK</span><b>{stook?.usd ? `$${stook.usd < 0.01 ? stook.usd.toFixed(10).replace(/0+$/, "") : fmtUsd(stook.usd).slice(1)}` : "…"}{typeof stook?.change24h === "number" && <em className={stook.change24h >= 0 ? "" : "led-down"}> {stook.change24h >= 0 ? "▲" : "▼"}{Math.abs(stook.change24h).toFixed(1)}%</em>}</b></div>
+        <div><span className="dim">tables</span><b>{COINS.length} open</b></div>
+      </div>
       <div className="posts" ref={posts}>{COINS.map((c) => <Table key={c.symbol} coin={c} q={quotes.data?.[c.symbol]} />)}</div>
     </section>
   );

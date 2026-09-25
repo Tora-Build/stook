@@ -43,8 +43,21 @@ export function Market() {
   // Dollars per whole coin, for the dollar value beside every amount.
   const usd = useUsdPerCoin(l?.quoteMint, mint.data?.decimals === 6 ? "USDC" : undefined);
 
+  // The tour shows the call flow on a sample call at the crowd's favourite
+  // band, placed only if nothing is picked, and taken back when it ends.
+  const [demo, setDemo] = useState<stook.Shape | null>(null);
+  const startTour = () => {
+    const d = ladder.data;
+    if (!shape && !selected && d && d.status === "open" && Date.now() / 1000 < Number(d.locksAt)) {
+      const w = d.curve.w, k = w.reduce((best, v, i) => (v > w[best]! ? i : best), 0);
+      const s = mode === "line" ? stook.tent(k, height) : stook.band(Math.max(0, k - 1), Math.min(63, k + 1));
+      setShape(s); setDemo(s);
+    }
+    setTouring(true);
+  };
+  const endTour = () => { setTouring(false); if (demo && shape === demo) setShape(null); setDemo(null); };
   const loaded = !!ladder.data && !!refs;
-  useEffect(() => { if (loaded && !tourSeen()) setTouring(true); }, [loaded]);
+  useEffect(() => { if (loaded && !tourSeen()) startTour(); }, [loaded]); // eslint-disable-line react-hooks/exhaustive-deps
 
   if (!key) return <p className="page muted">Not a round address.</p>;
   if (ladder.isLoading) return <p className="page muted">Reading the round…</p>;
@@ -99,13 +112,15 @@ export function Market() {
           <div className={`status status-${l.status}`} data-tour="clock"><Bell ringing={l.status === "open" && now >= Number(l.settlesAt)} rung={l.status === "settled"} />{l.status === "open" && now < Number(l.settlesAt)
             ? <span className="status-lines"><span>rings in {untilText(l.settlesAt, now)}</span><span className="status-sub">{now < Number(l.locksAt) ? `trading · locks in ${untilText(l.locksAt, now)}` : "locked · no more trades"}</span></span>
             : stateText}</div>
-          <button className="tour-btn" onClick={() => setTouring(true)} aria-label="Open the floor guide">? Floor guide</button>
+          <button className="tour-btn" onClick={startTour} aria-label="Open the floor guide">? Floor guide</button>
         </div>
         <div className="board-tape">
           <div className="tape-cell"><span className="strip-k">now</span><b className="mono">{livePrice !== null ? `$${fmtPrice(BigInt(Math.round(livePrice / 10 ** live.data!.expo)), live.data!.expo, feed.dp)}` : "…"}</b>
             {livePrice !== null && openPrice !== null && <em className={`mono ${livePrice >= openPrice ? "up" : "down"}`}>{livePrice >= openPrice ? "▲" : "▼"} {Math.abs((livePrice / openPrice - 1) * 100).toFixed(2)}% since open</em>}</div>
           {openPrice !== null && <div className="tape-cell"><span className="strip-k">opened at</span><b className="mono">${fmtPrice(l.p0, l.p0Expo, feed.dp)}</b><em>{nyWhen(l.opensAt, { weekday: "short", hour: "numeric", minute: "2-digit" })} New York</em></div>}
           <div className="tape-cell"><span className="strip-k">pool</span><b className="mono">{usd !== null ? fmtUsd(toUsd(l.depositTotal, l.decimals, usd)) : `${fmtCompact(l.depositTotal, l.decimals)} ${quoteSymbol}`}</b>{usd !== null && <em className="mono">{fmtCompact(l.depositTotal, l.decimals)} {quoteSymbol}</em>}</div>
+          <div className="tape-cell"><span className="strip-k">house fees</span><b className="mono tape-up">{usd !== null ? fmtUsd(toUsd(l.feesLp, l.decimals, usd)) : `${fmtCompact(l.feesLp, l.decimals)} ${quoteSymbol}`}</b><em>90% of every fee, to the pool</em></div>
+          <div className="tape-cell" title="What traders have paid for calls still open in this round"><span className="strip-k">traders in</span><b className="mono">{usd !== null ? fmtUsd(toUsd(l.basisTotal, l.decimals, usd)) : `${fmtCompact(l.basisTotal, l.decimals)} ${quoteSymbol}`}</b><em>on open calls</em></div>
           <div className="tape-cell" title="The chart splits the price into bands of equal percentage steps. A call picks bands; the close lands in exactly one.">
             <span className="strip-k">each band</span>
             <b className="mono">{bandUsd !== null ? `$${bandUsd.toLocaleString("en-US", { maximumSignificantDigits: 3 })}` : `${(stepBps / 100).toFixed(2)}%`} wide</b>
@@ -113,7 +128,7 @@ export function Market() {
           </div>
         </div>
       </header>
-      <Tour open={touring} onClose={() => setTouring(false)} stops={tourStops(feed.name, quoteSymbol)} />
+      <Tour open={touring} onClose={endTour} stops={tourStops(feed.name, quoteSymbol)} />
       {standIn && <Notice tone="info" title="Devnet stand-in" className="standin">{standIn}</Notice>}
 
       <div className="market-grid">
@@ -142,7 +157,10 @@ function tourStops(anchor: string, coin: string): TourStop[] {
     { target: "board", title: "The board", body: <>Each row is a price band. The blue bars are the crowd's odds: a long bar is a likely close, a short one a long shot. <b>Click a band</b> to place your call there.</> },
     { target: "shape", title: "Target or range", body: <>A <b>target</b> pays most on its band and less on each band away. A <b>range</b> pays the same anywhere inside it: drag across the board to mark one.</> },
     { target: "reach", title: "Reach", body: <>How far a target tapers out. A wide reach catches more closes; a narrow one pays more when you are right.</> },
-    { target: "order", title: "Your order", body: <>Enter what you want to spend, in dollars or {c}. A range pays in full if the close lands inside it; a target pays in full on its band and less on each band away. Before you place a call you see what you pay, the fee (2%, rising to 5% over the last six hours) and your best case. Nothing is sent until you sign.</> },
+    { target: "ladder", title: "What it pays", body: <>Each bar is what your call pays if the close lands there, longest on your band. The tag marks what you pay: bars that reach past it make money, shorter ones only soften a miss.</> },
+    { target: "order", title: "Spend", body: <>Enter what you want to spend, in dollars or {c}. If the round can't take it all on this call, a notice says how much fits.</> },
+    { target: "paper", title: "Your ticket", body: <>What you pay, the fee (2%, rising to 5% over the last six hours) and what you win if it lands on your band. Nothing is sent until you sign.</> },
+    { target: "book", title: "Your calls", body: <>Calls you already hold in this round, folded here. Open one to add to it or sell it; fold the list to go back to a new call. Deposits in the House tab fold the same way.</> },
     { target: "house", title: "Or be the house", body: <>Fund the pool instead. The house takes the other side of every call and keeps 90% of the fees. The most it can lose is what you put in.</> },
     { target: "clock", title: "The bell", body: <>Trading stops shortly before the close (an hour, for a round funded a day ahead). The first Pyth price at or after 4 PM settles the round, and winners collect here. If that price came late or unsure, the round is void: deposits come back first and open calls share the rest.</> },
   ];

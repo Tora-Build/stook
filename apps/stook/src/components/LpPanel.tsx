@@ -103,17 +103,6 @@ export function LpPanel(p: Props) {
           rows={rows.map((r) => ({ key: String(r.t.index), label: `deposit #${r.t.index}`, sub: <>fees {big(r.fees)}{r.worth !== null && <> · worth {big(r.worth)}</>}</>, amount: money(r.t.deposit) }))}
           footer={final && publicKey ? <button className="primary" disabled={claim.isPending} onClick={() => void claimAll()}>{claim.isPending ? "Claiming…" : `Claim ${sum.worth !== null ? big(sum.worth) : ""}`.trim()}</button> : undefined} />
       )}
-      {/* This round's house, live: what it holds, what it has earned, and
-          what traders have riding on it. The rules are on the How page. */}
-      <div className="quote-line" aria-label="The house, this round">
-        {([["Pool", l.depositTotal, ""], ["Fees earned", l.feesLp, "ql-up"], ["Traders in", l.basisTotal, ""]] as const).map(([k, v, cls]) => (
-          <div key={k} title={k === "Traders in" ? "What traders have paid for calls still open in this round" : undefined}>
-            <span>{k}</span>
-            <b className={`mono ${cls}`}>{rate !== null ? fmtUsd(toUsd(v, dec, rate)) : fmtCompact(v, dec)}</b>
-            <em className="mono">{fmtCompact(v, dec)} {p.quoteSymbol}</em>
-          </div>
-        ))}
-      </div>
       {joinable && (
         <>
           <div className="field">

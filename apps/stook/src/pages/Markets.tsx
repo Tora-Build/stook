@@ -3,12 +3,14 @@ import { useQuery } from "@tanstack/react-query";
 import { COINS } from "../lib/coins";
 import { Skyline } from "../components/Skyline";
 import { Floor } from "../components/Floor";
+import { fmtUsd, useCoinQuotes } from "../lib/usd";
 
 const STOOK_MINT = COINS.find((c) => c.symbol === "STOOK")?.mint ?? "";
 
 
 export function Markets() {
   const [params] = useSearchParams();
+  const stookQ = useCoinQuotes().data?.STOOK;
   const wanted = params.get("coin");
   const quotes = useQuery({ queryKey: ["quotes"], queryFn: async () => (await fetch("/prices")).json() as Promise<Record<string, { price: number; change24h: number | null }>>, refetchInterval: 60_000 });
   if (wanted && COINS.some((c) => c.symbol === wanted.toUpperCase())) return <Navigate to={`/c/${wanted.toUpperCase()}`} replace />;
@@ -65,6 +67,7 @@ export function Markets() {
             <div><dt>follows</dt><dd>S&amp;P 500 · SPYx · <span className="mono">XsoCS1TfEyfFhfvj8EtZ528L3CaKBDBRqRapnBbDF2W</span></dd></div>
             {/* the mint comes from the build's environment, not the repo */}
             {STOOK_MINT && <div><dt>mint</dt><dd className="muted mono">{STOOK_MINT}</dd></div>}
+            {stookQ?.usd ? <div><dt>price</dt><dd className="mono">{fmtUsd(stookQ.usd)}{typeof stookQ.change24h === "number" && <span className={stookQ.change24h >= 0 ? "up" : "down"}> {stookQ.change24h >= 0 ? "+" : ""}{stookQ.change24h.toFixed(1)}% 24h</span>}</dd></div> : null}
             <div><dt>on</dt><dd>StonkFun, Solana</dd></div>
             <div><dt>what it does</dt><dd>$STOOK is the money in $STOOK rounds. You place calls with it, you fund the pool with it, and winners are paid in it.</dd></div>
           </dl>

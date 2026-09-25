@@ -6,11 +6,11 @@ import { useState, type ReactNode } from "react";
 
 export interface BookRow { key: string; label: ReactNode; amount: ReactNode; sub?: ReactNode; on?: boolean; onClick?: () => void }
 
-export function Book(p: { kind: "call" | "house"; title: string; count: number; total: ReactNode; extra?: ReactNode; rows: BookRow[]; open?: boolean; footer?: ReactNode; onFold?: () => void }) {
+export function Book(p: { kind: "call" | "house"; title: string; count: number; total: ReactNode; extra?: ReactNode; rows: BookRow[]; open?: boolean; footer?: ReactNode; onFold?: () => void; tour?: string }) {
   const [open, setOpen] = useState(false);
   const shown = open || !!p.open;
   return (
-    <div className={`book book-${p.kind}`}>
+    <div className={`book book-${p.kind}`} data-tour={p.tour}>
       {/* Folding the book puts back whatever was picked from it. */}
       <button className="book-head" onClick={() => { if (shown) p.onFold?.(); setOpen(!shown); }} aria-expanded={shown}>
         <span className="book-tab">{p.title}<i>{p.count}</i></span>

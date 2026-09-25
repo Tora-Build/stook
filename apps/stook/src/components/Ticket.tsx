@@ -90,7 +90,7 @@ function Mine(p: Props) {
   const paid = p.positions.reduce((a, r) => a + r.position.netPaid, 0n);
   const money = (v: bigint) => p.usd !== null ? <>{fmtUsd(toUsd(v, dec, p.usd))}<small>{fmtCompact(v, dec)} {p.quoteSymbol}</small></> : <>{fmtCompact(v, dec)} {p.quoteSymbol}</>;
   return (
-    <Book kind="call" title="Your calls" count={p.positions.length} open={!!p.selected} onFold={p.onDeselect}
+    <Book tour="book" kind="call" title="Your calls" count={p.positions.length} open={!!p.selected} onFold={p.onDeselect}
       total={<>{p.usd !== null ? fmtUsd(toUsd(paid, dec, p.usd)) : `${fmtCompact(paid, dec)} ${p.quoteSymbol}`} in</>}
       rows={p.positions.map((r) => { const on = !!p.selected?.pubkey.equals(r.pubkey); return {
         key: r.pubkey.toBase58(), on, label: name(r.position.shape), sub: on ? "open below: add or sell" : undefined,
@@ -176,8 +176,8 @@ function Buy(p: Props & { held?: boolean }) {
         const money = (v: bigint) => p.usd !== null ? fmtUsd(toUsd(v, dec, p.usd)) : `${fmtCompact(v, dec)} ${p.quoteSymbol}`;
         const rest = WAD_ONE - odds.reduce((a, [, pr]) => a + pr, 0n);
         return (
-          <div className="payl" role="table" aria-label="What each landing pays">
-            <div className="payl-head" role="row"><span>If it lands</span><span>it pays{stakeAt !== null && <i className="payl-key"> your stake</i>}</span><span /></div>
+          <div className="payl" role="table" aria-label="What each landing pays" data-tour="ladder">
+            <div className="payl-head" role="row"><span>If it lands</span><span className="payl-scale">bar: what it pays{stakeAt !== null && pays !== null && <i className="payl-tag" style={{ left: `${stakeAt}%` }}>you pay {money(pays)}</i>}</span><span /></div>
             {rows.map(({ lv, pr, back }) => {
               const win = pays !== null && back >= pays, x = pays && pays > 0n ? Number(back) / Number(pays) : null;
               return (
@@ -212,7 +212,7 @@ function Buy(p: Props & { held?: boolean }) {
         <span className="hint">balance {balance.data !== undefined ? <>{p.usd !== null ? `${fmtUsd(toUsd(balance.data, dec, p.usd))} · ` : ""}{fmtCompact(balance.data, dec)} {p.quoteSymbol}</> : `… ${p.quoteSymbol}`}</span>
       </div>
       {budget !== null && pays !== null && pays * 100n < budget * 99n && <Notice tone="warn" title="Round limit">Only {p.usd !== null ? fmtUsd(toUsd(pays, dec, p.usd)) : `${fmtCompact(pays, dec)} ${p.quoteSymbol}`} more fits on this call: its odds are near the most this round can price. The order below uses that.</Notice>}
-      {s && q && pays !== null && limit !== null && <div className="ticket-paper" role="group" aria-label="Your order">
+      {s && q && pays !== null && limit !== null && <div className="ticket-paper" role="group" aria-label="Your order" data-tour="paper">
         <div className="tp-head"><span>{existing && !p.held ? "Adding to your call" : "Your call"}</span><b className="mono">{p.symbol} {s.h === 1 ? `range ${where}` : `target ${where}`}</b></div>
         <div className="tp-row"><span>You pay</span><i /><b className="mono">{p.usd !== null ? fmtUsd(toUsd(pays, dec, p.usd)) : `${fmtCompact(pays, dec)} ${p.quoteSymbol}`}</b></div>
         <div className="tp-row tp-small"><span>{fmtCompact(pays, dec)} {p.quoteSymbol}</span></div>
