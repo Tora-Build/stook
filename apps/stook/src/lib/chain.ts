@@ -114,15 +114,29 @@ export const ensureAta = (mint: PublicKey, owner: PublicKey, tokenProgram: Publi
 
 /** The live Pyth price for a feed, from the push oracle's devnet account. */
 export interface LivePrice { price: bigint; expo: number; publishTime: number; conf: bigint }
+/** The live price for a feed: Pyth's on-chain price account when it is
+ *  fresh, else the site's /pyth route (Hermes). Devnet's price accounts are
+ *  often left stale for days, and a stale "now" misplaces the whole chart. */
 export async function fetchLivePrice(c: Connection, feedId: Uint8Array): Promise<LivePrice | null> {
-  const [pda] = PublicKey.findProgramAddressSync([Uint8Array.of(0, 0), feedId], PYTH_PUSH_ORACLE);
-  const a = await c.getAccountInfo(pda);
-  if (!a) return null;
-  const d = Buffer.from(a.data);
-  // PriceUpdateV2: disc 8, write_authority 32, verification 1(+8 if partial? no: enum tag 1, then u8 for Partial) — locate the feed id instead.
-  const at = d.indexOf(Buffer.from(feedId));
-  if (at < 0) return null;
-  return { price: d.readBigInt64LE(at + 32), conf: d.readBigUInt64LE(at + 40), expo: d.readInt32LE(at + 48), publishTime: Number(d.readBigInt64LE(at + 52)) };
+  const FRESH_SECS = 180;
+  let onChain: LivePrice | null = null;
+  try {
+    const [pda] = PublicKey.findProgramAddressSync([Uint8Array.of(0, 0), feedId], PYTH_PUSH_ORACLE);
+    const a = await c.getAccountInfo(pda);
+    if (a) {
+      const d = Buffer.from(a.data);
+      // PriceUpdateV2: locate the feed id, the price message follows it.
+      const at = d.indexOf(Buffer.from(feedId));
+      if (at >= 0) onChain = { price: d.readBigInt64LE(at + 32), conf: d.readBigUInt64LE(at + 40), expo: d.readInt32LE(at + 48), publishTime: Number(d.readBigInt64LE(at + 52)) };
+    }
+  } catch { /* fall through to /pyth */ }
+  if (onChain && Date.now() / 1000 - onChain.publishTime < FRESH_SECS) return onChain;
+  try {
+    const hex = Array.from(feedId, (b) => b.toString(16).padStart(2, "0")).join("");
+    const r = await fetch(`/pyth?id=${hex}`);
+    if (r.ok) { const j = await r.json(); return { price: BigInt(j.price), conf: BigInt(j.conf), expo: Number(j.expo), publishTime: Number(j.publishTime) }; }
+  } catch { /* keep what the chain had */ }
+  return onChain;
 }
 
 export async function send(c: Connection, wallet: WalletContextState, ixs: TransactionInstruction[], computeUnits = 120_000, extraSigners: Keypair[] = []): Promise<string> {

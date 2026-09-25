@@ -1,4 +1,9 @@
 import { aiChatter, bellIn, grammarChatter } from "./chatter.js";
+import FEEDS from "../apps/stook/src/lib/feeds.json";
+
+// The feeds the app can show; /pyth answers for these only, so the key it
+// holds cannot be spent on anything else.
+const FEED_IDS = new Set(FEEDS.map((f) => f.id.toLowerCase()));
 
 // stooks.xyz: static assets, plus two small data routes the page and the app
 // read. Market data for display comes from public sources (Yahoo, CoinGecko,
@@ -134,6 +139,26 @@ export default {
 
   async fetch(request, env, ctx) {
     const url = new URL(request.url);
+    // /pyth?id=: the latest Pyth price for one of the app's feeds, from
+    // Hermes with the PYTH_API_KEY secret. The round page's live line uses
+    // it when Pyth's on-chain price account is stale (devnet's often are).
+    if (url.pathname === "/pyth") {
+      const id = (url.searchParams.get("id") ?? "").toLowerCase().replace(/^0x/, "");
+      if (!FEED_IDS.has(id)) return new Response(JSON.stringify({ error: "unknown feed" }), { status: 404, headers: { "content-type": "application/json" } });
+      if (!env.PYTH_API_KEY) return new Response(JSON.stringify({ error: "not configured" }), { status: 503, headers: { "content-type": "application/json" } });
+      const cache = caches.default, key = new Request(`${url.origin}/pyth?id=${id}`);
+      const hit = await cache.match(key); if (hit) return hit;
+      let body, status = 200;
+      try {
+        const r = await fetch(`https://hermes.pyth.network/v2/updates/price/latest?ids%5B%5D=${id}&parsed=true&encoding=hex`, { headers: { authorization: `Bearer ${env.PYTH_API_KEY}` } });
+        const p = (await r.json())?.parsed?.[0]?.price;
+        if (!p) throw new Error(`hermes ${r.status}`);
+        body = { price: p.price, conf: p.conf, expo: p.expo, publishTime: p.publish_time };
+      } catch (e) { body = { error: "unavailable" }; status = 502; }
+      const res = new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json", "cache-control": `public, max-age=${status === 200 ? 5 : 10}`, "access-control-allow-origin": "*", "x-content-type-options": "nosniff" } });
+      if (status === 200) ctx.waitUntil(cache.put(key, res.clone()));
+      return res;
+    }
     // /chatter: conversations for the floor, from the grammar (new every
     // minute) and the AI's latest hourly batch, shuffled together.
     // The cron's job on demand, for the operator (the tape's token).

@@ -15,7 +15,8 @@ const W = 960, H = 440, PAD = { l: 8, r: 70, t: 14, b: 26 };
 const SPLIT = 0.66;                                  // share of width for the history
 const plotH = H - PAD.t - PAD.b, plotW = W - PAD.l - PAD.r;
 const histW = plotW * SPLIT, oddsX = PAD.l + histW + 6, oddsW = plotW - histW - 6;
-const VISIBLE = 22;                                  // bands drawn at once
+const VISIBLE = 22;                                  // bands drawn at once, at least
+const MAX_VISIBLE = 40;                              // and at most, on a day that moved a lot
 
 export type DrawMode = "line" | "range";
 
@@ -57,10 +58,24 @@ export function Chart(p: ChartProps) {
   const step = p.stepBps / 10_000;
   const p0 = Number(p.p0) * scale;
 
-  // The window of bands on screen: centred on where the price is now (or the
-  // settled band), widened to include the drawn shape.
-  const centreBin = p.settledBin ?? (p.live ? stook.binFor(p.live.price, p.p0, p.stepBps) : 32);
-  let lo = Math.max(0, centreBin - VISIBLE / 2), hi = Math.min(BINS - 1, lo + VISIBLE - 1);
+  // The window of bands on screen: everything that matters today, fitted.
+  // The price now, the opening price, the day's price path and where the
+  // crowd's odds actually are, with a band of margin; at least VISIBLE bands,
+  // at most MAX_VISIBLE (keeping the price and its path if it must choose).
+  // A day that moved far from its open no longer hides its own chart.
+  const clampBin = (i: number) => Math.min(BINS - 1, Math.max(0, i));
+  const binOfPrice = (v: number) => clampBin(Math.floor(Math.log(v / p0) / step) + BINS / 2);
+  const liveBin = p.settledBin ?? (p.live ? stook.binFor(p.live.price, p.p0, p.stepBps) : BINS / 2);
+  const must = [liveBin, BINS / 2];
+  if (p0 > 0) for (const q of p.history ?? []) if (q[1] > 0 && q[0] >= p.now - 86_400) must.push(binOfPrice(q[1]));
+  const crowd = probs.flatMap((pr, i) => (maxProb > 0n && pr * 33n >= maxProb ? [i] : []));
+  let lo = Math.min(...must, ...crowd) - 1, hi = Math.max(...must, ...crowd) + 1;
+  if (hi - lo + 1 > MAX_VISIBLE) { lo = Math.min(...must) - 1; hi = Math.max(...must) + 1; }
+  if (hi - lo + 1 > MAX_VISIBLE) { lo = liveBin - MAX_VISIBLE / 2; hi = lo + MAX_VISIBLE - 1; }
+  if (hi - lo + 1 < VISIBLE) { const mid = (lo + hi) / 2; lo = Math.round(mid - VISIBLE / 2); hi = lo + VISIBLE - 1; }
+  if (lo < 0) { hi -= lo; lo = 0; }
+  if (hi > BINS - 1) { lo -= hi - (BINS - 1); hi = BINS - 1; }
+  lo = clampBin(lo); hi = clampBin(hi);
   if (p.shape) { const [a, z] = stook.shapeBins(p.shape); lo = Math.min(lo, a); hi = Math.max(hi, z); }
   const nVis = hi - lo + 1, bh = plotH / nVis;
   // log-price → y: band i spans [edge(i), edge(i+1)), equal height each
@@ -103,7 +118,7 @@ export function Chart(p: ChartProps) {
   const livePrice = p.live ? Number(p.live.price) * scale : hist.length ? hist[hist.length - 1]![1] : null;
 
   const fmt = (v: number) => v.toLocaleString("en-US", { minimumFractionDigits: p.dp, maximumFractionDigits: p.dp });
-  const labelEvery = nVis > 16 ? 2 : 1;
+  const labelEvery = nVis > 30 ? 3 : nVis > 16 ? 2 : 1;
   const hoverBox = hover !== null ? { range: hover === 0 ? `below ${fmt(edge(1))}` : hover === BINS - 1 ? `above ${fmt(edge(BINS - 1))}` : `${fmt(edge(hover))} – ${fmt(edge(hover + 1))}`, prob: chance(probs[hover]!), pays: levels ? levels[hover]! : null } : null;
 
   return (
