@@ -1083,15 +1083,7 @@ a.tour-btn { text-decoration: none; }
 .tp-line-open > .tp-fold-sub::before, .tp-fold-open::before { content: ""; position: absolute; left: -1rem; right: -1rem; top: -5px; height: 10px; pointer-events: none; z-index: 1;
   background: linear-gradient(180deg, transparent 0, rgba(90, 70, 35, .10) 40%, rgba(90, 70, 35, .45) 50%, rgba(255, 253, 244, .95) 55%, rgba(90, 70, 35, .08) 65%, transparent 100%); }
 
-/* Open, the crease stays: the same line the folded edge had, now with the
-   valley shading on both sides, drawn inside the unfolded flap so nothing
-   covers it. */
+/* Open, the paper lies flat: no crease once it has unfolded. */
 .tp-line-open > .tp-fold-sub::before, .tp-fold-open::before { display: none; }
-.tp-line-open > .tp-fold-sub > .tp-fold-in, .tp-fold-open > .tp-fold-in { overflow: visible; padding-top: 6px; }
-.tp-line-open > .tp-fold-sub > .tp-fold-in::after, .tp-fold-open > .tp-fold-in::after {
-  content: ""; position: absolute; left: -1rem; right: -1rem; top: 0; height: 7px; pointer-events: none; z-index: 2;
-  border-top: 1px solid rgba(90, 70, 35, .4);
-  background: linear-gradient(180deg, rgba(255, 253, 244, .9) 0, rgba(90, 70, 35, .16) 2px, rgba(90, 70, 35, .03) 100%);
-}
 .tp-fold-sub .tp-fold-in { margin-left: 0 !important; border-left: 0 !important; padding-left: 1rem !important; }
 .tp-more-fold .tp-fold-sub .tp-fold-in { padding-left: 0 !important; }
