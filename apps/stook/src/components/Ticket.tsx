@@ -7,7 +7,7 @@ import { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { useWallet } from "@solana/wallet-adapter-react";
 import { stook } from "@sooth/sdk-solana";
-import { chance, fmtAmount, parseAmount, fmtPrice } from "../lib/format";
+import { chance, fmtAmount, fmtCompact, parseAmount, fmtPrice } from "../lib/format";
 import { nyWhen } from "../lib/time";
 
 const WAD_ONE = 10n ** 18n;
@@ -84,11 +84,24 @@ export function Ticket(p: Props) {
 // ── your lines in this round, as chips: pick one to add to it or sell it ─────
 function Mine(p: Props) {
   const dec = p.ladder.decimals, l = p.ladder;
-  const name = (s: stook.Shape) => s.h > 1 ? `${bandName(l, (s.lo + s.hi) / 2, p.dp)} ·${s.h}` : rangeName(l, s.lo, s.hi, p.dp);
+  const [open, setOpen] = useState(false);
+  const name = (s: stook.Shape) => s.h > 1 ? `line at ${bandName(l, (s.lo + s.hi) / 2, p.dp)}, reach ${s.h}` : `range ${rangeName(l, s.lo, s.hi, p.dp)}`;
+  const paid = p.positions.reduce((a, r) => a + r.position.netPaid, 0n);
+  const shown = open || !!p.selected;
   return (
-    <div className="mine">
-      <span className="mine-k">yours</span>
-      {p.positions.map((r) => { const on = p.selected?.pubkey.equals(r.pubkey); return <button key={r.pubkey.toBase58()} className={`chip ${on ? "on" : ""}`} onClick={() => (on ? p.onDeselect() : p.onSelect(r))}>{name(r.position.shape)} <span className="mono">{fmtAmount(r.position.shares, dec, 0)} sh</span></button>; })}
+    <div className="mine2">
+      <button className="mine2-head" onClick={() => setOpen(!shown)} aria-expanded={shown}>
+        <span className="slip2-k">Your lines</span>
+        <span className="mine2-sum">{p.positions.length} · {p.usd !== null ? fmtUsd(toUsd(paid, dec, p.usd)) : `${fmtCompact(paid, dec)} ${p.quoteSymbol}`} in</span>
+        <span className="mine2-caret" aria-hidden="true">{shown ? "▾" : "▸"}</span>
+      </button>
+      {shown && <ul className="mine2-list">
+        {p.positions.map((r) => { const on = p.selected?.pubkey.equals(r.pubkey); return (
+          <li key={r.pubkey.toBase58()}><button className={on ? "on" : ""} onClick={() => (on ? p.onDeselect() : p.onSelect(r))}>
+            <span>{name(r.position.shape)}</span>
+            <span className="mono">{p.usd !== null ? fmtUsd(toUsd(r.position.netPaid, dec, p.usd)) : fmtCompact(r.position.netPaid, dec)} · {fmtCompact(r.position.shares, dec)} sh</span>
+          </button></li>); })}
+      </ul>}
     </div>
   );
 }
@@ -149,7 +162,10 @@ function Buy(p: Props & { held?: boolean }) {
   return (
     <>
       {!p.held && <div className="seg-row">
-        <div className="seg" data-tour="shape"><button className={p.mode === "line" ? "on" : ""} onClick={() => p.setMode("line")}>Line</button><button className={p.mode === "range" ? "on" : ""} onClick={() => p.setMode("range")}>Range</button></div>
+        <div className="seg shape-seg" data-tour="shape">
+          <button className={p.mode === "line" ? "on" : ""} onClick={() => p.setMode("line")} title="Pays most on one band, a little less on each band away"><ShapeIcon kind="line" />Line</button>
+          <button className={p.mode === "range" ? "on" : ""} onClick={() => p.setMode("range")} title="Pays the same anywhere inside the range"><ShapeIcon kind="range" />Range</button>
+        </div>
         {p.mode === "line" && <label className="height" data-tour="reach">reach <Slider min={1} max={stook.MAX_HEIGHT} value={p.height} onChange={p.setHeight} width={110} /><span className="mono">{p.height}</span></label>}
       </div>}
       {!s ? (p.tradeable
@@ -188,13 +204,12 @@ function Buy(p: Props & { held?: boolean }) {
           <div className="slip2-cell"><span className="slip2-k">You pay</span><b className="mono">{p.usd !== null ? fmtUsd(toUsd(pays, dec, p.usd)) : fmtAmount(pays, dec)}</b><em className="mono">{fmtAmount(pays, dec)} {p.quoteSymbol}</em></div>
           <div className="slip2-cell slip2-win"><span className="slip2-k">To win, best case</span><b className="mono">{p.usd !== null ? fmtUsd(toUsd(lands(q.maxPayout), dec, p.usd)) : fmtAmount(lands(q.maxPayout), dec)}</b><em className="mono">{fmtAmount(lands(q.maxPayout), dec)} {p.quoteSymbol} · {(Number(lands(q.maxPayout)) / Number(pays)).toLocaleString("en-US", { maximumFractionDigits: 1 })}×</em></div>
         </div>
-        <p className="slip2-note">Best case if it closes {moveFromOpen(l, Math.floor((s!.lo + s!.hi) / 2))}. Fee {(feeBps / 100).toFixed(feeBps % 100 ? 1 : 0)}%{feeBps < stook.FEE_PEAK_BPS ? ", 5% near the close" : ", its highest"}.</p>
-        <details className="slip2-more"><summary>Limits and fees</summary>
-          <dl className="quote">
-            <div><dt>most it can cost, if the odds move first</dt><dd className="mono">{fmtAmount(limit, dec)} <Usd units={limit} decimals={dec} rate={p.usd} /></dd></div>
-            {pays !== q.total && <div><dt>of which the coin's transfer fee</dt><dd className="mono">{fmtAmount(pays - q.total, dec)} <Usd units={pays - q.total} decimals={dec} rate={p.usd} /></dd></div>}
-            <div><dt>trading fee</dt><dd className="mono">{(feeBps / 100).toFixed(2)}%{feeBps < stook.FEE_PEAK_BPS ? (Number(l.settlesAt) - p.now > 6 * 3600 ? ", rising to 5% over the last 6 hours" : ", rising to 5% by the lock") : ", its highest"}</dd></div>
-          </dl>
+        <p className="slip2-note">Best case if it closes {moveFromOpen(l, Math.floor((s!.lo + s!.hi) / 2))}. Fee {(feeBps / 100).toFixed(feeBps % 100 ? 1 : 0)}%, {p.usd !== null ? fmtUsd(toUsd(q.fee, dec, p.usd)) : `${fmtCompact(q.fee, dec)} ${p.quoteSymbol}`}{feeBps >= stook.FEE_PEAK_BPS ? ", its highest" : Number(l.settlesAt) - p.now < 6 * 3600 ? ", rising to 5% by the lock" : ""}.</p>
+        <details className="slip2-more"><summary>Limits</summary>
+          <div className="limits">
+            <div><span>Most it can cost, if the odds move first</span><b className="mono">{p.usd !== null ? fmtUsd(toUsd(limit, dec, p.usd)) : `${fmtCompact(limit, dec)} ${p.quoteSymbol}`}</b></div>
+            {pays !== q.total && <div><span>Of which the coin's transfer fee</span><b className="mono">{p.usd !== null ? fmtUsd(toUsd(pays - q.total, dec, p.usd)) : `${fmtCompact(pays - q.total, dec)} ${p.quoteSymbol}`}</b></div>}
+          </div>
         </details>
       </div>}
       {short && <p className="warn">You hold {fmtAmount(balance.data!, dec)} {p.quoteSymbol}; this can cost up to {fmtAmount(limit!, dec)}.</p>}
@@ -275,4 +290,10 @@ function Collect(p: Props) {
       <p className="hint" style={{ marginTop: ".6rem" }}><Link to={p.coinSymbol ? `/c/${p.coinSymbol}` : "/"}>{p.coinSymbol ? "Back to the calendar" : "Back to the street"}</Link></p>
     </>
   );
+}
+
+/** A line's payout is a peak, a range's a flat block: drawn as five bars. */
+function ShapeIcon({ kind }: { kind: "line" | "range" }) {
+  const hs = kind === "line" ? [2, 4, 8, 4, 2] : [0, 6, 6, 6, 0];
+  return <svg className="shape-icon" viewBox="0 0 19 9" width={25} height={12} aria-hidden="true">{hs.map((h, i) => <rect key={i} x={i * 4} y={9 - h} width={3} height={h} fill="currentColor" />)}</svg>;
 }

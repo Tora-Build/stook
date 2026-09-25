@@ -804,3 +804,21 @@ button.tour-skip:hover { color: var(--cream); }
 .stake-nums b { font-size: 1.1rem; font-weight: 600; }
 .stake-nums .up { color: #5ec48f; }
 .stake .rows { margin-top: .4rem; }
+
+/* your lines: one line that opens a list */
+.mine2 { margin: 0 0 .8rem; border: 2px solid var(--line); background: var(--ink); }
+.mine2-head { display: flex; align-items: center; gap: .6rem; width: 100%; padding: .5rem .7rem; background: none; border: 0; color: var(--cream); cursor: pointer; font: inherit; text-align: left; }
+.mine2-sum { margin-left: auto; font-size: .85rem; color: var(--cream-2); }
+.mine2-caret { color: var(--taxi); }
+.mine2-list { list-style: none; margin: 0; padding: 0 .4rem .4rem; display: flex; flex-direction: column; gap: 2px; }
+.mine2-list button { display: flex; justify-content: space-between; gap: .8rem; width: 100%; padding: .45rem .5rem; background: var(--sky); border: 2px solid transparent; color: var(--cream); font: inherit; font-size: .82rem; cursor: pointer; text-align: left; }
+.mine2-list button:hover { border-color: var(--line); }
+.mine2-list button.on { border-color: var(--taxi); }
+.mine2-list .mono { color: var(--cream-2); white-space: nowrap; }
+/* line and range, with their shapes */
+.shape-seg button { display: inline-flex; align-items: center; gap: .4rem; }
+.shape-icon { flex: none; }
+/* the limits, as two tidy rows */
+.limits { display: flex; flex-direction: column; gap: .35rem; margin-top: .45rem; }
+.limits > div { display: flex; justify-content: space-between; gap: 1rem; font-size: .82rem; color: var(--cream-2); }
+.limits b { font-weight: 600; color: var(--cream); }
