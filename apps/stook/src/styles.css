@@ -864,9 +864,6 @@ button.tour-skip:hover { color: var(--cream); }
 .tote-v.tote-sub { font-size: .85rem; color: var(--cream-2); }
 .ledger .amt-big { display: block; font-size: .95rem; }
 .ledger .amt-coin { display: block; font-size: .72rem; color: var(--cream-3); margin-top: .1rem; }
-.stmt-paper { margin: .8rem 1rem .2rem; }
-.stmt-paper .tp-win { margin-top: 0; padding-top: 0; border-top: 0; }
-.stmt-paper .primary { width: 100%; margin-top: .3rem; }
 
 /* The book: what you already hold in this round, a folder with a tab */
 .book { margin: .2rem 0 .9rem; border: 2px solid var(--line); background: var(--ink); --k: var(--crowd-2); }
@@ -897,3 +894,7 @@ button.tour-skip:hover { color: var(--cream); }
 .notice-body > b { font-family: var(--px); font-size: .45rem; letter-spacing: .06em; text-transform: uppercase; color: var(--n); }
 .desk-coin, .strip-coin { display: block; font-size: .72rem; color: var(--cream-3); }
 .coin-line { display: block; font-size: .72rem; color: var(--cream-3); }
+.stmt-book { padding: .8rem 1rem .2rem; }
+.stmt-book .book { margin: 0; }
+.stmt-book .book-rows .chip-k { vertical-align: 2px; }
+.book-extra .down { color: var(--bad); } .book-extra .up { color: var(--good); }

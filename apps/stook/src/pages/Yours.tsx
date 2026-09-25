@@ -15,6 +15,7 @@ import { feedByHex, feedHex } from "../lib/feeds";
 import { fmtCompact, short } from "../lib/format";
 import { fmtUsd, toUsd, useUsdRates } from "../lib/usd";
 import { bandName, rangeName } from "../components/Ticket";
+import { Book } from "../components/Book";
 import { nyWhen } from "../lib/time";
 
 type Stage = "funded" | "opening" | "void soon" | "trading" | "locked" | "settling" | "settled" | "void";
@@ -156,6 +157,7 @@ function RoundBlock({ h, now, own }: { h: Holding; now: number; own: boolean }) 
   // Named by the coin's real anchor, as everywhere but the round page and
   // the fund sheet (which name the devnet stand-in feed, with a note).
   const shownAnchor = coin ? coin.anchor : null;
+  const final = stage === "settled" || stage === "void";
   const pnl = (x: Line) => (x.value === null ? null : x.value - x.cost);
   return (
     <article className={`stmt-round stage-${stage.replace(" ", "-")}`}>
@@ -167,8 +169,28 @@ function RoundBlock({ h, now, own }: { h: Holding; now: number; own: boolean }) 
         </div>
         <span className={`stamp stamp-${stage.replace(" ", "-")}`}>{stage}</span>
       </header>
-      <table className="ledger">
-        <thead><tr><th>holding</th><th>cost</th><th>{stage === "settled" || stage === "void" ? "pays" : "worth"}</th><th>result</th></tr></thead>
+      {/* A finished round reads as a book: what each holding pays, the
+          total, and one button for all of it, as on the round page. */}
+      {final ? (() => {
+        const cost = v.lines.reduce((a, x) => a + x.cost, 0n), d = v.ready - cost;
+        return (
+          <div className="stmt-book">
+            <Book kind="call" title={stage === "void" ? "Refund" : "To collect"} count={v.lines.length} open total={big(v.ready)}
+              extra={cost > 0n ? <span className={d < 0n ? "down" : "up"}>{d >= 0n ? "+" : "−"}{big(d >= 0n ? d : -d)}</span> : undefined}
+              rows={v.lines.map((x) => ({
+                key: x.key,
+                label: <><span className={`chip-k ${x.kind}`}>{x.kind === "line" ? "CALL" : "HOUSE"}</span> {x.what}</>,
+                sub: <>{x.kind === "line" ? "paid" : "put in"} {big(x.cost)}</>,
+                amount: x.value !== null && x.value > 0n ? <span className="up">{rate !== null ? <>{fmtUsd(toUsd(x.value, l.decimals, rate))}<small>{fmtCompact(x.value, l.decimals)} {sym}</small></> : `${fmtCompact(x.value, l.decimals)} ${sym}`}</span> : <span className="muted">0</span>,
+              }))}
+              footer={!collectable ? <span className="muted small">Only the account's own wallet can collect.</span>
+                : v.ready > 0n ? <button className="primary" disabled={!publicKey || send.isPending} onClick={() => void collect()}>{send.isPending ? "Collecting…" : `Collect ${big(v.ready)}`}</button>
+                : <button className="small" disabled={!publicKey || send.isPending} onClick={() => void collect()}>{send.isPending ? "Closing…" : "Nothing won: close these out"}</button>} />
+          </div>
+        );
+      })() : (
+        <table className="ledger">
+        <thead><tr><th>holding</th><th>cost</th><th>worth</th><th>result</th></tr></thead>
         <tbody>
           {v.lines.map((x) => { const r = pnl(x); return (
             <tr key={x.key} className={x.kind}>
@@ -178,20 +200,10 @@ function RoundBlock({ h, now, own }: { h: Holding; now: number; own: boolean }) 
               <td className={`mono ${r === null ? "muted" : r >= 0n ? "up" : "down"}`}>{r === null ? "at the bell" : amt(r >= 0n ? r : -r, r >= 0n ? "+" : "−")}</td>
             </tr>); })}
         </tbody>
-      </table>
-      {(stage === "settled" || stage === "void") && (
-        <div className="ticket-paper stmt-paper">
-          <div className="tp-win">
-            <div className="tp-win-top"><span>{stage === "void" ? "Refund to collect" : "Yours to collect"}</span>{v.lines.length > 0 && (() => { const c = v.lines.reduce((a, x) => a + x.cost, 0n); const d = v.ready - c; return c > 0n ? <em className={`mono ${d < 0n ? "tp-down" : ""}`}>{d >= 0n ? "+" : "−"}{big(d >= 0n ? d : -d)}</em> : null; })()}</div>
-            <b className="mono">{big(v.ready)}</b>
-            <div className="tp-note">{rate !== null ? `${fmtCompact(v.ready, l.decimals)} ${sym}, ` : ""}{own ? "one click sends it to your wallet" : "only the account's wallet can collect"}</div>
-          </div>
-          {collectable && v.ready > 0n && <button className="primary" disabled={!publicKey || send.isPending} onClick={() => void collect()}>{send.isPending ? "Collecting…" : `Collect ${big(v.ready)}`}</button>}
-        </div>
+        </table>
       )}
       <footer className="stmt-round-foot">
-        {collectable && v.ready === 0n ? <button className="small as-link" disabled={!publicKey || send.isPending} onClick={() => void collect()}>{send.isPending ? "Closing…" : "Nothing won: close these out ›"}</button>
-          : <Link to={`/m/${h.pubkey.toBase58()}`} className="small as-link">{stage === "trading" ? "To the table ›" : "Open the round ›"}</Link>}
+        <Link to={`/m/${h.pubkey.toBase58()}`} className="small as-link">{stage === "trading" ? "To the table ›" : "Open the round ›"}</Link>
       </footer>
     </article>
   );
