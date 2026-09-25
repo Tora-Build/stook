@@ -857,3 +857,5 @@ button.tour-skip:hover { color: var(--cream); }
 .quote-line b.ql-up { color: #5ec48f; }
 .quote-line em { font-style: normal; font-size: .74rem; color: var(--cream-3); overflow-wrap: anywhere; }
 @media (max-width: 420px) { .quote-line b { font-size: 1.05rem; } .quote-line > div { padding: 0 .45rem; } }
+.stake-paper .primary { width: 100%; margin-top: .7rem; }
+.stake-paper .tp-more .tp-row .mono { font-size: .76rem; }

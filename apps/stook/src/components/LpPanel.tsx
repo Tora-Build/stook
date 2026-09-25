@@ -5,15 +5,20 @@ import { stook } from "@sooth/sdk-solana";
 import { fmtAmount, fmtCompact, parseAmount } from "../lib/format";
 import { ataOf, ensureAta } from "../lib/chain";
 import { useBalance, useSend, useTranches } from "../hooks/useChain";
-import { Usd, fmtUsd, fromUsd, toUsd } from "../lib/usd";
+import { fmtUsd, fromUsd, toUsd } from "../lib/usd";
 
 interface Props { refs: stook.LadderRefs; ladder: stook.LadderAccount; quoteSymbol: string; now: number; transferFee?: stook.TransferFee; bare?: boolean; usd?: number | null }
 
 export function LpPanel(p: Props) {
   const { publicKey } = useWallet();
-  const [text, setText] = useState("100");
-  const [inUsd, setInUsd] = useState(false);
   const rate = p.usd ?? null;
+  // Dollars first when the coin has a price, as on the call side.
+  const [unitPicked, setInUsd] = useState<boolean | null>(null);
+  const inUsd = unitPicked ?? rate !== null;
+  const [typed, setText] = useState<string | null>(null);
+  const text = typed ?? (inUsd ? "20" : "100");
+  // Amounts lead in dollars when there is a rate, the coin beneath.
+  const big = (v: bigint) => rate !== null ? fmtUsd(toUsd(v, dec, rate)) : `${fmtCompact(v, dec)} ${p.quoteSymbol}`;
   const join = useSend("Liquidity added");
   const claim = useSend("Claimed");
   const mine = useTranches(p.refs.ladder, true);
@@ -102,8 +107,8 @@ export function LpPanel(p: Props) {
             <div className="amount-head">
               <span>Deposit</span>
               <div className="seg seg-sm" role="group" aria-label="Enter the deposit in">
-                <button className={!inUsd ? "on" : ""} onClick={() => setInUsd(false)}>{p.quoteSymbol}</button>
-                {rate !== null && <button className={inUsd ? "on" : ""} onClick={() => setInUsd(true)}>USD</button>}
+                {rate !== null && <button className={inUsd ? "on" : ""} onClick={() => { setInUsd(true); setText(null); }}>USD</button>}
+                <button className={!inUsd ? "on" : ""} onClick={() => { setInUsd(false); setText(null); }}>{p.quoteSymbol}</button>
               </div>
             </div>
             <div className={`amount-input ${inUsd ? "amount-usd" : ""}`}>
@@ -111,13 +116,19 @@ export function LpPanel(p: Props) {
               <input value={text} onChange={(e) => setText(e.target.value)} inputMode="decimal" aria-label={inUsd ? "Deposit in dollars" : `Deposit in ${p.quoteSymbol}`} />
               {!inUsd && <span className="amount-unit">{p.quoteSymbol}</span>}
             </div>
-            <span className="hint">{inUsd && deposit ? <>{fmtCompact(deposit, dec)} {p.quoteSymbol} · </> : !inUsd && deposit && rate !== null ? <>{fmtUsd(toUsd(deposit, dec, rate))} · </> : null}balance {balance.data !== undefined ? <>{fmtCompact(balance.data, dec)} {p.quoteSymbol}</> : "…"}</span>
+            <span className="hint">balance {balance.data !== undefined ? <>{fmtCompact(balance.data, dec)} {p.quoteSymbol}</> : "…"}</span>
           </div>
-          {depth && (
-            <dl className="quote">
-              <div><dt>your share of the house</dt><dd className="mono">{share.now > 0 ? `${pctOf(share.now)} → ` : ""}{pctOf(share.after)}</dd></div>
-              {p.transferFee && (() => { const g = stook.grossFor(deposit!, p.transferFee!); return <div title={`${fmtAmount(g, dec)} ${p.quoteSymbol} leaves your wallet: the deposit plus the coin's own ${(p.transferFee!.bps / 100).toFixed(0)}% transfer fee`}><dt>you pay (incl. {(p.transferFee!.bps / 100).toFixed(0)}% coin fee)</dt><dd className="mono">{rate !== null ? fmtUsd(toUsd(g, dec, rate)) : `${fmtCompact(g, dec)} ${p.quoteSymbol}`}</dd></div>; })()}
-            </dl>
+          {depth && deposit && gross !== null && (
+            <div className="ticket-paper" role="group" aria-label="Your deposit">
+              <div className="tp-head"><span>Your deposit</span><b className="mono">the {p.quoteSymbol} house, this round</b></div>
+              <div className="tp-row"><span>You pay</span><i /><b className="mono">{big(gross)}</b></div>
+              <div className="tp-row tp-small"><span>{fmtCompact(gross, dec)} {p.quoteSymbol}{p.transferFee && gross !== deposit ? `, with the coin's ${(p.transferFee.bps / 100).toFixed(0)}% transfer fee` : ""}</span></div>
+              <div className="tp-win">
+                <div className="tp-win-top"><span>Your share</span>{share.now > 0 && <em className="mono">was {pctOf(share.now)}</em>}</div>
+                <b className="mono">{pctOf(share.after)}</b>
+                <div className="tp-note">of the house: 90% of every fee, split by share</div>
+              </div>
+            </div>
           )}
           {short && <p className="warn">You hold {fmtAmount(balance.data!, dec)} {p.quoteSymbol}; this needs {fmtAmount(gross!, dec)}. On devnet, use <b>test coins</b> in the header.</p>}
           <button className="primary" disabled={!depth || join.isPending || !publicKey || short} onClick={submit}>
@@ -131,17 +142,26 @@ export function LpPanel(p: Props) {
           tranche (it joined at that moment's odds and earns fees from then),
           so they cannot merge; here they add up, with the detail on request. */}
       {rows.length > 0 && (
-        <div className="stake">
-          <div className="stake-head"><span className="slip2-k">Your stake</span><span className="stake-n">{rows.length === 1 ? "1 deposit" : `${rows.length} deposits`}</span></div>
-          <div className="stake-nums">
-            <div><span>in</span><b className="mono">{fmtCompact(sum.in, dec)}</b><Usd units={sum.in} decimals={dec} rate={rate} /></div>
-            <div><span>fees earned</span><b className="mono up">{fmtCompact(sum.fees, dec)}</b><Usd units={sum.fees} decimals={dec} rate={rate} /></div>
-            {sum.worth !== null && <div><span>worth now</span><b className="mono">{fmtCompact(sum.worth, dec)}</b><Usd units={sum.worth} decimals={dec} rate={rate} /></div>}
-          </div>
-          {rows.length > 1 && <details className="slip2-more"><summary>Each deposit</summary>
-            <ul className="rows">{rows.map((r) => <li key={r.t.index}><span>#{r.t.index}</span><span className="mono">{fmtAmount(r.t.deposit, dec)} in · fees {fmtAmount(r.fees, dec)}{r.worth !== null && <> · worth {fmtAmount(r.worth, dec)}</>}</span></li>)}</ul>
+        <div className="ticket-paper stake-paper">
+          <div className="tp-head"><span>Your stake</span><b className="mono">{rows.length === 1 ? "1 deposit" : `${rows.length} deposits`} in the house</b></div>
+          <div className="tp-row"><span>Put in</span><i /><b className="mono">{big(sum.in)}</b></div>
+          <div className="tp-row tp-small"><span>{fmtCompact(sum.in, dec)} {p.quoteSymbol}</span></div>
+          {sum.worth !== null
+            ? <div className="tp-row"><span>Fees earned</span><i /><b className="mono tp-up">{big(sum.fees)}</b></div>
+            : <div className="tp-win">
+                <div className="tp-win-top"><span>Fees earned</span></div>
+                <b className="mono">{big(sum.fees)}</b>
+                <div className="tp-note">{fmtCompact(sum.fees, dec)} {p.quoteSymbol} so far, paid out after the close</div>
+              </div>}
+          {sum.worth !== null && <div className="tp-win">
+            <div className="tp-win-top"><span>Yours to claim</span></div>
+            <b className="mono">{big(sum.worth)}</b>
+            <div className="tp-note">{fmtCompact(sum.worth, dec)} {p.quoteSymbol}, deposit and fees</div>
+          </div>}
+          {rows.length > 1 && <details className="tp-more"><summary>Each deposit</summary>
+            {rows.map((r) => <div key={r.t.index} className="tp-row"><span>#{r.t.index}</span><i /><span className="mono">{big(r.t.deposit)} in · fees {big(r.fees)}{r.worth !== null && <> · {big(r.worth)}</>}</span></div>)}
           </details>}
-          {final && publicKey && <button className="primary" disabled={claim.isPending} onClick={() => void claimAll()}>{claim.isPending ? "Claiming…" : `Claim ${sum.worth !== null ? fmtAmount(sum.worth, dec) : ""} ${p.quoteSymbol}`.replace("  ", " ")}</button>}
+          {final && publicKey && <button className="primary" disabled={claim.isPending} onClick={() => void claimAll()}>{claim.isPending ? "Claiming…" : `Claim ${sum.worth !== null ? big(sum.worth) : ""}`.trim()}</button>}
         </div>
       )}
     </Wrap>
