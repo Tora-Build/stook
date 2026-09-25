@@ -793,3 +793,14 @@ button.tour-skip:hover { color: var(--cream); }
 @media (max-width: 420px) { .house-cells { grid-template-columns: repeat(3, 1fr); } .house-cells .slip2-cell { padding: .55rem .5rem; } .house-cells .slip2-cell b { font-size: 1rem; } }
 .house-fine { margin: .6rem 0 0; font-size: .78rem; color: var(--cream-3); }
 @media (max-width: 420px) { .hb-cells b { font-size: 1rem; } }
+
+/* your stake in the house: the deposits added up */
+.stake { margin-top: .9rem; padding: .7rem .8rem; background: var(--ink); border: 2px solid var(--line); display: flex; flex-direction: column; gap: .55rem; }
+.stake-head { display: flex; justify-content: space-between; align-items: baseline; }
+.stake-n { font-size: .78rem; color: var(--cream-3); }
+.stake-nums { display: flex; flex-wrap: wrap; gap: .4rem 1.4rem; }
+.stake-nums > div { display: flex; flex-direction: column; }
+.stake-nums span { font-size: .72rem; color: var(--cream-3); text-transform: uppercase; letter-spacing: .06em; }
+.stake-nums b { font-size: 1.1rem; font-weight: 600; }
+.stake-nums .up { color: #5ec48f; }
+.stake .rows { margin-top: .4rem; }

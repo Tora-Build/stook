@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { useWallet } from "@solana/wallet-adapter-react";
 import { stook } from "@sooth/sdk-solana";
-import { fmtAmount, parseAmount, short as shortKey } from "../lib/format";
+import { fmtAmount, parseAmount } from "../lib/format";
 import { ataOf, ensureAta } from "../lib/chain";
 import { useBalance, useSend, useTranches } from "../hooks/useChain";
 import { Usd, fmtUsd, fromUsd, toUsd } from "../lib/usd";
@@ -47,6 +47,25 @@ export function LpPanel(p: Props) {
     })]);
   };
 
+  // Each of your deposits, valued: fees so far, and what it is worth once
+  // the round is final (settled: principal and fees; void: its refund).
+  const rows = (mine.data ?? []).map(({ tranche: t }) => {
+    const tt = stook.trancheTerms(l, t), k = l.settledBin;
+    const fees = stook.trancheFees(tt.b, dec, l.accFee, t.feeSnap);
+    const worth = l.status === "settled" && k !== null
+      ? stook.tranchePrincipal(t.deposit, stook.tranchePnl(tt.b, tt.join.w[k]!, tt.join.sum, l.curve.w[k]!, l.curve.sum), dec) + fees
+      : l.status === "void" ? stook.voidShare(t.deposit, l.voidLpPot, l.depositTotal) : null;
+    return { t, fees, worth };
+  });
+  const sum = rows.reduce((a, r) => ({ in: a.in + r.t.deposit, fees: a.fees + r.fees, worth: a.worth === null || r.worth === null ? null : a.worth + r.worth }), { in: 0n, fees: 0n, worth: final ? 0n as bigint | null : null });
+  // One claim for every deposit, packed into as few transactions as fit.
+  const claimAll = async () => {
+    if (!publicKey) return;
+    const ata = ataOf(l.quoteMint, publicKey, p.refs.tokenProgram);
+    const chunks = stook.packByCompute(rows.map((r) => ({ ix: stook.claimLpIx(p.refs, publicKey, ata, r.t.index), units: stook.claimComputeUnits(l, r.t) })));
+    try { for (let n = 0; n < chunks.length; n++) await claim.mutateAsync({ computeUnits: chunks[n]!.units, ixs: [...(n === 0 ? [ensureAta(l.quoteMint, publicKey, p.refs.tokenProgram)] : []), ...chunks[n]!.ixs] }); } catch { /* the toast says why */ }
+  };
+
   const Wrap = p.bare ? "div" : "section";
   return (
     <Wrap className={p.bare ? "" : "panel"}>
@@ -56,7 +75,7 @@ export function LpPanel(p: Props) {
       <div className="slip2-cells house-cells" aria-label="The house, this round">
         <div className="slip2-cell"><span className="slip2-k">Pool</span><b className="mono">{fmtAmount(l.depositTotal, dec, 0)}</b><em className="mono">{rate !== null ? fmtUsd(toUsd(l.depositTotal, dec, rate)) : p.quoteSymbol}</em></div>
         <div className="slip2-cell slip2-win"><span className="slip2-k">Fees earned</span><b className="mono">{fmtAmount(l.feesLp, dec, 2)}</b><em className="mono">{rate !== null ? fmtUsd(toUsd(l.feesLp, dec, rate)) : p.quoteSymbol}</em></div>
-        <div className="slip2-cell"><span className="slip2-k">Lines out</span><b className="mono">{fmtAmount(l.basisTotal, dec, 0)}</b><em className="mono">{rate !== null ? fmtUsd(toUsd(l.basisTotal, dec, rate)) : p.quoteSymbol}</em></div>
+        <div className="slip2-cell" title="What traders have paid for lines still open in this round"><span className="slip2-k">Traders in</span><b className="mono">{fmtAmount(l.basisTotal, dec, 0)}</b><em className="mono">{rate !== null ? fmtUsd(toUsd(l.basisTotal, dec, rate)) : p.quoteSymbol}</em></div>
       </div>
       {joinable && (
         <>
@@ -93,29 +112,22 @@ export function LpPanel(p: Props) {
       )}
       {joinable && <p className="house-fine">Winners are paid from the pool: you can lose up to what you deposit. <a href="/how">How the house works ›</a></p>}
       {!joinable && <p className="house-how"><a href="/how">How the house works ›</a></p>}
-      {(mine.data ?? []).length > 0 && (
-        <ul className="rows">
-          {mine.data!.map(({ tranche: t }) => {
-            const k = l.settledBin;
-            // A deposit made before the round opened got its depth at open.
-            const tt = stook.trancheTerms(l, t);
-            const value = l.status === "settled" && k !== null
-              ? stook.tranchePrincipal(t.deposit, stook.tranchePnl(tt.b, tt.join.w[k]!, tt.join.sum, l.curve.w[k]!, l.curve.sum), dec) + stook.trancheFees(tt.b, dec, l.accFee, t.feeSnap)
-              : null;
-            const fees = stook.trancheFees(tt.b, dec, l.accFee, t.feeSnap);
-            return (
-              <li key={t.index}>
-                <span>tranche #{t.index} · {shortKey(t.owner)}</span>
-                <span className="mono">{fmtAmount(t.deposit, dec)} in <Usd units={t.deposit} decimals={dec} rate={rate} /> · fees {fmtAmount(fees, dec)} <Usd units={fees} decimals={dec} rate={rate} />{value !== null && <> · worth {fmtAmount(value, dec)} <Usd units={value} decimals={dec} rate={rate} /></>}</span>
-                {final && publicKey && (
-                  <button className="small" disabled={claim.isPending} onClick={() => claim.mutate([ensureAta(l.quoteMint, publicKey, p.refs.tokenProgram), stook.claimLpIx(p.refs, publicKey, ataOf(l.quoteMint, publicKey, p.refs.tokenProgram), t.index)])}>
-                    Claim
-                  </button>
-                )}
-              </li>
-            );
-          })}
-        </ul>
+      {/* Your deposits, as one stake. On chain each deposit is its own
+          tranche (it joined at that moment's odds and earns fees from then),
+          so they cannot merge; here they add up, with the detail on request. */}
+      {rows.length > 0 && (
+        <div className="stake">
+          <div className="stake-head"><span className="slip2-k">Your stake</span><span className="stake-n">{rows.length === 1 ? "1 deposit" : `${rows.length} deposits`}</span></div>
+          <div className="stake-nums">
+            <div><span>in</span><b className="mono">{fmtAmount(sum.in, dec)}</b><Usd units={sum.in} decimals={dec} rate={rate} /></div>
+            <div><span>fees earned</span><b className="mono up">{fmtAmount(sum.fees, dec)}</b><Usd units={sum.fees} decimals={dec} rate={rate} /></div>
+            {sum.worth !== null && <div><span>worth now</span><b className="mono">{fmtAmount(sum.worth, dec)}</b><Usd units={sum.worth} decimals={dec} rate={rate} /></div>}
+          </div>
+          {rows.length > 1 && <details className="slip2-more"><summary>Each deposit</summary>
+            <ul className="rows">{rows.map((r) => <li key={r.t.index}><span>#{r.t.index}</span><span className="mono">{fmtAmount(r.t.deposit, dec)} in · fees {fmtAmount(r.fees, dec)}{r.worth !== null && <> · worth {fmtAmount(r.worth, dec)}</>}</span></li>)}</ul>
+          </details>}
+          {final && publicKey && <button className="primary" disabled={claim.isPending} onClick={() => void claimAll()}>{claim.isPending ? "Claiming…" : `Claim ${sum.worth !== null ? fmtAmount(sum.worth, dec) : ""} ${p.quoteSymbol}`.replace("  ", " ")}</button>}
+        </div>
       )}
     </Wrap>
   );
