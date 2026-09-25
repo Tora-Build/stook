@@ -51,10 +51,16 @@ export function LpPanel(p: Props) {
   return (
     <Wrap className={p.bare ? "" : "panel"}>
       {!p.bare && <h3>Provide liquidity</h3>}
-      <div className="house-strip">
-        <span><b>Pool</b> <span className="mono">{fmtAmount(l.depositTotal, dec, 0)} {p.quoteSymbol}</span> <Usd units={l.depositTotal} decimals={dec} rate={rate} /></span>
-        <span><b>Earn</b> 90% of fees</span>
-        <span className="hs-risk"><b>Risk</b> up to your deposit</span>
+      {/* The house's board: what it holds, what it has earned this round,
+          and what traders have riding on it, live. The rules live on the How
+          page and the fund ticket; this is the scoreboard. */}
+      <div className="house-board" aria-label="The house, this round">
+        <div className="hb-head"><span>THE HOUSE</span><span className="hb-dim">this round</span></div>
+        <div className="hb-cells">
+          <div><span className="hb-k">pool</span><b>{fmtAmount(l.depositTotal, dec, 0)}</b><Usd units={l.depositTotal} decimals={dec} rate={rate} className="hb-usd" /></div>
+          <div><span className="hb-k">fees earned</span><b>{fmtAmount(l.feesLp, dec, 2)}</b><Usd units={l.feesLp} decimals={dec} rate={rate} className="hb-usd" /></div>
+          <div><span className="hb-k">lines out</span><b>{fmtAmount(l.basisTotal, dec, 0)}</b><Usd units={l.basisTotal} decimals={dec} rate={rate} className="hb-usd" /></div>
+        </div>
       </div>
       {joinable && (
         <>
@@ -89,7 +95,8 @@ export function LpPanel(p: Props) {
           </button>
         </>
       )}
-      <p className="house-how"><a href="/how">How the house works ›</a></p>
+      {joinable && <p className="house-fine">Winners are paid from the pool: you can lose up to what you deposit. <a href="/how">How the house works ›</a></p>}
+      {!joinable && <p className="house-how"><a href="/how">How the house works ›</a></p>}
       {(mine.data ?? []).length > 0 && (
         <ul className="rows">
           {mine.data!.map(({ tranche: t }) => {
