@@ -21,7 +21,7 @@
 //   FULL_VERIFICATION=1  post fully verified updates. Required on mainnet, where
 //                        the program accepts nothing less; devnet accepts partial.
 
-import { readFileSync } from "node:fs";
+import { readFileSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { createRequire } from "node:module";
 import { Connection, Keypair, ComputeBudgetProgram } from "@solana/web3.js";
@@ -39,6 +39,7 @@ const RPC_URL = process.env.RPC_URL ?? "https://soo-rpc.zak-a35.workers.dev";
 const HERMES = (process.env.HERMES_URL ?? "https://hermes.pyth.network").replace(/\/$/, "");
 const KEYPAIR = process.env.KEYPAIR ?? `${homedir()}/.config/solana/id.json`;
 const INTERVAL = Number(process.env.CRANK_INTERVAL_SECS ?? 5) * 1000;
+const HEARTBEAT = process.env.HEARTBEAT_FILE ?? `${homedir()}/ladder-crank.beat`;
 const FULL = process.env.FULL_VERIFICATION === "1";
 
 // Reads and sends go through RPC_URL; confirmations subscribe over a
@@ -335,7 +336,10 @@ if (args.has("--watch")) {
     // Learn first, so a round opening at yesterday's close opens on a
     // series that has already counted it.
     if (n % 4 === 0) await learn().catch((e) => console.error("learn failed:", e?.message ?? e));
-    await pass().catch((e) => console.error("pass failed:", e?.message ?? e));
+    // A heartbeat after every pass that ran clean: the box's keepalive
+    // restarts a keeper whose passes keep failing (a process can stay up with
+    // every request dead, as on 2026-09-25).
+    if (await pass().then(() => true, (e) => { console.error(new Date().toISOString(), "pass failed:", e?.message ?? e); return false; })) { try { writeFileSync(HEARTBEAT, String(Date.now())); } catch {} }
     // finished rounds are not urgent: every ten passes
     if (n % 10 === 0) await clearUp().catch((e) => console.error("clear-up failed:", e?.message ?? e));
     await new Promise((r) => setTimeout(r, INTERVAL));
