@@ -89,7 +89,7 @@ export function Market() {
   // happened after a few minutes, the round waits; with no price to show at
   // all, it can be voided a week after the close.
   const waiting = l.status === "open" && now > Number(l.settlesAt) + 300;
-  const stateText = l.status === "seeding" ? (step === "void" ? "didn't open in time · deposits come back" : now < Number(l.opensAt) ? `funded · opens in ${untilText(l.opensAt, now)}` : "opening") : l.status === "open" ? (now < Number(l.locksAt) ? `trading · locks in ${untilText(l.locksAt, now)}` : waiting ? (step === "void" ? "no settlement price · can be voided" : `waiting for the settlement price · if none can settle it, void in ${untilText(l.settlesAt + stook.VOID_FALLBACK_SECS, now)}`) : now >= Number(l.settlesAt) ? "the bell is ringing" : `locked · bell in ${untilText(l.settlesAt, now)}`) : l.status === "settled" ? `landed in band ${l.settledBin}` : "void";
+  const stateText = l.status === "seeding" ? (step === "void" ? "didn't open in time · deposits come back" : now < Number(l.opensAt) ? `funded · opens in ${untilText(l.opensAt, now)}` : stook.opensLate(l, BigInt(now)) ? "opening late · on the live price" : "opening") : l.status === "open" ? (now < Number(l.locksAt) ? `trading · locks in ${untilText(l.locksAt, now)}` : waiting ? (step === "void" ? "no settlement price · can be voided" : `waiting for the settlement price · if none can settle it, void in ${untilText(l.settlesAt + stook.VOID_FALLBACK_SECS, now)}`) : now >= Number(l.settlesAt) ? "the bell is ringing" : `locked · bell in ${untilText(l.settlesAt, now)}`) : l.status === "settled" ? `landed in band ${l.settledBin}` : "void";
 
   return (
     <div className="page market">

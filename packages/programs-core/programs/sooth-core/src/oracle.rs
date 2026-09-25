@@ -208,6 +208,29 @@ pub fn check_settlement_instant(
     Ok(())
 }
 
+/// A live price for opening a round late: this feed, enough signatures, at
+/// most `max_age_secs` old by the cluster clock (a few seconds of skew
+/// allowed), positive, and its confidence within half a band, as at the
+/// settlement instant.
+pub fn check_live_price(
+    p: &OraclePrice,
+    feed_id: &[u8; 32],
+    min_signatures: u8,
+    now: i64,
+    max_age_secs: i64,
+    step_bps: u16,
+) -> Result<()> {
+    require!(&p.feed_id == feed_id, SoothCoreError::OracleWrongFeed);
+    require!(p.verification.meets(min_signatures), SoothCoreError::OracleUnderVerified);
+    let age = now.saturating_sub(p.publish_time);
+    require!(age >= -CLOCK_SKEW_SECS && age <= max_age_secs, SoothCoreError::OracleStale);
+    require!(p.price > 0, SoothCoreError::OracleNonPositive);
+    let lhs = (p.conf as u128).saturating_mul(20_000);
+    let rhs = (p.price as u128).saturating_mul(step_bps as u128);
+    require!(lhs <= rhs, SoothCoreError::OracleTooUncertain);
+    Ok(())
+}
+
 /// The policy checks, split out so they are testable without an `AccountInfo`.
 /// How far ahead of the cluster clock an update may be stamped and still count as now.
 pub const CLOCK_SKEW_SECS: i64 = 10;
@@ -336,6 +359,25 @@ mod tests {
         let wide = OraclePrice { conf: 40_000, ..p }; // ≈ 18 bps > 12.5
         assert!(check_settlement_instant(&wide, &feed, 5, 500, 30, 25).is_err());
         check_settlement_instant(&wide, &feed, 5, 500, 30, 100).unwrap(); // but fine on a 1% grid
+    }
+
+    #[test]
+    fn a_late_opening_takes_a_live_price_only() {
+        let base = parse_price_update(&unhex(NVDA_DEVNET)).unwrap();
+        let feed = feed(NVDA_FEED);
+        let now = 2_000_000i64;
+        let at = |publish| OraclePrice { publish_time: publish, prev_publish_time: publish - 1, ..base };
+        let ok = |p: &OraclePrice| check_live_price(p, &feed, 5, now, 30, 100).is_ok();
+
+        assert!(ok(&at(now)), "this second's update");
+        assert!(ok(&at(now - 30)), "half a minute old is still live");
+        assert!(!ok(&at(now - 31)), "older than half a minute is not");
+        assert!(!ok(&at(now - 600)), "the update from the round's opening time, ten minutes on, is not");
+        assert!(ok(&at(now + 5)), "a few seconds ahead of the cluster clock is skew");
+        assert!(!ok(&at(now + 60)), "a minute ahead is a wrong update");
+        let wide = OraclePrice { conf: 40_000, ..at(now) };
+        assert!(check_live_price(&wide, &feed, 5, now, 30, 25).is_err(), "too uncertain for a 25 bps grid");
+        assert!(check_live_price(&at(now), &[9u8; 32], 5, now, 30, 100).is_err(), "another feed");
     }
 
     #[test]

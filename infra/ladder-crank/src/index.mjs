@@ -137,7 +137,7 @@ async function pass() {
       // before this round's opening.
       if (step === "open") {
         const s = await seriesOf(ladder.series);
-        const why = s ? stook.openBlocker(s, ladder.opensAt, now) : "series not found";
+        const why = s ? stook.openBlocker(s, ladder.opensAt, now, stook.opensLate(ladder, now)) : "series not found";
         if (why) { console.log(tag, "waiting:", why); continue; }
       }
       // Whichever token program owns the mint — classic SPL or Token-2022.
@@ -150,12 +150,16 @@ async function pass() {
         continue;
       }
       const feed = hex(ladder.feedId);
-      // Both an open and a settle take THE update for their instant (the
-      // first at or after it), which Hermes returns for that second.
-      const { parsed, vaas } = await hermes(`/v2/updates/price/${step === "open" ? ladder.opensAt : ladder.settlesAt}`, feed);
+      // An on-time open and a settle take THE update for their instant (the
+      // first at or after it), which Hermes returns for that second. A late
+      // open (past the on-time minutes) takes a live one: the first update
+      // from a few seconds ago, and the round starts when it lands.
+      const late = step === "open" && stook.opensLate(ladder, now);
+      const at = step === "open" ? (late ? BigInt(Math.floor(Date.now() / 1000)) - 3n : ladder.opensAt) : ladder.settlesAt;
+      const { parsed, vaas } = await hermes(`/v2/updates/price/${at}`, feed);
       if (!parsed) { console.log(tag, "hermes returned no update yet"); continue; }
 
-      const problem = step === "open" ? stook.openProblem(parsed, ladder) : stook.settlementProblem(parsed, ladder);
+      const problem = step === "open" ? stook.openProblem(parsed, ladder, late ? BigInt(Math.floor(Date.now() / 1000)) : undefined) : stook.settlementProblem(parsed, ladder);
       if (problem) {
         // The close's one update cannot settle the round (late, unsure):
         // that update is the proof that voids it, at once.
@@ -170,7 +174,7 @@ async function pass() {
       }
 
       if (step === "open") {
-        console.log(tag, await postAndConsume(vaas, feed, (price) => [stook.openLadderIx(refs, payer.publicKey, price, ladder.series)]));
+        console.log(tag, late ? "(late, on a live price)" : "", await postAndConsume(vaas, feed, (price) => [stook.openLadderIx(refs, payer.publicKey, price, ladder.series)]));
         succeeded(key);
       } else {
         // The settler is paid in the market's quote token. The token account is

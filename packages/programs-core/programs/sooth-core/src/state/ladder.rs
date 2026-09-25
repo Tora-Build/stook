@@ -47,12 +47,18 @@ pub const FEE_ACC_SCALE: u128 = 1_000_000_000_000_000_000;
 /// so a losing trader cannot race a late settle.
 pub const VOID_FALLBACK_SECS: i64 = 7 * 24 * 60 * 60;
 
-/// How long after `opens_at` a round may be opened. The opening price is the
-/// Pyth update at `opens_at`, fixed whoever opens; this bounds how stale it
-/// may be when trading starts, so a late opener cannot trade against a grid
-/// centred on a price the market has since left. A round not opened by then
+/// Opened within this long of `opens_at`, a round opens on THE Pyth update at
+/// `opens_at`, fixed whoever opens and whenever in these minutes.
+pub const OPEN_ON_TIME_SECS: i64 = 5 * 60;
+
+/// How long after `opens_at` a round may still be opened. Past the on-time
+/// minutes it opens LATE: on a live price (at most `SETTLE_MAX_GAP_SECS` old),
+/// and its `opens_at` moves to that moment, so the grid is centred on where
+/// the market is, never on a price it has since left, and the bands are sized
+/// for the time that is actually left. A keeper that stalls for a while costs
+/// a round some trading time, not the round. Not opened within this, it
 /// never will be, and voids.
-pub const OPEN_WINDOW_SECS: i64 = 5 * 60;
+pub const OPEN_WINDOW_SECS: i64 = 60 * 60;
 
 /// The latest the settlement update may be published after `settles_at`.
 pub const SETTLE_MAX_GAP_SECS: i64 = 30;

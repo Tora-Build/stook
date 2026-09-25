@@ -339,13 +339,14 @@ export const SKIP_AFTER_SECS = 7n * 86_400n;
  * the series has not warmed up, or (daily) has not yet taken the latest close
  * before now, other than the one the round opens at (the open takes that).
  */
-export function openBlocker(s: SeriesAccount, opensAt: bigint, now: bigint): string | null {
+export function openBlocker(s: SeriesAccount, opensAt: bigint, now: bigint, late = false): string | null {
   if (!warmedUp(s)) return `series warming up (${s.observations}/${WARMUP_OBSERVATIONS} closes)`;
   if (s.periodSecs === 0) {
-    // The open teaches the series the close it opens at; any earlier one
-    // must be taken first.
+    // An on-time open teaches the series the close it opens at; any earlier
+    // one must be taken first. A late open teaches nothing, so the series
+    // must already have the last close.
     const prev = closeOf(s, indexAtOrBefore(s, now));
-    if (s.lastAt < prev && prev !== opensAt) return "series has not learned the last close yet";
+    if (s.lastAt < prev && (late || prev !== opensAt)) return "series has not learned the last close yet";
   }
   return null;
 }

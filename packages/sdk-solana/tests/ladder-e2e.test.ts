@@ -79,7 +79,7 @@ async function send(e: Env, ixs: TransactionInstruction[], by: Keypair) {
   return { err: r.result, cu: Number(r.meta?.computeUnitsConsumed ?? 0n), logs: (r.meta?.logMessages ?? []).join("\n") };
 }
 const ok = async (e: Env, ix: TransactionInstruction, by: Keypair) => { const r = await send(e, [ix], by); expect(r.err, r.logs).toBeNull(); return r; };
-const refused = async (e: Env, ix: TransactionInstruction, by: Keypair) => { const r = await send(e, [ix], by); expect(r.err).not.toBeNull(); return r; };
+const refused = async (e: Env, ix: TransactionInstruction, by: Keypair, why?: string) => { const r = await send(e, [ix], by); expect(r.err).not.toBeNull(); if (why) expect(String(r.logs)).toContain(why); return r; };
 
 const balance = (e: Env, key: PublicKey) => AccountLayout.decode(Buffer.from((e.svm.getAccount(key.toBase58() as any) as any).data)).amount;
 const exists = (e: Env, key: PublicKey) => { const a: any = e.svm.getAccount(key.toBase58() as any); return !!a && (a.exists ?? true) && BigInt(a.lamports ?? 0) > 0n; };
@@ -197,10 +197,11 @@ describe("ladder end to end", () => {
     // ── Open, from the real update ──────────────────────────────────────────
     warpClockTo(e.ctx, PUBLISH_TIME + 10n);
     await refused(e, m.trade(31, 31, 1, 1_000_000n, BIG), e.trader.kp);           // not open yet
-    // The opening window is five minutes: later, the round can only void,
-    // so nobody opens late onto a grid centred on a price long gone.
+    // Past the on-time five minutes the opening update is stale: a late open
+    // takes only a live price, so nobody opens onto a grid centred on a price
+    // long gone.
     warpClockTo(e.ctx, PUBLISH_TIME + 300n);
-    await refused(e, m.open(e.priceAccount(updateAt(P0, PUBLISH_TIME, PUBLISH_TIME - 1n))), e.trader.kp, "LadderBadTimes");
+    await refused(e, m.open(e.priceAccount(updateAt(P0, PUBLISH_TIME, PUBLISH_TIME - 1n))), e.trader.kp, "OracleStale");
     warpClockTo(e.ctx, PUBLISH_TIME + 10n);
     const open = await ok(e, m.open(e.priceAccount(updateAt(22_019_000n, PUBLISH_TIME, PUBLISH_TIME - 1n))), e.trader.kp);
     // At open the band width and odds come from the series' volatility now,
@@ -478,5 +479,44 @@ describe("ladder end to end", () => {
     // and it all sells back, quote for quote
     while (bought > 0n) { const d = bought > 100_000_000n ? 100_000_000n : bought; await m.quoted(40, 40, 1, -d); bought -= d; }
     expect(m.position(40, 40, 1).shares).toBe(0n);
+  });
+
+  it("opens a round late on a live price, starting then, and voids one nobody opened within the hour", async () => {
+    const e = boot();
+    const settlesAt = PUBLISH_TIME + 3700n;
+    const m = market(e, settlesAt);
+    await ok(e, L.initializeProtocolIx(e.treasury.publicKey, e.treasury.publicKey, PROGRAM), e.treasury);
+    await ok(e, m.createSeries(), e.treasury);
+    await m.warm(PUBLISH_TIME - 1000n);
+    warpClockTo(e.ctx, PUBLISH_TIME - 60n);
+    await ok(e, m.create(2_000_000_000n), e.creator.kp);
+    const opensAt = m.state().opensAt;
+
+    // Ten minutes late: the update from the opening time is refused, a live one opens it.
+    const late = opensAt + 600n;
+    warpClockTo(e.ctx, late);
+    await refused(e, m.open(e.priceAccount(updateAt(22_019_000n, opensAt, opensAt - 1n))), e.trader.kp, "OracleStale");
+    await refused(e, m.open(e.priceAccount(updateAt(22_100_000n, late - 45n, late - 46n))), e.trader.kp, "OracleStale"); // 45 s old
+    await ok(e, m.open(e.priceAccount(updateAt(22_100_000n, late - 5n, late - 6n))), e.trader.kp);
+    const s = m.state();
+    expect(s.status).toBe("open");
+    expect(s.opensAt).toBe(late);                 // the round starts when it opened
+    expect(s.p0).toBe(22_100_000n);               // on the live price
+    const terms = L.openingTerms(m.seriesState().varWad, settlesAt, late);  // bands for the time actually left
+    expect(s.stepBps).toBe(terms.stepBps);
+    await m.quoted(31, 33, 2, 10_000_000n);       // and it trades
+
+    // A round nobody opens within the hour can no longer open, and voids.
+    const e2 = boot(), m2 = market(e2, settlesAt);
+    await ok(e2, L.initializeProtocolIx(e2.treasury.publicKey, e2.treasury.publicKey, PROGRAM), e2.treasury);
+    await ok(e2, m2.createSeries(), e2.treasury);
+    await m2.warm(PUBLISH_TIME - 1000n);
+    warpClockTo(e2.ctx, PUBLISH_TIME - 60n);
+    await ok(e2, m2.create(2_000_000_000n), e2.creator.kp);
+    const at2 = m2.state().opensAt + 3_600n;
+    warpClockTo(e2.ctx, at2);
+    await refused(e2, m2.open(e2.priceAccount(updateAt(22_100_000n, at2 - 2n, at2 - 3n))), e2.trader.kp, "LadderBadTimes");
+    await ok(e2, m2.voidIt(), e2.trader.kp);
+    expect(m2.state().status).toBe("void");
   });
 });

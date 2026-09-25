@@ -12,8 +12,12 @@ import { level, type Shape } from "./math.js";
 
 /** An opened round with no proof it cannot settle voids only this long after its close (`VOID_FALLBACK_SECS`). */
 export const VOID_FALLBACK_SECS = 7n * 86_400n;
-/** A round may be opened only this long after `opens_at` (`OPEN_WINDOW_SECS`); after that it voids. */
-export const OPEN_WINDOW_SECS = 300n;
+/** Opened within this long of `opens_at`, a round opens on THE update at `opens_at` (`OPEN_ON_TIME_SECS`). */
+export const OPEN_ON_TIME_SECS = 300n;
+/** A round may be opened this long after `opens_at` (`OPEN_WINDOW_SECS`): late, on a live price, and it starts then. After that it voids. */
+export const OPEN_WINDOW_SECS = 3_600n;
+/** How far a Pyth update may be stamped ahead of the cluster clock (`CLOCK_SKEW_SECS`). */
+export const CLOCK_SKEW_SECS = 10n;
 /** After this long past a close, anyone may pay out a round’s positions and deposits, to their owners. */
 export const CLAIM_GRACE_SECS = 30n * 86_400n;
 export const SETTLE_MAX_GAP_SECS = 30n;
@@ -68,10 +72,23 @@ export function settlementProblem(u: HermesPrice, l: Pick<LadderAccount, "feedId
   return null;
 }
 
-/** Why the program would refuse `u` for opening this market, or null. The
- *  opening price is the settlement rule at `opens_at` with a 1% confidence bar. */
-export function openProblem(u: HermesPrice, l: Pick<LadderAccount, "feedId" | "opensAt">): string | null {
-  return settlementProblem(u, { feedId: l.feedId, settlesAt: l.opensAt, stepBps: OPEN_CONF_STEP_BPS, p0Expo: u.price.expo });
+/** Is opening at `now` late: past the on-time minutes, so on a live price? */
+export const opensLate = (l: Pick<LadderAccount, "opensAt">, now: bigint): boolean => now >= l.opensAt + OPEN_ON_TIME_SECS;
+
+/** Why the program would refuse `u` for opening this market at `now`, or null.
+ *  On time, the opening price is the settlement rule at `opens_at` with a 1%
+ *  confidence bar; late, any update at most 30 s old (a few seconds of clock
+ *  skew allowed) with the same bar. Without `now`, the on-time rule. */
+export function openProblem(u: HermesPrice, l: Pick<LadderAccount, "feedId" | "opensAt">, now?: bigint): string | null {
+  if (now === undefined || !opensLate(l, now)) return settlementProblem(u, { feedId: l.feedId, settlesAt: l.opensAt, stepBps: OPEN_CONF_STEP_BPS, p0Expo: u.price.expo });
+  if (u.id.replace(/^0x/, "").toLowerCase() !== hex(l.feedId)) return "wrong feed";
+  const age = now - BigInt(u.price.publish_time);
+  if (age > SETTLE_MAX_GAP_SECS) return `update is ${age}s old; a late opening needs one at most ${SETTLE_MAX_GAP_SECS}s old`;
+  if (age < -CLOCK_SKEW_SECS) return "update is stamped too far ahead of the clock";
+  const price = BigInt(u.price.price), conf = BigInt(u.price.conf);
+  if (price <= 0n) return "non-positive price";
+  if (conf * 20_000n > price * BigInt(OPEN_CONF_STEP_BPS)) return "confidence interval wider than half a bin";
+  return null;
 }
 
 /**

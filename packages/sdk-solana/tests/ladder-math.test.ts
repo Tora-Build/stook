@@ -138,7 +138,11 @@ describe("ladder sdk", () => {
     expect(at("seeding", 100n)).toBe("open");
     expect(at("seeding", 200n)).toBe("void");       // never opened before its lock
     expect(L.nextStep({ opensAt: 100n, locksAt: 10_000n, settlesAt: 20_000n, status: "seeding" }, 399n)).toBe("open");
-    expect(L.nextStep({ opensAt: 100n, locksAt: 10_000n, settlesAt: 20_000n, status: "seeding" }, 400n)).toBe("void"); // its opening window passed
+    expect(L.nextStep({ opensAt: 100n, locksAt: 10_000n, settlesAt: 20_000n, status: "seeding" }, 400n)).toBe("open");   // late now, on a live price
+    expect(L.opensLate({ opensAt: 100n }, 399n)).toBe(false);
+    expect(L.opensLate({ opensAt: 100n }, 400n)).toBe(true);
+    expect(L.nextStep({ opensAt: 100n, locksAt: 10_000n, settlesAt: 20_000n, status: "seeding" }, 3_699n)).toBe("open");
+    expect(L.nextStep({ opensAt: 100n, locksAt: 10_000n, settlesAt: 20_000n, status: "seeding" }, 3_700n)).toBe("void"); // its opening hour passed
     expect(at("open", 299n)).toBe(null);
     expect(at("open", 300n)).toBe("settle");                    // or a void with proof: the keeper decides
     expect(at("open", 300n + 86_400n)).toBe("settle");          // no longer a race: a day late still settles

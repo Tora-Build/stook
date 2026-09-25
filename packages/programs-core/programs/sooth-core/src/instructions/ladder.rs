@@ -13,7 +13,7 @@ use anchor_spl::token_interface::{
 use crate::error::SoothCoreError;
 use crate::math::ladder::{apply_trade, band_width, bin_for, liquidity_for_deposit, prior, tranche_pnl, Shape};
 use crate::math::{scalar_for, wad_to_amount_ceil, wad_to_amount_floor};
-use crate::oracle::{check_settlement_instant, read_price_update};
+use crate::oracle::{check_live_price, check_settlement_instant, read_price_update};
 use crate::state::ladder::*;
 use crate::state::{require_not_paused, ProtocolConfig, Series, PROTOCOL_CONFIG_SEED};
 
@@ -442,27 +442,37 @@ pub fn open_handler(ctx: Context<LadderOpen>) -> Result<()> {
     require!(l.status == STATUS_SEEDING, SoothCoreError::LadderNotSeeding);
     require!(now >= l.opens_at && now < l.opens_at + OPEN_WINDOW_SECS && now < l.locks_at, SoothCoreError::LadderBadTimes);
 
-    // The grid centres on THE price at `opens_at`, by the settlement rule: the
-    // first update at or after it, within 30 seconds, confidence under 1%.
-    // Exactly one update qualifies, so whoever opens, and whenever in the
-    // window, the round opens the same way. (Not the price at creation: a
-    // round that sat in Seeding through a 3% move must not open on a centre
-    // the first trader can harvest.)
     let price = read_price_update(&ctx.accounts.price_update.to_account_info())?;
-    check_settlement_instant(&price, &l.feed_id, ORACLE_MIN_SIGNATURES, l.opens_at, SETTLE_MAX_GAP_SECS, OPEN_CONF_STEP_BPS)?;
-    l.p0 = price.price;
-    l.p0_expo = price.exponent;
+    if now < l.opens_at + OPEN_ON_TIME_SECS {
+        // On time: the grid centres on THE price at `opens_at`, by the
+        // settlement rule: the first update at or after it, within 30
+        // seconds, confidence under 1%. Exactly one update qualifies, so
+        // whoever opens, and whenever in these minutes, the round opens the
+        // same way. (Not the price at creation: a round that sat in Seeding
+        // through a 3% move must not open on a centre the first trader can
+        // harvest.)
+        check_settlement_instant(&price, &l.feed_id, ORACLE_MIN_SIGNATURES, l.opens_at, SETTLE_MAX_GAP_SECS, OPEN_CONF_STEP_BPS)?;
 
-    // A round funded ahead opens at the previous close, and this update is
-    // that close's price: teach it to the series, as `series_observe` would.
-    {
+        // A round funded ahead opens at the previous close, and this update
+        // is that close's price: teach it to the series, as `series_observe`
+        // would.
         let s = &mut ctx.accounts.series;
         if let Some(i) = s.index_of(l.opens_at) {
             if s.may_observe(i, now) {
                 let _ = s.observe(price.price, price.exponent, l.opens_at);
             }
         }
+    } else {
+        // Late: on the price now, and the round starts now. The update at
+        // `opens_at` is minutes old by here; a grid on it would sell the band
+        // the market has moved into at its old odds. On a live price there is
+        // nothing to harvest, and which live update the opener brings moves
+        // the centre by no more than the market moved in those seconds.
+        check_live_price(&price, &l.feed_id, ORACLE_MIN_SIGNATURES, now, SETTLE_MAX_GAP_SECS, OPEN_CONF_STEP_BPS)?;
+        l.opens_at = now;
     }
+    l.p0 = price.price;
+    l.p0_expo = price.exponent;
 
     // The band width and the opening odds, from the anchor's volatility at
     // this moment over the time left: nothing about them was read earlier,
