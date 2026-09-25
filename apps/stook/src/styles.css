@@ -1161,3 +1161,8 @@ a.tour-btn { text-decoration: none; }
 .folder-tabs .ft-call.on { color: var(--taxi); box-shadow: inset 0 3px 0 var(--taxi); }
 .folder-tabs .ft-house.on { color: var(--good); box-shadow: inset 0 3px 0 var(--good); }
 .folder-tabs button:focus-visible { outline: 2px solid var(--teal); outline-offset: 2px; }
+/* the two tabs share the ticket's width, half each */
+.folder-tabs { right: -3px; gap: 0; }
+.folder-tabs button { flex: 1; justify-content: center; }
+.folder-tabs button + button { margin-left: -3px; }
+.folder-tabs button:not(.on) { height: calc(2.55rem + 3px); margin-bottom: -3px; border-bottom: 3px solid var(--cream); }
