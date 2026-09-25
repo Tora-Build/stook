@@ -7,7 +7,7 @@ import { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { useWallet } from "@solana/wallet-adapter-react";
 import { stook } from "@sooth/sdk-solana";
-import { chance, fmtAmount, fmtCompact, parseAmount, fmtPrice } from "../lib/format";
+import { chance, fmtCompact, parseAmount, fmtPrice } from "../lib/format";
 import { nyWhen } from "../lib/time";
 
 const WAD_ONE = 10n ** 18n;
@@ -40,8 +40,10 @@ import { ataOf, ensureAta, type PositionRow, type TrancheRow } from "../lib/chai
 import { useBalance, useSend } from "../hooks/useChain";
 import type { DrawMode } from "./Chart";
 import { LpPanel } from "./LpPanel";
+import { Book } from "./Book";
+import { Notice } from "./Notice";
 import { Slider } from "./Slider";
-import { Usd, fmtUsd, fromUsd, toUsd } from "../lib/usd";
+import { fmtUsd, fromUsd, toUsd } from "../lib/usd";
 
 interface Props {
   refs: stook.LadderRefs;
@@ -81,28 +83,18 @@ export function Ticket(p: Props) {
   );
 }
 
-// ── your lines in this round, as chips: pick one to add to it or sell it ─────
+// ── your calls in this round, as a book: pick one to add to it or sell it ────
 function Mine(p: Props) {
   const dec = p.ladder.decimals, l = p.ladder;
-  const [open, setOpen] = useState(false);
   const name = (s: stook.Shape) => s.h > 1 ? `target at ${bandName(l, (s.lo + s.hi) / 2, p.dp)}, reach ${s.h}` : `range ${rangeName(l, s.lo, s.hi, p.dp)}`;
   const paid = p.positions.reduce((a, r) => a + r.position.netPaid, 0n);
-  const shown = open || !!p.selected;
+  const money = (v: bigint) => p.usd !== null ? <>{fmtUsd(toUsd(v, dec, p.usd))}<small>{fmtCompact(v, dec)} {p.quoteSymbol}</small></> : <>{fmtCompact(v, dec)} {p.quoteSymbol}</>;
   return (
-    <div className="mine2">
-      <button className="mine2-head" onClick={() => setOpen(!shown)} aria-expanded={shown}>
-        <span className="slip2-k">Your calls</span>
-        <span className="mine2-sum">{p.positions.length} · {p.usd !== null ? fmtUsd(toUsd(paid, dec, p.usd)) : `${fmtCompact(paid, dec)} ${p.quoteSymbol}`} in</span>
-        <span className="mine2-caret" aria-hidden="true">{shown ? "▾" : "▸"}</span>
-      </button>
-      {shown && <ul className="mine2-list">
-        {p.positions.map((r) => { const on = p.selected?.pubkey.equals(r.pubkey); return (
-          <li key={r.pubkey.toBase58()}><button className={on ? "on" : ""} onClick={() => (on ? p.onDeselect() : p.onSelect(r))}>
-            <span>{name(r.position.shape)}</span>
-            <span className="mono">{p.usd !== null ? fmtUsd(toUsd(r.position.netPaid, dec, p.usd)) : fmtCompact(r.position.netPaid, dec)}</span>
-          </button></li>); })}
-      </ul>}
-    </div>
+    <Book kind="call" title="Your calls" count={p.positions.length} open={!!p.selected}
+      total={<>{p.usd !== null ? fmtUsd(toUsd(paid, dec, p.usd)) : `${fmtCompact(paid, dec)} ${p.quoteSymbol}`} in</>}
+      rows={p.positions.map((r) => { const on = !!p.selected?.pubkey.equals(r.pubkey); return {
+        key: r.pubkey.toBase58(), on, label: name(r.position.shape), sub: on ? "open below: add or sell" : undefined,
+        amount: money(r.position.netPaid), onClick: () => (on ? p.onDeselect() : p.onSelect(r)) }; })} />
   );
 }
 
@@ -179,7 +171,7 @@ function Buy(p: Props & { held?: boolean }) {
         <table className="ladder-table">
           <thead><tr><th>If it lands</th><th>chance</th><th>you get back</th><th>on stake</th></tr></thead>
           <tbody>
-            {odds.map(([lv, pr]) => { const back = shares ? lands(shares * BigInt(lv)) : 0n, x = pays && pays > 0n ? Number(back) / Number(pays) : null; return <tr key={lv}><td>{s.h === 1 ? "inside" : lv === s.h ? "on your band" : `${s.h - lv} off`}</td><td className="mono">{chance(pr)}</td><td className="mono">{fmtAmount(back, dec)}{p.usd !== null && <span className="usd-line">{fmtUsd(toUsd(back, dec, p.usd))}</span>}</td><td className={`mono ${x !== null && x < 1 ? "down" : "amber"}`}>{x !== null ? `${x.toFixed(2)}×` : ""}</td></tr>; })}
+            {odds.map(([lv, pr]) => { const back = shares ? lands(shares * BigInt(lv)) : 0n, x = pays && pays > 0n ? Number(back) / Number(pays) : null; return <tr key={lv}><td>{s.h === 1 ? "inside" : lv === s.h ? "on your band" : `${s.h - lv} off`}</td><td className="mono">{chance(pr)}</td><td className="mono">{p.usd !== null ? <>{fmtUsd(toUsd(back, dec, p.usd))}<span className="coin-line">{fmtCompact(back, dec)}</span></> : fmtCompact(back, dec)}</td><td className={`mono ${x !== null && x < 1 ? "down" : "amber"}`}>{x !== null ? `${x.toFixed(2)}×` : ""}</td></tr>; })}
             <tr className="muted"><td>elsewhere</td><td className="mono">{chance(WAD_ONE - odds.reduce((a, [, pr]) => a + pr, 0n))}</td><td className="mono">0</td><td className="mono">0×</td></tr>
           </tbody>
         </table>
@@ -198,9 +190,9 @@ function Buy(p: Props & { held?: boolean }) {
           <input value={text} onChange={(e) => setText(e.target.value)} inputMode="decimal" aria-label={`Spend in ${unit === "usd" ? "dollars" : p.quoteSymbol}`} />
           {unit === "coin" && <span className="amount-unit">{p.quoteSymbol}</span>}
         </div>
-        <span className="hint">balance {balance.data !== undefined ? <>{fmtAmount(balance.data, dec)} {p.quoteSymbol} <Usd units={balance.data} decimals={dec} rate={p.usd} /></> : `… ${p.quoteSymbol}`}</span>
+        <span className="hint">balance {balance.data !== undefined ? <>{p.usd !== null ? `${fmtUsd(toUsd(balance.data, dec, p.usd))} · ` : ""}{fmtCompact(balance.data, dec)} {p.quoteSymbol}</> : `… ${p.quoteSymbol}`}</span>
       </div>
-      {budget !== null && pays !== null && pays * 100n < budget * 99n && <p className="warn">This round can take about {fmtAmount(pays, dec)} {p.quoteSymbol}{p.usd !== null ? ` (${fmtUsd(toUsd(pays, dec, p.usd))})` : ""} on this call right now, less than you entered. That is what the order below spends.</p>}
+      {budget !== null && pays !== null && pays * 100n < budget * 99n && <Notice tone="warn" title="Pool limit">Only {p.usd !== null ? fmtUsd(toUsd(pays, dec, p.usd)) : `${fmtCompact(pays, dec)} ${p.quoteSymbol}`} fits on this call right now. The order below uses that.</Notice>}
       {s && q && pays !== null && limit !== null && <div className="ticket-paper" role="group" aria-label="Your order">
         <div className="tp-head"><span>{existing && !p.held ? "Adding to your call" : "Your call"}</span><b className="mono">{p.symbol} {s.h === 1 ? `range ${where}` : `target ${where}`}</b></div>
         <div className="tp-row"><span>You pay</span><i /><b className="mono">{p.usd !== null ? fmtUsd(toUsd(pays, dec, p.usd)) : `${fmtCompact(pays, dec)} ${p.quoteSymbol}`}</b></div>
@@ -216,7 +208,7 @@ function Buy(p: Props & { held?: boolean }) {
           {pays !== q.total && <div className="tp-row"><span>Coin's transfer fee</span><i /><b className="mono">{p.usd !== null ? fmtUsd(toUsd(pays - q.total, dec, p.usd)) : `${fmtCompact(pays - q.total, dec)} ${p.quoteSymbol}`}</b></div>}
         </details>
       </div>}
-      {short && <p className="warn">You hold {fmtAmount(balance.data!, dec)} {p.quoteSymbol}; this can cost up to {fmtAmount(limit!, dec)}.</p>}
+      {short && <Notice tone="stop" title={`Not enough ${p.quoteSymbol}`}>You hold {fmtCompact(balance.data!, dec)}; this can cost up to {fmtCompact(limit!, dec)}. On devnet, get <b>test coins</b> in the header.</Notice>}
       <button className="primary" disabled={!q || !p.tradeable || send.isPending || !publicKey || short} onClick={submit}>{!publicKey ? "Connect a wallet" : !p.tradeable ? "Not trading" : !s ? "Pick a price first" : send.isPending ? "Sending…" : `${p.held || existing ? "Add to call" : "Place call"}${pays !== null && p.usd !== null ? ` · ${fmtUsd(toUsd(pays, dec, p.usd))}` : ""}`}</button>
     </>
   );
@@ -255,6 +247,8 @@ function Collect(p: Props) {
   const { publicKey } = useWallet();
   const send = useSend(p.ladder.status === "void" ? "Refunded" : "Collected");
   const l = p.ladder, dec = l.decimals;
+  const big = (v: bigint) => p.usd !== null ? fmtUsd(toUsd(v, dec, p.usd)) : `${fmtCompact(v, dec)} ${p.quoteSymbol}`;
+  const money = (v: bigint) => p.usd !== null ? <>{fmtUsd(toUsd(v, dec, p.usd))}<small>{fmtCompact(v, dec)} {p.quoteSymbol}</small></> : <>{fmtCompact(v, dec)} {p.quoteSymbol}</>;
   // Shown as it lands in the wallet: the pool sends the book amount and the
   // coin's transfer fee, if any, comes off on the way.
   const lands = (book: bigint) => stook.netOf(book, p.transferFee);
@@ -284,12 +278,13 @@ function Collect(p: Props) {
     <>
       <p className="explain">{l.status === "void" ? `The round was void. Deposits come back first, up to what was put in; open calls share what is left${linesPct !== null && Math.abs(linesPct - 100) >= 0.005 ? `, ${linesPct.toFixed(2)}% of what they cost, because sellers took their gains before the void` : ", at cost"}.` : `The bell rang. Band ${l.settledBin} landed.`}</p>
       {nothing ? <p className="muted">You had nothing in this round.</p> : (
-        <ul className="rows">
-          {owed.map(({ r, amount }) => <li key={r.pubkey.toBase58()}><span>{r.position.shape.h > 1 ? `target, reach ${r.position.shape.h}` : "range"} · paid {fmtCompact(r.position.netPaid, dec)}</span><span className={`mono ${amount > 0n ? "up" : "muted"}`}>{amount > 0n ? `+${fmtAmount(amount, dec)}` : "0"} {amount > 0n && <Usd units={amount} decimals={dec} rate={p.usd} />}</span></li>)}
-          {lp.map(({ t, v }) => <li key={t.pubkey.toBase58()}><span>deposit #{t.tranche.index} · {fmtAmount(t.tranche.deposit, dec)}</span><span className="mono">{fmtAmount(v, dec)} <Usd units={v} decimals={dec} rate={p.usd} /></span></li>)}
-        </ul>
+        <Book kind="call" title="To collect" count={owed.length + lp.length} open total={big(total)}
+          rows={[
+            ...owed.map(({ r, amount }) => ({ key: r.pubkey.toBase58(), label: r.position.shape.h > 1 ? `target, reach ${r.position.shape.h}` : "range", sub: <>paid {big(r.position.netPaid)}</>, amount: amount > 0n ? <span className="up">+{money(amount)}</span> : <span className="muted">0</span> })),
+            ...lp.map(({ t, v }) => ({ key: t.pubkey.toBase58(), label: `house deposit #${t.tranche.index}`, sub: <>put in {big(t.tranche.deposit)}</>, amount: money(v) })),
+          ]}
+          footer={<button className="primary" disabled={!publicKey || !!progress} onClick={() => void submit()}>{progress ? (progress[1] > 1 ? `Collecting ${progress[0]} of ${progress[1]}…` : "Sending…") : `Collect ${big(total)}`}</button>} />
       )}
-      {!nothing && <button className="primary" disabled={!publicKey || !!progress} onClick={() => void submit()}>{progress ? (progress[1] > 1 ? `Collecting ${progress[0]} of ${progress[1]}…` : "Sending…") : `Collect ${fmtAmount(total, dec)} ${p.quoteSymbol}${p.usd !== null ? ` · ${fmtUsd(toUsd(total, dec, p.usd))}` : ""}`}</button>}
       <p className="hint" style={{ marginTop: ".6rem" }}><Link to={p.coinSymbol ? `/c/${p.coinSymbol}` : "/"}>{p.coinSymbol ? "Back to the calendar" : "Back to the street"}</Link></p>
     </>
   );

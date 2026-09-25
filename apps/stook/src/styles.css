@@ -857,8 +857,6 @@ button.tour-skip:hover { color: var(--cream); }
 .quote-line b.ql-up { color: #5ec48f; }
 .quote-line em { font-style: normal; font-size: .74rem; color: var(--cream-3); overflow-wrap: anywhere; }
 @media (max-width: 420px) { .quote-line b { font-size: 1.05rem; } .quote-line > div { padding: 0 .45rem; } }
-.stake-paper .primary { width: 100%; margin-top: .7rem; }
-.stake-paper .tp-more .tp-row .mono { font-size: .76rem; }
 
 /* Yours, dollars first: the coin amount rides beneath, small */
 .tote-usd { font-size: 2rem; line-height: 1.1; margin-bottom: .35rem; }
@@ -869,3 +867,33 @@ button.tour-skip:hover { color: var(--cream); }
 .stmt-paper { margin: .8rem 1rem .2rem; }
 .stmt-paper .tp-win { margin-top: 0; padding-top: 0; border-top: 0; }
 .stmt-paper .primary { width: 100%; margin-top: .3rem; }
+
+/* The book: what you already hold in this round, a folder with a tab */
+.book { margin: .2rem 0 .9rem; border: 2px solid var(--line); background: var(--ink); --k: var(--crowd-2); }
+.book-house { --k: var(--green); }
+.book-head { display: flex; align-items: center; gap: .7rem; width: 100%; padding: 0 .7rem 0 0; background: none; border: 0; color: var(--cream); cursor: pointer; font: inherit; text-align: left; min-height: 2.4rem; }
+.book-tab { align-self: stretch; display: flex; align-items: center; gap: .45rem; padding: 0 .7rem; background: var(--k); color: #f4e9c8; font-family: var(--px); font-size: .45rem; letter-spacing: .06em; text-transform: uppercase; }
+.book-tab i { font-style: normal; background: #f4e9c8; color: #101a2e; padding: .15rem .3rem; }
+.book-total { font-size: 1rem; font-weight: 600; }
+.book-extra { font-size: .82rem; color: var(--good); }
+.book-caret { margin-left: auto; color: var(--taxi); }
+.book-rows { list-style: none; margin: 0; padding: 0; border-top: 2px solid var(--line); }
+.book-rows li + li { border-top: 1px dashed var(--line); }
+.book-rows button, .book-rows div { display: flex; justify-content: space-between; align-items: baseline; gap: .8rem; width: 100%; padding: .5rem .7rem .5rem .9rem; background: none; border: 0; border-left: 4px solid transparent; color: var(--cream); font: inherit; font-size: .84rem; text-align: left; }
+.book-rows button { cursor: pointer; }
+.book-rows button:hover { background: var(--sky); border-left-color: var(--k); }
+.book-rows button.on { background: var(--sky); border-left-color: var(--taxi); }
+.book-label em { display: block; font-style: normal; font-size: .72rem; color: var(--cream-3); margin-top: .1rem; }
+.book-amt { text-align: right; white-space: nowrap; }
+.book-amt small { display: block; font-size: .7rem; color: var(--cream-3); }
+.book-foot { padding: .6rem .7rem; border-top: 2px solid var(--line); }
+.book-foot .primary { width: 100%; }
+
+/* Notices: a pixel sign, a title, a sentence */
+.notice { display: flex; align-items: stretch; margin: .7rem 0; border: 2px solid var(--n); background: color-mix(in srgb, var(--n) 12%, transparent); --n: var(--teal); }
+.notice-warn { --n: var(--taxi); } .notice-stop { --n: var(--bad); }
+.notice-sign { flex: none; display: grid; place-items: center; width: 2rem; background: var(--n); color: #101a2e; font-family: var(--px); font-size: .8rem; }
+.notice-body { display: flex; flex-direction: column; gap: .15rem; padding: .5rem .7rem; font-size: .82rem; color: var(--cream-2); line-height: 1.4; }
+.notice-body > b { font-family: var(--px); font-size: .45rem; letter-spacing: .06em; text-transform: uppercase; color: var(--n); }
+.desk-coin, .strip-coin { display: block; font-size: .72rem; color: var(--cream-3); }
+.coin-line { display: block; font-size: .72rem; color: var(--cream-3); }

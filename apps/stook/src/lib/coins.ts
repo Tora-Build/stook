@@ -83,7 +83,7 @@ export const anchorOf = (c: Coin): Anchor => {
   const d = isDevnet ? DEVNET_FEEDS[c.symbol] : undefined;
   return d ? { ...c.anchor, symbol: d.symbol, name: d.name, feedId: d.feedId, dp: d.dp } : c.anchor;
 };
-export const standInNote = (c: Coin): string | null => (isDevnet && DEVNET_FEEDS[c.symbol] ? `Devnet: rounds here run on the ${DEVNET_FEEDS[c.symbol]!.name} price (${DEVNET_FEEDS[c.symbol]!.symbol}) as a stand-in for ${c.anchor.symbol}, whose Pyth feed this deployment cannot read yet. On mainnet they settle on ${c.anchor.symbol}.` : null);
+export const standInNote = (c: Coin): string | null => (isDevnet && DEVNET_FEEDS[c.symbol] ? `Rounds here run on the ${DEVNET_FEEDS[c.symbol]!.name} price (${DEVNET_FEEDS[c.symbol]!.symbol}) in place of ${c.anchor.symbol}, whose Pyth feed devnet can't read yet. Mainnet settles on ${c.anchor.symbol}.` : null);
 
 /** A coin's daily series: its rounds, one per day, closing 4 PM New York. */
 export const seriesOf = (c: Coin): PublicKey | null => { const m = mintOf(c); return m ? stook.deriveSeries(feedHexToBytes(anchorOf(c).feedId), m, 0) : null; };

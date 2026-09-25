@@ -8,13 +8,14 @@ import { Chart, type DrawMode } from "../components/Chart";
 import { Ticket } from "../components/Ticket";
 import { Address } from "../components/Address";
 import { Tour, tourSeen, type TourStop } from "../components/Tour";
-import { Usd, fmtUsd, toUsd, useUsdPerCoin } from "../lib/usd";
+import { fmtUsd, toUsd, useUsdPerCoin } from "../lib/usd";
 import { Bell } from "../components/Bell";
+import { Notice } from "../components/Notice";
 import { useLadder, useLivePrice, useMint, usePositions, useRefs, useSend, useSeries, useTranches } from "../hooks/useChain";
 import { useNow } from "../hooks/useNow";
 import { feedByHex, feedHex } from "../lib/feeds";
 import { coinByMint, standInNote } from "../lib/coins";
-import { fmtAmount, fmtCompact, fmtPrice, untilText } from "../lib/format";
+import { fmtCompact, fmtPrice, untilText } from "../lib/format";
 import { nyWhen } from "../lib/time";
 
 export function Market() {
@@ -85,14 +86,14 @@ export function Market() {
           </div>
         </div>
         <div className="strip-num"><span className="strip-k">price</span><span className="mono strip-v">{livePrice !== null ? `$${fmtPrice(BigInt(Math.round(livePrice / 10 ** live.data!.expo)), live.data!.expo, feed.dp)}` : "…"}</span></div>
-        <div className="strip-num"><span className="strip-k">pool</span><span className="mono strip-v">{fmtAmount(l.depositTotal, l.decimals, 0)} <span className="muted">{quoteSymbol}</span></span><Usd units={l.depositTotal} decimals={l.decimals} rate={usd} className="strip-usd" /></div>
+        <div className="strip-num"><span className="strip-k">pool</span>{usd !== null ? <><span className="mono strip-v">{fmtUsd(toUsd(l.depositTotal, l.decimals, usd))}</span><span className="mono strip-usd strip-coin">{fmtCompact(l.depositTotal, l.decimals)} {quoteSymbol}</span></> : <span className="mono strip-v">{fmtCompact(l.depositTotal, l.decimals)} <span className="muted">{quoteSymbol}</span></span>}</div>
         <div className={`status status-${l.status}`} data-tour="clock"><Bell ringing={l.status === "open" && now >= Number(l.settlesAt)} rung={l.status === "settled"} />{l.status === "open" && now < Number(l.settlesAt)
           ? <span className="status-lines"><span>rings in {untilText(l.settlesAt, now)}</span><span className="status-sub">{now < Number(l.locksAt) ? `trading · locks in ${untilText(l.locksAt, now)}` : "locked · no more trades"}</span></span>
           : stateText}</div>
         <button className="tour-btn" onClick={() => setTouring(true)} aria-label="Open the floor guide">? Guide</button>
       </header>
       <Tour open={touring} onClose={() => setTouring(false)} stops={tourStops(feed.name, quoteSymbol)} />
-      {standIn && <p className="warn standin">{standIn}</p>}
+      {standIn && <Notice tone="info" title="Devnet stand-in" className="standin">{standIn}</Notice>}
 
       <div className="market-grid">
         <Chart

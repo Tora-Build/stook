@@ -9,7 +9,8 @@ import { Link } from "react-router-dom";
 import type { PublicKey } from "@solana/web3.js";
 import { stook } from "@sooth/sdk-solana";
 import { useSeriesRounds } from "../hooks/useChain";
-import { fmtAmount, fmtPrice, untilText } from "../lib/format";
+import { fmtUsd, toUsd, useUsdRates } from "../lib/usd";
+import { fmtCompact, fmtPrice, untilText } from "../lib/format";
 import { firstOpenableDay, nyDate, nyWhen } from "../lib/time";
 
 interface Props {
@@ -24,6 +25,7 @@ interface Props {
 }
 
 export function WallCalendar(p: Props) {
+  const rate = useUsdRates().data?.[p.coinSymbol] ?? null;
   const [ty, tm, td] = nyDate(p.now).split("-").map(Number) as [number, number, number];
   const [offset, setOffset] = useState(0);            // months from the current one; −∞..+2 (31 days ahead can reach two pages on)
   const [turning, setTurning] = useState<{ dir: 1 | -1; phase: "out" | "in" } | null>(null);
@@ -80,7 +82,7 @@ export function WallCalendar(p: Props) {
             <>
               <div className="wc-top"><span className="wc-num">{d}</span>{state && <span className={`wc-state wc-state-${state === "void soon" ? "void" : state}`}>{state}</span>}</div>
               {l && landed && <div className="wc-info"><span className="mono">{fmtPrice(landed[0], l.p0Expo, p.dp)}</span><span className="wc-sub">landed</span></div>}
-              {l && !landed && <div className="wc-info"><span className="mono">{fmtAmount(l.depositTotal, l.decimals, 0)} {p.coinSymbol}</span><span className="wc-sub">{l.curveSeq.toString()} trades</span></div>}
+              {l && !landed && <div className="wc-info"><span className="mono">{rate !== null ? fmtUsd(toUsd(l.depositTotal, l.decimals, rate)) : `${fmtCompact(l.depositTotal, l.decimals)} ${p.coinSymbol}`}</span><span className="wc-sub">{l.curveSeq.toString()} trades</span></div>}
               {!l && !past && !early && !learning && !paused && <div className="wc-info wc-empty">Fund it</div>}
               {early && <div className="wc-info wc-sub" title="A day can be funded up to 31 days ahead.">funding opens {nyWhen(terms.fundableFrom, { weekday: "short", month: "short", day: "numeric" })}</div>}
               {learning && <div className="wc-info wc-sub" title="The coin is still learning how its price moves. This day locks before it has learned enough, so its round could not open.">too soon to open</div>}

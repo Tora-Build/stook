@@ -10,8 +10,9 @@ import type { PublicKey } from "@solana/web3.js";
 import { isDevnet, mintOf, standInNote, type Coin } from "../lib/coins";
 import { ataOf, ensureAta } from "../lib/chain";
 import { useBalance, useMint, useSend } from "../hooks/useChain";
-import { fmtAmount, parseAmount } from "../lib/format";
-import { Usd, fmtUsd, fromUsd, toUsd, useUsdRates } from "../lib/usd";
+import { fmtCompact, parseAmount } from "../lib/format";
+import { Notice } from "./Notice";
+import { fmtUsd, fromUsd, toUsd, useUsdRates } from "../lib/usd";
 import { nyWhen } from "../lib/time";
 import { RoundBar } from "./RoundBar";
 
@@ -22,9 +23,12 @@ export function StartRound({ coin, seriesKey, series, index, onClose }: { coin: 
   const mintKey = mintOf(coin);
   const mint = useMint(mintKey);
   const balance = useBalance(mintKey, mint.data?.tokenProgram);
-  const [text, setText] = useState("1000");
-  const [inUsd, setInUsd] = useState(false);
   const rate = useUsdRates().data?.[coin.symbol] ?? null;
+  // Dollars first when the coin has a price, as everywhere else.
+  const [unitPicked, setInUsd] = useState<boolean | null>(null);
+  const inUsd = unitPicked ?? rate !== null;
+  const [typed, setText] = useState<string | null>(null);
+  const text = typed ?? (inUsd ? "20" : "1000");
   const dec = mint.data?.decimals ?? coin.decimals;
   const seed = inUsd && rate ? fromUsd(Number(text.replace(/,/g, "")) || 0, dec, rate) : parseAmount(text, dec);
   // Exactly what the program will write if this lands now.
@@ -52,7 +56,7 @@ export function StartRound({ coin, seriesKey, series, index, onClose }: { coin: 
           <h3 id="fund-title">${coin.symbol} · {when} NY</h3>
           <button className="ts-x" onClick={onClose} aria-label="Close">×</button>
         </header>
-        {standInNote(coin) && <p className="warn">{standInNote(coin)}</p>}
+        {standInNote(coin) && <Notice tone="info" title="Devnet stand-in">{standInNote(coin)}</Notice>}
 
         <div className="ts-clock">
           <RoundBar opensAt={Number(terms.opensAt)} locksAt={Number(terms.locksAt)} settlesAt={settlesAt} />
@@ -68,8 +72,8 @@ export function StartRound({ coin, seriesKey, series, index, onClose }: { coin: 
           <div className="amount-head">
             <span>Seed</span>
             <div className="seg seg-sm" role="group" aria-label="Enter the seed in">
-              <button className={!inUsd ? "on" : ""} onClick={() => setInUsd(false)}>{coin.symbol}</button>
-              {rate !== null && <button className={inUsd ? "on" : ""} onClick={() => setInUsd(true)}>USD</button>}
+              {rate !== null && <button className={inUsd ? "on" : ""} onClick={() => { setInUsd(true); setText(null); }}>USD</button>}
+              <button className={!inUsd ? "on" : ""} onClick={() => { setInUsd(false); setText(null); }}>{coin.symbol}</button>
             </div>
           </div>
           <div className={`amount-input ${inUsd ? "amount-usd" : ""}`}>
@@ -77,11 +81,11 @@ export function StartRound({ coin, seriesKey, series, index, onClose }: { coin: 
             <input value={text} onChange={(e) => setText(e.target.value)} inputMode="decimal" autoFocus aria-label={inUsd ? "Seed in dollars" : `Seed in ${coin.symbol}`} />
             {!inUsd && <span className="amount-unit">{coin.symbol}</span>}
           </div>
-          <span className="hint">{inUsd && seed ? <>{fmtAmount(seed, dec)} {coin.symbol} · </> : !inUsd && seed && rate !== null ? <>{fmtUsd(toUsd(seed, dec, rate))} · </> : null}balance {balance.data !== undefined ? <>{fmtAmount(balance.data, dec)} <Usd units={balance.data} decimals={dec} rate={rate} /></> : "…"}{gross && seed && gross !== seed ? ` · your wallet sends ${fmtAmount(gross, dec)} (the coin's ${(mint.data?.report.transferFee?.bps ?? 0) / 100}% transfer fee)` : ""}</span>
+          <span className="hint">{inUsd && seed ? <>{fmtCompact(seed, dec)} {coin.symbol} · </> : !inUsd && seed && rate !== null ? <>{fmtUsd(toUsd(seed, dec, rate))} · </> : null}balance {balance.data !== undefined ? <>{rate !== null ? `${fmtUsd(toUsd(balance.data, dec, rate))} · ` : ""}{fmtCompact(balance.data, dec)} {coin.symbol}</> : "…"}{gross && seed && gross !== seed ? ` · with the coin's ${(mint.data?.report.transferFee?.bps ?? 0) / 100}% transfer fee, your wallet sends ${rate !== null ? fmtUsd(toUsd(gross, dec, rate)) : fmtCompact(gross, dec)}` : ""}</span>
         </div>
-        {balance.data !== undefined && !!seed && !!gross && balance.data < gross && <p className="warn">You hold {fmtAmount(balance.data, dec)} {coin.symbol}; this needs {fmtAmount(gross, dec)}. On devnet, use <b>test coins</b> in the header first.</p>}
+        {balance.data !== undefined && !!seed && !!gross && balance.data < gross && <Notice tone="stop" title={`Not enough ${coin.symbol}`}>You hold {fmtCompact(balance.data, dec)}; this needs {fmtCompact(gross, dec)}. On devnet, get <b>test coins</b> in the header first.</Notice>}
         <button className="primary" disabled={!publicKey || !seed || !mint.data || send.isPending || (balance.data !== undefined && !!gross && balance.data < gross)} onClick={start}>
-          {!publicKey ? "Connect a wallet" : send.isPending ? "Funding…" : `Fund the round${seed ? ` with ${fmtAmount(seed, dec)} ${coin.symbol}${rate !== null ? ` · ${fmtUsd(toUsd(seed, dec, rate))}` : ""}` : ""}`}
+          {!publicKey ? "Connect a wallet" : send.isPending ? "Funding…" : `Fund the round${seed ? ` with ${rate !== null ? fmtUsd(toUsd(seed, dec, rate)) : `${fmtCompact(seed, dec)} ${coin.symbol}`}` : ""}`}
         </button>
         <p className="ts-rent" title={`Account rent for the round, not a payment: about 0.009 SOL comes back when you claim your deposit, the rest when the round closes.${isDevnet ? " Devnet SOL: set your wallet to devnet." : ""}`}>+ about 0.026 {isDevnet ? "devnet " : ""}SOL rent, returned to you later</p>
       </section>
