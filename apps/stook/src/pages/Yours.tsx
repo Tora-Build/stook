@@ -16,6 +16,7 @@ import { fmtCompact, short } from "../lib/format";
 import { Amount, approxUsd, coinText, fmtUsd, toUsd, useUsdRates } from "../lib/usd";
 import { bandName, rangeName } from "../components/Ticket";
 import { Book } from "../components/Book";
+import { Fold } from "../components/Fold";
 import { nyDate, nyWhen } from "../lib/time";
 
 type Stage = "funded" | "opening" | "void soon" | "trading" | "locked" | "settling" | "settled" | "void";
@@ -199,7 +200,7 @@ function Day({ name, count, startOpen, children }: { name: string; count: number
   return (
     <section className="pb-day">
       <h2 className="pb-date"><button onClick={() => setOpen(!open)} aria-expanded={open}><span className="pb-caret" aria-hidden="true">{open ? "▾" : "▸"}</span>{name}<em>{count} {count === 1 ? "round" : "rounds"}</em></button></h2>
-      {open && children}
+      <Fold open={open}>{children}</Fold>
     </section>
   );
 }
@@ -283,7 +284,7 @@ function RoundBlock({ h, now, own, register }: { h: Holding; now: number; own: b
         <span className={`pb-num pb-res ${result === null ? "muted" : result >= 0n ? "up" : "down"}`}><em>result</em>{result === null ? "at the bell" : `${result >= 0n ? "+" : "−"}${big(result >= 0n ? result : -result)}`}</span>
         <span className="pb-caret" aria-hidden="true">{open ? "▾" : "▸"}</span>
       </button>
-      {open && <div className="pb-body">
+      <Fold open={open}><div className="pb-body">
       <div className="pb-when muted small">closes {nyWhen(l.settlesAt, { weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })} New York</div>
       {/* A finished round reads as a book: what each holding pays, the
           total, and one button for all of it, as on the round page. */}
@@ -321,7 +322,7 @@ function RoundBlock({ h, now, own, register }: { h: Holding; now: number; own: b
       <footer className="stmt-round-foot">
         <Link to={`/m/${h.pubkey.toBase58()}`} className="small as-link">{stage === "trading" ? "To the table ›" : "Open the round ›"}</Link>
       </footer>
-      </div>}
+      </div></Fold>
     </article>
   );
 }

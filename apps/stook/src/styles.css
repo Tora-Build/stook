@@ -1087,3 +1087,15 @@ a.tour-btn { text-decoration: none; }
 .tp-line-open > .tp-fold-sub::before, .tp-fold-open::before { display: none; }
 .tp-fold-sub .tp-fold-in { margin-left: 0 !important; border-left: 0 !important; padding-left: 1rem !important; }
 .tp-more-fold .tp-fold-sub .tp-fold-in { padding-left: 0 !important; }
+
+/* Folds outside the paper: the same swing, dark paper. Shut, a folded edge;
+   open, flat. */
+.fold { display: grid; grid-template-rows: 0fr; transition: grid-template-rows .55s cubic-bezier(.25, .8, .3, 1); perspective: 800px; perspective-origin: 50% 0; }
+.fold-open { grid-template-rows: 1fr; }
+.fold-in { position: relative; overflow: hidden; min-height: 0; transform-origin: top center; transform: rotateX(-90deg); }
+.fold-open > .fold-in { animation: unfold .55s cubic-bezier(.25, .8, .3, 1) both; }
+.fold:not(.fold-open) > .fold-in { animation: refold .35s ease-in both; visibility: hidden; transition: visibility 0s .35s; }
+.fold-in::before { content: ""; position: absolute; inset: 0; z-index: 1; pointer-events: none; background: linear-gradient(180deg, rgba(0, 0, 0, .55), rgba(0, 0, 0, .15) 70%, transparent); opacity: 0; }
+.fold-open > .fold-in::before { animation: shade .55s ease-out both; }
+.fold:not(.fold-open) { min-height: 6px; border-top: 1px solid rgba(255, 255, 255, .10); background: linear-gradient(180deg, rgba(0, 0, 0, .40), rgba(0, 0, 0, .06)); }
+@media (prefers-reduced-motion: reduce) { .fold { transition: none; } .fold-in, .fold-in::before { animation: none !important; transform: none; } }
