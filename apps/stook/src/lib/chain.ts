@@ -93,9 +93,13 @@ export async function fetchHoldings(c: Connection, owner: PublicKey): Promise<Ho
 
 export interface MintInfo { decimals: number; tokenProgram: PublicKey; report: stook.MintReport }
 export async function fetchMint(c: Connection, mint: PublicKey): Promise<MintInfo | null> {
-  const a = await c.getAccountInfo(mint);
+  // The transfer fee in force depends on the epoch: a scheduled change takes
+  // effect two epochs later. Without it the SDK assumes the newer schedule,
+  // which quoted a coin with a pending cut as fee-free and every buy failed
+  // its own limit on chain.
+  const [a, epoch] = await Promise.all([c.getAccountInfo(mint), c.getEpochInfo().then((e) => BigInt(e.epoch)).catch(() => undefined)]);
   if (!a) return null;
-  const report = stook.classifyMint(new Uint8Array(a.data));
+  const report = stook.classifyMint(new Uint8Array(a.data), epoch);
   return { decimals: report.decimals, tokenProgram: a.owner, report };
 }
 
