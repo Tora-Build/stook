@@ -41,6 +41,7 @@ import { useBalance, useSend } from "../hooks/useChain";
 import type { DrawMode } from "./Chart";
 import { LpPanel } from "./LpPanel";
 import { Book } from "./Book";
+import { PaperFold } from "./PaperFold";
 import { Notice } from "./Notice";
 import { Slider } from "./Slider";
 import { Amount, approxUsd, coinText, fromUsd } from "../lib/usd";
@@ -91,7 +92,7 @@ function Mine(p: Props) {
   const money = (v: bigint) => <Amount units={v} decimals={dec} symbol={p.quoteSymbol} rate={p.usd} />;
   return (
     <Book tour="book" kind="call" title="Your calls" count={p.positions.length} open={!!p.selected} onFold={p.onDeselect}
-      total={<>{coinText(paid, dec, p.quoteSymbol)} in</>}
+      total={<>{coinText(paid, dec, p.quoteSymbol)} in{p.usd !== null && <span className="approx">{approxUsd(paid, dec, p.usd)}</span>}</>}
       rows={p.positions.map((r) => { const on = !!p.selected?.pubkey.equals(r.pubkey); return {
         key: r.pubkey.toBase58(), on, label: name(r.position.shape), sub: on ? "open below: add or sell" : undefined,
         amount: money(r.position.netPaid), onClick: () => (on ? p.onDeselect() : p.onSelect(r)) }; })} />
@@ -221,10 +222,10 @@ function Buy(p: Props & { held?: boolean }) {
           <div className="tp-win-amt"><b className="mono">{coinText(lands(q.maxPayout), dec, p.quoteSymbol)}</b>{p.usd !== null && <span className="tp-usd mono">{approxUsd(lands(q.maxPayout), dec, p.usd)}</span>}</div>
           <div className="tp-note">if it closes {moveFromOpen(l, Math.floor((s.lo + s.hi) / 2))}</div>
         </div>
-        <details className="tp-more"><summary>Limits</summary>
+        <PaperFold label="Limits">
           <div className="tp-row"><span>Most it can cost</span><i /><b className="mono">{coinText(limit, dec, p.quoteSymbol)}</b></div>
           {pays !== q.total && <div className="tp-row"><span>Coin's transfer fee</span><i /><b className="mono">{coinText(pays - q.total, dec, p.quoteSymbol)}</b></div>}
-        </details>
+        </PaperFold>
       </div>}
       {short && <Notice tone="stop" title={`Not enough ${p.quoteSymbol}`}>You hold {fmtCompact(balance.data!, dec)}; this can cost up to {fmtCompact(limit!, dec)}. On devnet, get <b>test coins</b> in the header.</Notice>}
       <button className="primary" disabled={!q || !p.tradeable || send.isPending || !publicKey || short} onClick={submit}>{!publicKey ? "Connect a wallet" : !p.tradeable ? "Not trading" : !s ? "Pick a price first" : send.isPending ? "Sending…" : `${p.held || existing ? "Add to call" : "Place call"}${pays !== null ? ` · ${coinText(pays, dec, p.quoteSymbol)}` : ""}`}</button>
@@ -250,9 +251,9 @@ function Sell(p: Props & { pos: PositionRow }) {
       {q && get !== null && limit !== null && <div className="ticket-paper" role="group" aria-label="Your sale">
         <div className="tp-win"><span>You get</span><div className="tp-win-amt"><b className="mono">{coinText(get, dec, p.quoteSymbol)}</b>{p.usd !== null && <span className="tp-usd mono">{approxUsd(get, dec, p.usd)}</span>}</div></div>
         <div className="tp-row"><span>{get >= paidFor ? "Profit" : "Loss"}</span><i /><b className={`mono ${get >= paidFor ? "tp-up" : "tp-down"}`}>{get >= paidFor ? "+" : "−"}{coinText(get >= paidFor ? get - paidFor : paidFor - get, dec, p.quoteSymbol)}</b></div>
-        <details className="tp-more"><summary>Limits</summary>
+        <PaperFold label="Limits">
           <div className="tp-row"><span>At least, if the odds move first</span><i /><b className="mono">{coinText(stook.netOf(limit, p.transferFee), dec, p.quoteSymbol)}</b></div>
-        </details>
+        </PaperFold>
       </div>}
       <button className="primary" disabled={!q || !p.tradeable || send.isPending || !publicKey} onClick={submit}>{!p.tradeable ? "Locked until the bell" : send.isPending ? "Sending…" : `Sell ${pct}%`}</button>
     </>

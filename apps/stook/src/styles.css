@@ -883,7 +883,7 @@ button.tour-skip:hover { color: var(--cream); }
 .book-rows button.on { background: var(--sky); border-left-color: var(--taxi); }
 .book-label em { display: block; font-style: normal; font-size: .72rem; color: var(--cream-3); margin-top: .1rem; }
 .book-amt { text-align: right; white-space: nowrap; }
-.book-amt small { display: block; font-size: .7rem; color: var(--cream-3); }
+.book-amt small { font-size: .8rem; color: var(--cream-3); }
 .book-foot { padding: .6rem .7rem; border-top: 2px solid var(--line); }
 .book-foot .primary { width: 100%; }
 
@@ -893,7 +893,7 @@ button.tour-skip:hover { color: var(--cream); }
 .notice-sign { flex: none; display: grid; place-items: center; width: 2rem; background: var(--n); color: #101a2e; font-family: var(--px); font-size: .8rem; }
 .notice-body { display: flex; flex-direction: column; gap: .15rem; padding: .5rem .7rem; font-size: .82rem; color: var(--cream-2); line-height: 1.4; }
 .notice-body > b { font-family: var(--px); font-size: .45rem; letter-spacing: .06em; text-transform: uppercase; color: var(--n); }
-.desk-coin, .strip-coin { display: block; font-size: .72rem; color: var(--cream-3); }
+.desk-coin, .strip-coin { margin-left: .45rem; font-size: .85em; color: var(--cream-3); }
 .coin-line { display: block; font-size: .72rem; color: var(--cream-3); }
 .stmt-book { padding: .8rem 1rem .2rem; }
 .stmt-book .book { margin: 0; }
@@ -997,22 +997,28 @@ a.tour-btn { text-decoration: none; }
 .tp-row-btn { width: 100%; background: none; border: 0; padding: .15rem 0; font: inherit; color: inherit; text-align: left; cursor: pointer; }
 .tp-row-btn:hover span:first-child { text-decoration: underline; text-decoration-style: dotted; }
 .tp-caret { display: inline-block; width: 1rem; color: #8d6a2a; }
-.tp-fold { display: grid; grid-template-rows: 0fr; transition: grid-template-rows .45s cubic-bezier(.3, .7, .3, 1); perspective: 900px; }
-/* The hidden part is a sheet folded back under the crease above it. Opening
-   swings it down on that crease, darker while it faces away from the light,
-   and leaves the crease on the paper: a fine line with a lit edge, the way a
-   slip that was folded never lies quite flat again. */
-.tp-fold-in { position: relative; overflow: hidden; transform-origin: top center; transform: rotateX(-88deg); transition: transform .45s cubic-bezier(.3, .7, .3, 1); backface-visibility: hidden; }
-.tp-fold-in::before { content: ""; position: absolute; inset: 0; pointer-events: none; background: linear-gradient(180deg, rgba(60, 45, 20, .35), rgba(60, 45, 20, .08)); opacity: 1; transition: opacity .45s ease; }
-.tp-fold-in::after { content: ""; position: absolute; left: 0; right: 0; top: 0; height: 2px; pointer-events: none; background: linear-gradient(180deg, rgba(80, 60, 30, .28), rgba(255, 252, 240, .9)); }
+.tp-fold { display: grid; grid-template-rows: 0fr; transition: grid-template-rows .55s cubic-bezier(.25, .8, .3, 1); perspective: 700px; perspective-origin: 50% 0; }
+/* The hidden part is a flap folded back under a crease. Opening, it swings
+   down on the crease with a little give at the end, dark while it faces away
+   from the light and brightening as it lies flat, throwing a shadow on the
+   paper below while it moves. Once open the crease stays: a dark line with a
+   lit edge under it, across the paper, as on a slip that was folded. */
+.tp-fold-in { position: relative; overflow: hidden; transform-origin: top center; transform: rotateX(-90deg); }
+.tp-line-open > .tp-fold-sub > .tp-fold-in, .tp-fold-open > .tp-fold-in { animation: unfold .55s cubic-bezier(.25, .8, .3, 1) both; }
+.tp-line:not(.tp-line-open) > .tp-fold-sub > .tp-fold-in { animation: refold .35s ease-in both; }
+.tp-fold-in::before { content: ""; position: absolute; inset: 0; pointer-events: none; background: linear-gradient(180deg, rgba(70, 50, 20, .45), rgba(70, 50, 20, .12) 70%, transparent); opacity: 0; }
+.tp-line-open > .tp-fold-sub > .tp-fold-in::before, .tp-fold-open > .tp-fold-in::before { animation: shade .55s ease-out both; }
 .tp-fold-open, .tp-line-open > .tp-fold-sub { grid-template-rows: 1fr; }
-.tp-fold-open > .tp-fold-in, .tp-line-open > .tp-fold-sub > .tp-fold-in { transform: none; }
-.tp-fold-open > .tp-fold-in::before, .tp-line-open > .tp-fold-sub > .tp-fold-in::before { opacity: 0; }
+.tp-line-open > .tp-fold-sub, .tp-fold-open { border-top: 1px solid rgba(90, 70, 35, .38); box-shadow: inset 0 1px 0 rgba(255, 253, 244, .95), 0 -1px 0 rgba(255, 253, 244, .6); }
+.tp-line-open > .tp-fold-sub { margin-top: .15rem; }
+@keyframes unfold { 0% { transform: rotateX(-90deg); } 70% { transform: rotateX(6deg); } 100% { transform: rotateX(0); } }
+@keyframes refold { from { transform: rotateX(0); } to { transform: rotateX(-90deg); } }
+@keyframes shade { 0% { opacity: 1; } 100% { opacity: 0; } }
 .tp-fold-sub .tp-fold-in { margin-left: 1rem; border-left: 2px dotted rgba(16, 26, 46, .3); padding-left: .6rem; }
 .tp-sub { font-size: .8rem; color: #4d4638; padding: .15rem 0; }
 .tp-line-open { background: linear-gradient(180deg, rgba(16, 26, 46, .05), transparent); }
 .tp-unfold { display: block; width: 100%; margin: .4rem 0 .2rem; padding: .45rem; background: repeating-linear-gradient(90deg, rgba(16, 26, 46, .08) 0 6px, transparent 6px 12px); border: 0; border-top: 2px dashed rgba(16, 26, 46, .35); border-bottom: 2px dashed rgba(16, 26, 46, .35); color: #101a2e; font: inherit; font-size: .8rem; font-weight: 600; cursor: pointer; }
-@media (prefers-reduced-motion: reduce) { .tp-fold, .tp-fold-in { transition: none; } }
+@media (prefers-reduced-motion: reduce) { .tp-fold { transition: none; } .tp-fold-in, .tp-fold-in::before { animation: none !important; transform: none; } }
 
 /* How: scenes use the app's own ladder, paper and notices */
 .scene-paper { margin: 0; }
@@ -1026,7 +1032,7 @@ a.tour-btn { text-decoration: none; }
 .wc-cell { position: relative; }
 .wc-mine { position: absolute; right: -2px; bottom: -2px; display: inline-flex; align-items: center; gap: .3rem; padding: .15rem .35rem; background: var(--crowd-2); color: #f4e9c8; font-family: var(--px); font-size: .36rem; text-transform: uppercase; letter-spacing: .05em; }
 .wc-mine i { font-style: normal; background: #f4e9c8; color: #101a2e; padding: .05rem .2rem; }
-.approx { display: block; font-size: .72em; color: var(--cream-3); font-weight: 400; }
+.approx { margin-left: .45rem; font-size: .8em; color: var(--cream-3); font-weight: 400; white-space: nowrap; }
 .ticket-paper .approx { color: #6b6452; }
 .payl-head, .payl-row { grid-template-columns: 7rem 1fr 7rem; }
 
@@ -1056,3 +1062,8 @@ a.tour-btn { text-decoration: none; }
 .tp-win-amt .tp-usd { margin-left: 0; font-size: 1.05rem; color: #3f6b52; }
 .ticket-paper .tp-win .tp-win-amt > b { font-size: 2.2rem; font-weight: 700; line-height: 1.15; }
 .foot-links { display: flex; gap: 1rem; }
+.tp-more-fold { margin-top: .3rem; }
+.tp-more-fold > .tp-row-btn { font-size: .8rem; color: #5b5446; }
+.tp-more-fold .tp-fold-in .tp-row { font-size: .8rem; margin: .25rem 0; }
+.tp-more-fold .tp-fold-sub .tp-fold-in { margin-left: 0; border-left: 0; padding-left: 0; }
+.tape-cell b .approx { font-size: .7em; }

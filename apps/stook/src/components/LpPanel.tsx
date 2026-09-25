@@ -99,7 +99,7 @@ export function LpPanel(p: Props) {
           so they cannot merge; here they add up, entry by entry inside. */}
       {rows.length > 0 && (
         <Book kind="house" title="Your stake" count={rows.length} open={final}
-          total={<>{big(sum.in)} in</>}
+          total={<>{big(sum.in)} in{rate !== null && <span className="approx">{approxUsd(sum.in, dec, rate)}</span>}</>}
           extra={sum.worth !== null ? <>{big(sum.worth)} to claim</> : sum.fees > 0n ? <>+{big(sum.fees)} fees</> : undefined}
           rows={rows.map((r) => ({ key: String(r.t.index), label: `deposit #${r.t.index}`, sub: <>fees {big(r.fees)}{r.worth !== null && <> · worth {big(r.worth)}</>}</>, amount: money(r.t.deposit) }))}
           footer={final && publicKey ? <button className="primary" disabled={claim.isPending} onClick={() => void claimAll()}>{claim.isPending ? "Claiming…" : `Claim ${sum.worth !== null ? big(sum.worth) : ""}`.trim()}</button> : undefined} />

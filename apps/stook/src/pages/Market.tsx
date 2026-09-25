@@ -15,7 +15,7 @@ import { useLadder, useLivePrice, useMint, usePositions, useRefs, useSend, useSe
 import { useNow } from "../hooks/useNow";
 import { feedByHex, feedHex } from "../lib/feeds";
 import { coinByMint, standInNote } from "../lib/coins";
-import { fmtPrice, untilText } from "../lib/format";
+import { fmtCompact, fmtPrice, untilText } from "../lib/format";
 import { nyWhen } from "../lib/time";
 
 export function Market() {
@@ -118,9 +118,9 @@ export function Market() {
           <div className="tape-cell"><span className="strip-k">now</span><b className="mono">{livePrice !== null ? `$${fmtPrice(BigInt(Math.round(livePrice / 10 ** live.data!.expo)), live.data!.expo, feed.dp)}` : "…"}</b>
             {livePrice !== null && openPrice !== null && <em className={`mono ${livePrice >= openPrice ? "up" : "down"}`}>{livePrice >= openPrice ? "▲" : "▼"} {Math.abs((livePrice / openPrice - 1) * 100).toFixed(2)}% since open</em>}</div>
           {openPrice !== null && <div className="tape-cell"><span className="strip-k">opened at</span><b className="mono">${fmtPrice(l.p0, l.p0Expo, feed.dp)}</b><em>{nyWhen(l.opensAt, { weekday: "short", hour: "numeric", minute: "2-digit" })} New York</em></div>}
-          <div className="tape-cell"><span className="strip-k">pool</span><b className="mono">{coinText(l.depositTotal, l.decimals, quoteSymbol)}</b>{usd !== null && <em className="mono">{approxUsd(l.depositTotal, l.decimals, usd)}</em>}</div>
-          <div className="tape-cell"><span className="strip-k">house fees</span><b className="mono tape-up">{coinText(l.feesLp, l.decimals, quoteSymbol)}</b><em>{usd !== null ? `${approxUsd(l.feesLp, l.decimals, usd)} · ` : ""}90% of fees, to the pool</em></div>
-          <div className="tape-cell" title="What traders have paid for calls still open in this round"><span className="strip-k">traders in</span><b className="mono">{coinText(l.basisTotal, l.decimals, quoteSymbol)}</b><em>{usd !== null ? `${approxUsd(l.basisTotal, l.decimals, usd)} · ` : ""}on open calls</em></div>
+          <div className="tape-cell"><span className="strip-k">pool</span><b className="mono">{fmtCompact(l.depositTotal, l.decimals)}{usd !== null && <span className="approx">{approxUsd(l.depositTotal, l.decimals, usd)}</span>}</b><em>{quoteSymbol} in the house</em></div>
+          <div className="tape-cell"><span className="strip-k">house fees</span><b className="mono tape-up">{fmtCompact(l.feesLp, l.decimals)}{usd !== null && <span className="approx">{approxUsd(l.feesLp, l.decimals, usd)}</span>}</b><em>{quoteSymbol}, 90% of fees</em></div>
+          <div className="tape-cell" title="What traders have paid for calls still open in this round"><span className="strip-k">traders in</span><b className="mono">{fmtCompact(l.basisTotal, l.decimals)}{usd !== null && <span className="approx">{approxUsd(l.basisTotal, l.decimals, usd)}</span>}</b><em>{quoteSymbol} on open calls</em></div>
           <div className="tape-cell" title="The chart splits the price into bands of equal percentage steps. A call picks bands; the close lands in exactly one.">
             <span className="strip-k">each band</span>
             <b className="mono">{bandUsd !== null ? `$${bandUsd.toLocaleString("en-US", { maximumSignificantDigits: 3 })}` : `${(stepBps / 100).toFixed(2)}%`} wide</b>
