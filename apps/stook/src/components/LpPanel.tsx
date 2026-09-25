@@ -51,7 +51,6 @@ export function LpPanel(p: Props) {
   return (
     <Wrap className={p.bare ? "" : "panel"}>
       {!p.bare && <h3>Provide liquidity</h3>}
-      <p className="house-intro">Be the house: take the other side of every trade, shared with the pool by what you put in.</p>
       <div className="house-facts">
         <div><b>Pool</b><span className="mono">{fmtAmount(l.depositTotal, dec, 0)} {p.quoteSymbol}</span><Usd units={l.depositTotal} decimals={dec} rate={rate} /></div>
         <div><b>Earn</b><span>90% of every fee</span><em>{(l.feeBps / 100).toFixed(0)}% now, 5% near the close</em></div>
