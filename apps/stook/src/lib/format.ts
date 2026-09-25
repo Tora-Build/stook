@@ -25,11 +25,13 @@ export const pct = (wad: bigint, dp = 1): string => (Number(wad) / 1e16).toFixed
 
 /** A probability (WAD) the way a person reads it: "12.5%", or "1 in 10,900" when it is under 0.1%. */
 export const chance = (wad: bigint): string => {
+  // Tiny and near-certain chances read as bounds: "1 in 249,000" was precise
+  // noise, and a rounded "100.0%" was not true.
   const p = Number(wad) / 1e18;
-  if (p >= 0.001) return `${(p * 100).toFixed(1)}%`;
   if (p <= 0) return "0%";
-  const n = 1 / p, mag = 10 ** Math.max(0, Math.floor(Math.log10(n)) - 2);
-  return `1 in ${(Math.round(n / mag) * mag).toLocaleString("en-US")}`;
+  if (p < 0.001) return "under 0.1%";
+  if (p > 0.999) return "over 99.9%";
+  return `${(p * 100).toFixed(1)}%`;
 };
 
 export const fmtWhen = (t: bigint): string =>

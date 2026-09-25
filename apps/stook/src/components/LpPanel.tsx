@@ -87,11 +87,11 @@ export function LpPanel(p: Props) {
       {!p.bare && <h3>Provide liquidity</h3>}
       {/* This round's house, live: what it holds, what it has earned, and
           what traders have riding on it. The rules are on the How page. */}
-      <div className="slip2-cells house-cells" aria-label="The house, this round">
-        {([["Pool", l.depositTotal, ""], ["Fees earned", l.feesLp, "slip2-win"], ["Traders in", l.basisTotal, ""]] as const).map(([k, v, cls]) => (
-          <div key={k} className={`slip2-cell ${cls}`} title={k === "Traders in" ? "What traders have paid for lines still open in this round" : undefined}>
-            <span className="slip2-k">{k}</span>
-            <b className="mono">{rate !== null ? fmtUsd(toUsd(v, dec, rate)) : fmtCompact(v, dec)}</b>
+      <div className="quote-line" aria-label="The house, this round">
+        {([["Pool", l.depositTotal, ""], ["Fees earned", l.feesLp, "ql-up"], ["Traders in", l.basisTotal, ""]] as const).map(([k, v, cls]) => (
+          <div key={k} title={k === "Traders in" ? "What traders have paid for lines still open in this round" : undefined}>
+            <span>{k}</span>
+            <b className={`mono ${cls}`}>{rate !== null ? fmtUsd(toUsd(v, dec, rate)) : fmtCompact(v, dec)}</b>
             <em className="mono">{fmtCompact(v, dec)} {p.quoteSymbol}</em>
           </div>
         ))}
