@@ -87,7 +87,7 @@ export function StartRound({ coin, seriesKey, series, index, onClose }: { coin: 
             <div className="tp-win">
               <div className="tp-win-top"><span>Your share</span><em className="mono">first in</em></div>
               <b className="mono">100%</b>
-              <div className="tp-note">90% of every fee is the house's; it can lose up to the seed.</div>
+              <div className="tp-note">90% of every fee goes to the house.</div>
             </div>
           </div>
         )}

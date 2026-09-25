@@ -139,8 +139,7 @@ export function LpPanel(p: Props) {
           </button>
         </>
       )}
-      {joinable && <p className="house-fine">You can lose up to what you deposit. <Link to="/how?step=house">How the house works ›</Link></p>}
-      {!joinable && <p className="house-how"><Link to="/how?step=house">How the house works ›</Link></p>}
+      <p className="house-how"><Link to="/how?step=house">How the house works ›</Link></p>
     </Wrap>
   );
 }
