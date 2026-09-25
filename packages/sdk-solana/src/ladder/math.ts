@@ -12,6 +12,8 @@ import { expWad, lnWad, wadDiv, wadMul, WAD, LmsrMathError } from "../math/lmsr.
 export const BINS = 64;
 export const MAX_HEIGHT = 8;
 export const W_MAX = 1_000_000_000n * WAD;
+/** Floor on a weight: one in 1e18 of the cap (see the program's `MIN_W`). */
+export const MIN_W = WAD / 1_000_000_000n;
 export const MAX_TRADE_EXPONENT = 20n * WAD;
 export const MAX_WAD_DIVISOR = 1n << 96n;
 export const B_HAIRCUT_NUM = 9_999n;
@@ -143,18 +145,39 @@ export function applyTrade(curve: Curve, b: bigint, shape: Shape, delta: bigint)
   const powers: bigint[] = [WAD, expWad(x)];
   for (let m = 2; m <= shape.h; m++) powers.push(mul(powers[m - 1]!, powers[1]!));
 
-  const w = curve.w.slice();
-  let after = curve.sum;
+  // As the program does: price on the curve as it stands; if that would carry
+  // a weight past the cap, shift the whole curve down until the new peak sits
+  // at or under half of it and price again. Prices are ratios, so the trader
+  // pays the same.
   const [first, last] = shapeBins(shape);
-  for (let i = first; i <= last; i++) {
-    let n = mul(w[i]!, powers[level(shape, i)]!);
-    if (n < WAD) n = WAD;
-    if (n > W_MAX) fail("apply_trade: weight cap");
-    after += n - w[i]!;
-    w[i] = n;
+  let w = curve.w.slice();
+  let before = curve.sum;
+  let shift = 0n;
+  let after: bigint;
+  const next: bigint[] = [];
+  for (;;) {
+    after = before;
+    let peak = 0n;
+    for (let i = first; i <= last; i++) {
+      let n = mul(w[i]!, powers[level(shape, i)]!);
+      if (n < MIN_W) n = MIN_W;
+      if (n > peak) peak = n;
+      after += n - w[i]!;
+      next[i] = n;
+    }
+    if (peak <= W_MAX) break;
+    if (shift > 0n) fail("apply_trade: weight cap");
+    while (peak >> shift > W_MAX / 2n) shift++;
+    w = w.map((v) => v >> shift);
+    before = w.reduce((a, v) => a + v, 0n);
   }
-  const cost = mul(b, lnWad(div(after, curve.sum)));
-  return { curve: { w, sum: after }, cost };
+  for (let i = first; i <= last; i++) w[i] = next[i]!;
+  const cost = mul(b, lnWad(div(after, before)));
+  if (shift === 0n) return { curve: { w, sum: after }, cost };
+  // A bin more than 1e18 under the peak is lifted back to the floor.
+  let total = 0n;
+  for (let i = 0; i < w.length; i++) { if (w[i]! < MIN_W) w[i] = MIN_W; total += w[i]!; }
+  return { curve: { w, sum: total }, cost };
 }
 
 /** Probability of bin `i`, WAD. */

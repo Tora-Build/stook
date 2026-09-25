@@ -45,9 +45,16 @@ pub const MAX_HEIGHT: u8 = 8;
 /// 64 × 1e9 × 1e18 = 6.4e28 < 2^96 ≈ 7.9e28. At 1e10 it would not fit, and the
 /// division would return a wrong number rather than an error.
 ///
-/// A bin at the cap is priced within 1e-9 of certainty; refusing to push it
-/// further costs nothing a trader would notice.
+/// Only the ratios between weights mean anything, so a trade that would push
+/// a weight past the cap first rescales the whole curve down (`rescale`):
+/// the cap bounds the arithmetic, never how much a bin can be bought.
 pub const W_MAX: i128 = 1_000_000_000 * WAD;
+
+/// Floor on a weight: one in 1e18 of the cap. Rescaling lets long shots fall
+/// below 1.0; this floor sits far enough under any price a real trade reaches
+/// that the curve stays exact, and high enough that `neg_ln_price`
+/// (`S·WAD/w ≤ 6.4e37`) fits an i128 and `S/w` keeps nine digits.
+pub const MIN_W: i128 = WAD / 1_000_000_000;
 
 /// Largest `|delta/b| · h` a single trade may carry. Keeps `g^h` inside
 /// `exp_wad`'s domain with room to spare; a larger move is two trades.
@@ -261,33 +268,71 @@ pub fn apply_trade(
         powers[m] = wad_mul(powers[m - 1], powers[1])?;
     }
 
-    // Two passes: compute every new weight, then commit. A shape spanning
-    // several bins can fail on its last one (the weight cap), and a function
-    // that has already rewritten the first few would hand back weights that no
-    // longer match `sum`. On chain a failed instruction reverts regardless, but
-    // the quote path and the tests call this directly.
-    let before = *sum;
-    let mut after = before;
+    // Two passes at most: compute every new weight, then commit. A shape
+    // spanning several bins can fail on its last one, and a function that has
+    // already rewritten the first few would hand back weights that no longer
+    // match `sum`. On chain a failed instruction reverts regardless, but the
+    // quote path and the tests call this directly.
+    //
+    // Prices are ratios, so halving every weight changes nothing a trader
+    // pays. When this trade would carry a weight past the cap, the curve is
+    // shifted down until the new peak sits at or under half of it, and the
+    // trade priced again on the shifted weights (no floor yet), exactly. The
+    // common case never shifts and pays for one pass.
+    let mut scaled = *w;
+    let mut before = *sum;
+    let mut shift = 0u32;
     let mut next = [0i128; BINS];
-    for i in shape.bins() {
-        let m = shape.level(i) as usize;
-        // A weight below 1.0 would mean more was sold from this bin than was
-        // ever bought; the caller forbids that, so the floor only ever absorbs
-        // the last unit of multiplication rounding on a full unwind.
-        let n = wad_mul(w[i], powers[m])?.max(WAD);
-        if n > W_MAX {
+    let mut after;
+    loop {
+        after = before;
+        let mut peak = 0i128;
+        for i in shape.bins() {
+            let m = shape.level(i) as usize;
+            // The floor only ever absorbs multiplication rounding on a full
+            // unwind of a bin that sits at it: the caller forbids selling more
+            // than was bought.
+            let n = wad_mul(scaled[i], powers[m])?.max(MIN_W);
+            peak = peak.max(n);
+            after = after.checked_add(n - scaled[i]).ok_or(MathError::Overflow)?;
+            next[i] = n;
+        }
+        if peak <= W_MAX {
+            break;
+        }
+        if shift > 0 {
             return Err(MathError::Overflow);
         }
-        after = after.checked_add(n - w[i]).ok_or(MathError::Overflow)?;
-        next[i] = n;
+        while (peak >> shift) > W_MAX / 2 {
+            shift += 1;
+        }
+        before = 0;
+        for v in scaled.iter_mut() {
+            *v >>= shift;
+            before += *v;
+        }
     }
     let ratio = wad_div(after, before)?;
     let cost = wad_mul(b, ln_wad(ratio)?)?;
 
     for i in shape.bins() {
-        w[i] = next[i];
+        scaled[i] = next[i];
     }
-    *sum = after;
+    if shift == 0 {
+        *w = scaled;
+        *sum = after;
+        return Ok(cost);
+    }
+    // A bin more than 1e18 under the peak is lifted back to the floor. At
+    // that distance no trade has priced it, and the lift is 64 units of 1e-9
+    // against a peak near W_MAX / 2: nothing the books can see.
+    let mut total = 0i128;
+    for v in scaled.iter_mut() {
+        *v = (*v).max(MIN_W);
+        total += *v;
+    }
+    *w = scaled;
+    *sum = total;
     Ok(cost)
 }
 
@@ -673,31 +718,96 @@ mod tests {
         assert!(apply_trade(&mut w, &mut sum, b, Shape::band(1, 2), 0).is_err());
         assert!(apply_trade(&mut w, &mut sum, 0, Shape::band(1, 2), WAD).is_err());
 
-        // pushing one bin to the weight cap stops with an error, not a wrong number
+    }
+
+    /// The weight cap bounds the arithmetic, not the market: a bin bought
+    /// past it keeps taking buys, each one dearer, the curve rescaled under it.
+    #[test]
+    fn a_bin_keeps_taking_buys_past_the_weight_cap() {
+        let b = 100 * WAD;
         let (mut w, mut sum) = fresh();
-        let mut hit_cap = false;
-        for _ in 0..4 {
-            if apply_trade(&mut w, &mut sum, b, Shape::band(7, 7), 1_000 * WAD).is_err() {
-                hit_cap = true;
-                break;
-            }
+        let mut last_p = price(&w, sum, 7).unwrap();
+        for n in 0..12 {
+            let delta = 1_000 * WAD;
+            let cost = apply_trade(&mut w, &mut sum, b, Shape::band(7, 7), delta)
+                .unwrap_or_else(|e| panic!("buy {n} refused: {e:?}"));
+            assert!(cost > 0 && cost < delta, "buy {n}: a share paying 1 cost {cost} per {delta}");
+            assert!(w.iter().all(|&v| (MIN_W..=W_MAX).contains(&v)));
+            assert_eq!(sum, w.iter().sum::<i128>());
+            // at certainty the floor can cost the last few of 18 digits
+            let p = price(&w, sum, 7).unwrap();
+            assert!(p >= last_p - 1_000, "buy {n}: price fell from {last_p} to {p}");
+            last_p = p;
         }
-        assert!(hit_cap, "the weight cap never engaged");
-        assert!(w[7] <= W_MAX);
-        assert_eq!(sum, w.iter().sum::<i128>());
+        // two rival bins near the cap, as a real round ended up: both still buy
+        let (mut w, mut sum) = fresh();
+        for _ in 0..3 {
+            apply_trade(&mut w, &mut sum, b, Shape::band(31, 31), 1_000 * WAD).unwrap();
+            apply_trade(&mut w, &mut sum, b, Shape::band(35, 35), 1_000 * WAD).unwrap();
+        }
+        apply_trade(&mut w, &mut sum, b, Shape::band(31, 31), 50 * WAD).unwrap();
+        apply_trade(&mut w, &mut sum, b, Shape::tent(33, 4), 50 * WAD).unwrap();
+    }
+
+    /// A rescale changes no price: the same trades on a curve that had to
+    /// shift cost what they cost on one far from the cap, to rounding.
+    #[test]
+    fn rescaling_changes_no_price() {
+        let b = 100 * WAD;
+        let push = |w: &mut [i128; BINS], s: &mut i128| {
+            for _ in 0..3 {
+                apply_trade(w, s, b, Shape::band(31, 31), 900 * WAD).unwrap();
+            }
+        };
+        let (mut w, mut sum) = fresh();
+        push(&mut w, &mut sum);
+        let shifted = apply_trade(&mut w, &mut sum, b, Shape::band(31, 31), 400 * WAD).unwrap();
+        let back = apply_trade(&mut w, &mut sum, b, Shape::band(31, 31), -400 * WAD).unwrap();
+        // the reference: the same odds, in f64, with no cap at all
+        let p = |d: f64| {
+            let q = 2700.0 / 100.0 + d / 100.0;
+            (q.exp() + 63.0).ln() * 100.0
+        };
+        let want = p(400.0) - p(0.0);
+        let got = shifted as f64 / WAD as f64;
+        assert!((got - want).abs() < 1e-3, "rescaled trade cost {got}, reference {want}");
+        // Shifting truncates; the drift is a few units of 1e-18, and the
+        // program rounds each leg a whole base unit against the trader.
+        assert!(shifted + back >= -WAD / 1_000_000_000, "a round trip across a rescale paid out {}", -(shifted + back));
+    }
+
+    /// LP books stay exact across rescales: the tranche adds up to what the
+    /// pool took in less what it owes, for every outcome, and no depositor
+    /// can lose more than the deposit.
+    #[test]
+    fn tranche_pnl_survives_a_rescale() {
+        let (mut w, mut sum) = fresh();
+        let b1 = liquidity_for_deposit(&w, sum, 5_000 * WAD).unwrap();
+        let (w1, s1) = (w, sum);
+        let mut paid = 0i128;
+        let mut owed = [0i128; BINS];
+        for (sh, d) in [(Shape::band(31, 31), 15_000 * WAD), (Shape::band(31, 31), 15_000 * WAD), (Shape::band(35, 35), 14_000 * WAD), (Shape::band(35, 35), 14_000 * WAD), (Shape::band(31, 31), 9_000 * WAD), (Shape::tent(33, 4), 2_000 * WAD)] {
+            paid += apply_trade(&mut w, &mut sum, b1, sh, d).unwrap();
+            for i in sh.bins() { owed[i] += d * sh.level(i) as i128; }
+        }
+        for k in 0..BINS {
+            let pool = paid - owed[k];
+            let t = tranche_pnl(b1, w1[k], s1, w[k], sum).unwrap();
+            assert!(close(t, pool, WAD / 1_000), "bin {k}: tranche {t} pool {pool}");
+            assert!(-t <= 5_000 * WAD, "bin {k}: lost more than the deposit");
+        }
     }
 
     #[test]
     fn a_trade_that_fails_changes_nothing() {
         let b = 100 * WAD;
         let (mut w, mut sum) = fresh();
-        // Load the LAST bin of a wide band close to the cap, so the band fails
-        // only after its earlier bins have been computed.
         for _ in 0..2 {
             apply_trade(&mut w, &mut sum, b, Shape::band(20, 20), 1_000 * WAD).unwrap();
         }
         let (w0, s0) = (w, sum);
-        assert!(apply_trade(&mut w, &mut sum, b, Shape::band(10, 20), 200 * WAD).is_err());
+        // over the per-trade exponent, on a curve that would also have to shift
+        assert!(apply_trade(&mut w, &mut sum, b, Shape::band(10, 20), 3_000 * WAD).is_err());
         assert_eq!(w, w0, "a failed trade rewrote weights");
         assert_eq!(sum, s0);
     }

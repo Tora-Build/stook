@@ -436,4 +436,47 @@ describe("ladder end to end", () => {
     expect(exists(e, m.ladder)).toBe(false);
     console.log(`\nVOID PATH  seller took ${(Number(gain) / 1e6).toFixed(6)} before the void; the trader who stayed got back ${(Number(traderBack) / 1e6).toFixed(6)} of ${(Number(paid) / 1e6).toFixed(6)}; both depositors whole; round closed.\n`);
   });
+
+  it("keeps selling a band pushed past the weight cap: the curve rescales, deeper pools take more, every quote holds", async () => {
+    const e = boot();
+    const settlesAt = PUBLISH_TIME + 3700n;
+    const m = market(e, settlesAt);
+    await ok(e, L.initializeProtocolIx(e.treasury.publicKey, e.treasury.publicKey, PROGRAM), e.treasury);
+    await ok(e, m.createSeries(), e.treasury);
+    await m.warm(PUBLISH_TIME - 1000n);
+    warpClockTo(e.ctx, PUBLISH_TIME - 60n);
+    await ok(e, m.create(200_000_000n), e.creator.kp);                       // a thin house: 200 coins
+    warpClockTo(e.ctx, PUBLISH_TIME + 10n);
+    await ok(e, m.open(e.priceAccount(updateAt(22_019_000n, PUBLISH_TIME, PUBLISH_TIME - 1n))), e.trader.kp);
+
+    // One band, bought again and again: it would have hit the cap and refused.
+    let shifted = 0, bought = 0n;
+    for (let n = 0; n < 10; n++) {
+      const before = m.state().curve.sum;
+      await m.quoted(40, 40, 1, 100_000_000n);
+      bought += 100_000_000n;
+      const s = m.state();
+      if (s.curve.sum < before) shifted++;
+      expect(s.curve.w.every((v) => v <= L.W_MAX && v >= L.MIN_W)).toBe(true);
+    }
+    expect(shifted).toBeGreaterThan(0);
+
+    // A deeper pool lets the same band take a bigger buy than the thin one did.
+    const cap = (b: bigint) => {
+      const s = m.state(); let lo = 0n, hi = 1n;
+      const fits = (n: bigint) => { try { L.quoteTrade({ curve: s.curve, b, feeBps: s.feeBps, decimals: s.decimals }, L.band(40, 40), n); return true; } catch { return false; } };
+      while (fits(hi) && hi < 10n ** 15n) { lo = hi; hi *= 2n; }
+      while (hi - lo > 1n) { const mid = (lo + hi) / 2n; if (fits(mid)) lo = mid; else hi = mid; }
+      return lo;
+    };
+    const thin = cap(m.state().b);
+    await ok(e, m.join(e.lp2, 2_000_000_000n, m.curveSeq()), e.lp2.kp);
+    expect(cap(m.state().b)).toBeGreaterThan(thin * 3n);           // 10x the deposits, over 3x the room
+    await m.quoted(40, 40, 1, 300_000_000n);
+    bought += 300_000_000n;
+
+    // and it all sells back, quote for quote
+    while (bought > 0n) { const d = bought > 100_000_000n ? 100_000_000n : bought; await m.quoted(40, 40, 1, -d); bought -= d; }
+    expect(m.position(40, 40, 1).shares).toBe(0n);
+  });
 });
