@@ -20,13 +20,13 @@ const move = (c) => (typeof c === "number" ? `${c >= 0 ? "▲" : "▼"}${Math.ab
 
 export function bellText(data, ny) {
   const rows = data.coins.map((c) => `${name(c.anchor)} ${num(c.price, c.dp)} ${move(c.chg)}`.trim()).join("\n");
-  return `🔔 Closing bell · ${ny.label}\n\n${rows}\n\nThe next tables are open 👉 stooks.xyz\nDevnet · test coins`;
+  return `🔔 Closing bell · ${ny.label}\n\n${rows}\n\nThe next tables are open 👉 stookstreet.xyz\nDevnet · test coins`;
 }
 
 export function morningText(data, ny) {
   // A different table each weekday.
   const order = { Tue: 0, Thu: 3, Mon: 1, Wed: 2, Fri: 0 }, c = data.coins[order[ny.weekday] ?? 0] ?? data.coins[0];
-  return `Where does ${c.anchor} close today? 🔔\n\n${num(c.price, c.dp)} now. Bell at 4 PM New York.\nCall it with ${c.coin}. The closer you call, the more you're paid.\n\n👉 stooks.xyz (devnet, free test coins)`;
+  return `Where does ${c.anchor} close today? 🔔\n\n${num(c.price, c.dp)} now. Bell at 4 PM New York.\nCall it with ${c.coin}. The closer you call, the more you're paid.\n\n👉 stookstreet.xyz (devnet, free test coins)`;
 }
 
 // OAuth 1.0a, user context: the only way the API lets an app post as a user.

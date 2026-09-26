@@ -36,11 +36,11 @@ and sell out any time before settlement.
 ```
 packages/programs-core/   the Anchor program (sooth_core)
 packages/sdk-solana/      quotes exact to the base unit, decoders, builders, keeper logic
-apps/stook/               the app, served at stooks.xyz
+apps/stook/               the app, served at stookstreet.xyz
 infra/ladder-crank/       the keeper: learns closes, opens, settles, voids and clears up rounds
 infra/tape/               live pool prices for the tables and charts (display only)
 infra/rpc-proxy/          Worker that keeps the RPC key out of the browser (method allowlist, rate limit)
-site/                     the stooks.xyz Worker (serves the app, /prices, /chart) and launch kit
+site/                     the stookstreet.xyz Worker (serves the app, /prices, /chart) and launch kit
 scripts/devnet/           protocol init, devnet coins, series, rounds from the CLI
 scripts/backtest/         the replay behind band width, opening odds and the fee
 docs/architecture.md      the design, and the decisions behind it

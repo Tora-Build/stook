@@ -1,4 +1,4 @@
-// The street: drawn by the same module stooks.xyz uses (loaded from there), so
+// The street: drawn by the same module stookstreet.xyz uses (loaded from there), so
 // the two pages show one skyline. `hero` is the tall version with the
 // exchange, the bull and the traffic; the default is the strip every page carries.
 import { useEffect, useRef } from "react";

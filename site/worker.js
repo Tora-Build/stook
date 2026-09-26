@@ -6,7 +6,7 @@ import FEEDS from "../apps/stook/src/lib/feeds.json";
 // holds cannot be spent on anything else.
 const FEED_IDS = new Set(FEEDS.map((f) => f.id.toLowerCase()));
 
-// stooks.xyz: static assets, plus two small data routes the page and the app
+// stookstreet.xyz: static assets, plus two small data routes the page and the app
 // read. Market data for display comes from public sources (Yahoo, CoinGecko,
 // GeckoTerminal); settlement on chain is Pyth and only Pyth. Cached at the
 // edge so the sources see one request a minute, not one per visitor.
@@ -141,6 +141,8 @@ async function fromTape(env, path) {
   try { const r = await fetch(base + path, { signal: AbortSignal.timeout(2500) }); if (!r.ok) return null; return await r.json(); } catch { return null; }
 }
 
+const HOME = "stookstreet.xyz";
+
 export default {
   // Every five minutes: one point of history for the pools only we record.
   // Hourly: a fresh batch of AI chatter about what happened.
@@ -158,6 +160,17 @@ export default {
   },
 
   async fetch(request, env, ctx) {
+    // One home: stookstreet.xyz. Pages on the old name (and on www.) move
+    // there for good, path and query kept; the data routes answer on every
+    // name, since the keeper, the tape and aggregators call them by address
+    // and a redirected POST would lose its body.
+    {
+      const u = new URL(request.url);
+      const data = /^\/(prices|chart|usd|coins|supply|chatter|pyth|x)$|^\/(chatter|tape|hermes)\//.test(u.pathname);
+      if (u.hostname !== HOME && !data && !u.hostname.endsWith(".workers.dev") && u.hostname !== "localhost") {
+        return Response.redirect(`https://${HOME}${u.pathname}${u.search}`, 301);
+      }
+    }
     {
       const u = new URL(request.url);
       if (u.pathname === "/x") {

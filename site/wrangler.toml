@@ -1,11 +1,14 @@
-# stooks.xyz — the Stook Street app (built from apps/stook) plus the data
-# routes in worker.js (/prices, /chart).
+# stookstreet.xyz: the Stook Street app (built from apps/stook) plus the data
+# routes in worker.js. stooks.xyz, the old name, redirects its pages here and
+# still answers the data routes (the VPS and aggregators call them).
 #   pnpm -F @stook/app build && cd site && npx wrangler deploy
 name = "stook-street"
 main = "worker.js"
 compatibility_date = "2026-08-01"
-assets = { directory = "../apps/stook/dist", binding = "ASSETS", not_found_handling = "single-page-application", run_worker_first = ["/prices", "/chart", "/usd", "/coins", "/supply", "/chatter", "/chatter/*", "/pyth", "/tape/*", "/x", "/hermes/*"] }
+assets = { directory = "../apps/stook/dist", binding = "ASSETS", not_found_handling = "single-page-application", run_worker_first = true }
 routes = [
+  { pattern = "stookstreet.xyz", custom_domain = true },
+  { pattern = "www.stookstreet.xyz", custom_domain = true },
   { pattern = "stooks.xyz", custom_domain = true },
   { pattern = "www.stooks.xyz", custom_domain = true },
 ]

@@ -1,4 +1,4 @@
-# app.stooks.xyz → stooks.xyz. The app itself is deployed from site/.
+# app.stooks.xyz → stookstreet.xyz. The app itself is deployed from site/.
 name = "stook-app"
 main = "redirect.js"
 compatibility_date = "2026-08-01"

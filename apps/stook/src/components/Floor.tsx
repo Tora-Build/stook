@@ -21,7 +21,7 @@ export function Floor() {
   const today = nyAt(y, mo - 1, d, 16), bell = now < today ? today : nyAt(y, mo - 1, d + 1, 16);
   const posts = useRef<HTMLDivElement>(null);
   const latest = useRef(quotes.data); latest.current = quotes.data;
-  // The living floor is one script shared with stooks.xyz, loaded from there.
+  // The living floor is one script shared with stookstreet.xyz, loaded from there.
   useEffect(() => {
     let unmount: (() => void) | undefined, cancelled = false;
     const go = () => {
