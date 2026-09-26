@@ -1,5 +1,5 @@
 import { aiChatter, bellIn, grammarChatter } from "./chatter.js";
-import { nyNow, runX, whoAmI } from "./xpost.js";
+import { nyNow, runX, runXVideo, whoAmI } from "./xpost.js";
 import FEEDS from "../apps/stook/src/lib/feeds.json";
 
 // The feeds the app can show; /pyth answers for these only, so the key it
@@ -173,6 +173,13 @@ export default {
     }
     {
       const u = new URL(request.url);
+      if (u.pathname === "/x/video" && request.method === "POST") {
+        // The box's daily poster video (infra/x-poster), behind the tape token.
+        if (!env.TAPE_TOKEN || request.headers.get("authorization") !== `Bearer ${env.TAPE_TOKEN}`) return new Response("no", { status: 401 });
+        const kind = u.searchParams.get("kind") === "morning" ? "morning" : "bell", check = u.searchParams.has("check");
+        try { return Response.json(await runXVideo(env, kind, u.searchParams.get("text"), check ? null : await request.arrayBuffer(), { check }), { headers: { "cache-control": "no-store" } }); }
+        catch (e) { console.log("x video", String(e)); return Response.json({ error: String(e).slice(0, 300) }, { status: 500 }); }
+      }
       if (u.pathname === "/x") {
         // Anyone may preview the text; only the tape token may post by hand.
         const post = u.searchParams.has("post");

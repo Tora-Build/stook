@@ -1,0 +1,18 @@
+[Unit]
+Description=Stook X post: render today's %i poster and post it
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=zak
+WorkingDirectory=/home/zak/stook/infra/x-poster
+EnvironmentFile=/home/zak/stook.env
+ExecStart=/usr/bin/node /home/zak/stook/infra/x-poster/src/render.mjs %i
+# A guest on a shared box: low priority, one core, bounded memory.
+Nice=10
+CPUQuota=100%
+MemoryMax=1500M
+TimeoutStartSec=15min
+StandardOutput=append:/home/zak/stook-x.log
+StandardError=append:/home/zak/stook-x.log

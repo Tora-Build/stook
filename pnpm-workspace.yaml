@@ -5,3 +5,4 @@ packages:
   - "scripts/backtest"
   - "infra/ladder-crank"
   - "infra/tape"
+  - "infra/x-poster"

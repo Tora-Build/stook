@@ -1,0 +1,18 @@
+{
+  "name": "@stook/x-poster",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Makes the day's poster video on the box (headless Chromium + ffmpeg) and hands it to the site worker, which posts it to X.",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "morning": "node src/render.mjs morning",
+    "bell": "node src/render.mjs bell",
+    "dry": "node src/render.mjs bell --dry"
+  },
+  "dependencies": {
+    "playwright-core": "^1.55.0"
+  }
+}

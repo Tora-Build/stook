@@ -1,0 +1,9 @@
+[Unit]
+Description=Stook X morning question, Tuesday and Thursday 9:35 New York
+
+[Timer]
+OnCalendar=Tue,Thu *-*-* 09:35:00 America/New_York
+Unit=stook-x@morning.service
+
+[Install]
+WantedBy=timers.target

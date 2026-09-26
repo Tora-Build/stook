@@ -1,0 +1,9 @@
+[Unit]
+Description=Stook X closing bell, Monday, Wednesday and Friday 16:10 New York
+
+[Timer]
+OnCalendar=Mon,Wed,Fri *-*-* 16:10:00 America/New_York
+Unit=stook-x@bell.service
+
+[Install]
+WantedBy=timers.target
