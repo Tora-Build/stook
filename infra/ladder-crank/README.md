@@ -14,6 +14,10 @@ PYTH_API_KEY=… node src/index.mjs --watch   # every CRANK_INTERVAL_SECS (defau
 PYTH_API_KEY=… node src/index.mjs --learn --clear-up   # one pass of everything
 ```
 
+`--plan` sends nothing, so it goes alone: beside `--learn`, `--clear-up` or
+`--watch` it is refused with an argument error. `pnpm test` runs the loop
+against mocks (`test/`).
+
 The decisions (which step a market needs, whether an update will be
 accepted, whether it proves a void, which closes a series still needs) live
 in the SDK (`src/ladder/crank.ts`, `src/ladder/series.ts`) and are
@@ -28,9 +32,11 @@ What a pass does:
   update at that second (`/v2/updates/price/{close}`). The program takes them
   strictly in order and decides whether each teaches a return or only moves
   the series on. A close that can never be posted (a retired Wormhole
-  guardian set) is skipped for good only once the program allows it: a
-  warmed-up series, a week after that close. Learning runs first, so a round
-  opening at yesterday's close finds it counted.
+  guardian set) is passed only once the program allows it (`mayObserve`): a
+  week after that close for a warmed-up series; for one still warming up,
+  also only onto a close a new series could start from, where its warm-up
+  starts again. Learning runs first, so a round opening at yesterday's close
+  finds it counted.
 - **Open.** A round's opening price is THE update at `opens_at`, and the open
   must land within five minutes of it. The keeper waits while the series is
   still warming up or has not learned the last close (`openBlocker`), since
@@ -40,10 +46,19 @@ What a pass does:
   exponent) it is the proof `ladder_void` needs, and the keeper voids at
   once. A round that never opened is voided without proof after its window,
   and one with no postable update a week after its close.
+- **Heartbeat.** Under `--watch` it writes `HEARTBEAT_FILE` only after a
+  pass with nothing failing: no step that threw, none still backing off
+  after a failure, and the last learn clean too. Waiting (a series warming
+  up, Hermes without the update yet) is not a failure. Clear-up failures are
+  logged but do not stop the heartbeat: a finished round that cannot be
+  cleared says nothing of the rounds being run, and a restart would not fix
+  it. The box's watchdog restarts a keeper whose heartbeat goes stale.
 - **Clear up.** Sweeps positions owed nothing, pays out what is still owed 30
   days after the close to owners who have a token account for the coin (it
   never creates one for someone else: the owner could close it and keep the
-  rent), collects the fee shares, and closes the round.
+  rent, and skips one the coin's issuer has frozen), collects the fee shares,
+  and closes the round. A round whose treasury or creator account is frozen
+  waits. A round that fails backs off like any other step.
 
 Things learned on the first runs, all fixed:
 

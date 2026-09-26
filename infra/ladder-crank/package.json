@@ -11,7 +11,8 @@
     "start": "node src/index.mjs --watch",
     "once": "node src/index.mjs",
     "plan": "node src/index.mjs --plan",
-    "lint": "node --check src/index.mjs"
+    "lint": "node --check src/index.mjs",
+    "test": "node --test test/*.test.mjs"
   },
   "dependencies": {
     "@coral-xyz/anchor": "0.30.1",
