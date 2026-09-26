@@ -52,4 +52,4 @@ at the edge:
 | `/pyth?id=` | the latest Pyth price for one of the app's feeds (the round page's live line when Pyth's on-chain account is stale) | Hermes, with the `PYTH_API_KEY` secret |
 | `/chatter` | the floor's conversations, new every minute | a template grammar on live numbers, plus hourly lines from Workers AI (Llama 3.3 70B, free allowance) that must quote only real numbers; `POST /chatter/refresh` with the tape token runs the hourly job now |
 
-`wrangler.toml` here is only the `app.stooks.xyz` redirect.
+`wrangler.toml` here is only the redirect from the old `app.stooks.xyz` to stookstreet.xyz.

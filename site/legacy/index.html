@@ -22,7 +22,7 @@ h1{font-size:clamp(1.3rem,3.6vw,2.2rem);margin:0 0 1rem;text-shadow:4px 4px 0 va
 h2{font-size:clamp(.75rem,1.6vw,1rem);margin:0 0 1.2rem;color:var(--taxi)}
 p{margin:0 0 1rem}
 .wrap{max-width:1100px;margin:0 auto;padding:0 20px}
-/* header, the same on stooks.xyz and the app */
+/* header, the same on stookstreet.xyz and the app */
 .top{display:flex;align-items:center;gap:1.5rem;padding:.8rem 20px;background:#0b1120;color:#f4e9c8}
 .brand{display:flex;align-items:center;gap:.6rem;font-family:var(--px);font-size:.75rem;color:#f4e9c8;text-decoration:none}
 .brand img{image-rendering:pixelated}
@@ -95,7 +95,7 @@ footer .px{font-size:.5rem}
 <header class="top">
   <a class="brand" href="/"><img src="stook-coin.svg" alt="" width="30" height="30"> STOOK STREET</a>
   <nav><a href="#floor">The floor</a><a href="#how">How it works</a><a href="#stook">$STOOK</a></nav>
-  <div class="top-right"><button id="theme" class="theme-btn" aria-label="Switch between night and day">☾ NIGHT</button><a class="launch" href="https://app.stooks.xyz/">Launch app</a></div>
+  <div class="top-right"><button id="theme" class="theme-btn" aria-label="Switch between night and day">☾ NIGHT</button><a class="launch" href="https://stookstreet.xyz/">Launch app</a></div>
 </header>
 
 <section class="hero-city">
@@ -153,7 +153,7 @@ let T=0,anim=null;
 StookCity.mount(document.getElementById('city'),{hero:true,t:()=>T,ticker:()=>{const e=Object.entries(QUOTES);return e.length?e.map(([k,q])=>({text:`${k} ${q.price.toLocaleString('en-US',{maximumFractionDigits:q.dp??2})}${q.change24h==null?'':' '+(q.change24h>=0?'+':'')+q.change24h.toFixed(1)+'%'}`,down:q.change24h!=null&&q.change24h<0})):[{text:'STOOK STREET'}]}});
 const lerp=(a,b,t)=>a+(b-a)*t;
 function setTheme(t,animate){
-  const target=t==='day'?1:0;btn.textContent=t==='day'?'☀ DAY':'☾ NIGHT';try{localStorage.setItem('stook-theme',t);document.cookie=`stook-theme=${t};domain=.stooks.xyz;path=/;max-age=31536000;samesite=lax`}catch{}
+  const target=t==='day'?1:0;btn.textContent=t==='day'?'☀ DAY':'☾ NIGHT';try{localStorage.setItem('stook-theme',t);document.cookie=`stook-theme=${t};domain=.stookstreet.xyz;path=/;max-age=31536000;samesite=lax`}catch{}
   const reduce=matchMedia('(prefers-reduced-motion: reduce)').matches;
   if(!animate||reduce){T=target;root.dataset.theme=t;return}
   const from=T,start=performance.now(),dur=1400;cancelAnimationFrame(anim);
@@ -165,7 +165,7 @@ let saved='night';try{saved=(document.cookie.match(/stook-theme=(day|night)/)||[
 setTheme(saved,false);
 
 // ── the floor: one post per coin, the anchor's live price from Pyth ──
-const APP='https://app.stooks.xyz';
+const APP='https://stookstreet.xyz';
 const COINS=[
   {coin:'$STOOK',anchor:'S&P 500',sym:'SPYx',feed:'2817b78438c769357182c04346fddaad1178c82f4048828fe0997c3c64624e14',hours:'24/7',dp:2},
   {coin:'$ZCAT',anchor:'Zcash',sym:'ZEC',feed:'be9b59d178f0d6a97ab4c343bff2aa69caa1eaae3e9048a65788c529b125bb24',hours:'24/7',dp:2},
