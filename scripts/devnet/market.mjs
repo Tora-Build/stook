@@ -40,9 +40,14 @@ if (cmd === "create") {
   const index = hourly ? Number(now / 3600n) + (now % 3600n > 2400n ? 2 : 1) : stook.daysFromCivil(...dayArg.split("-").map(Number));
   const s = stook.decodeSeries((await c.getAccountInfo(series)).data);
   const t = stook.roundTerms(s, index, now);
+  const seed = BigInt(flag("seed", 2000)) * 10n ** BigInt(dec);
+  // The most the seed may cost, at the coin's transfer fee now: a higher one
+  // scheduled next fails the creation if it starts first, and is said.
+  const fee = stook.classifyMint(new Uint8Array((await c.getAccountInfo(quote)).data), BigInt((await c.getEpochInfo()).epoch));
+  if (stook.feeRaises(seed, fee.transferFee, fee.nextTransferFee)) console.warn(`the coin's transfer fee rises to ${fee.nextTransferFee.bps / 100}% at epoch ${fee.nextTransferFee.epoch}; if that comes first, this fails`);
   const sig = await send([stook.createLadderIx({
     series, index, quoteMint: quote, creator: payer.publicKey, creatorToken: getAssociatedTokenAddressSync(quote, payer.publicKey, false, TOKEN_2022_PROGRAM_ID),
-    tokenProgram: TOKEN_2022_PROGRAM_ID, seed: BigInt(flag("seed", 2000)) * 10n ** BigInt(dec), issuerTrusted: true,
+    tokenProgram: TOKEN_2022_PROGRAM_ID, seed, maxGross: stook.maxGrossFor(seed, [fee.transferFee]), issuerTrusted: true,
   })]);
   console.log("started", stook.deriveLadderPda({ series, index }).toBase58(), `settles ${new Date(Number(t.settlesAt) * 1000).toISOString()} · bands ${(t.stepBps / 100).toFixed(2)}% · opens ${new Date(Number(t.opensAt) * 1000).toISOString()}`, sig);
 } else if (cmd === "open") {

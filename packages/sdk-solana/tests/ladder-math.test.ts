@@ -16,7 +16,7 @@ describe("ladder sdk", () => {
     const built: [string, Uint8Array][] = [
       ["ladder_open", L.openLadderIx(refs, k, k, k).data],
       ["ladder_trade", L.tradeLadderIx(refs, { user: k, userToken: k, shape, shares: 1n, limit: 1n }).data],
-      ["ladder_lp_join", L.joinLadderIx(refs, { lp: k, lpToken: k, index: 0, deposit: 1n, expectedSeq: 0n }).data],
+      ["ladder_lp_join", L.joinLadderIx(refs, { lp: k, lpToken: k, index: 0, deposit: 1n, expectedSeq: 0n, maxGross: 1n }).data],
       ["ladder_settle", L.settleLadderIx(refs, k, k, k, k).data],
       ["ladder_sweep", L.sweepPositionIx(refs, k, k, k).data],
       ["ladder_close", L.closeLadderIx(refs, k, k, k).data],
@@ -27,7 +27,7 @@ describe("ladder sdk", () => {
       ["ladder_redeem", L.redeemLadderIx(refs, k, k, shape).data],
       ["ladder_claim_lp", L.claimLpIx(refs, k, k).data],
       ["ladder_collect_fees", L.collectLadderFeesIx(refs, k, k, k).data],
-      ["ladder_create", L.createLadderIx({ creator: k, series: k, index: 3, quoteMint: k, creatorToken: k, tokenProgram: k, seed: 1n }).data],
+      ["ladder_create", L.createLadderIx({ creator: k, series: k, index: 3, quoteMint: k, creatorToken: k, tokenProgram: k, seed: 1n, maxGross: 1n }).data],
     ];
     built.push(["approve_quote_mint", L.approveQuoteMintIx(k, k).data], ["revoke_quote_mint", L.revokeQuoteMintIx(k, k).data]);
     built.push(["initialize_protocol", L.initializeProtocolIx(k, k).data], ["set_paused", L.setPausedIx(k, true).data], ["set_treasury", L.setTreasuryIx(k, k).data],

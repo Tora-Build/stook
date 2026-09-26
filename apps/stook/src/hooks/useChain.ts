@@ -75,7 +75,9 @@ export const useTranches = (ladder: PublicKey | null, mineOnly: boolean) => {
 
 export const useMint = (mint: PublicKey | null) => {
   const { connection } = useConnection();
-  return useQuery({ queryKey: ["mint", mint?.toBase58()], queryFn: () => chain.fetchMint(connection, mint!), enabled: !!mint, staleTime: Infinity });
+  // The transfer fee in force can change at an epoch boundary (an issuer's
+  // scheduled change), so the mint is read again every few minutes.
+  return useQuery({ queryKey: ["mint", mint?.toBase58()], queryFn: () => chain.fetchMint(connection, mint!), enabled: !!mint, staleTime: 60_000, refetchInterval: 5 * 60_000 });
 };
 
 export const useBalance = (mint: PublicKey | null, tokenProgram: PublicKey | undefined) => {

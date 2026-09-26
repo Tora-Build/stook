@@ -37,13 +37,19 @@ export function StartRound({ coin, seriesKey, series, index, onClose }: { coin: 
   // Round times on New York's clock, like the calendar they were picked from.
   const when = nyWhen(settlesAt, { weekday: "long", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
   const gross = seed && mint.data?.report.transferFee ? stook.grossFor(seed, mint.data.report.transferFee) : seed;
+  // The most the seed may take from the wallet, signed with it at the fee in
+  // force. A higher fee the issuer has scheduled would take more, so if it
+  // starts first the round is not started: that is said, not signed for.
+  const next = mint.data?.report.nextTransferFee;
+  const maxGross = seed ? stook.maxGrossFor(seed, [mint.data?.report.transferFee]) : null;
+  const rising = seed ? stook.feeRaises(seed, mint.data?.report.transferFee, next) : false;
 
   const start = () => {
-    if (!publicKey || !mintKey || !mint.data || !seed) return;
+    if (!publicKey || !mintKey || !mint.data || !seed || maxGross === null) return;
     const key = { series: seriesKey, index, quoteMint: mintKey };
     // Create writes the opening odds (up to 32 exponentials) and moves the
     // seed: measured 70K to 85K; the create-ATA and a Token-2022 transfer add more.
-    send.mutate({ computeUnits: 200_000, ixs: [ensureAta(mintKey, publicKey, mint.data.tokenProgram), stook.createLadderIx({ ...key, creator: publicKey, creatorToken: ataOf(mintKey, publicKey, mint.data.tokenProgram), tokenProgram: mint.data.tokenProgram, seed, issuerTrusted: mint.data.report.verdict === "issuer-trusted" })] },
+    send.mutate({ computeUnits: 200_000, ixs: [ensureAta(mintKey, publicKey, mint.data.tokenProgram), stook.createLadderIx({ ...key, creator: publicKey, creatorToken: ataOf(mintKey, publicKey, mint.data.tokenProgram), tokenProgram: mint.data.tokenProgram, seed, maxGross, issuerTrusted: mint.data.report.verdict === "issuer-trusted" })] },
       { onSuccess: () => nav(`/m/${stook.deriveLadderPda(key).toBase58()}`) });
   };
 
@@ -91,6 +97,7 @@ export function StartRound({ coin, seriesKey, series, index, onClose }: { coin: 
             </div>
           </div>
         )}
+        {!!seed && rising && <Notice tone="warn" title="Transfer fee rising">The coin's issuer has set its transfer fee to rise to {next!.bps / 100}%. If that happens before this goes through, it fails and nothing moves.</Notice>}
         {balance.data !== undefined && !!seed && !!gross && balance.data < gross && <Notice tone="stop" title={`Not enough ${coin.symbol}`}>You hold {fmtCompact(balance.data, dec)}; this needs {fmtCompact(gross, dec)}. On devnet, get <b>test coins</b> in the header first.</Notice>}
         <button className="primary" disabled={!publicKey || !seed || !mint.data || send.isPending || (balance.data !== undefined && !!gross && balance.data < gross)} onClick={start}>
           {!publicKey ? "Connect a wallet" : send.isPending ? "Funding…" : `Fund the round${seed ? ` with ${coinText(seed, dec, coin.symbol)}` : ""}`}

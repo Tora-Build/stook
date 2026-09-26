@@ -41,9 +41,12 @@ pub const WARMUP_OBSERVATIONS: u32 = 20;
 /// Every close is taken in order, from the one Pyth update that is its price
 /// (`series_observe`), so nobody chooses which days a series learns from.
 /// The single exception is a close whose update can no longer be posted at
-/// all (signed by a Wormhole guardian set since retired): a warmed-up series
-/// may pass over closes once they are this old. Only a keeper outage this
-/// long leaves such a close unsubmitted.
+/// all (signed by a Wormhole guardian set since retired): a series past its
+/// first close may pass over closes once they are this old. Only a keeper
+/// outage this long leaves such a close unsubmitted. A warmed-up series
+/// learns on across the gap; one still warming up starts its warm-up again
+/// from the close it lands on, by the rule a new series starts by, so a
+/// skip moves where warm-up starts and never picks which returns it counts.
 pub const SKIP_AFTER_SECS: i64 = 7 * 24 * 60 * 60;
 
 /// How far back a series that has learned nothing may start learning from.
@@ -158,13 +161,38 @@ impl Series {
         if index == next {
             return true;
         }
-        // A jump, only for a warmed-up series and only over closes so old
-        // that their updates may no longer be postable.
+        // A jump, only over closes so old that their updates may no longer be
+        // postable. A series still warming up starts again where it lands
+        // (`restarts_at`), so only where a new series may start: otherwise
+        // one unpostable close would leave it cold for good, and a jump
+        // could not be used to start it late.
         let mut prev = index - 1;
         while prev > last && !self.has_round(prev) {
             prev -= 1;
         }
-        self.warmed_up() && self.close_of(prev) <= now - SKIP_AFTER_SECS
+        self.close_of(prev) <= now - SKIP_AFTER_SECS && (self.warmed_up() || may_start())
+    }
+
+    /// Is the close at `at` a jump by a series still warming up, past the
+    /// next close it was due? Then it learns no return across the gap: its
+    /// warm-up starts again from `at`, as a new series's would.
+    fn restarts_at(&self, at: i64) -> bool {
+        if self.warmed_up() || self.last_at <= 0 || at <= self.last_at {
+            return false;
+        }
+        match (self.index_of(self.last_at), self.index_of(at)) {
+            (Some(last), Some(i)) => i != self.next_round(last),
+            _ => false,
+        }
+    }
+
+    /// Forget what warm-up has learned and start again from the close at `at`.
+    fn restart(&mut self, price: i64, expo: i32, at: i64) {
+        self.observations = 0;
+        self.var_wad = 0;
+        self.last_price = price;
+        self.last_expo = expo;
+        self.last_at = at;
     }
 
     /// The index `n` rounds before `index` (skipping days without one).
@@ -183,7 +211,9 @@ impl Series {
     /// known but not good enough to measure a move with (Pyth was late or
     /// unsure at the close). The next return runs from here.
     pub fn rebase(&mut self, price: i64, expo: i32, at: i64) {
-        if price > 0 && (at > self.last_at || self.observations == 0) {
+        if price > 0 && self.restarts_at(at) {
+            self.restart(price, expo, at);
+        } else if price > 0 && (at > self.last_at || self.observations == 0) {
             self.last_price = price;
             self.last_expo = expo;
             self.last_at = at;
@@ -220,6 +250,8 @@ impl Series {
     /// returns seen; after it, weighted in at 6%. An observation older
     /// than the last one (a round settled late) teaches nothing and is
     /// skipped; so is one on a different exponent, which only re-anchors.
+    /// One that jumps past a missed close while warming up starts warm-up
+    /// again from here (`restarts_at`).
     pub fn observe(&mut self, price: i64, expo: i32, at: i64) -> core::result::Result<(), MathError> {
         if price <= 0 || at == self.last_at {
             return Ok(());
@@ -235,6 +267,10 @@ impl Series {
             self.last_price = price;
             self.last_expo = expo;
             self.last_at = at;
+            return Ok(());
+        }
+        if self.restarts_at(at) {
+            self.restart(price, expo, at);
             return Ok(());
         }
         if self.last_price > 0 && self.last_expo == expo {
@@ -300,11 +336,12 @@ mod tests {
         s.observe(100, 0, s.close_of(d + 5)).unwrap();
         s.observe(101, 0, s.close_of(d + 6)).unwrap();
         assert_eq!(s.observations, 1);
-        // then every day, in order: never back, never a jump, however old
+        // then every day, in order: never back, and no jump over a close
+        // that is still timely
         assert!(!s.may_observe(d + 5, now));
         assert!(!s.may_observe(d + 6, now));
         assert!(s.may_observe(d + 7, now));
-        assert!(!s.may_observe(d + 9, now), "a still-cold series never jumps");
+        assert!(!s.may_observe(d + 9, s.close_of(d + 9) + 60), "a still-cold series never skips a timely close");
         // a close Pyth was unsure about moves the series on without a return
         s.rebase(150, 0, s.close_of(d + 7));
         assert_eq!((s.observations, s.last_price), (1, 150));
@@ -317,6 +354,58 @@ mod tests {
         assert_eq!(s.index_at_or_before(s.close_of(d + 7) + 5), d + 7);
         assert_eq!(s.index_at_or_before(s.close_of(d + 7) - 5), d + 6);
         assert_eq!(s.rounds_back(d + 40, 20), d + 20);
+    }
+
+    /// A series one return in, whose next close can never be posted. Once
+    /// that close is a week old it may be passed, but only onto a close a new
+    /// series could start from, and warm-up starts again there: a skip moves
+    /// where warm-up starts and never picks which returns it counts.
+    #[test]
+    fn a_cold_series_past_an_unpostable_close_starts_its_warm_up_again() {
+        let mut s = daily(CLOCK_UTC, 0);
+        let d = days_from_civil(2026, 9, 1) as u32;
+        s.observe(100_000, -2, s.close_of(d)).unwrap();
+        s.observe(101_000, -2, s.close_of(d + 1)).unwrap();
+        assert_eq!(s.observations, 1);
+        assert!(!s.warmed_up());
+        // d + 2 cannot be posted. d + 3 waits while d + 2 is under a week old,
+        // and then while it is too recent to warm up from history.
+        let gone = s.close_of(d + 2);
+        assert!(!s.may_observe(d + 3, s.close_of(d + 3) + 60), "the day after: still timely");
+        assert!(!s.may_observe(d + 3, gone + SKIP_AFTER_SECS + 60), "a week on: too recent to start from");
+        let later = s.close_of(d + 23) + 60;
+        assert!(s.may_observe(d + 3, later), "twenty rounds on");
+        for days in [60, 365] {
+            let now = gone + days * DAY;
+            assert!(!s.may_observe(d + 3, now), "{days} days on: outside the backfill window");
+            let start = s.rounds_back(s.index_at_or_before(now), WARMUP_OBSERVATIONS);
+            assert!(s.may_observe(start, now), "{days} days on: from where a new series starts");
+        }
+        // Never a close still timely, and never one too recent to warm from.
+        assert!(!s.may_observe(d + 4, later), "only as far as a new series may start");
+        assert!(!s.may_observe(d + 22, later), "too recent to start from");
+        // Landing there teaches no return over the gap: warm-up starts again.
+        s.observe(150_000, -2, s.close_of(d + 3)).unwrap();
+        assert_eq!((s.observations, s.var_wad, s.last_at), (0, 0, s.close_of(d + 3)));
+        s.observe(151_000, -2, s.close_of(d + 4)).unwrap();
+        assert_eq!(s.observations, 1);
+        // A close Pyth was unsure about starts it again the same way.
+        let mut r = daily(CLOCK_UTC, 0);
+        r.observe(100_000, -2, r.close_of(d)).unwrap();
+        r.observe(101_000, -2, r.close_of(d + 1)).unwrap();
+        r.rebase(150_000, -2, r.close_of(d + 3));
+        assert_eq!((r.observations, r.last_at), (0, r.close_of(d + 3)));
+
+        // A warmed-up series: passes a week-old close and learns on across it.
+        let mut w = daily(CLOCK_UTC, 0);
+        w.observe(100_000, -2, w.close_of(d)).unwrap();
+        w.observations = WARMUP_OBSERVATIONS;
+        assert!(w.warmed_up());
+        assert!(!w.may_observe(d + 2, w.close_of(d + 1) + SKIP_AFTER_SECS - 1));
+        assert!(w.may_observe(d + 2, w.close_of(d + 1) + SKIP_AFTER_SECS));
+        assert!(w.may_observe(d + 1, w.close_of(d + 1) + 60));
+        w.observe(101_000, -2, w.close_of(d + 2)).unwrap();
+        assert_eq!(w.observations, WARMUP_OBSERVATIONS + 1);
     }
 
     #[test]

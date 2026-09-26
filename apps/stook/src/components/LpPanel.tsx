@@ -4,7 +4,7 @@ import { Link } from "react-router-dom";
 import { stook } from "@sooth/sdk-solana";
 import { fmtCompact, parseAmount } from "../lib/format";
 import { ataOf, ensureAta } from "../lib/chain";
-import { useBalance, useSend, useTranches } from "../hooks/useChain";
+import { useBalance, useMint, useSend, useTranches } from "../hooks/useChain";
 import { Amount, approxUsd, coinText, fromUsd } from "../lib/usd";
 import { Book } from "./Book";
 import { Notice } from "./Notice";
@@ -42,18 +42,25 @@ export function LpPanel(p: Props) {
   const joinable = (l.status === "seeding" || l.status === "open") && p.now < Number(l.locksAt);
   const balance = useBalance(l.quoteMint, p.refs.tokenProgram);
   const gross = deposit ? stook.grossFor(deposit, p.transferFee) : null;
+  // The most the deposit may take from the wallet, signed with it at the fee
+  // in force. A higher fee the issuer has scheduled would take more, so if it
+  // starts first the deposit fails: that is said, not signed for.
+  const next = useMint(l.quoteMint).data?.report.nextTransferFee;
+  const maxGross = deposit ? stook.maxGrossFor(deposit, [p.transferFee]) : null;
+  const rising = deposit ? stook.feeRaises(deposit, p.transferFee, next) : false;
   const short = balance.data !== undefined && gross !== null && balance.data < gross;
   const final = l.status === "settled" || l.status === "void";
   const nextIndex = (mine.data ?? []).reduce((m, r) => Math.max(m, r.tranche.index + 1), 0);
 
   const submit = () => {
-    if (!deposit || !publicKey) return;
+    if (!deposit || !publicKey || maxGross === null) return;
     join.mutate([ensureAta(l.quoteMint, publicKey, p.refs.tokenProgram), stook.joinLadderIx(p.refs, {
       lp: publicKey,
       lpToken: ataOf(l.quoteMint, publicKey, p.refs.tokenProgram),
       index: nextIndex,
       deposit,
       expectedSeq: l.curveSeq,
+      maxGross,
     })]);
   };
 
@@ -133,6 +140,7 @@ export function LpPanel(p: Props) {
               </div>
             </div>
           )}
+          {depth && deposit && rising && <Notice tone="warn" title="Transfer fee rising">The coin's issuer has set its transfer fee to rise to {next!.bps / 100}%. If that happens before this goes through, it fails and nothing moves.</Notice>}
           {short && <Notice tone="stop" title={`Not enough ${p.quoteSymbol}`}>You hold {fmtCompact(balance.data!, dec)}; this needs {fmtCompact(gross!, dec)}. On devnet, get <b>test coins</b> in the header.</Notice>}
           <button className="primary" disabled={!depth || join.isPending || !publicKey || short} onClick={submit}>
             {!publicKey ? "Connect a wallet" : join.isPending ? "Sending…" : `Deposit ${deposit ? coinText(deposit, dec, p.quoteSymbol) : `0 ${p.quoteSymbol}`}`}

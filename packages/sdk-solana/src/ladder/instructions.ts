@@ -165,6 +165,10 @@ export interface CreateLadderArgs extends LadderKey {
   tokenProgram: PublicKey;
   /** The starter's deposit — tranche 0. At least one whole quote token. */
   seed: bigint;
+  /** The most that may leave the wallet for the seed, the coin's transfer fee
+   *  included (`maxGrossFor(seed, [fee in force])`). A fee raised after the quote fails
+   *  the creation instead of taking more. */
+  maxGross: bigint;
   /** Who the market is presented as funded by. Defaults to the creator. */
   sponsor?: PublicKey;
   /**
@@ -181,7 +185,7 @@ export function createLadderIx(a: CreateLadderArgs): TransactionInstruction {
   const ladder = deriveLadderPda(a, programId);
   return ix(
     a,
-    pack(DISC.create, u32(a.index), u64(a.seed), (a.sponsor ?? PublicKey.default).toBytes()),
+    pack(DISC.create, u32(a.index), u64(a.seed), (a.sponsor ?? PublicKey.default).toBytes(), u64(a.maxGross)),
     [
       signer(a.creator), ro(deriveConfig(programId)), ro(a.series), rw(ladder), ro(deriveLadderAuthority(ladder, programId)),
       ro(a.quoteMint), rw(deriveLadderVault(ladder, programId)), rw(a.creatorToken),
@@ -222,7 +226,9 @@ export interface TradeLadderArgs {
   /** Base units. Positive buys, negative sells. */
   shares: bigint;
   /** Buying: most to leave the wallet, the trade fee and the coin's transfer fee included
-   *  (`grossFor(quote.total, fee)` plus any slippage). Selling: least to receive, fee deducted. */
+   *  (`maxGrossFor(quote.total, [fee in force])`). Selling: least to land in the wallet, the trade fee
+   *  and the coin's transfer fee deducted (`minNetOf(quote.total, [fee in force])`); the program
+   *  measures it on the wallet after the transfer. */
   limit: bigint;
 }
 
@@ -247,13 +253,16 @@ export interface JoinLadderArgs {
   deposit: bigint;
   /** `LadderAccount.curveSeq` as read. The join lands at those prices or fails. */
   expectedSeq: bigint;
+  /** The most that may leave the wallet for the deposit, the coin's transfer
+   *  fee included (`maxGrossFor(deposit, [fee in force])`). */
+  maxGross: bigint;
 }
 
 export function joinLadderIx(r: LadderRefs, a: JoinLadderArgs): TransactionInstruction {
   const programId = pid(r);
   return ix(
     r,
-    pack(DISC.lpJoin, u8(a.index), u64(a.deposit), u64(a.expectedSeq)),
+    pack(DISC.lpJoin, u8(a.index), u64(a.deposit), u64(a.expectedSeq), u64(a.maxGross)),
     [
       signer(a.lp), ro(deriveConfig(programId)), rw(r.ladder), ro(r.quoteMint),
       rw(deriveLadderVault(r.ladder, programId)), rw(a.lpToken),

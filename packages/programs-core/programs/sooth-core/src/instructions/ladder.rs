@@ -151,7 +151,9 @@ fn one_token(decimals: u8) -> Result<u64> {
 /// with `net`, and a shortfall of any size reverts. A mint whose fee authority
 /// raised the rate between the quote and the send fails here rather than
 /// leaving the vault holding less than the curve believes. `max_gross` caps
-/// what leaves the payer's wallet, fee included (a trade's slippage limit).
+/// what leaves the payer's wallet, fee included: a buy's limit, a deposit's
+/// signed cap. A fee raised after the quote can make a transfer fail, never
+/// take more than the wallet agreed to.
 fn pull<'info>(
     net: u64,
     max_gross: u64,
@@ -162,8 +164,7 @@ fn pull<'info>(
     token_program: &Interface<'info, TokenInterface>,
 ) -> Result<()> {
     let fee = crate::token_guard::transfer_fee(&mint.to_account_info().try_borrow_data()?, Clock::get()?.epoch);
-    let gross = crate::token_guard::gross_for(net, fee).ok_or(SoothCoreError::UnsupportedMintExtension)?;
-    require!(gross <= max_gross, SoothCoreError::SlippageExceeded);
+    let gross = gross_within(net, fee, max_gross)?;
     let before = vault.amount;
     token_interface::transfer_checked(
         CpiContext::new(
@@ -182,6 +183,24 @@ fn pull<'info>(
     let arrived = vault.amount.checked_sub(before).ok_or(SoothCoreError::MathOverflow)?;
     require!(arrived >= net, SoothCoreError::LadderDepositShort);
     Ok(())
+}
+
+/// What must leave the payer's wallet for `net` to arrive under `fee`, if
+/// that is no more than the `max_gross` they signed for.
+fn gross_within(net: u64, fee: Option<(u16, u64)>, max_gross: u64) -> Result<u64> {
+    let gross = crate::token_guard::gross_for(net, fee).ok_or(SoothCoreError::UnsupportedMintExtension)?;
+    require!(gross <= max_gross, SoothCoreError::SlippageExceeded);
+    Ok(gross)
+}
+
+/// What a payout landed as in the receiver's wallet, measured on the wallet
+/// (`before` and `after` its balance), if that is at least the `min_net` they
+/// signed for. The coin's transfer fee comes off on the way at the rate of
+/// the moment it moves, which no quote can promise.
+fn received_at_least(before: u64, after: u64, min_net: u64) -> Result<u64> {
+    let got = after.checked_sub(before).ok_or(SoothCoreError::MathOverflow)?;
+    require!(got >= min_net, SoothCoreError::SlippageExceeded);
+    Ok(got)
 }
 
 /// Price a deposit against the curve as it stands, and book it: the tranche
@@ -230,6 +249,10 @@ pub struct LadderCreateArgs {
     pub seed: u64,
     /// Who the round is presented as funded by. Attribution only.
     pub sponsor: Pubkey,
+    /// The most that may leave the starter's wallet for the seed, the coin's
+    /// transfer fee included. A fee raised after the quote fails the round's
+    /// creation instead of taking more.
+    pub max_gross: u64,
 }
 
 #[derive(Accounts)]
@@ -360,7 +383,7 @@ pub fn create_handler(ctx: Context<LadderCreate>, args: LadderCreateArgs) -> Res
 
     pull(
         args.seed,
-        u64::MAX,
+        args.max_gross,
         &ctx.accounts.creator_token.to_account_info(),
         &ctx.accounts.creator.to_account_info(),
         &ctx.accounts.quote_mint,
@@ -529,7 +552,8 @@ pub struct LadderTradeArgs {
     pub shares: i64,
     /// Buying: the most that may leave the trader's wallet, the trade fee and
     /// the coin's transfer fee included.
-    /// Selling: the least they will accept, fee deducted.
+    /// Selling: the least that must land in the trader's wallet, the trade fee
+    /// and the coin's transfer fee deducted.
     pub limit: u64,
 }
 
@@ -714,6 +738,8 @@ pub fn trade_handler(ctx: Context<LadderTrade>, args: LadderTradeArgs) -> Result
         l.basis_total = l.basis_total.checked_add(total).ok_or(SoothCoreError::MathOverflow)?;
     } else {
         let out = amount - fee; // fee_on never exceeds amount
+        // A first check before anything moves; the one that counts is on what
+        // the wallet received, below.
         require!(out >= args.limit, SoothCoreError::SlippageExceeded);
 
         let released = basis_released(pos.net_paid, size, pos.shares);
@@ -724,6 +750,7 @@ pub fn trade_handler(ctx: Context<LadderTrade>, args: LadderTradeArgs) -> Result
             l.basis_total = l.basis_total.checked_sub(released).ok_or(SoothCoreError::MathOverflow)?;
         }
 
+        let before = ctx.accounts.user_token.amount;
         if out > 0 {
             let seeds: &[&[&[u8]]] =
                 &[&[LADDER_AUTHORITY_SEED, ladder_key.as_ref(), &[authority_bump]]];
@@ -742,6 +769,11 @@ pub fn trade_handler(ctx: Context<LadderTrade>, args: LadderTradeArgs) -> Result
                 decimals,
             )?;
         }
+        // The limit is what the wallet was shown it would get at least, so it
+        // is held to what arrived: a transfer fee raised after the quote
+        // fails the sale rather than paying less.
+        ctx.accounts.user_token.reload()?;
+        received_at_least(before, ctx.accounts.user_token.amount, args.limit)?;
     }
 
     emit!(LadderTraded {
@@ -768,6 +800,9 @@ pub struct LadderLpJoinArgs {
     /// `Ladder::curve_seq` as the LP read it. The join lands at exactly those
     /// prices or not at all.
     pub expected_seq: u64,
+    /// The most that may leave the LP's wallet for the deposit, the coin's
+    /// transfer fee included.
+    pub max_gross: u64,
 }
 
 #[derive(Accounts)]
@@ -851,7 +886,7 @@ pub fn lp_join_handler(ctx: Context<LadderLpJoin>, args: LadderLpJoinArgs) -> Re
 
     pull(
         args.deposit,
-        u64::MAX,
+        args.max_gross,
         &ctx.accounts.lp_token.to_account_info(),
         &ctx.accounts.lp.to_account_info(),
         &ctx.accounts.quote_mint,
@@ -1884,5 +1919,40 @@ mod tests {
         assert_eq!(second, 600);
         assert_eq!(first + second, 1_600);
         assert_eq!(tranche_fees(1, 5, 9), None, "an accumulator never runs backwards");
+    }
+
+    /// The audit's LP join: 100 tokens quoted at a 1% fee, signed for its
+    /// gross, landing after a scheduled 99% fee took effect.
+    #[test]
+    fn a_deposit_never_takes_more_than_the_wallet_signed_for() {
+        let net = 100_000_000u64;
+        let one_pct = Some((100u16, u64::MAX));
+        let signed = crate::token_guard::gross_for(net, one_pct).unwrap();
+        assert_eq!(signed, 101_010_102);
+        assert_eq!(gross_within(net, one_pct, signed).unwrap(), signed, "the fee it was quoted at");
+        assert_eq!(gross_within(net, None, signed).unwrap(), net, "a fee dropped costs less");
+        let err = gross_within(net, Some((9_900, u64::MAX)), signed).unwrap_err();
+        assert_eq!(err, error!(SoothCoreError::SlippageExceeded));
+        // the fee's cap counts: 99% capped at 1 token costs less than 1%
+        // did, capped at 2 tokens more
+        assert_eq!(gross_within(net, Some((9_900, 1_000_000)), signed).unwrap(), net + 1_000_000);
+        let capped = Some((9_900u16, 2_000_000u64));
+        assert!(gross_within(net, capped, signed).is_err());
+        assert_eq!(gross_within(net, capped, net + 2_000_000).unwrap(), net + 2_000_000);
+        // an unbounded cap is the old behaviour, and the reason for this one
+        assert_eq!(gross_within(net, Some((9_900, u64::MAX)), u64::MAX).unwrap(), 10_000_000_000);
+    }
+
+    /// The audit's sale: 28.25 tokens out of the vault, a 50% fee on the way,
+    /// against a signed minimum of what lands.
+    #[test]
+    fn a_sale_is_held_to_what_the_wallet_received() {
+        let (before, min_net) = (5_000_000_000u64, 27_968_472u64);
+        assert_eq!(received_at_least(before, before + 27_968_473, min_net).unwrap(), 27_968_473);
+        assert_eq!(received_at_least(before, before + min_net, min_net).unwrap(), min_net, "exactly the minimum lands");
+        let err = received_at_least(before, before + 14_196_473, min_net).unwrap_err();
+        assert_eq!(err, error!(SoothCoreError::SlippageExceeded));
+        assert!(received_at_least(before, before + min_net - 1, min_net).is_err(), "a unit short of it");
+        assert_eq!(received_at_least(before, before, 0).unwrap(), 0, "a dust sale that pays nothing");
     }
 }

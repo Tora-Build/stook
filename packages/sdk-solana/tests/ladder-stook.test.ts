@@ -90,7 +90,7 @@ describe("a ladder quoted in $STOOK, a 1% transfer-fee mint", () => {
       await ok(e, L.observeSeriesIx(ser.series, e.trader.kp.publicKey, e.priceAccount(updateAt(c.price, c.at, c.at - 1n)), c.index, PROGRAM), e.trader.kp);
     }
     warpClockTo(e.ctx, PUBLISH_TIME - 60n);
-    const create = (t: boolean) => L.createLadderIx({ ...key, creator: e.creator.kp.publicKey, creatorToken: e.creator.token, tokenProgram: TOKEN_2022_PROGRAM_ID, seed: 1_000n * T, issuerTrusted: t, programId: PROGRAM });
+    const create = (t: boolean) => L.createLadderIx({ ...key, creator: e.creator.kp.publicKey, creatorToken: e.creator.token, tokenProgram: TOKEN_2022_PROGRAM_ID, seed: 1_000n * T, maxGross: L.grossFor(1_000n * T, fee), issuerTrusted: t, programId: PROGRAM });
     await refused(e, create(false), e.creator.kp, "MintNeedsApproval");
     await ok(e, L.approveQuoteMintIx(e.admin.publicKey, e.mint, PROGRAM), e.admin);
 
@@ -122,17 +122,18 @@ describe("a ladder quoted in $STOOK, a 1% transfer-fee mint", () => {
     await buy(L.tent(W, 4), 20n * T);
     await buy(L.band(20, 44), 30n * T);
 
-    // ── a sell: the vault sends the quote; the trader receives 1% less ──────
+    // ── a sell: the vault sends the quote; the trader receives 1% less, and
+    // signs for exactly that ─────────────────────────────────────────────
     {
       const m = state(), had = balance(e, e.trader.token);
       const q = L.quoteTrade({ curve: m.curve, b: m.b, feeBps: L.feeBpsAt(m.feeBps, BigInt((e.svm.getClock() as any).unixTimestamp), m.settlesAt), decimals: m.decimals }, L.band(20, 44), -10n * T);
-      await ok(e, L.tradeLadderIx(refs, { user: e.trader.kp.publicKey, userToken: e.trader.token, shape: L.band(20, 44), shares: -10n * T, limit: q.total }), e.trader.kp);
+      await ok(e, L.tradeLadderIx(refs, { user: e.trader.kp.publicKey, userToken: e.trader.token, shape: L.band(20, 44), shares: -10n * T, limit: L.netOf(q.total, fee) }), e.trader.kp);
       expect(balance(e, e.trader.token) - had).toBe(L.netOf(q.total, fee));
     }
 
     // ── a late LP, same rule ────────────────────────────────────────────────
     const l0 = balance(e, e.lp.token);
-    await ok(e, L.joinLadderIx(refs, { lp: e.lp.kp.publicKey, lpToken: e.lp.token, index: 0, deposit: 500n * T, expectedSeq: state().curveSeq }), e.lp.kp);
+    await ok(e, L.joinLadderIx(refs, { lp: e.lp.kp.publicKey, lpToken: e.lp.token, index: 0, deposit: 500n * T, expectedSeq: state().curveSeq, maxGross: L.grossFor(500n * T, fee) }), e.lp.kp);
     expect(l0 - balance(e, e.lp.token)).toBe(L.grossFor(500n * T, fee));
     expect(state().depositTotal).toBe(1_500n * T);
 

@@ -330,9 +330,53 @@ export function pendingObservations(s: SeriesAccount, now: bigint, max = 40, set
   return out;
 }
 
-/** A warmed-up series may pass over closes this old, whose updates may no
- *  longer be postable (`Series::may_observe`); otherwise every close is taken. */
+/** A series past its first close may pass over closes this old, whose
+ *  updates may no longer be postable (`Series::may_observe`); otherwise every
+ *  close is taken. One still warming up lands only where a new series may
+ *  start, and starts its warm-up again there. */
 export const SKIP_AFTER_SECS = 7n * 86_400n;
+/** How far back a series that has learned nothing may start (`BACKFILL_WINDOW_SECS`). */
+export const BACKFILL_WINDOW_SECS = 45n * 86_400n;
+
+/** `Series::index_of`: the index whose close is exactly `at`, if any. */
+export function indexOfClose(s: Pick<SeriesAccount, "periodSecs" | "closeSecs" | "clock">, at: bigint): number | null {
+  const span = BigInt(s.periodSecs > 0 ? s.periodSecs : DAY);
+  const d = at - BigInt(s.closeSecs);
+  const guess = Number(d >= 0n ? d / span : -((-d + span - 1n) / span));
+  for (const i of [guess, guess + 1, guess - 1]) if (i >= 0 && i <= 0xffff_ffff && closeOf(s, i) === at) return i;
+  return null;
+}
+
+/** `Series::rounds_back`: the index `n` rounds before `index`. */
+export function roundsBack(s: Pick<SeriesAccount, "periodSecs" | "clock">, index: number, n: number): number {
+  let i = index, left = n;
+  while (left > 0 && i > 0) { i--; if (hasRound(s, i)) left--; }
+  return i;
+}
+
+/**
+ * `Series::may_observe`: may the close of `index` be taken at `now`? In
+ * order after the first close; a jump only over closes at least
+ * `SKIP_AFTER_SECS` old (the close just before `index`), and for a series
+ * still warming up only onto a close a new series could start from (where
+ * its warm-up starts again).
+ */
+export function mayObserve(s: SeriesAccount, index: number, now: bigint): boolean {
+  if (!hasRound(s, index)) return false;
+  const at = closeOf(s, index);
+  if (at > now) return false;
+  const mayStart = () => at >= now - BACKFILL_WINDOW_SECS && index <= roundsBack(s, indexAtOrBefore(s, now), WARMUP_OBSERVATIONS);
+  const last = s.lastAt > 0n ? indexOfClose(s, s.lastAt) : null;
+  if (last === null) return mayStart();
+  if (index === last) return false;
+  if (index < last) return s.observations === 0 && mayStart();
+  let next = last + 1;
+  while (!hasRound(s, next)) next++;
+  if (index === next) return true;
+  let prev = index - 1;
+  while (prev > last && !hasRound(s, prev)) prev--;
+  return closeOf(s, prev) <= now - SKIP_AFTER_SECS && (warmedUp(s) || mayStart());
+}
 
 /**
  * Why `ladder_open` would refuse this round now for its series' sake, or null:

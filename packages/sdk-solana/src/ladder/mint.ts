@@ -19,6 +19,13 @@ export interface MintReport {
   decimals: number;
   /** Set when the mint takes a fee on every transfer (the schedule in force now). */
   transferFee?: TransferFee;
+  /**
+   * Set when the issuer has scheduled a different fee that is not in force
+   * yet at the epoch given: it starts at `epoch`, at most two epochs away.
+   * A wallet still signs at the fee in force, so a transaction that lands
+   * after this one fails whole; `feeRaises` says when to warn of that.
+   */
+  nextTransferFee?: TransferFee & { epoch: bigint };
 }
 
 /**
@@ -45,6 +52,41 @@ export function netOf(gross: bigint, fee?: TransferFee): bigint {
   return gross - (f < fee.maxFee ? f : fee.maxFee);
 }
 
+/**
+ * The most a wallet should sign to send so that `net` arrives: the gross
+ * under whichever of `fees` costs more, `slippageBps` over. A buy's limit and
+ * a deposit's `maxGross`, signed at the fee in force: the program refuses a
+ * transfer that would take more, so a fee raised first fails it.
+ */
+export function maxGrossFor(net: bigint, fees: (TransferFee | undefined)[], slippageBps = 50n): bigint {
+  const padded = (net * (10_000n + slippageBps)) / 10_000n;
+  return (fees.length ? fees : [undefined]).reduce((m, f) => { const g = grossFor(padded, f); return g > m ? g : m; }, 0n);
+}
+
+/**
+ * The least a wallet should accept to receive when the pool sends `gross`:
+ * what lands under whichever of `fees` takes more, `slippageBps` under. A
+ * sale's limit, signed at the fee in force: the program measures what the
+ * wallet received against it, so a fee raised first fails the sale.
+ */
+export function minNetOf(gross: bigint, fees: (TransferFee | undefined)[], slippageBps = 50n): bigint {
+  const padded = (gross * (10_000n - slippageBps)) / 10_000n;
+  return (fees.length ? fees : [undefined]).reduce((m, f) => { const n = netOf(padded, f); return m === null || n < m ? n : m; }, null as bigint | null)!;
+}
+
+/**
+ * Would the scheduled fee `next` take more than the fee in force `now`, on a
+ * transfer landing `net`? Then a transaction signed at `now` fails if `next`
+ * starts first, and the wallet should say so. A fee that takes everything
+ * always does, and is never priced.
+ */
+export function feeRaises(net: bigint, now?: TransferFee, next?: TransferFee): boolean {
+  if (!next) return false;
+  if (next.bps >= 10_000) return true;
+  if (now && now.bps >= 10_000) return false;
+  return grossFor(net, next) > grossFor(net, now);
+}
+
 const NAMES: Record<number, string> = {
   1: "TransferFeeConfig", 3: "MintCloseAuthority", 4: "ConfidentialTransferMint", 6: "DefaultAccountState",
   9: "NonTransferable", 10: "InterestBearingConfig", 12: "PermanentDelegate", 14: "TransferHook",
@@ -62,6 +104,7 @@ export function classifyMint(data: Uint8Array, epoch?: bigint): MintReport {
 
   const trust: string[] = [];
   let transferFee: TransferFee | undefined;
+  let nextTransferFee: MintReport["nextTransferFee"];
   const view = new DataView(data.buffer, data.byteOffset, data.byteLength);
   for (let at = 166; at + 4 <= data.length; ) {
     const ty = view.getUint16(at, true), len = view.getUint16(at + 2, true);
@@ -83,6 +126,7 @@ export function classifyMint(data: Uint8Array, epoch?: bigint): MintReport {
       // force unless it starts in the future, and StonkFun sets both alike.
       const inForce = epoch !== undefined && epoch < newer.epoch ? older : newer;
       if (inForce.bps > 0) transferFee = { bps: inForce.bps, maxFee: inForce.maxFee };
+      if (inForce === older && (newer.bps !== older.bps || newer.maxFee !== older.maxFee)) nextTransferFee = { bps: newer.bps, maxFee: newer.maxFee, epoch: newer.epoch };
       if (isSet(v.subarray(0, 32))) trust.push(`${name}: ${(inForce.bps / 100).toFixed(2)}% is taken on every transfer, and the issuer can change the rate`);
       continue;
     }
@@ -103,5 +147,5 @@ export function classifyMint(data: Uint8Array, epoch?: bigint): MintReport {
       return refused(`${name}: not recognised`);
     }
   }
-  return { verdict: trust.length ? "issuer-trusted" : "open", reasons: trust, decimals, ...(transferFee ? { transferFee } : {}) };
+  return { verdict: trust.length ? "issuer-trusted" : "open", reasons: trust, decimals, ...(transferFee ? { transferFee } : {}), ...(nextTransferFee ? { nextTransferFee } : {}) };
 }

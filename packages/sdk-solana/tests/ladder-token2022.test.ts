@@ -94,7 +94,7 @@ describe("a ladder quoted in a real xStock", () => {
     const state = () => L.decodeLadder(new Uint8Array(raw(e, ladder).data));
     const create = (issuerTrusted: boolean) => L.createLadderIx({
       ...key, creator: e.creator.kp.publicKey, creatorToken: e.creator.token, tokenProgram: TOKEN_2022_PROGRAM_ID,
-      seed: 500n * TOKENS, issuerTrusted, programId: PROGRAM,
+      seed: 500n * TOKENS, maxGross: 500n * TOKENS, issuerTrusted, programId: PROGRAM,
     });
 
     // ── what the SDK tells a creator before they try ────────────────────────
@@ -143,7 +143,7 @@ describe("a ladder quoted in a real xStock", () => {
     await quoted(L.tent(10, 3), 5n * TOKENS);
     await quoted(L.tent(10, 3), -5n * TOKENS);
 
-    const join = await ok(e, L.joinLadderIx(refs, { lp: e.lp.kp.publicKey, lpToken: e.lp.token, index: 0, deposit: 250n * TOKENS, expectedSeq: state().curveSeq }), e.lp.kp);
+    const join = await ok(e, L.joinLadderIx(refs, { lp: e.lp.kp.publicKey, lpToken: e.lp.token, index: 0, deposit: 250n * TOKENS, expectedSeq: state().curveSeq, maxGross: 250n * TOKENS }), e.lp.kp);
 
     warpClockTo(e.ctx, settlesAt + 5n);
     await ok(e, L.settleLadderIx(refs, ser.series, e.trader.kp.publicKey, e.priceAccount(updateAt(22_460_000n, settlesAt, settlesAt - 1n)), e.trader.token), e.trader.kp);
@@ -166,7 +166,7 @@ describe("a ladder quoted in a real xStock", () => {
     // ── revoking stops the next market, not this one ────────────────────────
     await ok(e, L.revokeQuoteMintIx(e.admin.publicKey, e.mint, PROGRAM), e.admin);
     const next = L.createLadderIx({ ...key, index: ser.indexOf(settlesAt + 86_400n), creator: e.creator.kp.publicKey, creatorToken: e.creator.token,
-      tokenProgram: TOKEN_2022_PROGRAM_ID, seed: 500n * TOKENS, issuerTrusted: true, programId: PROGRAM });
+      tokenProgram: TOKEN_2022_PROGRAM_ID, seed: 500n * TOKENS, maxGross: 500n * TOKENS, issuerTrusted: true, programId: PROGRAM });
     await refused(e, next, e.creator.kp, "AccountNotInitialized");
 
     console.log(`\nTOKEN-2022  real NVDAx mint (679 B, 8 dp, 8 extensions) → issuer-trusted → approved → full lifecycle

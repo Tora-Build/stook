@@ -133,10 +133,10 @@ function market(e: Env, settlesAt: bigint) {
     depthOf: (o: PublicKey, index = 0) => L.trancheTerms(L.decodeLadder(raw(ladder)), L.decodeLadderTranche(raw(trancheOf(o, index)))).b,
     create: (seed: bigint) => L.createLadderIx({
       ...key, quoteMint: e.mint, creator: e.creator.kp.publicKey, creatorToken: e.creator.token, tokenProgram: TOKEN_PROGRAM_ID,
-      seed, programId: PROGRAM,
+      seed, maxGross: seed, programId: PROGRAM,
     }),
     join: (w: Env["lp2"], amount: bigint, seq: bigint, index = 0) =>
-      L.joinLadderIx(refs, { lp: w.kp.publicKey, lpToken: w.token, index, deposit: amount, expectedSeq: seq }),
+      L.joinLadderIx(refs, { lp: w.kp.publicKey, lpToken: w.token, index, deposit: amount, expectedSeq: seq, maxGross: amount }),
     open: (price: PublicKey) => L.openLadderIx(refs, e.trader.kp.publicKey, price, ser.series),
     trade: (lo: number, hi: number, h: number, shares: bigint, limit: bigint) => tradeAs(e.trader, lo, hi, h, shares, limit),
     settle: (price: PublicKey) => L.settleLadderIx(refs, ser.series, e.trader.kp.publicKey, price, e.trader.token),

@@ -37,7 +37,7 @@ function moveFromOpen(l: stook.LadderAccount, i: number): string {
   return Math.abs(m) < 0.05 ? "at the open" : `${Math.abs(m).toFixed(Math.abs(m) < 10 ? 1 : 0)}% ${m < 0 ? "below" : "above"} the open${i <= 0 || i >= 63 ? " or further" : ""}`;
 }
 import { ataOf, ensureAta, type PositionRow, type TrancheRow } from "../lib/chain";
-import { useBalance, useSend } from "../hooks/useChain";
+import { useBalance, useMint, useSend } from "../hooks/useChain";
 import type { DrawMode } from "./Chart";
 import { LpPanel } from "./LpPanel";
 import { Book } from "./Book";
@@ -151,8 +151,12 @@ function Buy(p: Props & { held?: boolean }) {
   // coin's transfer fee, and what a payout lands as is net of it again.
   const pays = q ? stook.grossFor(q.total, p.transferFee) : null;
   const lands = (book: bigint) => stook.netOf(book, p.transferFee);
-  // What may leave the wallet at most, the coin's transfer fee included.
-  const limit = q ? stook.grossFor((q.total * 1005n) / 1000n, p.transferFee) : null;
+  // What may leave the wallet at most, the coin's transfer fee in force
+  // included. A higher fee the issuer has scheduled would take more, so if it
+  // starts first the order fails: that is said, not signed for.
+  const next = useMint(l.quoteMint).data?.report.nextTransferFee;
+  const limit = q ? stook.maxGrossFor(q.total, [p.transferFee]) : null;
+  const rising = q ? stook.feeRaises(q.total, p.transferFee, next) : false;
   // Held to what the transaction may take, not the point quote: a balance
   // between the two would pass here and fail on chain.
   const short = limit !== null && balance.data !== undefined && balance.data < limit;
@@ -234,6 +238,7 @@ function Buy(p: Props & { held?: boolean }) {
           {pays !== q.total && <div className="tp-row"><span>Coin's transfer fee</span><i /><b className="mono">{coinText(pays - q.total, dec, p.quoteSymbol)}</b></div>}
         </PaperFold>
       </div>}
+{s && q && rising && <Notice tone="warn" title="Transfer fee rising">The coin's issuer has set its transfer fee to rise to {next!.bps / 100}%. If that happens before this goes through, it fails and nothing moves.</Notice>}
       {short && <Notice tone="stop" title={`Not enough ${p.quoteSymbol}`}>You hold {fmtCompact(balance.data!, dec)}; this can cost up to {fmtCompact(limit!, dec)}. On devnet, get <b>test coins</b> in the header.</Notice>}
       <button className="primary" disabled={!q || !p.tradeable || send.isPending || !publicKey || short} onClick={submit}>{!publicKey ? "Connect a wallet" : !p.tradeable ? "Not trading" : !s ? "Pick a price first" : send.isPending ? "Sending…" : `${p.held || existing ? "Add to call" : "Place call"}${pays !== null ? ` · ${coinText(pays, dec, p.quoteSymbol)}` : ""}`}</button>
       <p className="house-how"><Link to="/how?step=line">How a call works ›</Link></p>
@@ -250,7 +255,12 @@ function Sell(p: Props & { pos: PositionRow }) {
   const size = (pos.shares * BigInt(pct)) / 100n;
   const q = useMemo(() => { if (size <= 0n) return null; try { return stook.quoteTrade({ curve: l.curve, b: l.b, feeBps: stook.feeBpsAt(l.feeBps, BigInt(p.now), l.settlesAt), decimals: dec }, s, -size); } catch { return null; } }, [size, l, dec, s, p.now]);
   const get = q ? stook.netOf(q.total, p.transferFee) : null;
-  const limit = q ? (q.total * 995n) / 1000n : null;
+  // The least that must land in the wallet, the coin's transfer fee in force
+  // off: the program holds the sale to what arrives, so a higher fee the
+  // issuer has scheduled fails it if it starts first.
+  const next = useMint(l.quoteMint).data?.report.nextTransferFee;
+  const limit = q ? stook.minNetOf(q.total, [p.transferFee]) : null;
+  const rising = q ? stook.feeRaises(q.total, p.transferFee, next) : false;
   const paidFor = size > 0n && pos.shares > 0n ? (pos.netPaid * size) / pos.shares : 0n;
   const submit = () => { if (!q || !publicKey || limit === null) return; send.mutate({ computeUnits: stook.tradeComputeUnits(s), ixs: [ensureAta(l.quoteMint, publicKey, p.refs.tokenProgram), stook.tradeLadderIx(p.refs, { user: publicKey, userToken: ataOf(l.quoteMint, publicKey, p.refs.tokenProgram), shape: s, shares: -size, limit })] }, { onSuccess: () => { if (pct === 100) p.onDeselect(); } }); };
   return (
@@ -260,9 +270,10 @@ function Sell(p: Props & { pos: PositionRow }) {
         <div className="tp-win"><span>You get</span><div className="tp-win-amt"><b className="mono">{coinText(get, dec, p.quoteSymbol)}</b>{p.usd !== null && <span className="tp-usd mono">{approxUsd(get, dec, p.usd)}</span>}</div></div>
         <div className="tp-row"><span>{get >= paidFor ? "Profit" : "Loss"}</span><i /><b className={`mono ${get >= paidFor ? "tp-up" : "tp-down"}`}>{get >= paidFor ? "+" : "−"}{coinText(get >= paidFor ? get - paidFor : paidFor - get, dec, p.quoteSymbol)}</b></div>
         <PaperFold label="Limits">
-          <div className="tp-row"><span>At least, if the odds move first</span><i /><b className="mono">{coinText(stook.netOf(limit, p.transferFee), dec, p.quoteSymbol)}</b></div>
+          <div className="tp-row"><span>At least, if the odds move first</span><i /><b className="mono">{coinText(limit, dec, p.quoteSymbol)}</b></div>
         </PaperFold>
       </div>}
+      {q && rising && <Notice tone="warn" title="Transfer fee rising">The coin's issuer has set its transfer fee to rise to {next!.bps / 100}%. If that happens before this goes through, it fails and nothing moves.</Notice>}
       <button className="primary" disabled={!q || !p.tradeable || send.isPending || !publicKey} onClick={submit}>{!p.tradeable ? "Locked until the bell" : send.isPending ? "Sending…" : `Sell ${pct}%`}</button>
     </>
   );
