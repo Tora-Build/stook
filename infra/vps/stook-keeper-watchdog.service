@@ -1,0 +1,6 @@
+[Unit]
+Description=Restart stook-keeper when it is up but stuck
+
+[Service]
+Type=oneshot
+ExecStart=/home/zak/stook/infra/vps/watchdog.sh keeper

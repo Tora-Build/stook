@@ -1,0 +1,19 @@
+[Unit]
+Description=Stook tape (live pool prices, served through a quick tunnel)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+User=zak
+WorkingDirectory=/home/zak/stook/infra/tape
+EnvironmentFile=/home/zak/stook.env
+Environment=TAPE_FILE=/home/zak/stook-tape.json
+ExecStart=/usr/bin/node /home/zak/stook/infra/tape/src/index.mjs
+Restart=always
+RestartSec=5
+KillMode=control-group
+StandardOutput=append:/home/zak/stook-tape.log
+StandardError=append:/home/zak/stook-tape.log
+
+[Install]
+WantedBy=multi-user.target

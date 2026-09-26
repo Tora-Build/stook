@@ -1,0 +1,17 @@
+[Unit]
+Description=Stook keeper (opens, settles and voids rounds)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+User=zak
+WorkingDirectory=/home/zak/stook/infra/ladder-crank
+EnvironmentFile=/home/zak/stook.env
+ExecStart=/usr/bin/node /home/zak/stook/infra/ladder-crank/src/index.mjs --watch
+Restart=always
+RestartSec=5
+StandardOutput=append:/home/zak/ladder-crank.log
+StandardError=append:/home/zak/ladder-crank.log
+
+[Install]
+WantedBy=multi-user.target

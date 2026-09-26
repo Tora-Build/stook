@@ -1,0 +1,10 @@
+[Unit]
+Description=Soo zk-resolver: one resolution pass
+
+[Service]
+Type=oneshot
+User=zak
+WorkingDirectory=/home/zak/soo/infra/zk-resolver
+ExecStart=/usr/bin/node /home/zak/soo/infra/zk-resolver/src/index.mjs --once
+StandardOutput=append:/home/zak/resolver-cron.log
+StandardError=append:/home/zak/resolver-cron.log
