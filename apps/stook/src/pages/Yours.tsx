@@ -2,14 +2,16 @@
 // wallet is in, what it put where, what that is worth now or pays, and one
 // button per finished round to collect all of it. Amounts stay in each
 // round's own coin: $STOOK and $KNOTS do not add up, so they are never summed.
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { PublicKey } from "@solana/web3.js";
-import { useWallet } from "@solana/wallet-adapter-react";
+import { useConnection, useWallet } from "@solana/wallet-adapter-react";
+import { useQueryClient } from "@tanstack/react-query";
 import { stook } from "@sooth/sdk-solana";
 import { useHoldings, useMint, useSend } from "../hooks/useChain";
 import { useNow } from "../hooks/useNow";
-import { ataOf, ensureAta, type Holding } from "../lib/chain";
+import { fetchMint, type Holding } from "../lib/chain";
+import { collectPlan, collectTxs } from "../lib/collect";
 import { COINS, anchorOf, coinByMint } from "../lib/coins";
 import { feedByHex, feedHex } from "../lib/feeds";
 import { fmtCompact, short } from "../lib/format";
@@ -91,16 +93,29 @@ export function Yours() {
     const usd = rows.reduce((a, [c, x]) => (rates[c] ? a + toUsd(pick(x), x.dec, rates[c]!) : a), 0);
     return rows.length ? <>{rows.some(([c]) => rates[c]) && <div className="tote-usd mono" title="Every coin at today's price">≈ {fmtUsd(usd)}</div>}<div className="tote-coins">{rows.map(([c, x]) => { const coin = COINS.find((k) => k.symbol === c); return <span key={c} className="tote-chip mono" title={`$${c}`}>{coin && <img src={coin.logo} alt={`$${c}`} />}{fmtCompact(pick(x), x.dec)}</span>; })}</div></> : <div className="tote-v mono muted">$0</div>;
   };
-  const finished = rounds.filter((h) => { const s = stageOf(h.ladder, now); return s === "settled" || s === "void"; });
+  // Every finished round the wallet holds anything in. The slip lists these,
+  // totals these, and "Collect all" collects these, whatever the passbook
+  // below is filtered to.
+  const finished = collectPlan(rounds);
 
-  // One button collects every finished round: each round's row registers
-  // how to collect it, and the slip runs them one after another.
-  const collectors = useRef(new Map<string, () => Promise<void>>());
-  const register = useCallback((k: string, fn: (() => Promise<void>) | null) => { if (fn) collectors.current.set(k, fn); else collectors.current.delete(k); }, []);
+  // One button collects every finished round, one after another, each round
+  // sent as the row's own button would send it.
+  const { connection } = useConnection();
+  const qc = useQueryClient();
+  const sendCollect = useSend("Collected"), sendRefund = useSend("Refunded");
   const [allProgress, setAllProgress] = useState<[number, number] | null>(null);
   const collectAll = async () => {
-    const keys = finished.map((h) => h.pubkey.toBase58()).filter((k) => collectors.current.has(k));
-    for (let n = 0; n < keys.length; n++) { setAllProgress([n + 1, keys.length]); await collectors.current.get(keys[n]!)!(); }
+    if (!own || !wallet) return;
+    const plan = finished;
+    for (let n = 0; n < plan.length; n++) {
+      setAllProgress([n + 1, plan.length]);
+      const h = plan[n]!, send = h.ladder.status === "void" ? sendRefund : sendCollect;
+      try {
+        const mint = await qc.fetchQuery({ queryKey: ["mint", h.ladder.quoteMint.toBase58()], queryFn: () => fetchMint(connection, h.ladder.quoteMint), staleTime: Infinity });
+        if (!mint) continue;
+        for (const tx of collectTxs(h, wallet, mint.tokenProgram)) await send.mutateAsync(tx);
+      } catch { /* the toast has said why; on to the next round */ }
+    }
     setAllProgress(null);
   };
 
@@ -188,7 +203,7 @@ export function Yours() {
           {jump && <div className="dp-showing"><span>Showing {nyWhen(Number(days.find(([d]) => d === jump)?.[1][0]?.ladder.settlesAt ?? 0), { weekday: "long", month: "short", day: "numeric" })}</span><button className="link" onClick={() => setJump(null)}>show every day</button></div>}
           {days.filter(([d]) => !jump || d === jump).map(([d, hs], n) => (
             <Day key={d} id={`day-${d}`} name={dayName(d, hs[0]!.ladder.settlesAt)} count={hs.length} startOpen={n < 3 || jump === d} force={jump === d}>
-              {hs.map((h) => <RoundBlock key={h.pubkey.toBase58()} h={h} now={now} own={own} register={register} />)}
+              {hs.map((h) => <RoundBlock key={h.pubkey.toBase58()} h={h} now={now} own={own} />)}
             </Day>
           ))}
           <p className="stmt-foot">Amounts are in each round's coin; ≈ dollars move with today's price. Thirty days after a close, anyone may send what it owes you to your wallet.</p>
@@ -261,7 +276,7 @@ function SlipLine({ h, c, ready, usd, now }: { h: Holding; c: ReturnType<typeof 
   );
 }
 
-function RoundBlock({ h, now, own, register }: { h: Holding; now: number; own: boolean; register: (k: string, fn: (() => Promise<void>) | null) => void }) {
+function RoundBlock({ h, now, own }: { h: Holding; now: number; own: boolean }) {
   const [open, setOpen] = useState(false);
   const { publicKey } = useWallet();
   const l = h.ladder, coin = coinByMint(l.quoteMint), feed = feedByHex(feedHex(l.feedId));
@@ -280,14 +295,8 @@ function RoundBlock({ h, now, own, register }: { h: Holding; now: number; own: b
   const collectable = own && (stage === "settled" || stage === "void") && (h.positions.length + h.tranches.length) > 0;
   const collect = async () => {
     if (!publicKey || !mint.data) return;
-    const refs = { ladder: h.pubkey, quoteMint: l.quoteMint, tokenProgram: mint.data.tokenProgram };
-    const ata = ataOf(l.quoteMint, publicKey, mint.data.tokenProgram);
-    const chunks = stook.packByCompute([
-      ...h.positions.map((r) => ({ ix: stook.redeemLadderIx(refs, publicKey, ata, r.position.shape), units: stook.REDEEM_COMPUTE_UNITS })),
-      ...h.tranches.map((t) => ({ ix: stook.claimLpIx(refs, publicKey, ata, t.tranche.index), units: stook.claimComputeUnits(l, t.tranche) })),
-    ]);
     try {
-      for (let n = 0; n < chunks.length; n++) await send.mutateAsync({ computeUnits: chunks[n]!.units, ixs: [...(n === 0 ? [ensureAta(l.quoteMint, publicKey, mint.data.tokenProgram)] : []), ...chunks[n]!.ixs] });
+      for (const tx of collectTxs(h, publicKey, mint.data.tokenProgram)) await send.mutateAsync(tx);
     } catch { /* the toast has said why */ }
   };
   const sym = coin ? `$${coin.symbol}` : "";
@@ -296,8 +305,6 @@ function RoundBlock({ h, now, own, register }: { h: Holding; now: number; own: b
   const shownAnchor = coin ? coin.anchor : null;
   const final = stage === "settled" || stage === "void";
   const pnl = (x: Line) => (x.value === null ? null : x.value - x.cost);
-  const key = h.pubkey.toBase58();
-  useEffect(() => { register(key, collectable ? collect : null); return () => register(key, null); });
   // The line: what went in, what it is worth now (or pays), and the result.
   const cost = v.lines.reduce((a, x) => a + x.cost, 0n);
   const valued = v.lines.filter((x) => x.value !== null);
