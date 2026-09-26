@@ -44,6 +44,7 @@ const HERMES = (process.env.HERMES_URL ?? "https://hermes.pyth.network").replace
 const KEYPAIR = process.env.KEYPAIR ?? `${homedir()}/.config/solana/id.json`;
 const INTERVAL = Number(process.env.CRANK_INTERVAL_SECS ?? 5) * 1000;
 const HEARTBEAT = process.env.HEARTBEAT_FILE ?? `${homedir()}/ladder-crank.beat`;
+const HEALTH = process.env.HEALTH_FILE ?? `${homedir()}/ladder-crank.health`;
 const FULL = process.env.FULL_VERIFICATION === "1";
 
 const hex = (b) => Buffer.from(b).toString("hex");
@@ -403,24 +404,31 @@ export function createKeeper({ connection, scanner, payer, sendTx, postAndConsum
 
 /**
  * Pass every `interval` ms, learning every fourth pass and clearing up every
- * tenth. `beat()` runs only after a pass with nothing failing: the pass itself
- * and the last learn (its count stands until it runs again). The box's
- * watchdog restarts a keeper whose heartbeat goes stale; a process can stay up
- * with every request dead, as on 2026-09-25, or scan fine while every send
- * fails. Clear-up is logged, not beaten on: one finished round that cannot be
- * cleared (an account frozen by the coin's issuer, say) says nothing of the
- * rounds being opened and settled, and a restart would not clear it.
+ * tenth. Two signals for the box's watchdog:
+ *  - `beat()` after every pass that ran: the keeper is alive and can read the
+ *    chain. A process can stay up with every request dead, as on 2026-09-25;
+ *    then passes throw, the beat goes stale and the watchdog restarts it.
+ *  - `healthy()` after a pass with nothing failing: the pass itself and the
+ *    last learn (its count stands until it runs again). Reads can work while
+ *    every send fails; then the beat stays fresh and this goes stale. A
+ *    restart rarely cures that (a round the program keeps refusing stays
+ *    refused), so the watchdog logs it and restarts at most once an hour.
+ * Clear-up is logged, not counted: one finished round that cannot be cleared
+ * (an account frozen by the coin's issuer, say) says nothing of the rounds
+ * being opened and settled.
  */
-export async function watch(keeper, { interval, beat, passes = Infinity, sleep = (ms) => new Promise((r) => setTimeout(r, ms)) }) {
+export async function watch(keeper, { interval, beat, healthy = () => {}, passes = Infinity, sleep = (ms) => new Promise((r) => setTimeout(r, ms)) }) {
   let learning = 0, last = 0;
   for (let n = 0; n < passes; n++) {
     // Learn first, so a round opening at yesterday's close opens on a
     // series that has already counted it.
     if (n % 4 === 0) learning = await keeper.learn().catch((e) => { console.error("learn failed:", e?.message ?? e); return 1; });
-    const passing = await keeper.pass().catch((e) => { console.error(new Date().toISOString(), "pass failed:", e?.message ?? e); return 1; });
+    let ran = true;
+    const passing = await keeper.pass().catch((e) => { console.error(new Date().toISOString(), "pass failed:", e?.message ?? e); ran = false; return 1; });
+    if (ran) { try { beat(); } catch {} }
     const failing = passing + learning;
-    if (failing === 0) { try { beat(); } catch {} }
-    else if (failing !== last) console.error(new Date().toISOString(), `${failing} step(s) failing; no heartbeat`);
+    if (failing === 0) { try { healthy(); } catch {} }
+    else if (failing !== last) console.error(new Date().toISOString(), `${failing} step(s) failing`);
     last = failing;
     // finished rounds are not urgent: every ten passes
     if (n % 10 === 0) {
@@ -445,7 +453,7 @@ export async function main(argv = process.argv.slice(2)) {
   const keeper = createKeeper({ connection, scanner, payer, plan: mode.plan, ...chainSenders(connection, payer) });
 
   if (mode.watch) {
-    await watch(keeper, { interval: INTERVAL, beat: () => writeFileSync(HEARTBEAT, String(Date.now())) });
+    await watch(keeper, { interval: INTERVAL, beat: () => writeFileSync(HEARTBEAT, String(Date.now())), healthy: () => writeFileSync(HEALTH, String(Date.now())) });
   } else {
     if (mode.learn) await keeper.learn();
     await keeper.pass();

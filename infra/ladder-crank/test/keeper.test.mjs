@@ -86,12 +86,13 @@ test("plan mode makes zero writes on every path", async () => {
   assert.deepEqual(w.calls, { sendTx: 0, postAndConsume: 0, hermes: 0 });
 });
 
-test("a pass whose primary RPC fails is unhealthy and writes no heartbeat, through the backoff", async () => {
+test("a pass whose primary RPC fails is alive but unhealthy, through the backoff", async () => {
   const w = world({ ladders: { seeding: [toOpen()] }, primaryFails: true });
   const k = w.keeper();
-  let beats = 0;
-  await silenced(() => watch(k, { interval: 0, beat: () => beats++, passes: 3, sleep: async () => {} }));
-  assert.equal(beats, 0);
+  let beats = 0, healths = 0;
+  await silenced(() => watch(k, { interval: 0, beat: () => beats++, healthy: () => healths++, passes: 3, sleep: async () => {} }));
+  assert.equal(beats, 3, "the scan works, so the keeper is alive");
+  assert.equal(healths, 0, "but the round keeps failing");
   // The round is cooling down after its failure; it still counts until it succeeds.
   assert.equal(await silenced(() => k.pass()), 1);
 });
@@ -106,9 +107,10 @@ test("idle passes and expected waiting are healthy and beat", async () => {
   ]);
   for (const ladders of [{}, { seeding: [ladder({})] }, { seeding: [warming] }, { open: [settle] }]) {
     const w = world({ ladders, accounts });
-    let beats = 0;
-    await silenced(() => watch(w.keeper(), { interval: 0, beat: () => beats++, passes: 2, sleep: async () => {} }));
+    let beats = 0, healths = 0;
+    await silenced(() => watch(w.keeper(), { interval: 0, beat: () => beats++, healthy: () => healths++, passes: 2, sleep: async () => {} }));
     assert.equal(beats, 2, JSON.stringify(Object.keys(ladders)));
+    assert.equal(healths, 2, JSON.stringify(Object.keys(ladders)));
     assert.equal(w.calls.sendTx + w.calls.postAndConsume, 0);
   }
 });
@@ -201,7 +203,15 @@ test("clear-up: a frozen owner is skipped, a failing round backs off, and neithe
   const sent = w2.calls.sendTx;
   assert.equal(await silenced(() => k2.clearUp()), 1);
   assert.equal(w2.calls.sendTx, sent, "backing off: nothing sent");
-  let beats = 0;
-  await silenced(() => watch(k2, { interval: 0, beat: () => beats++, passes: 2, sleep: async () => {} }));
+  let beats = 0, healths = 0;
+  await silenced(() => watch(k2, { interval: 0, beat: () => beats++, healthy: () => healths++, passes: 2, sleep: async () => {} }));
   assert.equal(beats, 2);
+  assert.equal(healths, 2);
+});
+
+test("a pass that cannot read the chain writes neither signal", async () => {
+  const keeper = { learn: async () => 0, clearUp: async () => 0, pass: async () => { throw new Error("429 Too Many Requests"); } };
+  let beats = 0, healths = 0;
+  await silenced(() => watch(keeper, { interval: 0, beat: () => beats++, healthy: () => healths++, passes: 3, sleep: async () => {} }));
+  assert.deepEqual([beats, healths], [0, 0]);
 });

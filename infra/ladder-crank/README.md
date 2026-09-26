@@ -46,13 +46,17 @@ What a pass does:
   exponent) it is the proof `ladder_void` needs, and the keeper voids at
   once. A round that never opened is voided without proof after its window,
   and one with no postable update a week after its close.
-- **Heartbeat.** Under `--watch` it writes `HEARTBEAT_FILE` only after a
-  pass with nothing failing: no step that threw, none still backing off
-  after a failure, and the last learn clean too. Waiting (a series warming
-  up, Hermes without the update yet) is not a failure. Clear-up failures are
-  logged but do not stop the heartbeat: a finished round that cannot be
-  cleared says nothing of the rounds being run, and a restart would not fix
-  it. The box's watchdog restarts a keeper whose heartbeat goes stale.
+- **Heartbeat and health.** Under `--watch` it writes `HEARTBEAT_FILE`
+  after every pass that could read the chain (the keeper is alive), and
+  `HEALTH_FILE` (default `~/ladder-crank.health`) only after a pass with
+  nothing failing: no step that threw, none still backing off after a
+  failure, and the last learn clean too. Waiting (a series warming up, Hermes
+  without the update yet) is not a failure. Clear-up failures are logged but
+  counted in neither: a finished round that cannot be cleared says nothing of
+  the rounds being run. The box's watchdog restarts a keeper whose heartbeat
+  is 5 minutes stale; when only health is 15 minutes stale it logs it and
+  restarts at most once an hour, since a round the program keeps refusing
+  stays refused.
 - **Clear up.** Sweeps positions owed nothing, pays out what is still owed 30
   days after the close to owners who have a token account for the coin (it
   never creates one for someone else: the owner could close it and keep the
