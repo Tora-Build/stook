@@ -98,7 +98,7 @@ describe("a transfer fee raised between the quote and the send", () => {
 
     // ── at a fixed fee, a round starts on the gross it was quoted ───────────
     const c0 = balance(e, e.creator.token);
-    await ok(e, L.createLadderIx({ ...key, creator: e.creator.kp.publicKey, creatorToken: e.creator.token, tokenProgram: TOKEN_2022_PROGRAM_ID, seed: 1_000n * T, maxGross: L.maxGrossFor(1_000n * T, [fee]), issuerTrusted: true, programId: PROGRAM }), e.creator.kp);
+    await ok(e, L.createLadderIx({ ...key, creator: e.creator.kp.publicKey, creatorToken: e.creator.token, tokenProgram: TOKEN_2022_PROGRAM_ID, seed: 1_000n * T, maxGross: L.maxGrossFor(1_000n * T, [fee], 0n), issuerTrusted: true, programId: PROGRAM }), e.creator.kp);
     expect(c0 - balance(e, e.creator.token)).toBe(L.grossFor(1_000n * T, fee));
     warpClockTo(e.ctx, PUBLISH_TIME + 10n);
     await ok(e, L.openLadderIx(refs, e.trader.kp.publicKey, e.priceAccount(updateAt(22_019_000n, PUBLISH_TIME, PUBLISH_TIME - 1n)), ser.series), e.trader.kp);
@@ -116,7 +116,7 @@ describe("a transfer fee raised between the quote and the send", () => {
 
     // ── the old fee still in force: a deposit and a sale land as quoted ─────
     const l0 = balance(e, e.lp.token);
-    await ok(e, L.joinLadderIx(refs, { lp: e.lp.kp.publicKey, lpToken: e.lp.token, index: 0, deposit: 100n * T, expectedSeq: state().curveSeq, maxGross: L.maxGrossFor(100n * T, [fee]) }), e.lp.kp);
+    await ok(e, L.joinLadderIx(refs, { lp: e.lp.kp.publicKey, lpToken: e.lp.token, index: 0, deposit: 100n * T, expectedSeq: state().curveSeq, maxGross: L.maxGrossFor(100n * T, [fee], 0n) }), e.lp.kp);
     expect(l0 - balance(e, e.lp.token)).toBe(101_010_102n);                 // the audit's quote, paid exactly
     {
       // A limit of exactly what lands, the fee rounded up as Token-2022 does:
@@ -130,9 +130,9 @@ describe("a transfer fee raised between the quote and the send", () => {
     }
 
     // ── quoted and signed now, at 1%: what the app would send ───────────────
-    const join = L.joinLadderIx(refs, { lp: e.lp.kp.publicKey, lpToken: e.lp.token, index: 1, deposit: 50n * T, expectedSeq: state().curveSeq, maxGross: L.maxGrossFor(50n * T, [fee]) });
+    const join = L.joinLadderIx(refs, { lp: e.lp.kp.publicKey, lpToken: e.lp.token, index: 1, deposit: 50n * T, expectedSeq: state().curveSeq, maxGross: L.maxGrossFor(50n * T, [fee], 0n) });
     const nextKey = { ...key, index: ser.index + 1 };
-    const create = L.createLadderIx({ ...nextKey, creator: e.creator.kp.publicKey, creatorToken: e.creator.token, tokenProgram: TOKEN_2022_PROGRAM_ID, seed: 10n * T, maxGross: L.maxGrossFor(10n * T, [fee]), issuerTrusted: true, programId: PROGRAM });
+    const create = L.createLadderIx({ ...nextKey, creator: e.creator.kp.publicKey, creatorToken: e.creator.token, tokenProgram: TOKEN_2022_PROGRAM_ID, seed: 10n * T, maxGross: L.maxGrossFor(10n * T, [fee], 0n), issuerTrusted: true, programId: PROGRAM });
     const sale = quote(L.band(20, 44), -30n * T);
     const shown = L.minNetOf(sale.total, [fee]);                            // the ticket's "at least"
     const sell = trade(L.band(20, 44), -30n * T, shown);
@@ -182,6 +182,8 @@ describe("a transfer fee raised between the quote and the send", () => {
     expect(L.maxGrossFor(100n * T, [now])).toBe(L.grossFor((100n * T * 10_050n) / 10_000n, now));
     expect(L.maxGrossFor(100n * T, [now, next])).toBe(L.grossFor((100n * T * 10_050n) / 10_000n, next));
     expect(L.maxGrossFor(100n * T, [next, now])).toBe(L.maxGrossFor(100n * T, [now, next]));
+    // A deposit signs no margin: its cap is exactly what the ticket shows.
+    expect(L.maxGrossFor(100n * T, [now], 0n)).toBe(L.grossFor(100n * T, now));
     expect(L.maxGrossFor(100n * T, [undefined], 0n)).toBe(100n * T);
     expect(L.minNetOf(100n * T, [now, next])).toBe(L.netOf((100n * T * 9_950n) / 10_000n, next));
     expect(L.minNetOf(100n * T, [now], 0n)).toBe(L.netOf(100n * T, now));

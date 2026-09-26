@@ -56,7 +56,9 @@ export function netOf(gross: bigint, fee?: TransferFee): bigint {
  * The most a wallet should sign to send so that `net` arrives: the gross
  * under whichever of `fees` costs more, `slippageBps` over. A buy's limit and
  * a deposit's `maxGross`, signed at the fee in force: the program refuses a
- * transfer that would take more, so a fee raised first fails it.
+ * transfer that would take more, so a fee raised first fails it. A deposit's
+ * amount cannot move, so it signs with no slippage (`0n`): any margin would
+ * only let a raised fee through.
  */
 export function maxGrossFor(net: bigint, fees: (TransferFee | undefined)[], slippageBps = 50n): bigint {
   const padded = (net * (10_000n + slippageBps)) / 10_000n;

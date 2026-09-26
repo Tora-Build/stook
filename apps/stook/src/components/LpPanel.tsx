@@ -46,7 +46,7 @@ export function LpPanel(p: Props) {
   // in force. A higher fee the issuer has scheduled would take more, so if it
   // starts first the deposit fails: that is said, not signed for.
   const next = useMint(l.quoteMint).data?.report.nextTransferFee;
-  const maxGross = deposit ? stook.maxGrossFor(deposit, [p.transferFee]) : null;
+  const maxGross = deposit ? stook.maxGrossFor(deposit, [p.transferFee], 0n) : null;
   const rising = deposit ? stook.feeRaises(deposit, p.transferFee, next) : false;
   const short = balance.data !== undefined && gross !== null && balance.data < gross;
   const final = l.status === "settled" || l.status === "void";

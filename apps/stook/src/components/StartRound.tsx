@@ -41,7 +41,7 @@ export function StartRound({ coin, seriesKey, series, index, onClose }: { coin: 
   // force. A higher fee the issuer has scheduled would take more, so if it
   // starts first the round is not started: that is said, not signed for.
   const next = mint.data?.report.nextTransferFee;
-  const maxGross = seed ? stook.maxGrossFor(seed, [mint.data?.report.transferFee]) : null;
+  const maxGross = seed ? stook.maxGrossFor(seed, [mint.data?.report.transferFee], 0n) : null;
   const rising = seed ? stook.feeRaises(seed, mint.data?.report.transferFee, next) : false;
 
   const start = () => {

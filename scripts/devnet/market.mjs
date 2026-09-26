@@ -47,7 +47,7 @@ if (cmd === "create") {
   if (stook.feeRaises(seed, fee.transferFee, fee.nextTransferFee)) console.warn(`the coin's transfer fee rises to ${fee.nextTransferFee.bps / 100}% at epoch ${fee.nextTransferFee.epoch}; if that comes first, this fails`);
   const sig = await send([stook.createLadderIx({
     series, index, quoteMint: quote, creator: payer.publicKey, creatorToken: getAssociatedTokenAddressSync(quote, payer.publicKey, false, TOKEN_2022_PROGRAM_ID),
-    tokenProgram: TOKEN_2022_PROGRAM_ID, seed, maxGross: stook.maxGrossFor(seed, [fee.transferFee]), issuerTrusted: true,
+    tokenProgram: TOKEN_2022_PROGRAM_ID, seed, maxGross: stook.maxGrossFor(seed, [fee.transferFee], 0n), issuerTrusted: true,
   })]);
   console.log("started", stook.deriveLadderPda({ series, index }).toBase58(), `settles ${new Date(Number(t.settlesAt) * 1000).toISOString()} · bands ${(t.stepBps / 100).toFixed(2)}% · opens ${new Date(Number(t.opensAt) * 1000).toISOString()}`, sig);
 } else if (cmd === "open") {
