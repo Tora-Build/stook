@@ -123,7 +123,8 @@ test("a send that fails makes the pass unhealthy", async () => {
 });
 
 test("learn: Hermes without the update yet is waiting, a failed post is a failure", async () => {
-  const s = { pubkey: key(), feedId, periodSecs: 0, closeSecs: 0, clock: 0, observations: 25, varWad: 1n, lastAt: now() - 3n * DAY };
+  // A series' last close is always one of its closes (midnight, on this clock).
+  const s = { pubkey: key(), feedId, periodSecs: 0, closeSecs: 0, clock: 0, observations: 25, varWad: 1n, lastAt: (now() / DAY) * DAY - 3n * DAY };
   const w = world({ series: [s] });
   const k = w.keeper();
   assert.equal(await silenced(() => k.learn()), 0);
@@ -156,6 +157,135 @@ test("learn passes over an unpostable close only where the program would take th
   assert.ok(await run({ pubkey: key(), feedId, periodSecs: 0, closeSecs: 0, clock: 0, observations: 1, varWad: 0n, lastAt: midnight - 25n * DAY }) >= 2);
   // A close lost while younger than a week holds any series there.
   assert.equal(await run({ pubkey: key(), feedId, periodSecs: 0, closeSecs: 0, clock: 0, observations: 25, varWad: 1n, lastAt: midnight - 3n * DAY }), 1);
+});
+
+// A series on chain for the learn loop: each post is refused unless the
+// program would take it (`mayObserve`), and one it takes moves the series as
+// `Series::observe` does (a return, a restart after a jump while warming up,
+// or a new anchor before the first return). `expired(index)` says which
+// closes can never be posted.
+function learningWorld(start, expired) {
+  const pubkey = key();
+  const w = { posted: [], refused: [], asked: [], hermesPerPass: [], state: () => w.series[0] };
+  w.series = [{ ...start, pubkey }];
+  const accounts = new Map();
+  const set = (s) => { w.series[0] = s; accounts.set(pubkey.toBase58(), { data: s }); };
+  set(w.series[0]);
+  let hermesCalls = 0;
+  const hermes = async (path) => { hermesCalls++; const at = Number(path.split("/").pop()); w.asked.push(stook.indexOfClose(w.state(), BigInt(at))); return { parsed: { metadata: { prev_publish_time: at - 1 }, price: { publish_time: at } }, vaas: [] }; };
+  const postAndConsume = async (_vaas, _feed, makeIxs) => {
+    const ix = makeIxs(key())[0];
+    const index = ix.data.readUInt32LE(8);
+    const s = w.state(), t = now();
+    if (!stook.mayObserve(s, index, t)) { w.refused.push(index); throw Object.assign(new Error("failed"), { logs: ["Error Code: SeriesOutOfOrder"] }); }
+    if (expired(index)) throw Object.assign(new Error("failed"), { logs: ["Error Code: GuardianSetExpired"] });
+    w.posted.push(index);
+    const at = stook.closeOf(s, index);
+    const last = s.lastAt > 0n ? stook.indexOfClose(s, s.lastAt) : null;
+    let nextRound = last === null ? null : last + 1;
+    while (nextRound !== null && !stook.hasRound(s, nextRound)) nextRound++;
+    if (at < s.lastAt) set({ ...s, lastAt: at });
+    else if (!stook.warmedUp(s) && last !== null && index !== nextRound) set({ ...s, observations: 0, varWad: stook.RESTARTED, lastAt: at });
+    else set({ ...s, observations: s.observations + 1, varWad: s.varWad > 0n ? s.varWad : 1n, lastAt: at });
+    return "sig";
+  };
+  const made = world({ series: w.series, accounts, hermes, postAndConsume });
+  const keeper = made.keeper();
+  w.learn = async () => {
+    const before = hermesCalls;
+    const failing = await silenced(() => keeper.learn());
+    w.hermesPerPass.push(hermesCalls - before);
+    return failing;
+  };
+  return w;
+}
+
+test("learn: an old cold series reaches a permitted restart past closes it may not take", async () => {
+  const midnight = (now() / DAY) * DAY;
+  const base = { feedId, periodSecs: 0, closeSecs: 0, clock: 0 };
+  const latest = stook.indexAtOrBefore(base, now() - 60n);
+  // One close learned 60 days ago. Every close before about 20 days ago was
+  // signed by a guardian set the receiver no longer accepts; the rest post.
+  const permitted = latest - 20;
+  const w = learningWorld({ ...base, active: true, observations: 1, varWad: 0n, lastAt: midnight - 60n * DAY }, (i) => i < permitted);
+  const lastBefore = stook.indexOfClose(base, w.state().lastAt);
+  for (let n = 0; n < 5 && !w.posted.includes(permitted); n++) assert.equal(await w.learn(), 0);
+  assert.ok(w.posted.includes(permitted), `reached the permitted close ${permitted}; posted ${w.posted}`);
+  assert.equal(w.posted[0], permitted, "the first post is the restart at the permitted close");
+  assert.deepEqual(w.refused, [], "never posts a close the program would refuse");
+  assert.ok(w.hermesPerPass.every((n) => n <= 10), `bounded Hermes calls per pass: ${w.hermesPerPass}`);
+  // Only the next close and the restart target were asked for, then the
+  // closes after the restart.
+  assert.deepEqual(w.asked.slice(0, 2), [lastBefore + 1, permitted]);
+  assert.ok(w.state().lastAt >= stook.closeOf(base, permitted));
+  assert.ok(stook.indexOfClose(base, w.state().lastAt) > lastBefore);
+  // From there it learns forward, in order, and warms up.
+  for (let n = 0; n < 3; n++) assert.equal(await w.learn(), 0);
+  assert.equal(w.state().lastAt, stook.closeOf(base, latest));
+  assert.ok(w.state().observations >= 19, `observations ${w.state().observations}`);
+  assert.deepEqual(w.refused, []);
+});
+
+test("learn: a warming series on a short period, long stale past a lost close, restarts a week back", async () => {
+  for (const periodSecs of [300, 3_600]) {
+    const base = { feedId, periodSecs, closeSecs: 0, clock: 0 };
+    const p = BigInt(periodSecs);
+    // Five returns learned, then the keeper was down for 20 days, and the
+    // next close can never be posted. The one close the program takes then
+    // is a week back, past any scan from the last close on a 5-minute clock.
+    const lastAt = ((now() - 20n * DAY) / p) * p;
+    const lost = stook.indexOfClose(base, lastAt) + 1;
+    const w = learningWorld({ ...base, active: true, observations: 5, varWad: 1n, lastAt }, (i) => i === lost);
+    const target = stook.restartTarget(w.state(), now());
+    assert.ok(target > lost + 1);
+    for (let n = 0; n < 4; n++) assert.equal(await w.learn(), 0);
+    assert.equal(w.posted[0], target, `${periodSecs}s: the first post is the restart target`);
+    assert.deepEqual(w.asked.slice(0, 2), [lost, target]);
+    assert.deepEqual(w.posted, w.posted.map((_, n) => target + n), "then forward in order");
+    assert.deepEqual(w.refused, []);
+    assert.ok(w.hermesPerPass.every((n) => n <= 10), `bounded Hermes calls per pass: ${w.hermesPerPass}`);
+    assert.ok(stook.warmedUp(w.state()), `${periodSecs}s: warmed up again, ${w.state().observations}`);
+  }
+});
+
+test("learn: a warmed series gets past a batch of unpostable closes to the first that posts", async () => {
+  const midnight = (now() / DAY) * DAY;
+  const base = { feedId, periodSecs: 0, closeSecs: 0, clock: 0 };
+  const start = { ...base, active: true, observations: 25, varWad: 1n, lastAt: midnight - 30n * DAY };
+  const first = stook.indexOfClose(base, start.lastAt) + 1;
+  // The first ten pending closes can never be posted; the eleventh can, and
+  // the program would take the jump to it.
+  const eleventh = first + 10;
+  assert.ok(stook.mayObserve(start, eleventh, now()));
+  const w = learningWorld(start, (i) => i < eleventh);
+  for (let n = 0; n < 3 && !w.posted.includes(eleventh); n++) assert.equal(await w.learn(), 0);
+  assert.equal(w.posted[0], eleventh, "the first post is the eleventh close");
+  // Then on in order, each close a return.
+  assert.deepEqual(w.posted, w.posted.map((_, n) => eleventh + n));
+  assert.equal(w.state().lastAt, stook.closeOf(base, w.posted.at(-1)));
+  assert.equal(w.state().observations, 25 + w.posted.length);
+  assert.deepEqual(w.refused, []);
+  assert.deepEqual(w.hermesPerPass.slice(0, 2), [10, 10], "ten lost closes, then the eleventh and nine after it");
+  // The unpostable ten are asked for once each, never again.
+  assert.equal(await w.learn(), 0);
+  assert.equal(new Set(w.asked).size, w.asked.length, "no close asked for twice");
+  assert.equal(w.state().lastAt, stook.closeOf(base, stook.indexAtOrBefore(base, now() - 60n)));
+});
+
+test("learn: pending closes none of which may be taken yet are waiting, not failing", async () => {
+  const midnight = (now() / DAY) * DAY;
+  const base = { feedId, periodSecs: 0, closeSecs: 0, clock: 0 };
+  // Warming up, its next close lost three days ago: nothing may be taken
+  // until that close is a week old.
+  const w = learningWorld({ ...base, active: true, observations: 1, varWad: 0n, lastAt: midnight - 4n * DAY }, (i) => i === stook.indexOfClose(base, midnight - 3n * DAY));
+  for (let n = 0; n < 3; n++) assert.equal(await w.learn(), 0);
+  assert.deepEqual(w.posted, []);
+  assert.deepEqual(w.refused, []);
+  assert.deepEqual(w.hermesPerPass, [1, 0, 0], "the lost close is asked for once");
+  let healths = 0;
+  const k = { learn: w.learn, pass: async () => 0, clearUp: async () => 0 };
+  await silenced(() => watch(k, { interval: 0, beat: () => {}, healthy: () => healths++, passes: 2, sleep: async () => {} }));
+  assert.equal(healths, 2);
 });
 
 test("clear-up: a round not closable yet is not a failure; other failures are", async () => {
@@ -214,4 +344,33 @@ test("a pass that cannot read the chain writes neither signal", async () => {
   let beats = 0, healths = 0;
   await silenced(() => watch(keeper, { interval: 0, beat: () => beats++, healthy: () => healths++, passes: 3, sleep: async () => {} }));
   assert.deepEqual([beats, healths], [0, 0]);
+});
+
+test("learn: a run of unpostable closes longer than the scan does not hide the close after it", async () => {
+  const { Keypair } = await import("@solana/web3.js");
+  const { stook } = await import("@sooth/sdk-solana");
+  const { createKeeper, LEARN_SCAN } = await import("../src/index.mjs");
+  const now = () => BigInt(Math.floor(Date.now() / 1000));
+  const start = ((now() - 30n * 86_400n) / 60n) * 60n;
+  let s = { feedId: new Uint8Array(32), periodSecs: 60, closeSecs: 0, clock: 0, active: true, observations: 30, varWad: 5n, lastAt: start };
+  const first = stook.indexOfClose(s, s.lastAt) + 1, lost = LEARN_SCAN + 4, pubkey = Keypair.generate().publicKey;
+  const posts = [];
+  const k = createKeeper({
+    connection: { async getAccountInfo() { return { data: s }; } },
+    scanner: { async getProgramAccounts() { return [{ pubkey, account: { data: s } }]; } },
+    payer: Keypair.generate(), sdk: { ...stook, decodeSeries: (d) => d },
+    hermes: async (p) => { const at = Number(p.split("/").pop()); return { parsed: { metadata: { prev_publish_time: at - 1 }, price: { publish_time: at } }, vaas: [] }; },
+    sendTx: async () => { throw new Error("no sends expected"); },
+    postAndConsume: async (_v, _f, mk) => {
+      const index = mk(pubkey)[0].data.readUInt32LE(8);
+      assert.ok(stook.mayObserve(s, index, now()), `posted a close the program refuses: ${index}`);
+      if (index < first + lost) throw Object.assign(new Error("x"), { logs: ["Error Code: GuardianSetExpired"] });
+      posts.push(index); s = { ...s, observations: s.observations + 1, lastAt: stook.closeOf(s, index) };
+      return "sig";
+    },
+  });
+  const fails = [];
+  await silenced(async () => { for (let p = 0; p < Math.ceil(lost / 10) + 3 && !posts.length; p++) fails.push(await k.learn()); });
+  assert.equal(posts[0], first + lost, "the first close after the run is the first posted");
+  assert.ok(fails.every((f) => f === 0), "passing over unpostable closes is not a failure");
 });

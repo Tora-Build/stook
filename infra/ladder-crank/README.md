@@ -32,11 +32,18 @@ What a pass does:
   update at that second (`/v2/updates/price/{close}`). The program takes them
   strictly in order and decides whether each teaches a return or only moves
   the series on. A close that can never be posted (a retired Wormhole
-  guardian set) is passed only once the program allows it (`mayObserve`): a
-  week after that close for a warmed-up series; for one still warming up,
-  also only onto a close a new series could start from, where its warm-up
-  starts again. Learning runs first, so a round opening at yesterday's close
-  finds it counted.
+  guardian set) is remembered and passed only where the program allows it
+  (`mayObserve`): a week after that close for a warmed-up series; for one
+  still warming up, only onto the one close the program allows at that
+  moment (`restartTarget`: where a new series would start, or on a period
+  under about eight hours the close after the last one a week old), where
+  its warm-up starts again. Each post is the first close, in order, that the
+  program would take and that is not known unpostable; the search looks past
+  any number of those (up to 4096 indices, plus that one target) and asks
+  Hermes at most ten times per series per pass. Pending
+  closes none of which may be taken yet are waiting, not a failure.
+  Learning runs first, so a round opening at yesterday's close finds it
+  counted.
 - **Open.** A round's opening price is THE update at `opens_at`, and the open
   must land within five minutes of it. The keeper waits while the series is
   still warming up or has not learned the last close (`openBlocker`), since

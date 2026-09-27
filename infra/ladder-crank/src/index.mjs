@@ -72,7 +72,7 @@ export function chainSenders(connection, payer) {
      * VAA post it was moved to a transaction of its own, without the heap frame
      * it needs. So the builder only posts; the consume transaction is ours.
      */
-    async postAndConsume(vaas, feedHex, makeIxs) {
+    async postAndConsume(vaas, feedHex, makeIxs, units = 200_000) {
       const receiver = new PythSolanaReceiver({ connection, wallet: new Wallet(payer) });
       const builder = receiver.newTransactionBuilder({ closeUpdateAccounts: false });
       if (FULL) await builder.addPostPriceUpdates(vaas);
@@ -81,7 +81,7 @@ export function chainSenders(connection, payer) {
       const posted = await builder.buildVersionedTransactions({ computeUnitPriceMicroLamports: PRIORITY });
       try {
         await receiver.provider.sendAll(posted, { skipPreflight: false });
-        return await sendAndConfirmTransaction(connection, new Transaction().add(...stook.withHeap(makeIxs(priceUpdate), 200_000, PRIORITY)), [payer]);
+        return await sendAndConfirmTransaction(connection, new Transaction().add(...stook.withHeap(makeIxs(priceUpdate), units, PRIORITY)), [payer]);
       } finally {
         // Rent back, whether or not the consume (or part of the post) landed:
         // the price update account and, when fully verified, the encoded VAA the
@@ -93,6 +93,32 @@ export function chainSenders(connection, payer) {
       }
     },
   };
+}
+
+// Hermes requests per series per learn pass, and how many round indices one
+// search for the next close may look through, from the series' last close
+// on (pure arithmetic; only the chosen close costs a request).
+export const LEARN_FETCHES = 10;
+export const LEARN_SCAN = 4096;
+
+/**
+ * The closes a series may be asked to take next, oldest first:
+ * `pendingObservations` from its last close, up to `LEARN_SCAN`, and for a
+ * series still warming up the one close the program would let it jump to now
+ * (`restartTarget`), wherever that is: after a long gap on a short period it
+ * lies past any scan from the last close.
+ */
+export function learnCandidates(sdk, s, now, skippedTo = -1) {
+  // Past the last close known unpostable: every close between it and the
+  // last close learned is known unpostable too (the first close the program
+  // would take is always the earliest, so none was passed over), and starting
+  // there keeps a run longer than the scan from hiding what follows it.
+  const from = s.lastAt > 0n && skippedTo >= 0 && sdk.closeOf(s, skippedTo) > s.lastAt ? { ...s, lastAt: sdk.closeOf(s, skippedTo) } : s;
+  const head = sdk.pendingObservations(from, now, LEARN_SCAN);
+  if (s.lastAt <= 0n || sdk.warmedUp(s)) return head;
+  const target = sdk.restartTarget(s, now);
+  if (head.includes(target)) return head;
+  return [...head.filter((i) => i < target), target, ...head.filter((i) => i > target)];
 }
 
 /** `--plan` alone, or any of the modes that send; never both. */
@@ -127,7 +153,7 @@ export function createKeeper({ connection, scanner, payer, sendTx, postAndConsum
   const stook = sdk;
   const refuse = (what) => { throw new Error(`plan mode sends nothing (${what})`); };
   const send = (tx) => (plan ? refuse("transaction") : sendTx(tx));
-  const post = (vaas, feedHex, makeIxs) => (plan ? refuse("oracle post") : postAndConsume(vaas, feedHex, makeIxs));
+  const post = (vaas, feedHex, makeIxs, units) => (plan ? refuse("oracle post") : postAndConsume(vaas, feedHex, makeIxs, units));
   const sendPlain = (ix, units) => send(new Transaction().add(...stook.withHeap([ix], units)));
 
   // A step the program keeps refusing is not retried every pass: each failure
@@ -325,10 +351,11 @@ export function createKeeper({ connection, scanner, payer, sendTx, postAndConsum
   // for each close it has not seen, fetch the Pyth update that is the price at
   // that second (Hermes keeps history) and submit it. The program checks it
   // against the settlement rule, so what is submitted is not a choice. A close
-  // Pyth was silent across can never be submitted; it is skipped here and the
-  // series learns from the next one. A new series backfills its first closes
-  // from history, so it can take rounds as soon as it has twenty.
+  // whose update can never be posted is remembered and passed over where the
+  // program allows it. A new series backfills its first closes from history,
+  // so it can take rounds as soon as it has twenty.
   const unobservable = new Set();
+  const skippedTo = new Map(); // series → the latest close known unpostable
   async function learn() {
     if (plan) refuse("learn");
     let failures = 0;
@@ -338,27 +365,30 @@ export function createKeeper({ connection, scanner, payer, sendTx, postAndConsum
       { memcmp: { offset: 0, bytes: bs58(stook.SERIES_DISCRIMINATOR) } },
     ] });
     for (const { pubkey, account } of all) {
-      const s = stook.decodeSeries(account.data);
+      let s = stook.decodeSeries(account.data);
       const feed = hex(s.feedId);
-      // Closes are taken strictly in order, each from the one Pyth update that
-      // is its price; the program decides whether it teaches a return or only
-      // moves the series on. A close whose update cannot be posted at all
-      // (retired guardian set) can be passed once it is a week old, and by a
-      // series still warming up only onto a close a new series could start
-      // from; until the program would take the jump (`mayObserve`, on the
-      // series as it stands now), wait.
-      let skipped = false;
-      for (const index of stook.pendingObservations(s, now, 10)) {
-        const key = `${pubkey.toBase58()}:${index}`;
-        const at = stook.closeOf(s, index);
-        if (unobservable.has(key)) { skipped = true; continue; }
-        if (skipped) {
-          const fresh = await connection.getAccountInfo(pubkey);
-          if (!stook.mayObserve(fresh ? stook.decodeSeries(fresh.data) : s, index, now)) break;
-          skipped = false;
+      const name = pubkey.toBase58();
+      // Each post is the first close, in order, that the program would take
+      // now (`mayObserve`, on the series as it stands) and that is not known
+      // to be unpostable. Closes known unpostable cost nothing to pass over,
+      // nor do those the program would refuse (a jump over a close younger
+      // than a week, or one a series still warming up may not start from),
+      // so the search reaches a permitted close however many come first.
+      // Hermes is asked at most `LEARN_FETCHES` times per series per pass.
+      for (let fetches = 0; ; ) {
+        const pending = learnCandidates(stook, s, now, skippedTo.get(name) ?? -1);
+        const index = pending.find((i) => !unobservable.has(`${name}:${i}`) && stook.mayObserve(s, i, now));
+        if (index === undefined) {
+          // Nothing the program would take yet: waiting (a week to pass, the
+          // backfill window to reach), not failing.
+          if (pending.some((i) => !unobservable.has(`${name}:${i}`))) console.log(name.slice(0, 8), "waiting: no pending close may be taken yet");
+          break;
         }
+        const key = `${name}:${index}`;
         if (waiting(key)) { if (failing(key)) failures++; break; }
-        const tag = `${pubkey.toBase58().slice(0, 8)} observe ${new Date(Number(at) * 1000).toISOString()}`;
+        if (fetches++ >= LEARN_FETCHES) break;
+        const at = stook.closeOf(s, index);
+        const tag = `${name.slice(0, 8)} observe ${new Date(Number(at) * 1000).toISOString()}`;
         try {
           const { parsed, vaas } = await fetchUpdate(`/v2/updates/price/${at}`, feed);
           // Hermes answering without the update, or without its predecessor's
@@ -370,7 +400,10 @@ export function createKeeper({ connection, scanner, payer, sendTx, postAndConsum
           // simulation; that clears in seconds, so try again at once.
           for (let attempt = 0; ; attempt++) {
             try {
-              console.log(tag, await post(vaas, feed, (price) => [stook.observeSeriesIx(pubkey, payer.publicKey, price, index)]));
+              // A weekday-clock series still warming up counts trading days
+              // back on chain (anchoring, restarting): some 300-410k units.
+              const units = s.clock === stook.CLOCK_NEW_YORK_WEEKDAYS && !stook.warmedUp(s) ? 600_000 : 200_000;
+              console.log(tag, await post(vaas, feed, (price) => [stook.observeSeriesIx(pubkey, payer.publicKey, price, index)], units));
               succeeded(key);
               break;
             } catch (e) {
@@ -382,11 +415,14 @@ export function createKeeper({ connection, scanner, payer, sendTx, postAndConsum
           const why = `${e?.message ?? e} ${(e?.logs ?? []).join(" ")}`;
           // Some closes can never be verified: signed by a Wormhole guardian set
           // the receiver no longer accepts, or not the settlement instant after
-          // all. Skip those for good; retry anything else next pass, in order.
+          // all. Remember those for good and search on; retry anything else
+          // next pass, in order.
           if (/GuardianSetExpired|OracleWrongFeed|SeriesAlreadyObserved/.test(why)) {
             unobservable.add(key);
-            skipped = true;
+            if (index > (skippedTo.get(name) ?? -1)) skippedTo.set(name, index);
             console.log(tag, "skipped for good:", (why.match(/Error Code: (\w+)/) ?? [])[1] ?? "unverifiable");
+            const fresh = await connection.getAccountInfo(pubkey);
+            if (fresh) s = stook.decodeSeries(fresh.data);
             continue;
           }
           console.error(tag, "failed:", e?.message ?? e);
@@ -394,6 +430,13 @@ export function createKeeper({ connection, scanner, payer, sendTx, postAndConsum
           failures++;
           break;
         }
+        // The next close is chosen from the series as the program left it. A
+        // read that does not show this close taken yet ends the series' turn,
+        // rather than fetch the same close again.
+        const fresh = await connection.getAccountInfo(pubkey);
+        const next = fresh ? stook.decodeSeries(fresh.data) : null;
+        if (!next || next.lastAt !== at) break;
+        s = next;
       }
     }
     return failures;
