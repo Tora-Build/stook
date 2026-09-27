@@ -134,6 +134,7 @@ pub struct SeriesObserved {
     pub series: Pubkey,
     pub index: u32,
     pub price: i64,
+    /// `Series::variance`: zero while a restarted warm-up has learned nothing.
     pub var_wad: i128,
     pub observations: u32,
 }
@@ -162,6 +163,6 @@ pub fn series_observe_handler(ctx: Context<SeriesObserve>, index: u32) -> Result
     } else {
         s.rebase(p.price, p.exponent, at);
     }
-    emit!(SeriesObserved { series: s.key(), index, price: p.price, var_wad: s.var_wad, observations: s.observations });
+    emit!(SeriesObserved { series: s.key(), index, price: p.price, var_wad: s.variance(), observations: s.observations });
     Ok(())
 }

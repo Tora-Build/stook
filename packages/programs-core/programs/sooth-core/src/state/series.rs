@@ -44,9 +44,11 @@ pub const WARMUP_OBSERVATIONS: u32 = 20;
 /// all (signed by a Wormhole guardian set since retired): a series past its
 /// first close may pass over closes once they are this old. Only a keeper
 /// outage this long leaves such a close unsubmitted. A warmed-up series
-/// learns on across the gap; one still warming up starts its warm-up again
-/// from the close it lands on, by the rule a new series starts by, so a
-/// skip moves where warm-up starts and never picks which returns it counts.
+/// learns on across the gap; one still warming up lands only on the one close
+/// a new series could start from now past a close this old
+/// (`restart_target`) and starts its warm-up again there, never to go back
+/// before it (`RESTARTED`). A skip moves where warm-up starts, to
+/// a place nobody picks, and never picks which returns it counts.
 pub const SKIP_AFTER_SECS: i64 = 7 * 24 * 60 * 60;
 
 /// How far back a series that has learned nothing may start learning from.
@@ -56,6 +58,14 @@ pub const BACKFILL_WINDOW_SECS: i64 = 45 * 24 * 60 * 60;
 /// print or a broken feed, not an asset.
 pub const VAR_MIN: i128 = 1_000_000_000_000;
 pub const VAR_MAX: i128 = 90_000_000_000_000_000;
+
+/// `var_wad` of a series whose warm-up a jump restarted (`restarts_at`) and
+/// which has learned no return since. A real variance is never negative, so
+/// the mark needs no field of its own: it reads as zero variance, and it
+/// makes the restart close a floor no later close may go back under. The
+/// first return learned replaces it, and from then on `observations > 0`
+/// keeps the series moving forward.
+pub const RESTARTED: i128 = -1;
 
 #[account]
 #[derive(Debug)]
@@ -73,7 +83,10 @@ pub struct Series {
     pub bump: u8,
     /// Variance of daily log returns, WAD. Learned only from Pyth closing
     /// prices, checked on chain (`observe`): nobody supplies it, nobody can
-    /// reset it. Zero until the first return is seen.
+    /// reset it. Zero until the first return is seen. `RESTARTED` (negative)
+    /// while a warm-up restarted by a jump has learned no return since: a
+    /// variance of zero, and a series that never goes back before `last_at`.
+    /// Read it through `variance()`.
     pub var_wad: i128,
     /// The last settlement observed: price, its exponent, and when.
     pub last_price: i64,
@@ -138,7 +151,8 @@ impl Series {
     /// `WARMUP_OBSERVATIONS` rounds back and inside `BACKFILL_WINDOW_SECS`, so
     /// it warms up from Pyth's history rather than waiting a month, and
     /// nobody can start it late to delay that. Until its first return it may
-    /// start again from an earlier close.
+    /// start again from an earlier close, unless a jump restarted its warm-up:
+    /// the close it restarted at is a floor (`RESTARTED`).
     pub fn may_observe(&self, index: u32, now: i64) -> bool {
         if !self.has_round(index) {
             return false;
@@ -147,7 +161,11 @@ impl Series {
         if at > now {
             return false;
         }
-        let may_start = || at >= now - BACKFILL_WINDOW_SECS && index <= self.rounds_back(self.index_at_or_before(now), WARMUP_OBSERVATIONS);
+        // Where a new series may start from: at least WARMUP_OBSERVATIONS
+        // rounds back, so it is warm by now, and inside the backfill window.
+        // Computed only off the in-order path: on a weekday clock counting
+        // twenty rounds back costs more than the rest of an observe.
+        let may_start = || at >= now - BACKFILL_WINDOW_SECS && index <= self.frontier(now);
         let Some(last) = (self.last_at > 0).then(|| self.index_of(self.last_at)).flatten() else {
             return may_start();
         };
@@ -155,22 +173,54 @@ impl Series {
             return false;
         }
         if index < last {
-            return self.observations == 0 && may_start();
+            return self.observations == 0 && !self.restarted() && may_start();
         }
         let next = self.next_round(last);
         if index == next {
             return true;
         }
         // A jump, only over closes so old that their updates may no longer be
-        // postable. A series still warming up starts again where it lands
-        // (`restarts_at`), so only where a new series may start: otherwise
-        // one unpostable close would leave it cold for good, and a jump
-        // could not be used to start it late.
+        // postable.
         let mut prev = index - 1;
         while prev > last && !self.has_round(prev) {
             prev -= 1;
         }
-        self.close_of(prev) <= now - SKIP_AFTER_SECS && (self.warmed_up() || may_start())
+        if self.close_of(prev) > now - SKIP_AFTER_SECS {
+            return false;
+        }
+        // A series still warming up starts again where it lands
+        // (`restarts_at`), so only exactly on `restart_target`: otherwise one
+        // unpostable close would leave it cold for good, and a jump could not
+        // be used to start it late, nor to pick where its warm-up starts.
+        //
+        // Nor can a jump be used to hold a series cold. A restart lands on the
+        // target and nothing may go back under it (`RESTARTED`), so another
+        // needs the target at least two rounds past the series. At a fixed
+        // clock that never happens: anyone gets at most one forced restart
+        // per recovery, and the next close in order is open to everyone at
+        // once. The target moves one round a round, so another restart is
+        // possible only while nobody takes the series forward for two
+        // rounds; a series kept up to date stays past it, and within a week
+        // of now it has no close old enough to jump over at all.
+        // The target is never past the frontier, so it is a close a new series
+        // may start from once it is inside the backfill window.
+        self.warmed_up() || (at >= now - BACKFILL_WINDOW_SECS && index == self.restart_target(now))
+    }
+
+    /// Where a new series would start from at `now`: `WARMUP_OBSERVATIONS`
+    /// rounds back from the latest close.
+    pub fn frontier(&self, now: i64) -> u32 {
+        self.rounds_back(self.index_at_or_before(now), WARMUP_OBSERVATIONS)
+    }
+
+    /// The one close a series still warming up may jump to at `now`: the
+    /// latest that is both no later than the frontier and just past a close
+    /// at least `SKIP_AFTER_SECS` old. On a daily clock that is the frontier
+    /// itself; on a period under about eight hours the frontier is never a
+    /// week past anything, so it is the close after the last one a week old.
+    /// Either way one close per clock, moving one round a round.
+    pub fn restart_target(&self, now: i64) -> u32 {
+        self.frontier(now).min(self.next_round(self.index_at_or_before(now - SKIP_AFTER_SECS)))
     }
 
     /// Is the close at `at` a jump by a series still warming up, past the
@@ -186,10 +236,11 @@ impl Series {
         }
     }
 
-    /// Forget what warm-up has learned and start again from the close at `at`.
+    /// Forget what warm-up has learned and start again from the close at `at`,
+    /// marked (`RESTARTED`) so that nothing goes back before it.
     fn restart(&mut self, price: i64, expo: i32, at: i64) {
         self.observations = 0;
-        self.var_wad = 0;
+        self.var_wad = RESTARTED;
         self.last_price = price;
         self.last_expo = expo;
         self.last_at = at;
@@ -213,7 +264,7 @@ impl Series {
     pub fn rebase(&mut self, price: i64, expo: i32, at: i64) {
         if price > 0 && self.restarts_at(at) {
             self.restart(price, expo, at);
-        } else if price > 0 && (at > self.last_at || self.observations == 0) {
+        } else if price > 0 && (at > self.last_at || (self.observations == 0 && !self.restarted())) {
             self.last_price = price;
             self.last_expo = expo;
             self.last_at = at;
@@ -245,6 +296,18 @@ impl Series {
         self.observations >= WARMUP_OBSERVATIONS && self.var_wad > 0
     }
 
+    /// The variance of daily log returns, WAD: `var_wad`, with the restart
+    /// mark read as the zero it stands for.
+    pub fn variance(&self) -> i128 {
+        self.var_wad.max(0)
+    }
+
+    /// Did a jump restart its warm-up, with no return learned since? Then
+    /// nothing may go back before `last_at`.
+    pub fn restarted(&self) -> bool {
+        self.var_wad < 0
+    }
+
     /// Fold a closing price into the variance: the squared log return since
     /// the last one, scaled to a day. During warm-up a plain average of the
     /// returns seen; after it, weighted in at 6%. An observation older
@@ -259,9 +322,9 @@ impl Series {
         // Until a series has learned one return, its only close is a starting
         // point: an earlier close may take its place (so a backfill that lost
         // the race to a later close can still start from the beginning).
-        // After that, closes are taken in order only.
+        // After that, and after a restart, closes are taken in order only.
         if at < self.last_at {
-            if self.observations > 0 {
+            if self.observations > 0 || self.restarted() {
                 return Ok(());
             }
             self.last_price = price;
@@ -282,10 +345,11 @@ impl Series {
             let r2_day = wad_mul(r, r)?.checked_mul(DAY as i128).ok_or(MathError::Overflow)? / self.span_secs(at) as i128;
             let r2 = r2_day.min(VAR_MAX);
             let n = self.observations as i128;
+            let var = self.variance();
             let v = if self.observations < WARMUP_OBSERVATIONS {
-                (self.var_wad * n + r2) / (n + 1)
+                (var * n + r2) / (n + 1)
             } else {
-                (VAR_KEEP_NUM * self.var_wad + (VAR_KEEP_DEN - VAR_KEEP_NUM) * r2) / VAR_KEEP_DEN
+                (VAR_KEEP_NUM * var + (VAR_KEEP_DEN - VAR_KEEP_NUM) * r2) / VAR_KEEP_DEN
             };
             self.var_wad = v.clamp(VAR_MIN, VAR_MAX);
             self.observations = self.observations.saturating_add(1);
@@ -386,7 +450,7 @@ mod tests {
         assert!(!s.may_observe(d + 22, later), "too recent to start from");
         // Landing there teaches no return over the gap: warm-up starts again.
         s.observe(150_000, -2, s.close_of(d + 3)).unwrap();
-        assert_eq!((s.observations, s.var_wad, s.last_at), (0, 0, s.close_of(d + 3)));
+        assert_eq!((s.observations, s.var_wad, s.last_at), (0, RESTARTED, s.close_of(d + 3)));
         s.observe(151_000, -2, s.close_of(d + 4)).unwrap();
         assert_eq!(s.observations, 1);
         // A close Pyth was unsure about starts it again the same way.
@@ -406,6 +470,131 @@ mod tests {
         assert!(w.may_observe(d + 1, w.close_of(d + 1) + 60));
         w.observe(101_000, -2, w.close_of(d + 2)).unwrap();
         assert_eq!(w.observations, WARMUP_OBSERVATIONS + 1);
+    }
+
+    /// A restart is a floor. The auditor's cycle: a backfill four closes in
+    /// from 40 back, an outsider jumps it to 20 back (a restart), then tries
+    /// to anchor it at 40 back again to undo the backfill, and to restart it
+    /// once more. Neither is allowed; the series warms up forward from the
+    /// restart, and never-restarted anchoring is untouched.
+    #[test]
+    fn a_restart_is_a_floor_nothing_goes_back_under() {
+        let d = days_from_civil(2026, 9, 1) as u32;
+        let n = d + 40;
+        let mut s = daily(CLOCK_UTC, 0);
+        s.var_wad = 0;
+        let now = s.close_of(n) + 60;
+        let px = |i: u32| 100_000 + (i % 2) as i64 * 1_500;
+        for i in n - 40..=n - 37 {
+            assert!(s.may_observe(i, now));
+            s.observe(px(i), -2, s.close_of(i)).unwrap();
+        }
+        assert_eq!(s.observations, 3);
+        // The jump lands only exactly where a new series would start now.
+        assert!(!s.may_observe(n - 25, now), "not before the frontier");
+        assert!(!s.may_observe(n - 19, now), "not after it");
+        assert!(s.may_observe(n - 20, now));
+        s.observe(px(n - 20), -2, s.close_of(n - 20)).unwrap();
+        assert_eq!((s.observations, s.var_wad, s.variance(), s.last_at), (0, RESTARTED, 0, s.close_of(n - 20)));
+        assert!(s.restarted() && !s.warmed_up());
+        // Nothing goes back under it: not by may_observe, observe or rebase.
+        for i in [n - 40, n - 39, n - 30, n - 21] {
+            assert!(!s.may_observe(i, now), "{i}: back under the restart");
+        }
+        let before = (s.last_at, s.last_price, s.observations, s.var_wad);
+        s.observe(99_000, -2, s.close_of(n - 40)).unwrap();
+        s.rebase(99_000, -2, s.close_of(n - 40));
+        assert_eq!((s.last_at, s.last_price, s.observations, s.var_wad), before);
+        // Nor a second restart at this clock: no close past the next is a
+        // place a new series may start.
+        for i in n - 18..=n {
+            assert!(!s.may_observe(i, now), "{i}: a second jump");
+        }
+        // A close whose update was unsure moves it on and keeps the floor.
+        assert!(s.may_observe(n - 19, now));
+        s.rebase(px(n - 19), -2, s.close_of(n - 19));
+        assert_eq!((s.observations, s.var_wad, s.last_at), (0, RESTARTED, s.close_of(n - 19)));
+        assert!(!s.may_observe(n - 20, now));
+        // The first return starts variance from nothing, not from the mark.
+        s.observe(px(n - 18), -2, s.close_of(n - 18)).unwrap();
+        let mut fresh = daily(CLOCK_UTC, 0);
+        fresh.var_wad = 0;
+        fresh.observe(px(n - 19), -2, 1_000).unwrap();
+        fresh.observe(px(n - 18), -2, 1_000 + DAY).unwrap();
+        assert_eq!((s.observations, s.var_wad), (1, fresh.var_wad));
+        assert!(s.var_wad >= VAR_MIN && !s.restarted());
+        // And forward to warm by now.
+        for i in n - 17..=n {
+            assert!(s.may_observe(i, now), "{i}");
+            s.observe(px(i), -2, s.close_of(i)).unwrap();
+        }
+        // One close was only a rebase, so one more day to go.
+        assert!(s.observations == 19 && !s.warmed_up());
+        let later = s.close_of(n + 1) + 60;
+        assert!(s.may_observe(n + 1, later));
+        s.observe(px(n + 1), -2, s.close_of(n + 1)).unwrap();
+        assert!(s.warmed_up());
+
+        // A series never restarted may still anchor earlier before its first
+        // return, as a backfill that lost the race to a later close does.
+        let mut c = daily(CLOCK_UTC, 0);
+        c.var_wad = 0;
+        c.observe(px(n - 20), -2, c.close_of(n - 20)).unwrap();
+        assert!(!c.restarted());
+        assert!(c.may_observe(n - 40, now));
+        c.observe(px(n - 40), -2, c.close_of(n - 40)).unwrap();
+        assert_eq!((c.last_at, c.observations), (c.close_of(n - 40), 0));
+        c.rebase(px(n - 41), -2, c.close_of(n - 41));
+        assert_eq!(c.last_at, c.close_of(n - 41));
+    }
+
+    /// A series on a short period, still warming up, past a lost close: its
+    /// frontier (twenty periods back) is never a week past anything, so the
+    /// jump lands on the close after the last one a week old instead. Still
+    /// exactly one close at any clock, and a floor once taken. On a daily
+    /// clock the target is the frontier.
+    #[test]
+    fn a_short_period_series_past_a_lost_close_restarts_a_week_back() {
+        for period in [3_600u32, 4 * 3_600, 6 * 3_600, 7 * 3_600, 8 * 3_600] {
+            let mut s = daily(CLOCK_UTC, 0);
+            s.period_secs = period;
+            s.var_wad = 0;
+            let p = period as i64;
+            let n = (1_790_000_000 / p) as u32;
+            let px = |i: u32| 100_000 + (i % 2) as i64 * 1_500;
+            let setup_now = s.close_of(n) + 60;
+            for i in n - 25..=n - 20 {
+                assert!(s.may_observe(i, setup_now));
+                s.observe(px(i), -2, s.close_of(i)).unwrap();
+            }
+            assert_eq!(s.observations, 5);
+            let lost = n - 19;
+            for days in [8i64, 10, 20, 44] {
+                let now = s.close_of(lost) + days * DAY + 60;
+                let latest = s.index_at_or_before(now);
+                let ok: Vec<u32> = (lost + 1..=latest).filter(|&i| s.may_observe(i, now)).collect();
+                let target = s.restart_target(now);
+                assert_eq!(ok, vec![target], "period {period}, {days} days on");
+                assert!(target <= s.frontier(now));
+                assert!(s.close_of(target - 1) <= now - SKIP_AFTER_SECS, "past a close a week old");
+                assert!(s.close_of(target) > now - SKIP_AFTER_SECS || target == s.frontier(now), "the latest such");
+                // Landing there restarts warm-up, and nothing goes back under it.
+                let mut r = s.clone();
+                r.observe(px(target), -2, s.close_of(target)).unwrap();
+                assert_eq!((r.observations, r.var_wad, r.last_at), (0, RESTARTED, s.close_of(target)));
+                assert!((lost..target).all(|i| !r.may_observe(i, now)));
+                assert!((target + 2..=latest).all(|i| !r.may_observe(i, now)), "a second jump");
+                assert!(r.may_observe(target + 1, now));
+            }
+        }
+        // Daily, New York and weekday clocks: the target is the frontier.
+        for clock in [CLOCK_UTC, CLOCK_NEW_YORK, CLOCK_NEW_YORK_WEEKDAYS] {
+            let s = daily(clock, 16 * 3600);
+            for day in 0..30 {
+                let now = s.close_of(days_from_civil(2026, 11, 1) as u32 + day) + 60;
+                assert_eq!(s.restart_target(now), s.frontier(now), "clock {clock}, day {day}");
+            }
+        }
     }
 
     #[test]

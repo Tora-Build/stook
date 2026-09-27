@@ -520,7 +520,7 @@ pub fn open_handler(ctx: Context<LadderOpen>) -> Result<()> {
         }
         // Over the round's own window, not the time left when someone opened
         // it: the width is the round's, not the opener's.
-        let (step_bps, var_bands) = math(band_width(ctx.accounts.series.var_wad, l.settles_at - l.opens_at))?;
+        let (step_bps, var_bands) = math(band_width(ctx.accounts.series.variance(), l.settles_at - l.opens_at))?;
         let var_bands_e9 = (var_bands / 1_000_000_000).max(1) as u64;
         l.step_bps = step_bps;
         l.var_bands_e9 = var_bands_e9;

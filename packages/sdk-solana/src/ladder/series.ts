@@ -24,6 +24,14 @@ const DISC = {
 /** Closes a series learns from before it takes a round (`WARMUP_OBSERVATIONS`). */
 export const WARMUP_OBSERVATIONS = 20;
 export const warmedUp = (s: Pick<SeriesAccount, "observations" | "varWad">) => s.observations >= WARMUP_OBSERVATIONS && s.varWad > 0n;
+/** `varWad` of a series whose warm-up a jump restarted and which has learned
+ *  no return since (`RESTARTED`): zero variance, and nothing may go back
+ *  before its `lastAt`. */
+export const RESTARTED = -1n;
+/** `Series::restarted`: a jump restarted its warm-up, and it has learned no return since. */
+export const restarted = (s: Pick<SeriesAccount, "varWad">) => s.varWad < 0n;
+/** `Series::variance`: the variance of daily log returns (WAD), the restart mark read as zero. */
+export const seriesVariance = (s: Pick<SeriesAccount, "varWad">) => (s.varWad > 0n ? s.varWad : 0n);
 
 export const CLOCK_UTC = 0;
 export const CLOCK_NEW_YORK = 1;
@@ -138,7 +146,8 @@ export interface SeriesAccount {
   closeSecs: number;
   clock: number;
   active: boolean;
-  /** Variance of daily log returns, WAD. */
+  /** Variance of daily log returns, WAD, as stored: `RESTARTED` (negative)
+   *  after a restart until the next return. Read it with `seriesVariance`. */
   varWad: bigint;
   lastPrice: bigint;
   lastExpo: number;
@@ -320,8 +329,9 @@ export function pendingObservations(s: SeriesAccount, now: bigint, max = 40, set
   // series that has learned nothing yet backfills from the start, even before
   // a close it has already anchored on (re-anchoring there, then walking
   // forward through every day, its old anchor included); after that, only the
-  // days after the last one learned, in order.
-  const cold = s.observations === 0;
+  // days after the last one learned, in order. So is one whose warm-up a jump
+  // restarted: nothing goes back before the close it restarted at.
+  const cold = s.observations === 0 && !restarted(s);
   let from = !cold ? indexAtOrBefore(s, s.lastAt) + 1 : latest - backfill;
   // A weekday series skips weekends when counting its backfill.
   if (cold) { let n = 0; for (from = latest; from > latest - 3 * backfill && n < backfill; from--) if (hasRound(s, from)) n++; }
@@ -332,8 +342,8 @@ export function pendingObservations(s: SeriesAccount, now: bigint, max = 40, set
 
 /** A series past its first close may pass over closes this old, whose
  *  updates may no longer be postable (`Series::may_observe`); otherwise every
- *  close is taken. One still warming up lands only where a new series may
- *  start, and starts its warm-up again there. */
+ *  close is taken. One still warming up lands only on `restartTarget`, and
+ *  starts its warm-up again there, never to go back before it. */
 export const SKIP_AFTER_SECS = 7n * 86_400n;
 /** How far back a series that has learned nothing may start (`BACKFILL_WINDOW_SECS`). */
 export const BACKFILL_WINDOW_SECS = 45n * 86_400n;
@@ -354,28 +364,47 @@ export function roundsBack(s: Pick<SeriesAccount, "periodSecs" | "clock">, index
   return i;
 }
 
+/** `Series::frontier`: where a new series would start from at `now`. */
+export function seriesFrontier(s: SeriesAccount, now: bigint): number {
+  return roundsBack(s, indexAtOrBefore(s, now), WARMUP_OBSERVATIONS);
+}
+
+/**
+ * `Series::restart_target`: the one close a series still warming up may jump
+ * to at `now`, the latest both no later than the frontier and just past a
+ * close at least `SKIP_AFTER_SECS` old. The frontier itself on a daily clock;
+ * a week back on a period under about eight hours.
+ */
+export function restartTarget(s: SeriesAccount, now: bigint): number {
+  let next = indexAtOrBefore(s, now - SKIP_AFTER_SECS) + 1;
+  while (!hasRound(s, next)) next++;
+  return Math.min(seriesFrontier(s, now), next);
+}
+
 /**
  * `Series::may_observe`: may the close of `index` be taken at `now`? In
  * order after the first close; a jump only over closes at least
  * `SKIP_AFTER_SECS` old (the close just before `index`), and for a series
- * still warming up only onto a close a new series could start from (where
- * its warm-up starts again).
+ * still warming up only onto `restartTarget` (where its warm-up starts
+ * again). Before its first return a series may anchor earlier, unless a jump
+ * restarted it.
  */
 export function mayObserve(s: SeriesAccount, index: number, now: bigint): boolean {
   if (!hasRound(s, index)) return false;
   const at = closeOf(s, index);
   if (at > now) return false;
-  const mayStart = () => at >= now - BACKFILL_WINDOW_SECS && index <= roundsBack(s, indexAtOrBefore(s, now), WARMUP_OBSERVATIONS);
+  const mayStart = () => at >= now - BACKFILL_WINDOW_SECS && index <= seriesFrontier(s, now);
   const last = s.lastAt > 0n ? indexOfClose(s, s.lastAt) : null;
   if (last === null) return mayStart();
   if (index === last) return false;
-  if (index < last) return s.observations === 0 && mayStart();
+  if (index < last) return s.observations === 0 && !restarted(s) && mayStart();
   let next = last + 1;
   while (!hasRound(s, next)) next++;
   if (index === next) return true;
   let prev = index - 1;
   while (prev > last && !hasRound(s, prev)) prev--;
-  return closeOf(s, prev) <= now - SKIP_AFTER_SECS && (warmedUp(s) || mayStart());
+  if (closeOf(s, prev) > now - SKIP_AFTER_SECS) return false;
+  return warmedUp(s) || (at >= now - BACKFILL_WINDOW_SECS && index === restartTarget(s, now));
 }
 
 /**
