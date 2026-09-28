@@ -8,6 +8,13 @@
 // Telegram channel (TG_CHANNEL, with TG_BOT_TOKEN, from ~/stook-alerts.env),
 // once a day, with the site's link (a link costs nothing there). --dry stops
 // after the video (saved in ~/x-posts/ either way).
+//
+// By hand, to Telegram only, any scene of the studio:
+//   node src/render.mjs live --telegram-only [--still] [--caption file.txt] [--dm]
+// --still sends the scene's last frame as an image; --caption replaces the
+// studio's text; --dm sends to TG_CHAT_ID (the private chat) instead of the
+// channel. Captions are formatted: the first line bold, a contract address
+// tap-to-copy.
 import { chromium } from "playwright-core";
 import { spawn } from "node:child_process";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
@@ -16,8 +23,10 @@ import { dirname, join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
 const kind = process.argv[2];
-const dry = process.argv.includes("--dry");
-if (kind !== "morning" && kind !== "bell") { console.error("usage: render.mjs morning|bell [--dry]"); process.exit(2); }
+const flag = (f) => process.argv.includes(f);
+const dry = flag("--dry"), tgOnly = flag("--telegram-only"), still = flag("--still"), dm = flag("--dm");
+const captionFile = process.argv.includes("--caption") ? process.argv[process.argv.indexOf("--caption") + 1] : null;
+if (!/^[a-z]+$/.test(kind ?? "") || (!tgOnly && !dry && kind !== "morning" && kind !== "bell")) { console.error("usage: render.mjs morning|bell [--dry] | render.mjs <scene> --telegram-only [--still] [--caption file] [--dm]"); process.exit(2); }
 const SITE = process.env.X_POST_URL ?? "https://stookstreet.xyz/x/video";
 const FFMPEG = process.env.FFMPEG ?? join(homedir(), "bin/ffmpeg");
 const FPS = 30;
@@ -35,11 +44,19 @@ async function ask(query, body, headers = {}) {
 }
 const dir = join(homedir(), "x-posts"); mkdirSync(dir, { recursive: true });
 const stamp = new Date().toISOString().slice(0, 10), mp4 = join(dir, `${stamp}-${kind}.mp4`), wav = join(dir, `${stamp}-${kind}.wav`);
-const { TG_BOT_TOKEN: tg, TG_CHANNEL: channel } = process.env, tgDone = join(dir, `${stamp}-${kind}.telegram`);
-const toTelegram = !dry && tg && channel && !existsSync(tgDone);
+const { TG_BOT_TOKEN: tg, TG_CHANNEL, TG_CHAT_ID } = process.env, channel = dm ? TG_CHAT_ID : TG_CHANNEL, tgDone = join(dir, `${stamp}-${kind}.telegram`);
+const toTelegram = !dry && tg && channel && (tgOnly || !existsSync(tgDone));
+if (tgOnly && !toTelegram) { console.error("no Telegram keys or chat (~/stook-alerts.env)"); process.exit(2); }
 let toX = false;
-if (!dry) { const pre = await ask("&check=1").catch((e) => ({ skipped: String(e) })); toX = !!pre.ok; if (!toX) log("x skip:", pre.skipped); }
+if (!dry && !tgOnly) { const pre = await ask("&check=1").catch((e) => ({ skipped: String(e) })); toX = !!pre.ok; if (!toX) log("x skip:", pre.skipped); }
 if (!dry && !toX && !toTelegram) process.exit(0);
+
+/** Telegram HTML: the first line bold, a Solana address tap-to-copy. */
+function telegramHtml(text) {
+  const esc = (t) => t.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  const [head, ...rest] = esc(text).split("\n");
+  return [`<b>${head}</b>`, ...rest].join("\n").replace(/\b[1-9A-HJ-NP-Za-km-z]{32,44}\b/g, (a) => `<code>${a}</code>`);
+}
 
 const browser = await chromium.launch({ args: ["--autoplay-policy=no-user-gesture-required"] });
 let caption;
@@ -50,7 +67,12 @@ try {
   await page.waitForFunction(() => window.autoReady === true, null, { timeout: 60_000 });
   await page.waitForTimeout(1500); // the skyline paints its first frames
   const got = await page.evaluate(([k, t]) => window.autoPoster.fill(k, t), [kind, table]);
-  caption = got.caption;
+  caption = captionFile ? readFileSync(captionFile, "utf8").trim() : got.caption;
+  if (still) {
+    const png = await page.evaluate((t) => window.autoPoster.frame(t), got.dur);
+    writeFileSync(mp4.replace(/\.mp4$/, ".png"), Buffer.from(png.slice(png.indexOf(",") + 1), "base64"));
+    log(`image ${mp4.replace(/\.mp4$/, ".png")}`);
+  } else {
   writeFileSync(wav, Buffer.from(await page.evaluate(() => window.autoPoster.sound()), "base64"));
 
   const ff = spawn(FFMPEG, ["-y", "-loglevel", "error", "-f", "image2pipe", "-framerate", String(FPS), "-i", "-", "-i", wav,
@@ -64,6 +86,7 @@ try {
   }
   ff.stdin.end(); await done;
   log(`video ${mp4} (${frames} frames)`);
+  }
 } finally { await browser.close(); }
 
 writeFileSync(mp4.replace(/\.mp4$/, ".txt"), caption);
@@ -77,11 +100,13 @@ if (toX) {
 if (toTelegram) {
   const form = new FormData();
   form.append("chat_id", channel);
-  form.append("caption", caption.replace(/link in bio/g, "stookstreet.xyz"));
-  form.append("supports_streaming", "true");
-  form.append("video", new Blob([readFileSync(mp4)], { type: "video/mp4" }), `stook-${kind}.mp4`);
-  const r = await fetch(`https://api.telegram.org/bot${tg}/sendVideo`, { method: "POST", body: form, signal: AbortSignal.timeout(120_000) }).then((x) => x.json()).catch((e) => ({ ok: false, description: String(e) }));
-  if (r.ok) { writeFileSync(tgDone, String(r.result?.message_id ?? "")); log("telegram: posted", r.result?.message_id); }
+  form.append("caption", telegramHtml(caption.replace(/link in bio/g, "stookstreet.xyz")));
+  form.append("parse_mode", "HTML");
+  if (still) form.append("photo", new Blob([readFileSync(mp4.replace(/\.mp4$/, ".png"))], { type: "image/png" }), `stook-${kind}.png`);
+  else { form.append("supports_streaming", "true"); form.append("video", new Blob([readFileSync(mp4)], { type: "video/mp4" }), `stook-${kind}.mp4`); }
+  const r = await fetch(`https://api.telegram.org/bot${tg}/${still ? "sendPhoto" : "sendVideo"}`, { method: "POST", body: form, signal: AbortSignal.timeout(120_000) }).then((x) => x.json()).catch((e) => ({ ok: false, description: String(e) }));
+  if (r.ok && !tgOnly) { writeFileSync(tgDone, String(r.result?.message_id ?? "")); log("telegram: posted", r.result?.message_id); }
+  else if (r.ok) log("telegram: posted", r.result?.message_id);
   else { log("telegram:", r.description); failed = true; }
 }
 if (failed) process.exit(1);
