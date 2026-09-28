@@ -2,6 +2,7 @@
 Description=Stook X post: render today's %i poster and post it
 After=network-online.target
 Wants=network-online.target
+OnFailure=stook-x-alert@%i.service
 
 [Service]
 Type=oneshot

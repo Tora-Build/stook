@@ -30,3 +30,18 @@ and posts it: once a New York day, at most 23 a month, never with a link
 `~/x-posts/`, the log in `~/stook-x.log`. Try one without posting:
 `cd ~/stook/infra/x-poster && set -a && . ~/stook.env && node src/render.mjs bell --dry`.
 Post today's by hand: `sudo systemctl start stook-x@bell`.
+
+## Telegram alerts
+
+`alert.sh` sends to Telegram; `watchdog.sh` calls it, from the timers:
+
+- keeper can't read the chain (no pass for 5 min, restarted), rounds failing
+  for 15 min, keeper wallet under 0.5 SOL (checked every 30 min)
+- price tape stale for 45 min (restarted)
+- Soo's resolver not answering `/health` (every 5 min)
+- an X post that failed (`stook-x@.service` → `OnFailure=stook-x-alert@%i`)
+
+Each problem alerts at most once an hour, and says so again when it recovers.
+Keys: `/home/zak/stook-alerts.env` with `TG_BOT_TOKEN=` and `TG_CHAT_ID=`,
+`chmod 600`, written by hand. Without the file the watchdog stays silent.
+Test: `bash ~/stook/infra/vps/alert.sh --test`.
