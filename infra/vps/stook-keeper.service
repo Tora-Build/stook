@@ -7,6 +7,7 @@ Wants=network-online.target
 User=zak
 WorkingDirectory=/home/zak/stook/infra/ladder-crank
 EnvironmentFile=/home/zak/stook.env
+EnvironmentFile=-/home/zak/stook-alerts.env
 ExecStart=/usr/bin/node /home/zak/stook/infra/ladder-crank/src/index.mjs --watch
 Restart=always
 RestartSec=5

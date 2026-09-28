@@ -1,0 +1,8 @@
+[Unit]
+Description=Stook daily health report, 9:00 New York
+
+[Timer]
+OnCalendar=*-*-* 09:00:00 America/New_York
+
+[Install]
+WantedBy=timers.target

@@ -1,0 +1,6 @@
+[Unit]
+Description=Stook daily health report to Telegram
+
+[Service]
+Type=oneshot
+ExecStart=/home/zak/stook/infra/vps/health.sh

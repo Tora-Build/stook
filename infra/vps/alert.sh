@@ -3,6 +3,8 @@
 # (TG_BOT_TOKEN, TG_CHAT_ID), written by hand, never in the repo.
 #   alert.sh <key> <message>        say something is wrong (once an hour per key)
 #   alert.sh --ok <key> <message>   say it recovered (only if it had alerted)
+#   alert.sh --report <message>     send as is (the daily report)
+#   alert.sh --channel <message>    post to the public channel (TG_CHANNEL)
 #   alert.sh --test                 send a test message
 ENV=/home/zak/stook-alerts.env
 STATE=/home/zak/.stook-alerts
@@ -18,6 +20,8 @@ send() {
 }
 
 case "$1" in
+  --report) send "$2" ;;
+  --channel) [ -n "$TG_CHANNEL" ] && TG_CHAT_ID=$TG_CHANNEL send "$2" ;;
   --test) send "✅ Stook alerts are set up on $(hostname). You'll hear from me when something breaks." ;;
   --ok)
     [ -f "$STATE/$2" ] || exit 0

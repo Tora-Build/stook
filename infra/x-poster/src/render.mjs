@@ -4,11 +4,13 @@
 // poster with today's numbers from stookstreet.xyz, draws it frame by frame
 // and renders its sound offline; ffmpeg joins them into an MP4. The video
 // then goes to stookstreet.xyz/x/video, where the worker holds the X keys,
-// posts it and keeps the daily and monthly limits. --dry stops after the
-// video (saved in ~/x-posts/ either way).
+// posts it and keeps the daily and monthly limits. The same video goes to the
+// Telegram channel (TG_CHANNEL, with TG_BOT_TOKEN, from ~/stook-alerts.env),
+// once a day, with the site's link (a link costs nothing there). --dry stops
+// after the video (saved in ~/x-posts/ either way).
 import { chromium } from "playwright-core";
 import { spawn } from "node:child_process";
-import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
@@ -31,10 +33,13 @@ async function ask(query, body, headers = {}) {
   if (!r.ok) throw new Error(`site ${r.status}: ${text.slice(0, 300)}`);
   return JSON.parse(text);
 }
-if (!dry) { const pre = await ask("&check=1"); if (!pre.ok) { log("skip:", pre.skipped); process.exit(0); } }
-
 const dir = join(homedir(), "x-posts"); mkdirSync(dir, { recursive: true });
 const stamp = new Date().toISOString().slice(0, 10), mp4 = join(dir, `${stamp}-${kind}.mp4`), wav = join(dir, `${stamp}-${kind}.wav`);
+const { TG_BOT_TOKEN: tg, TG_CHANNEL: channel } = process.env, tgDone = join(dir, `${stamp}-${kind}.telegram`);
+const toTelegram = !dry && tg && channel && !existsSync(tgDone);
+let toX = false;
+if (!dry) { const pre = await ask("&check=1").catch((e) => ({ skipped: String(e) })); toX = !!pre.ok; if (!toX) log("x skip:", pre.skipped); }
+if (!dry && !toX && !toTelegram) process.exit(0);
 
 const browser = await chromium.launch({ args: ["--autoplay-policy=no-user-gesture-required"] });
 let caption;
@@ -63,6 +68,20 @@ try {
 
 writeFileSync(mp4.replace(/\.mp4$/, ".txt"), caption);
 if (dry) { log("dry run, not posted:\n" + caption); process.exit(0); }
-const res = await ask(`&text=${encodeURIComponent(caption)}`, readFileSync(mp4), { "content-type": "video/mp4" });
-log("site:", JSON.stringify(res));
-if (!res.posted && !res.skipped) process.exit(1);
+let failed = false;
+if (toX) {
+  const res = await ask(`&text=${encodeURIComponent(caption)}`, readFileSync(mp4), { "content-type": "video/mp4" }).catch((e) => ({ error: String(e) }));
+  log("site:", JSON.stringify(res));
+  if (!res.posted && !res.skipped) failed = true;
+}
+if (toTelegram) {
+  const form = new FormData();
+  form.append("chat_id", channel);
+  form.append("caption", caption.replace(/link in bio/g, "stookstreet.xyz"));
+  form.append("supports_streaming", "true");
+  form.append("video", new Blob([readFileSync(mp4)], { type: "video/mp4" }), `stook-${kind}.mp4`);
+  const r = await fetch(`https://api.telegram.org/bot${tg}/sendVideo`, { method: "POST", body: form, signal: AbortSignal.timeout(120_000) }).then((x) => x.json()).catch((e) => ({ ok: false, description: String(e) }));
+  if (r.ok) { writeFileSync(tgDone, String(r.result?.message_id ?? "")); log("telegram: posted", r.result?.message_id); }
+  else { log("telegram:", r.description); failed = true; }
+}
+if (failed) process.exit(1);

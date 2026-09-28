@@ -45,3 +45,17 @@ Each problem alerts at most once an hour, and says so again when it recovers.
 Keys: `/home/zak/stook-alerts.env` with `TG_BOT_TOKEN=` and `TG_CHAT_ID=`,
 `chmod 600`, written by hand. Without the file the watchdog stays silent.
 Test: `bash ~/stook/infra/vps/alert.sh --test`.
+
+## Telegram: round notes, daily report, channel
+
+With the same keys the box also sends:
+
+- **Round notes** (keeper, `EnvironmentFile=-~/stook-alerts.env`): each round
+  that opens, settles or voids, with its page link; hourly test rounds are
+  skipped. Each note is also written, time-stamped, to `~/stook-events.log`.
+- **Daily report** (`stook-health.timer`, 9:00 New York, `health.sh`): services,
+  keeper pass and health age, wallet SOL, the last 24 h of opens, settles and
+  voids, tape prices and their age, resolver, last X post, load, memory, disk.
+- **Channel**: with `TG_CHANNEL=@StookStreet` in `~/stook-alerts.env` (the bot an
+  admin allowed to post there), the bell and morning videos also go to the
+  channel, once a day each, with the site's link.

@@ -25,7 +25,7 @@
 //   FULL_VERIFICATION=1  post fully verified updates. Required on mainnet, where
 //                        the program accepts nothing less; devnet accepts partial.
 
-import { readFileSync, writeFileSync, realpathSync } from "node:fs";
+import { appendFileSync, readFileSync, writeFileSync, realpathSync } from "node:fs";
 import { homedir } from "node:os";
 import { createRequire } from "node:module";
 import { pathToFileURL } from "node:url";
@@ -149,7 +149,29 @@ const frozen = (account) => account?.data?.[108] === 2;
  * out its backoff after a failure. Waiting on the chain or on Hermes is not a
  * failure.
  */
-export function createKeeper({ connection, scanner, payer, sendTx, postAndConsume, hermes: fetchUpdate = hermes, plan = false, sdk = stook }) {
+// Which coin a feed's rounds are for: the anchors, and the devnet stand-ins
+// (apps/stook/src/lib/coins.ts), for the Telegram notes.
+const FEED_COINS = {
+  "2817b784": ["STOOK", "S&P 500"], "be9b59d1": ["ZCAT", "Zcash"], "f68272be": ["KNOTS", "STONK"], "e7d1138d": ["GP", "Gold"],
+  "e62df6c8": ["STOOK", "BTC"], "ff61491a": ["ZCAT", "ETH"], "ef0d8b6f": ["KNOTS", "SOL"], "dcef50dd": ["GP", "DOGE"],
+};
+const SITE = process.env.SITE_URL ?? "https://stookstreet.xyz";
+
+/** A line for Telegram about a round the keeper just moved; null for rounds
+ *  shorter than six hours (the hourly test series would say it 48 times a day). */
+export function roundNote(step, pubkey, ladder, parsed, extra = "") {
+  if (ladder.settlesAt - ladder.opensAt < 6n * 3600n) return null;
+  const [coin, on] = FEED_COINS[hex(ladder.feedId).slice(0, 8)] ?? ["A", "its feed"];
+  const px = parsed ? Number(parsed.price.price) * 10 ** parsed.price.expo : null;
+  const price = px == null ? "" : ` at ${px.toLocaleString("en-US", { maximumFractionDigits: px < 10 ? 4 : 2 })}`;
+  const when = new Date(Number(ladder.settlesAt) * 1000).toLocaleString("en-US", { timeZone: "America/New_York", weekday: "short", hour: "numeric", minute: "2-digit" });
+  const link = `${SITE}/m/${pubkey.toBase58()}`;
+  if (step === "open") return `🟢 ${coin} round open: ${on}${price}${extra}. Bell ${when} New York.\n${link}`;
+  if (step === "settle") return `🔔 ${coin} round settled: ${on} closed${price}. Winners can collect.\n${link}`;
+  return `⚪ ${coin} round voided${extra}. Everyone can take their money back.\n${link}`;
+}
+
+export function createKeeper({ connection, scanner, payer, sendTx, postAndConsume, hermes: fetchUpdate = hermes, plan = false, sdk = stook, notify = () => {} }) {
   const stook = sdk;
   const refuse = (what) => { throw new Error(`plan mode sends nothing (${what})`); };
   const send = (tx) => (plan ? refuse("transaction") : sendTx(tx));
@@ -167,6 +189,8 @@ export function createKeeper({ connection, scanner, payer, sendTx, postAndConsum
     backoff.set(key, { n, until: Date.now() + Math.min(30_000 * 2 ** (n - 1), 600_000), failing: isFailure });
   };
   const succeeded = (key) => backoff.delete(key);
+  // Telegram notes never hold up or fail a pass.
+  const tell = (text) => { if (text) Promise.resolve().then(() => notify(text)).catch(() => {}); };
 
   async function pass() {
     const now = BigInt(Math.floor(Date.now() / 1000));
@@ -207,6 +231,7 @@ export function createKeeper({ connection, scanner, payer, sendTx, postAndConsum
         if (step === "void") {
           console.log(tag, await sendPlain(stook.voidLadderIx(refs, payer.publicKey)));
           succeeded(key);
+          tell(roundNote("void", pubkey, ladder, null, ladder.status === "seeding" ? " (it never opened)" : ""));
           continue;
         }
         const feed = hex(ladder.feedId);
@@ -226,6 +251,7 @@ export function createKeeper({ connection, scanner, payer, sendTx, postAndConsum
           if (step === "settle" && stook.voidProof(parsed, ladder)) {
             console.log(tag, "cannot settle (" + problem + "); voiding with proof", await post(vaas, feed, (price) => [stook.voidLadderIx(refs, payer.publicKey, price)]));
             succeeded(key);
+            tell(roundNote("void", pubkey, ladder, null, " (Pyth had no clean price at the bell)"));
             continue;
           }
           // Otherwise Hermes has not got it yet, or (an open) Pyth was silent
@@ -236,6 +262,7 @@ export function createKeeper({ connection, scanner, payer, sendTx, postAndConsum
         if (step === "open") {
           console.log(tag, late ? "(late, on a live price)" : "", await post(vaas, feed, (price) => [stook.openLadderIx(refs, payer.publicKey, price, ladder.series)]));
           succeeded(key);
+          tell(roundNote("open", pubkey, ladder, parsed, late ? " (opened late, on a live price)" : ""));
         } else {
           // The settler is paid in the market's quote token. The token account is
           // made in its own transaction first: adding it beside the settle
@@ -248,6 +275,7 @@ export function createKeeper({ connection, scanner, payer, sendTx, postAndConsum
           }
           console.log(tag, await post(vaas, feed, (price) => [stook.settleLadderIx(refs, ladder.series, payer.publicKey, price, ata)]));
           succeeded(key);
+          tell(roundNote("settle", pubkey, ladder, parsed));
         }
       } catch (e) {
         console.error(tag, "failed:", e?.message ?? e);
@@ -493,7 +521,16 @@ export async function main(argv = process.argv.slice(2)) {
   // the public endpoint serves it fine at one scan per pass.
   const scanner = new Connection(process.env.SCAN_RPC_URL ?? "https://api.devnet.solana.com", "confirmed");
   const payer = Keypair.fromSecretKey(Uint8Array.from(JSON.parse(readFileSync(KEYPAIR, "utf8"))));
-  const keeper = createKeeper({ connection, scanner, payer, plan: mode.plan, ...chainSenders(connection, payer) });
+  // Round notes to Telegram when the box has keys (~/stook-alerts.env).
+  const { TG_BOT_TOKEN: tg, TG_CHAT_ID: chat } = process.env;
+  // Each note also goes, time-stamped, to EVENTS_FILE, which the box's daily
+  // report counts.
+  const events = process.env.EVENTS_FILE ?? `${homedir()}/stook-events.log`;
+  const notify = mode.plan ? undefined : async (text) => {
+    try { appendFileSync(events, `${new Date().toISOString()} ${text.split("\n")[0]}\n`); } catch {}
+    if (tg && chat) await fetch(`https://api.telegram.org/bot${tg}/sendMessage`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ chat_id: chat, text, disable_web_page_preview: true }), signal: AbortSignal.timeout(10_000) });
+  };
+  const keeper = createKeeper({ connection, scanner, payer, plan: mode.plan, notify, ...chainSenders(connection, payer) });
 
   if (mode.watch) {
     await watch(keeper, { interval: INTERVAL, beat: () => writeFileSync(HEARTBEAT, String(Date.now())), healthy: () => writeFileSync(HEALTH, String(Date.now())) });
