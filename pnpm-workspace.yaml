@@ -4,5 +4,6 @@ packages:
   - "scripts/devnet"
   - "scripts/backtest"
   - "infra/ladder-crank"
+  - "infra/sim"
   - "infra/tape"
   - "infra/x-poster"

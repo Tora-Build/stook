@@ -1,0 +1,22 @@
+{
+  "name": "@stook/sim",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "A fleet of simulated users on Stook's devnet: callers, traders, houses, starters and collectors trading the daily rounds the way the app does, paced to New York hours and kept clear of the keeper.",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "start": "node src/index.mjs --watch",
+    "once": "node src/index.mjs --once 1",
+    "plan": "node src/index.mjs --plan",
+    "lint": "for f in src/*.mjs test/*.mjs; do node --check \"$f\" || exit 1; done",
+    "test": "node --test test/*.test.mjs"
+  },
+  "dependencies": {
+    "@solana/spl-token": "^0.4.9",
+    "@solana/web3.js": "^1.98.0",
+    "@sooth/sdk-solana": "workspace:*"
+  }
+}

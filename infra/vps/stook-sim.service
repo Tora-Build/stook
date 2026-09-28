@@ -1,0 +1,29 @@
+[Unit]
+Description=Stook sim (a fleet of simulated users trading the devnet rounds)
+After=network-online.target stook-keeper.service
+Wants=network-online.target
+# A config error (no treasury, no mints) exits at once: stop after five
+# tries, and say so on Telegram.
+StartLimitIntervalSec=600
+StartLimitBurst=5
+OnFailure=stook-sim-failed.service
+
+[Service]
+User=zak
+WorkingDirectory=/home/zak/stook/infra/sim
+EnvironmentFile=/home/zak/stook.env
+EnvironmentFile=-/home/zak/stook-alerts.env
+EnvironmentFile=-/home/zak/sim/sim.env
+ExecStart=/usr/bin/node /home/zak/stook/infra/sim/src/index.mjs --watch
+Restart=on-failure
+RestartSec=30
+# On SIGTERM a send in flight gets up to a minute to confirm and be journaled.
+TimeoutStopSec=90
+Nice=10
+MemoryMax=700M
+# One line per state change here; every action goes to ~/sim/actions.jsonl.
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target
