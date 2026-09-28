@@ -199,7 +199,8 @@ export function createSim(deps) {
     const ctx = { cfg, world, profile, bal, j, rng, t: Math.floor(now() / 1000), rates, faucet: deps.faucet, wallet: w.keypair, starters: funders, lines: fleetLines(journal), detail: {} };
     const a = decide(ctx);
     // An action that pays rent beyond the floor (a start) is topped up for it first.
-    if (!plan && a.lamports && bal.lamports < a.lamports + BigInt(Math.round(cfg.solMin * LAMPORTS))) {
+    // Only a fee's room beyond the rent: the floor is for top-ups, not a reason to stop a start.
+    if (!plan && a.lamports && bal.lamports < a.lamports + BigInt(Math.round(Math.min(cfg.solMin, 0.005) * LAMPORTS))) {
       const need = [{ index: profile.index, lamports: a.lamports + BigInt(Math.round(cfg.solTarget * LAMPORTS)) - bal.lamports }];
       if (!(await topUp(need, "rent")).length) { count(a.type, "skip"); record({ at: new Date(now()).toISOString(), wallet: profile.index, persona: profile.persona, action: a.type, coin: a.coin ?? null, skip: "not enough SOL for the rent and no allowance left today", ms: now() - started }); return null; }
       bal.lamports += need[0].lamports;

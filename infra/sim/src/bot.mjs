@@ -182,6 +182,13 @@ async function handle(text) {
 }
 
 async function main() {
+  // `node src/bot.mjs --print /fleet`: one answer as plain text (the daily report uses it).
+  const pi = process.argv.indexOf("--print");
+  if (pi > 0) {
+    const out = String((await handle(process.argv.slice(pi + 1).join(" "))) ?? "");
+    console.log(out.replace(/<[^>]+>/g, "").replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&amp;/g, "&"));
+    process.exit(0);
+  }
   // `node src/bot.mjs --selftest`: every command's answer to the terminal, nothing sent.
   if (process.argv.includes("--selftest")) {
     for (const c of ["/help", "/status", "/fleet", "/activity 5", "/issues", "/rounds", "/wallet 3"]) console.log(`\n===== ${c}\n${await handle(c).catch((e) => "ERROR " + e.stack)}`);

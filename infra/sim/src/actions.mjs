@@ -140,7 +140,7 @@ export function decide(ctx) {
   return buyAction(ctx, coin, profile.persona === "longshot" ? "far" : "near");
 }
 
-/** A starter's round to fund: tomorrow's canonical one when a coin has none, or today's with three hours or more to go. */
+/** A starter's round to fund: tomorrow's canonical one when a coin has none, or today's with 75 minutes or more to go (it opens at once and trades until its lock). */
 function startChoice(ctx, coins) {
   const { t, profile, starters, cfg } = ctx;
   const ny = nyClock(t * 1000);
@@ -149,8 +149,8 @@ function startChoice(ctx, coins) {
     for (const day of [c.tomorrow, c.today]) {
       if (!day || day.round) continue;
       const settlesAt = Number(stook.closeOf(c.series, day.index));
-      // The app's margin (MIN_LEAD_SECS, 15 minutes and 90 s); today's only with three hours left.
-      if (settlesAt - t < (day === c.today ? 3 * 3600 : 15 * 60 + 90) || settlesAt - t > 31 * 86_400) continue;
+      // The app's margin (MIN_LEAD_SECS, 15 minutes and 90 s); today's only with 75 minutes left, so it still trades for an hour.
+      if (settlesAt - t < (day === c.today ? 75 * 60 : 15 * 60 + 90) || settlesAt - t > 31 * 86_400) continue;
       // One starter per coin per day; after noon New York any starter may step in.
       const chosen = starters[Math.floor(unit(cfg.seed, "starter", c.symbol, day.index) * starters.length)];
       if (chosen === profile.index || ny.minute >= 12 * 60) return { coin: c, day };

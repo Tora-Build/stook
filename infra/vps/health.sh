@@ -22,6 +22,9 @@ RES=$(curl -s -m 10 localhost:8790/health | grep -q '"ok":true' && echo "answeri
 XLINE=$(grep '"posted"' "$H/stook-x.log" 2>/dev/null | tail -1)
 XWHEN=${XLINE:0:10}; XID=$(echo "$XLINE" | grep -o '"posted":"[0-9]*"' | cut -d'"' -f4)
 
+# The simulated fleet's day, as the bot's /fleet answers it.
+FLEET=$(cd $H/stook/infra/sim && HOME=$H SIM_DIR=$H/sim timeout 60 /usr/bin/node src/bot.mjs --print /fleet 2>/dev/null | grep -v "^Last:")
+
 MSG="📊 Stook daily check, $(TZ=America/New_York date '+%a %b %-d, %-I:%M %p') New York
 
 $(svc stook-keeper Keeper): last pass $(ago $H/ladder-crank.beat), all rounds OK $(ago $H/ladder-crank.health)
@@ -33,6 +36,8 @@ Last 24h: ${OPENS} opened, ${SETTLES} settled, ${VOIDS} voided
 Prices:
 ${PRICES:-  tape not answering}
 Last X post: ${XWHEN:-none}${XID:+ x.com/StookStreet/status/$XID}
+
+$(printf '%s\n' "$FLEET")
 
 Box: load $(cut -d' ' -f1-3 /proc/loadavg), memory $(free -m | awk '/Mem:/ {printf "%d%%", ($2-$7)*100/$2}'), disk $(df -h / | awk 'NR==2 {print $5}')"
 [ "$1" = --print ] && { echo "$MSG"; exit 0; }
