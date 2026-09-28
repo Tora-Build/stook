@@ -157,10 +157,11 @@ const FEED_COINS = {
 };
 const SITE = process.env.SITE_URL ?? "https://stookstreet.xyz";
 
-/** A line for Telegram about a round the keeper just moved; null for rounds
- *  shorter than six hours (the hourly test series would say it 48 times a day). */
-export function roundNote(step, pubkey, ladder, parsed, extra = "") {
-  if (ladder.settlesAt - ladder.opensAt < 6n * 3600n) return null;
+/** A line for Telegram about a round the keeper just moved; null for rounds of
+ *  a series shorter than six hours (the hourly test series would say it 48
+ *  times a day). A daily round funded late is short too, and still noted. */
+export function roundNote(step, pubkey, ladder, parsed, extra = "", periodSecs = 0) {
+  if (periodSecs > 0 && periodSecs < 6 * 3600) return null;
   const [coin, on] = FEED_COINS[hex(ladder.feedId).slice(0, 8)] ?? ["A", "its feed"];
   const px = parsed ? Number(parsed.price.price) * 10 ** parsed.price.expo : null;
   const price = px == null ? "" : ` at ${px.toLocaleString("en-US", { maximumFractionDigits: px < 10 ? 4 : 2 })}`;
@@ -191,6 +192,9 @@ export function createKeeper({ connection, scanner, payer, sendTx, postAndConsum
   const succeeded = (key) => backoff.delete(key);
   // Telegram notes never hold up or fail a pass.
   const tell = (text) => { if (text) Promise.resolve().then(() => notify(text)).catch(() => {}); };
+  // The note needs the round's series period; a failed read only costs the note.
+  const note = (step, pubkey, ladder, parsed, extra, seriesOf) =>
+    Promise.resolve(seriesOf(ladder.series)).then((s) => tell(roundNote(step, pubkey, ladder, parsed, extra, s?.periodSecs ?? 0))).catch(() => {});
 
   async function pass() {
     const now = BigInt(Math.floor(Date.now() / 1000));
@@ -231,7 +235,7 @@ export function createKeeper({ connection, scanner, payer, sendTx, postAndConsum
         if (step === "void") {
           console.log(tag, await sendPlain(stook.voidLadderIx(refs, payer.publicKey)));
           succeeded(key);
-          tell(roundNote("void", pubkey, ladder, null, ladder.status === "seeding" ? " (it never opened)" : ""));
+          note("void", pubkey, ladder, null, ladder.status === "seeding" ? " (it never opened)" : "", seriesOf);
           continue;
         }
         const feed = hex(ladder.feedId);
@@ -251,7 +255,7 @@ export function createKeeper({ connection, scanner, payer, sendTx, postAndConsum
           if (step === "settle" && stook.voidProof(parsed, ladder)) {
             console.log(tag, "cannot settle (" + problem + "); voiding with proof", await post(vaas, feed, (price) => [stook.voidLadderIx(refs, payer.publicKey, price)]));
             succeeded(key);
-            tell(roundNote("void", pubkey, ladder, null, " (Pyth had no clean price at the bell)"));
+            note("void", pubkey, ladder, null, " (Pyth had no clean price at the bell)", seriesOf);
             continue;
           }
           // Otherwise Hermes has not got it yet, or (an open) Pyth was silent
@@ -262,7 +266,7 @@ export function createKeeper({ connection, scanner, payer, sendTx, postAndConsum
         if (step === "open") {
           console.log(tag, late ? "(late, on a live price)" : "", await post(vaas, feed, (price) => [stook.openLadderIx(refs, payer.publicKey, price, ladder.series)]));
           succeeded(key);
-          tell(roundNote("open", pubkey, ladder, parsed, late ? " (opened late, on a live price)" : ""));
+          note("open", pubkey, ladder, parsed, late ? " (opened late, on a live price)" : "", seriesOf);
         } else {
           // The settler is paid in the market's quote token. The token account is
           // made in its own transaction first: adding it beside the settle
@@ -275,7 +279,7 @@ export function createKeeper({ connection, scanner, payer, sendTx, postAndConsum
           }
           console.log(tag, await post(vaas, feed, (price) => [stook.settleLadderIx(refs, ladder.series, payer.publicKey, price, ata)]));
           succeeded(key);
-          tell(roundNote("settle", pubkey, ladder, parsed));
+          note("settle", pubkey, ladder, parsed, "", seriesOf);
         }
       } catch (e) {
         console.error(tag, "failed:", e?.message ?? e);
