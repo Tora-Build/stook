@@ -1,0 +1,19 @@
+[Unit]
+Description=Stook Telegram bot (answers /status, /fleet, /activity, ... from one chat)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+User=zak
+WorkingDirectory=/home/zak/stook/infra/sim
+EnvironmentFile=/home/zak/stook.env
+EnvironmentFile=/home/zak/stook-alerts.env
+EnvironmentFile=-/home/zak/sim/sim.env
+ExecStart=/usr/bin/node /home/zak/stook/infra/sim/src/bot.mjs
+Restart=always
+RestartSec=10
+Nice=10
+MemoryMax=300M
+
+[Install]
+WantedBy=multi-user.target

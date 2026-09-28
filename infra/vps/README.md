@@ -126,3 +126,12 @@ Then a few real turns, and the service:
     node src/index.mjs --once 3
     sudo systemctl enable --now stook-sim
     journalctl -u stook-sim -f; tail -f ~/sim/actions.jsonl
+
+## Telegram commands
+
+`stook-tgbot.service` runs `infra/sim/src/bot.mjs`: @stookstreet_bot answers
+commands from `TG_CHAT_ID` only (everyone else is ignored): `/status` (the
+health report, `health.sh --print`), `/fleet`, `/activity [n]`, `/issues`,
+`/rounds`, `/wallet <n>`, `/pause` and `/resume` (stop or start `stook-sim`).
+Check every answer without Telegram: `node src/bot.mjs --selftest` from
+`~/stook/infra/sim` with the env files loaded.

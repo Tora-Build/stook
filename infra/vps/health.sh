@@ -1,6 +1,6 @@
 #!/bin/bash
 # The daily health report, to Telegram through alert.sh. Run by stook-health.timer;
-# by hand: bash ~/stook/infra/vps/health.sh
+# by hand: bash ~/stook/infra/vps/health.sh [--print: to the terminal instead]
 H=/home/zak
 ago() { local t s; t=$(stat -c %Y "$1" 2>/dev/null) || { echo "never"; return; }; s=$(( $(date +%s) - t )); [ $s -lt 120 ] && echo "${s}s ago" || echo "$((s / 60)) min ago"; }
 svc() { [ "$(systemctl is-active "$1")" = active ] && echo "✅ $2" || echo "❌ $2: $(systemctl is-active "$1")"; }
@@ -35,4 +35,5 @@ ${PRICES:-  tape not answering}
 Last X post: ${XWHEN:-none}${XID:+ x.com/StookStreet/status/$XID}
 
 Box: load $(cut -d' ' -f1-3 /proc/loadavg), memory $(free -m | awk '/Mem:/ {printf "%d%%", ($2-$7)*100/$2}'), disk $(df -h / | awk 'NR==2 {print $5}')"
+[ "$1" = --print ] && { echo "$MSG"; exit 0; }
 exec "$H/stook/infra/vps/alert.sh" --report "$MSG"
