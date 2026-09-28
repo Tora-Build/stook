@@ -45,7 +45,7 @@ export function worldAt(ms, { decimals = 6 } = {}) {
 }
 
 export const cfgFor = (over = {}) => ({
-  txPerMin: 4, activity: 0.7, weekend: 0.35, priority: 1_000, solMin: 0.015, solTarget: 0.05, dailySol: 9, seed: "test",
+  txPerMin: 4, activity: 0.7, weekend: 0.35, priority: 1_000, solMin: 0.015, solTarget: 0.05, solReclaim: 0.06, dailySol: 9, seed: "test",
   maxDepthFrac: 0.03, maxPositionsPerRound: 80, faucetUsd: 1_000, keeperBeat: "", beatMaxSecs: 60, ...over,
 });
 

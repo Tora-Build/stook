@@ -1,14 +1,15 @@
-// The fleet: who acts when, the treasury's top-ups, the logs, the alerts and
-// the daily report. Chain access comes in through `deps` (a reader, a
-// sender, wallet reads), so the tests drive it against mocks.
+// The fleet: who acts when, the treasury's top-ups and the SOL that comes
+// back to it, the wallets retiring, the logs, the alerts and the daily
+// report. Chain access comes in through `deps` (a reader, a sender, wallet
+// reads), so the tests drive it against mocks.
 
 import { execFile } from "node:child_process";
 import { existsSync, statSync } from "node:fs";
 import { SystemProgram } from "@solana/web3.js";
 import { LAMPORTS } from "./config.mjs";
-import { decide, fleetLines, forgetLine, Skip, walletJournal } from "./actions.mjs";
+import { decide, decideRetiring, dueRounds, fleetLines, forgetLine, holdsNothing, Skip, walletJournal } from "./actions.mjs";
 import { classify, kindOf, renamed } from "./classify.mjs";
-import { planTopUps, SolBudget } from "./budget.mjs";
+import { chunks, feeFor, planReclaims, planTopUps, runway, SolBudget } from "./budget.mjs";
 import { nextArrival, nyClock, pauseReason } from "./schedule.mjs";
 import { profileOf } from "./personas.mjs";
 
@@ -19,6 +20,19 @@ const REPORT_MINUTE = 21 * 60; // 21:00 New York
 const RESIGN = new Set(["start", "join", "collect", "faucet"]);
 // Sends journaled when the connection dropped after they went out.
 const JOURNAL_MAYBE = new Set(["buy", "join", "start"]);
+// SOL sent back to the treasury: this many wallets a transaction, each
+// signing its own transfer (the treasury pays the fee and signs first), so
+// the transaction stays well inside the size limit.
+const RETURN_PER_TX = 6;
+// Retiring wallets collected in one funding sweep, at most.
+const RETIRE_COLLECTS_PER_SWEEP = 3;
+// A retired wallet that SOL reached again (the rent of a round it started,
+// closed by the keeper after it retired) is swept once it holds this much.
+const RETIRED_DUST = 1_000_000n;
+// The treasury alert: under this many SOL, or this many days at the recent net spend.
+const TREASURY_LOW_SOL = 3;
+const RUNWAY_LOW_DAYS = 5;
+const sol = (x) => BigInt(Math.round(x * LAMPORTS));
 
 /**
  * deps: { cfg, weights, wallets, treasury, faucet, reader, sender, readWallets,
@@ -32,7 +46,16 @@ export function createSim(deps) {
   const persist = plan ? () => {} : (deps.persist ?? (() => {}));
   const state = deps.state ?? {};
   const journal = deps.journal ?? { wallets: {} };
-  const profiles = wallets.map((w) => profileOf(w.index, weights, cfg.seed));
+  const byIndex = new Map(wallets.map((w) => [w.index, w]));
+  // The active fleet acts; wallets past SIM_WALLETS only collect what they
+  // hold, send their SOL back, and are then left alone (state.retired).
+  const active = wallets.filter((w) => !w.retiring);
+  const retiring = wallets.filter((w) => w.retiring);
+  const retired = new Set((state.retired ?? []).filter((i) => byIndex.get(i)?.retiring));
+  state.retired = [...retired].sort((a, b) => a - b);
+  const retiringLeft = () => retiring.filter((w) => !retired.has(w.index));
+  const profiles = active.map((w) => profileOf(w.index, weights, cfg.seed));
+  const retiringProfiles = new Map(retiring.map((w) => [w.index, { ...profileOf(w.index, weights, cfg.seed), collectDelay: 0, retiring: true }]));
   const starters = profiles.filter((p) => p.persona === "starter").map((p) => p.index);
   // With no starter in the mix, houses fund rounds.
   const funders = starters.length ? starters : profiles.filter((p) => p.persona === "house").map((p) => p.index);
@@ -47,7 +70,7 @@ export function createSim(deps) {
   // cap into a pause, or a shutdown, sends nothing.
   if (sender && !plan) sender.gate = (t) => (stopping ? "shutting down" : paused(t));
 
-  function fresh() { return { since: new Date(now()).toISOString(), actions: {}, txs: 0, solLamports: "0" }; }
+  function fresh() { return { since: new Date(now()).toISOString(), actions: {}, txs: 0, solLamports: "0", returnedLamports: "0" }; }
   function count(type, outcome) {
     const a = (stats.actions[type] ??= { ok: 0, expected: 0, transient: 0, unexpected: 0, skip: 0 });
     a[outcome]++;
@@ -93,7 +116,7 @@ export function createSim(deps) {
       // Booked before it goes; given back only if it surely did not land.
       const receipt = budget.reserve(total + fee, now());
       if (!receipt) break;
-      const ixs = chunk.map((x) => SystemProgram.transfer({ fromPubkey: deps.treasury.publicKey, toPubkey: wallets[x.index].keypair.publicKey, lamports: x.lamports }));
+      const ixs = chunk.map((x) => SystemProgram.transfer({ fromPubkey: deps.treasury.publicKey, toPubkey: byIndex.get(x.index).keypair.publicKey, lamports: x.lamports }));
       const started = now();
       try {
         const sig = await sender.send(ixs, 5_000 + 1_000 * chunk.length, [deps.treasury], "fund", { resign: false });
@@ -116,26 +139,147 @@ export function createSim(deps) {
     return done;
   }
 
-  /** Every wallet under SIM_SOL_MIN back up to SIM_SOL_TARGET, poorest first, while today's allowance lasts. */
+  /**
+   * SOL back to the treasury from these wallets, `RETURN_PER_TX` to a
+   * transaction: each signs its own transfer and the treasury pays the fee,
+   * so a wallet never does. What lands is credited to today's allowance and
+   * the fee charged to it. `retire` marks each wallet retired once it lands.
+   * False when a transaction did not go (a pause, a failure): the rest wait.
+   */
+  async function giveBack(list, action) {
+    for (const chunk of chunks(list, RETURN_PER_TX)) {
+      const total = chunk.reduce((a, x) => a + x.lamports, 0n);
+      const cu = 5_000 + 1_000 * chunk.length;
+      const signers = [deps.treasury, ...chunk.map((x) => byIndex.get(x.index).keypair)];
+      const fee = feeFor(signers.length, cu, cfg.priority ?? 0);
+      const ixs = chunk.map((x) => SystemProgram.transfer({ fromPubkey: byIndex.get(x.index).keypair.publicKey, toPubkey: deps.treasury.publicKey, lamports: x.lamports }));
+      const started = now();
+      try {
+        const sig = await sender.send(ixs, cu, signers, action, { resign: false });
+        budget.charge(fee, now());
+        budget.credit(total, now());
+        stats.returnedLamports = (BigInt(stats.returnedLamports ?? "0") + total).toString();
+        stats.txs++;
+        for (const x of chunk) {
+          lamports.set(x.index, (lamports.get(x.index) ?? x.lamports) - x.lamports);
+          count(action, "ok");
+          record({ at: new Date(now()).toISOString(), wallet: x.index, persona: personaOf(x.index), action, params: { lamports: x.lamports.toString(), batch: chunk.map((y) => y.index) }, sig, ms: now() - started });
+          if (action === "retire") retired.add(x.index);
+        }
+        state.retired = [...retired].sort((a, b) => a - b);
+        persist("state");
+      } catch (e) {
+        // Landed and failed, or maybe out: the fee may have gone. The
+        // transfers are seen, or not, in the next sweep's balances.
+        if (e?.landed || e?.maybeSent) budget.charge(fee, now());
+        if (e?.name === "Paused") { count(action, "skip"); record({ at: new Date(now()).toISOString(), wallet: "treasury", persona: "treasury", action, params: { wallets: chunk.map((x) => x.index) }, skip: e.message, ms: now() - started }); }
+        else failed("treasury", "treasury", action, null, null, { wallets: chunk.map((x) => x.index), lamports: total.toString() }, e, started);
+        persist("state");
+        return false;
+      }
+    }
+    return true;
+  }
+
+  function personaOf(index) {
+    const w = byIndex.get(index);
+    return w?.retiring ? "retiring" : profiles.find((p) => p.index === index)?.persona ?? "?";
+  }
+
+  /** A retiring wallet's finished rounds due now. */
+  function retiringDue(w) {
+    const j = journal.wallets?.[String(w.index)];
+    if (holdsNothing(j)) return [];
+    return dueRounds(j, retiringProfiles.get(w.index), Math.floor(now() / 1000), world);
+  }
+
+  /** Retiring wallets with nothing left: all their SOL back, or retired at once if they hold none. Retired ones SOL reached again, swept. */
+  function retireList(skip = new Set()) {
+    const out = [];
+    for (const w of retiring) {
+      if (skip.has(w.index) || !holdsNothing(journal.wallets?.[String(w.index)])) continue;
+      const bal = lamports.get(w.index) ?? 0n;
+      if (retired.has(w.index)) { if (bal >= RETIRED_DUST) out.push({ index: w.index, lamports: bal }); continue; }
+      if (bal > 0n) out.push({ index: w.index, lamports: bal });
+      else if (!plan) { retired.add(w.index); state.retired = [...retired].sort((a, b) => a - b); persist("state"); }
+    }
+    return out;
+  }
+
+  /**
+   * The retiring wallets' part of a sweep: a few collect what is due (the
+   * treasury paying the fees), then those holding nothing send everything
+   * back. A wallet collected in this sweep waits for the next one, whose
+   * read of its balance includes the rent the collect gave back.
+   */
+  async function retireSweep() {
+    if (!retiring.length) return;
+    await refreshWorld();
+    const touched = new Set();
+    for (const w of retiringLeft()) {
+      if (touched.size >= RETIRE_COLLECTS_PER_SWEEP || stopping || paused()) break;
+      if (!retiringDue(w).length) continue;
+      touched.add(w.index);
+      await act(retiringProfiles.get(w.index));
+    }
+    const back = retireList(touched);
+    if (back.length) await giveBack(back, "retire");
+  }
+
+  /**
+   * The funding sweep: SOL back from every active wallet over
+   * SIM_SOL_RECLAIM (down to SIM_SOL_TARGET), then every active wallet
+   * under SIM_SOL_MIN up to SIM_SOL_TARGET, poorest first, while today's
+   * net allowance lasts, then the retiring wallets. A retiring wallet is
+   * never topped up.
+   */
   async function fundingSweep() {
     const infos = await deps.readLamports(wallets.map((w) => w.keypair.publicKey));
-    infos.forEach((l, n) => lamports.set(n, l));
-    const plans = planTopUps(infos, { min: BigInt(Math.round(cfg.solMin * LAMPORTS)), target: BigInt(Math.round(cfg.solTarget * LAMPORTS)), remaining: budget.remaining(now()) });
+    wallets.forEach((w, n) => lamports.set(w.index, BigInt(infos[n] ?? 0n)));
+    const balances = active.map((w) => ({ index: w.index, lamports: lamports.get(w.index) }));
+    const reclaims = planReclaims(balances, { reclaim: sol(cfg.solReclaim), target: sol(cfg.solTarget), perTx: RETURN_PER_TX }).flat();
+    const topUps = () => planTopUps(balances.map((x) => x.lamports), { min: sol(cfg.solMin), target: sol(cfg.solTarget), remaining: budget.remaining(now()) }).map((x) => ({ index: balances[x.index].index, lamports: x.lamports }));
     if (plan) {
+      const back = reclaims.reduce((a, x) => a + x.lamports, 0n);
+      // The allowance as it would stand once the reclaims landed.
+      const left = budget.remaining(now()) + back;
+      const cap = BigInt(Math.floor(cfg.dailySol * LAMPORTS));
+      const plans = planTopUps(balances.map((x) => x.lamports), { min: sol(cfg.solMin), target: sol(cfg.solTarget), remaining: left < cap ? left : cap }).map((x) => ({ index: balances[x.index].index, lamports: x.lamports }));
       const total = plans.reduce((a, x) => a + x.lamports, 0n);
-      out(JSON.stringify({ plan: "fund", wallets: plans.length, sol: Number(total) / LAMPORTS, allowanceLeftSol: Number(budget.remaining(now())) / LAMPORTS, under: infos.filter((l) => l < BigInt(Math.round(cfg.solMin * LAMPORTS))).length }));
+      out(JSON.stringify({ plan: "reclaim", wallets: reclaims.length, txs: Math.ceil(reclaims.length / RETURN_PER_TX), sol: Number(back) / LAMPORTS, over: reclaims.map((x) => x.index) }));
+      out(JSON.stringify({ plan: "fund", wallets: plans.length, sol: Number(total) / LAMPORTS, allowanceLeftSol: Number(budget.remaining(now())) / LAMPORTS, under: balances.filter((x) => x.lamports < sol(cfg.solMin)).length }));
+      const left2 = retiringLeft();
+      const ret = retireList();
+      out(JSON.stringify({ plan: "retire", retiring: left2.length, retired: retired.size, holding: left2.filter((w) => !holdsNothing(journal.wallets?.[String(w.index)])).length, dueNow: world ? left2.filter((w) => retiringDue(w).length).length : null, returns: ret.length, sol: Number(ret.reduce((a, x) => a + x.lamports, 0n)) / LAMPORTS }));
       return plans;
     }
+    if (reclaims.length) await giveBack(reclaims, "reclaim");
+    const plans = topUps();
     if (plans.length) await topUp(plans, "sweep");
+    await retireSweep();
+    noteFleet();
     await checkTreasury();
     return plans;
   }
 
+  /** The fleet's counts, in state.json for the bot. */
+  function noteFleet() {
+    state.fleet = { active: active.length, retiring: retiringLeft().length, retired: retired.size, at: new Date(now()).toISOString() };
+    persist("state");
+  }
+
+  /** The treasury's balance and runway, kept in state.json; an alert when either runs low. */
   async function checkTreasury() {
-    if (!deps.getBalance) return;
+    if (!deps.getBalance || !deps.treasury) return;
     try {
-      const bal = await deps.getBalance(deps.treasury.publicKey);
-      if (bal < BigInt(LAMPORTS)) alert(["sim-treasury", `Stook sim treasury is down to ${(Number(bal) / LAMPORTS).toFixed(2)} SOL. Fund ${deps.treasury.publicKey.toBase58()} on devnet.`]);
+      const bal = BigInt(await deps.getBalance(deps.treasury.publicKey));
+      const r = runway(bal, { history: budget.history(now()), spentToday: budget.spent(now()), ms: now() });
+      state.treasury = { lamports: bal.toString(), at: new Date(now()).toISOString(), perDayLamports: r.perDayLamports, runwayDays: r.days === null ? null : Math.round(r.days * 10) / 10 };
+      persist("state");
+      const have = Number(bal) / LAMPORTS;
+      if (have < TREASURY_LOW_SOL || (r.days !== null && r.days < RUNWAY_LOW_DAYS)) {
+        alert(["sim-treasury", `Stook sim treasury is at ${have.toFixed(2)} SOL, ${runwayText(r.days, r.perDayLamports)}. Fund ${deps.treasury.publicKey.toBase58()} on devnet.`]);
+      }
     } catch { /* next sweep */ }
   }
 
@@ -180,15 +324,20 @@ export function createSim(deps) {
     return null;
   }
 
-  /** One turn: pick a wallet, decide, build, send. Returns the log entry. */
+  /**
+   * One turn: pick a wallet, decide, build, send. Returns the log entry. A
+   * retiring wallet's turn only collects (null when nothing is due), is never
+   * topped up, and the treasury pays its fees.
+   */
   async function act(profile = pickWallet()) {
     const started = now();
-    const w = wallets[profile.index];
+    const isRetiring = !!profile.retiring;
+    const w = byIndex.get(profile.index);
     await refreshWorld();
     const [bal] = await deps.readWallets([w.keypair.publicKey], world.coins);
     lamports.set(profile.index, bal.lamports);
     // A wallet out of SOL is topped up on the spot, inside the allowance.
-    if (!plan && bal.lamports < BigInt(Math.round(cfg.solMin * LAMPORTS))) {
+    if (!plan && !isRetiring && bal.lamports < BigInt(Math.round(cfg.solMin * LAMPORTS))) {
       const need = [{ index: profile.index, lamports: BigInt(Math.round(cfg.solTarget * LAMPORTS)) - bal.lamports }];
       const got = await topUp(need, "on demand");
       if (!got.length) { count("idle", "skip"); record({ at: new Date(now()).toISOString(), wallet: profile.index, persona: profile.persona, action: "idle", skip: "no SOL and no allowance left today", ms: now() - started }); return null; }
@@ -197,10 +346,12 @@ export function createSim(deps) {
     const rates = await reader.usdRates();
     const j = walletJournal(journal, profile.index);
     const ctx = { cfg, world, profile, bal, j, rng, t: Math.floor(now() / 1000), rates, faucet: deps.faucet, wallet: w.keypair, starters: funders, lines: fleetLines(journal), detail: {} };
-    const a = decide(ctx);
+    if (isRetiring && deps.treasury) ctx.payer = deps.treasury;
+    const a = isRetiring ? decideRetiring(ctx) : decide(ctx);
+    if (!a) return null;
     // An action that pays rent beyond the floor (a start) is topped up for it first.
     // Only a fee's room beyond the rent: the floor is for top-ups, not a reason to stop a start.
-    if (!plan && a.lamports && bal.lamports < a.lamports + BigInt(Math.round(Math.min(cfg.solMin, 0.005) * LAMPORTS))) {
+    if (!plan && !isRetiring && a.lamports && bal.lamports < a.lamports + BigInt(Math.round(Math.min(cfg.solMin, 0.005) * LAMPORTS))) {
       const need = [{ index: profile.index, lamports: a.lamports + BigInt(Math.round(cfg.solTarget * LAMPORTS)) - bal.lamports }];
       if (!(await topUp(need, "rent")).length) { count(a.type, "skip"); record({ at: new Date(now()).toISOString(), wallet: profile.index, persona: profile.persona, action: a.type, coin: a.coin ?? null, skip: "not enough SOL for the rent and no allowance left today", ms: now() - started }); return null; }
       bal.lamports += need[0].lamports;
@@ -228,11 +379,15 @@ export function createSim(deps) {
     }
     const landed = [];
     const sigs = [];
+    // The treasury's fee on a retiring wallet's collect counts against the day.
+    const paid = (tx) => { if (ctx.payer && tx.signers[0] === ctx.payer) budget.charge(feeFor(tx.signers.length, tx.cu, cfg.priority ?? 0), now()); };
     for (const tx of txs) {
       try {
         const sig = await sender.send(tx.ixs, tx.cu, tx.signers, a.type, { resign: RESIGN.has(a.type) });
         landed.push(tx); sigs.push(sig); stats.txs++;
+        paid(tx);
       } catch (e) {
+        if (e?.landed || e?.maybeSent) paid(tx);
         if (a.type === "collect") {
           // Forget only the rounds collected whole.
           const partial = new Set(txs.filter((x) => !landed.includes(x)).map((x) => x.ladder));
@@ -284,9 +439,13 @@ export function createSim(deps) {
       return `  ${k}: ${v.ok} ok of ${tried}${tried ? ` (${Math.round((v.ok / tried) * 100)}%)` : ""}, ${v.skip} skipped${v.unexpected ? `, ${v.unexpected} unexpected` : ""}`;
     });
     const top = deps.issues?.top(3) ?? [];
+    const tr = state.treasury;
+    const fund = tr ? `Treasury: ${(Number(BigInt(tr.lamports)) / LAMPORTS).toFixed(2)} SOL, ${runwayText(tr.runwayDays, tr.perDayLamports)}` : "Treasury: not read yet";
     const msg = [
       `🤖 Stook sim, ${ny.date} (since ${stats.since.slice(0, 16).replace("T", " ")} UTC)`,
-      `Wallets: ${wallets.length}; transactions: ${stats.txs}; SOL sent from the treasury: ${(Number(BigInt(stats.solLamports)) / LAMPORTS).toFixed(3)}`,
+      `Wallets: ${active.length} active, ${retiringLeft().length} retiring, ${retired.size} retired; transactions: ${stats.txs}`,
+      `SOL sent from the treasury: ${(Number(BigInt(stats.solLamports)) / LAMPORTS).toFixed(3)}, back to it: ${(Number(BigInt(stats.returnedLamports ?? "0")) / LAMPORTS).toFixed(3)}; net today (UTC): ${(Number(budget.spent(t)) / LAMPORTS).toFixed(3)} of ${cfg.dailySol}`,
+      fund,
       "Actions:", ...(lines.length ? lines : ["  none"]),
       ...(top.length ? ["Top unexpected:", ...top.map((i) => `  ${i.name} on ${i.signature.split(":")[0]}: ${i.count}x, last ${i.lastSeen.slice(0, 16)}`)] : ["No unexpected failures on record."]),
     ].join("\n");
@@ -304,7 +463,7 @@ export function createSim(deps) {
     out(JSON.stringify({ plan: "pause", now: paused() }));
     const mix = {};
     for (const p of profiles) mix[p.persona] = (mix[p.persona] ?? 0) + 1;
-    out(JSON.stringify({ plan: "fleet", wallets: wallets.length, ephemeral: wallets.filter((w) => w.ephemeral).length, personas: mix, treasury: deps.treasury?.publicKey.toBase58() ?? null }));
+    out(JSON.stringify({ plan: "fleet", wallets: active.length, retiring: retiringLeft().length, retired: retired.size, ephemeral: wallets.filter((w) => w.ephemeral).length, personas: mix, treasury: deps.treasury?.publicKey.toBase58() ?? null }));
     await fundingSweep();
     const arrivals = [];
     let t = now();
@@ -334,7 +493,7 @@ export function createSim(deps) {
     let next = nextArrival(now(), rng, cfg);
     let nextFund = 0, lastPause = null;
     const beatAge = (() => { try { return Math.round((now() - statSync(cfg.keeperBeat).mtimeMs) / 1000); } catch { return null; } })();
-    out(`sim: ${wallets.length} wallets, cap ${cfg.txPerMin} tx/min, keeper heartbeat ${beatAge === null ? "missing" : `${beatAge} s old`}`);
+    out(`sim: ${active.length} wallets (${retiringLeft().length} retiring), cap ${cfg.txPerMin} tx/min, keeper heartbeat ${beatAge === null ? "missing" : `${beatAge} s old`}`);
     while (!until() && !stopping) {
       try {
         await refreshWorld();
@@ -359,7 +518,13 @@ export function createSim(deps) {
   /** Stop sending: sends in flight finish, nothing new starts. */
   function stop() { stopping = true; }
 
-  return { act, once, watch, stop, planRun, fundingSweep, report, reportDue, paused, profiles, journal, state, budget, refreshWorld, get world() { return world; } };
+  return { act, once, watch, stop, planRun, fundingSweep, report, reportDue, paused, profiles, retiringProfiles, retired, journal, state, budget, refreshWorld, get world() { return world; } };
+}
+
+/** "about 12.5 days at 0.40 SOL a day", or that nothing is going out. */
+export function runwayText(days, perDayLamports) {
+  if (days === null || days === undefined) return "no net spend lately";
+  return `about ${Number(days).toFixed(1)} days at ${(Number(perDayLamports ?? 0) / LAMPORTS).toFixed(2)} SOL a day`;
 }
 
 /** alert.sh, when the box has it. It rate-limits itself. */

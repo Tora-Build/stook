@@ -3,7 +3,7 @@
 //   node src/bot.mjs            long-polls Telegram (stook-tgbot.service)
 //
 //   /status            services, keeper, wallet, tape, resolver, box
-//   /fleet             the simulated fleet: today's actions, SOL, wallets
+//   /fleet             the simulated fleet: today's actions, wallets (active, retiring, retired), treasury and runway
 //   /activity [n]      the fleet's last n actions (default 15)
 //   /issues            unexpected failures the fleet has met
 //   /rounds            today's and tomorrow's round for each coin
@@ -74,19 +74,29 @@ async function fleet() {
   const withCoins = ws.filter((w) => w.faucetDay).length;
   const positions = ws.reduce((n, w) => n + (w.positions?.length ?? 0), 0), tranches = ws.reduce((n, w) => n + (w.tranches?.length ?? 0), 0);
   const issues = lines(join(SIM, "issues.jsonl")).length;
-  let treasury = "?";
-  try {
-    const k = Keypair.fromSecretKey(Uint8Array.from(JSON.parse(readFileSync(cfg.treasury, "utf8"))));
-    treasury = ((await conn.getBalance(k.publicKey)) / 1e9).toFixed(2);
-  } catch { /* shown as ? */ }
-  const spent = state.sol?.day === new Date().toISOString().slice(0, 10) ? Number(BigInt(state.sol.spent ?? 0)) / 1e9 : 0;
+  // The fleet's last sweep wrote the treasury and the fleet's counts to
+  // state.json; the chain is read only when it has not yet.
+  let treasury = state.treasury?.lamports ? (Number(BigInt(state.treasury.lamports)) / 1e9).toFixed(2) : "?";
+  if (treasury === "?") {
+    try {
+      const k = Keypair.fromSecretKey(Uint8Array.from(JSON.parse(readFileSync(cfg.treasury, "utf8"))));
+      treasury = ((await conn.getBalance(k.publicKey)) / 1e9).toFixed(2);
+    } catch { /* shown as ? */ }
+  }
+  const days = state.treasury?.runwayDays;
+  const runway = days === null ? "no net spend lately" : days === undefined ? "runway not known yet" : `runway about ${Number(days).toFixed(1)} days`;
+  const f = state.fleet ?? {};
+  const retiredN = f.retired ?? state.retired?.length ?? 0;
+  const net = state.sol?.day === new Date().toISOString().slice(0, 10) ? Number(BigInt(state.sol.spent ?? 0)) / 1e9 : 0;
   const rows = Object.entries(by).sort().map(([k, o]) => `${k.padEnd(8)} ${String(o.ok).padStart(4)} ok ${String(o.skip).padStart(4)} skip ${String(o.expected).padStart(3)} exp ${String(o.unexpected).padStart(3)} bad`).join("\n");
   const last = acts.at(-1);
   return [
-    `<b>🤖 Fleet</b>: ${active === "active" ? "✅ running" : `❌ ${esc(active)}`}, ${cfg.wallets} wallets, cap ${cfg.txPerMin} tx/min`,
+    `<b>🤖 Fleet</b>: ${active === "active" ? "✅ running" : `❌ ${esc(active)}`}, cap ${cfg.txPerMin} tx/min`,
+    `Wallets: ${f.active ?? cfg.wallets} active, ${f.retiring ?? Math.max(0, lines(join(SIM, "wallets.txt")).filter((l) => l.split("\t")[4] === "retiring").length - retiredN)} retiring left, ${retiredN} retired`,
     `Wallets with test coins: ${withCoins}`,
     `Holding now: ${positions} lines, ${tranches} house deposits`,
-    `Treasury: ${treasury} SOL · sent today ${spent.toFixed(2)} of ${cfg.dailySol} SOL`,
+    `Treasury: ${treasury} SOL, ${runway}`,
+    `Net spend today (UTC): ${net.toFixed(3)} of ${cfg.dailySol} SOL`,
     `Unexpected issue kinds: ${issues}${issues ? " (/issues)" : ""}`,
     "",
     `<b>Today (New York)</b>, ${todays.length} actions:`,
@@ -101,6 +111,7 @@ function describe(a) {
     : a.action === "sell" ? `sell ${p.pct ? p.pct + "%" : ""}`
     : a.action === "join" ? `house deposit ${p.deposit ?? ""}`
     : a.action === "start" ? `fund round ${p.index ?? ""}`
+    : a.action === "reclaim" || a.action === "retire" ? `${a.action} ${p.lamports ? (Number(p.lamports) / 1e9).toFixed(3) + " SOL" : ""}`
     : a.action;
   const result = a.error ? `❌ ${a.error}` : a.skip ? `⏭ ${a.skip}` : "✅";
   const link = a.sig ? ` <a href="https://explorer.solana.com/tx/${a.sig}?cluster=devnet">tx</a>` : "";

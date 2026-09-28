@@ -44,6 +44,7 @@ export function configProblem(cfg) {
   if (!(cfg.rpcPerSec > 0)) return "SIM_RPC_PER_SEC must be above 0";
   if (!(cfg.dailySol >= 0)) return "SIM_DAILY_SOL must be 0 or more";
   if (!(cfg.solTarget > cfg.solMin)) return "SIM_SOL_TARGET must be above SIM_SOL_MIN";
+  if (!(cfg.solReclaim > cfg.solTarget)) return "SIM_SOL_RECLAIM must be above SIM_SOL_TARGET";
   if (!(cfg.maxPositionsPerRound > 0) || !(cfg.maxLinesPerClose > 0)) return "the line caps must be above 0";
   return null;
 }
@@ -68,7 +69,8 @@ export function loadConfig(env = process.env) {
     dir,
     walletsDir: join(dir, "wallets"),
     treasury: pick("SIM_TREASURY") ?? join(home, ".config/solana/sim-treasury.json"),
-    wallets: Math.max(1, Math.floor(num(pick("SIM_WALLETS"), 200))),
+    /** The active fleet: wallets 0..SIM_WALLETS-1. Files past it on disk retire (sim.mjs). */
+    wallets: Math.max(1, Math.floor(num(pick("SIM_WALLETS"), 100))),
     // Never the keeper's RPC_URL: that key's quota keeps rounds opening and
     // settling. The public endpoint unless SIM_RPC_URL names another.
     rpcUrl: pick("SIM_RPC_URL") || "https://api.devnet.solana.com",
@@ -82,9 +84,13 @@ export function loadConfig(env = process.env) {
     weekend: num(pick("SIM_WEEKEND"), 0.35),
     /** The app's priority fee (lib/chain.ts), so transactions expire as users' do. */
     priority: num(pick("SIM_PRIORITY_MICROLAMPORTS"), 50_000),
-    solMin: num(pick("SIM_SOL_MIN"), 0.015),
-    solTarget: num(pick("SIM_SOL_TARGET"), 0.05),
-    dailySol: num(pick("SIM_DAILY_SOL"), 9),
+    // A wallet under SIM_SOL_MIN is topped up to SIM_SOL_TARGET; one over
+    // SIM_SOL_RECLAIM sends everything above SIM_SOL_TARGET back. SIM_DAILY_SOL
+    // caps the treasury's net outflow in a UTC day (sent less returned).
+    solMin: num(pick("SIM_SOL_MIN"), 0.012),
+    solTarget: num(pick("SIM_SOL_TARGET"), 0.04),
+    solReclaim: num(pick("SIM_SOL_RECLAIM"), 0.06),
+    dailySol: num(pick("SIM_DAILY_SOL"), 2),
     personas: pick("SIM_PERSONAS") ?? "",
     seed: pick("SIM_SEED") ?? "stook-sim",
     /** Most one trade may spend, as a share of the round's deposits. */

@@ -63,3 +63,16 @@ test("--once refuses the keeper's RPC and a zero cap, and takes no lock", async 
     Object.assign(process.env, saved);
   }
 });
+
+test("thrifty defaults, each still overridable, and a reclaim line above the target", () => {
+  const c = loadConfig({ SIM_DIR: simDir("") });
+  assert.equal(c.wallets, 100);
+  assert.equal(c.solTarget, 0.04);
+  assert.equal(c.solMin, 0.012);
+  assert.equal(c.solReclaim, 0.06);
+  assert.equal(c.dailySol, 2);
+  const o = loadConfig({ SIM_DIR: simDir("SIM_SOL_RECLAIM=0.1\n"), SIM_WALLETS: "150", SIM_SOL_TARGET: "0.05", SIM_SOL_MIN: "0.02", SIM_DAILY_SOL: "4" });
+  assert.deepEqual([o.wallets, o.solTarget, o.solMin, o.solReclaim, o.dailySol], [150, 0.05, 0.02, 0.1, 4]);
+  assert.equal(configProblem(o), null);
+  assert.match(configProblem({ ...c, solReclaim: 0.04 }), /SIM_SOL_RECLAIM/);
+});

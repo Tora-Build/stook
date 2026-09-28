@@ -140,6 +140,19 @@ export function decide(ctx) {
   return buyAction(ctx, coin, profile.persona === "longshot" ? "far" : "near");
 }
 
+/**
+ * A retiring wallet's turn: only its finished rounds, collected as soon as
+ * they are due; null when nothing is. It never buys, sells, deposits,
+ * funds or asks the faucet. `ctx.payer` (the treasury) pays the fees.
+ */
+export function decideRetiring(ctx) {
+  const due = dueRounds(ctx.j, { ...ctx.profile, collectDelay: 0 }, ctx.t, ctx.world);
+  return due.length ? collectAction(ctx, due) : null;
+}
+
+/** Nothing left in the journal: every line and deposit collected or gone. */
+export const holdsNothing = (j) => !j || (!(j.positions?.length) && !(j.tranches?.length));
+
 /** A starter's round to fund: tomorrow's canonical one when a coin has none, or today's with 75 minutes or more to go (it opens at once and trades until its lock). */
 function startChoice(ctx, coins) {
   const { t, profile, starters, cfg } = ctx;
@@ -427,7 +440,9 @@ function collectAction(ctx, due) {
           ...trs.map((x, n) => (trA[n] ? { ix: stook.claimLpIx(refs, owner, ata, x.index), units: stook.claimComputeUnits(l, stook.decodeLadderTranche(trA[n].data)) } : null)).filter(Boolean),
         ];
         if (!items.length) { gone.push(ladder); continue; }
-        stook.packByCompute(items).forEach((chunk, n) => txs.push({ ixs: [...(n === 0 ? [ensureAta(l.quoteMint, owner, c.tokenProgram)] : []), ...chunk.ixs], cu: chunk.units, signers: [ctx.wallet], ladder }));
+        // With a payer (a retiring wallet's collect), it pays the fee and any account the wallet lacks.
+        const payer = ctx.payer ?? null;
+        stook.packByCompute(items).forEach((chunk, n) => txs.push({ ixs: [...(n === 0 ? [ensureAta(l.quoteMint, owner, c.tokenProgram, payer?.publicKey)] : []), ...chunk.ixs], cu: chunk.units, signers: payer ? [payer, ctx.wallet] : [ctx.wallet], ladder }));
         ctx.collected.push({ ladder, status: l.status, lines: items.length });
       }
       ctx.gone = gone;

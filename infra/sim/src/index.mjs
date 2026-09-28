@@ -11,10 +11,13 @@
 // ENV (defaults in config.mjs)
 //   SIM_DIR               ~/sim: wallets/, sim.env, state.json, journal.json, actions.jsonl, issues.jsonl
 //   SIM_TREASURY          ~/.config/solana/sim-treasury.json, the only other key read
-//   SIM_WALLETS           200
+//   SIM_WALLETS           100, the active fleet; wallet files past it retire: they collect what they
+//                         hold, send all their SOL back and are left alone (state.json `retired`)
 //   SIM_RPC_URL           default the public devnet endpoint, never the keeper's RPC_URL; SIM_RPC_PER_SEC (2) caps requests to it
 //   SIM_TX_PER_MIN        4, over every send the fleet makes
-//   SIM_SOL_MIN / SIM_SOL_TARGET / SIM_DAILY_SOL   0.015 / 0.05 / 9
+//   SIM_SOL_MIN / SIM_SOL_TARGET / SIM_SOL_RECLAIM   0.012 / 0.04 / 0.06: topped up under the min, back
+//                         to the treasury over the reclaim
+//   SIM_DAILY_SOL         2, the treasury's net outflow a UTC day (top-ups and fees less SOL returned)
 //   SIM_PERSONAS          e.g. "caller:45,longshot:10,trader:20,house:10,starter:5,collector:10"
 //   SIM_MAX_POSITIONS_PER_ROUND / SIM_MAX_LINES_PER_CLOSE   15 / 40, so the keeper's sweep stays short
 //   SIM_PROBE_SHARE       0.05 of buys sized to the round's limit, past SIM_MAX_DEPTH_FRAC (0.03)

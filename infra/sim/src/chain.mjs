@@ -15,8 +15,8 @@ export const LIVE_FRESH_SECS = 180;
 
 export const hexBytes = (h) => Uint8Array.from(h.match(/.{2}/g).map((b) => parseInt(b, 16)));
 export const ataOf = (mint, owner, tokenProgram) => getAssociatedTokenAddressSync(mint, owner, false, tokenProgram);
-/** The wallet's token account for `mint`, made if missing; a no-op otherwise (as the app's `ensureAta`). */
-export const ensureAta = (mint, owner, tokenProgram) => createAssociatedTokenAccountIdempotentInstruction(owner, ataOf(mint, owner, tokenProgram), owner, mint, tokenProgram);
+/** The wallet's token account for `mint`, made if missing (paid by `payer`, the owner by default); a no-op otherwise (as the app's `ensureAta`). */
+export const ensureAta = (mint, owner, tokenProgram, payer = owner) => createAssociatedTokenAccountIdempotentInstruction(payer, ataOf(mint, owner, tokenProgram), owner, mint, tokenProgram);
 export const pythAccount = (feedId) => PublicKey.findProgramAddressSync([Uint8Array.of(0, 0), feedId], PYTH_PUSH_ORACLE)[0];
 
 export function makeConnection(url, bucket) {
