@@ -120,15 +120,17 @@ export function withHeap(ixs: TransactionInstruction[], computeUnits = 120_000, 
 
 /**
  * Compute to request for a trade of `shape`, with room for an idempotent
- * create-ATA and a Token-2022 transfer in the same transaction. Per-bin cost
- * is ~1.2K normally and ~2.4K once a bin's weight passes ~340 (the 256-bit
- * multiply); measured worst case 188.6K for a 64-bin h=8 shape on a fully
- * grown Token-2022 market. Requesting more than is used costs nothing but
- * priority fee, so this errs generous.
+ * create-ATA and a Token-2022 transfer in the same transaction. The cost
+ * grows with the curve's weights and with the trade's size against the depth,
+ * not only the shape: the simulation fleet measured 88K for a 9-bin h=5 buy
+ * and 324K for a 64-bin h=8 buy on deep Token-2022 rounds, where the older
+ * shape-only estimate asked 78K and 221K and the trades ran out. Requesting
+ * more than is used costs nothing but priority fee, so this errs generous:
+ * about 1.3 times the worst seen.
  */
 export function tradeComputeUnits(shape: Shape): number {
   const bins = Math.min(shape.hi, BINS - 1) - Math.max(shape.lo, 0) + 1;
-  return 50_000 + bins * 2_600 + (shape.h > 1 ? 5_000 : 0);
+  return Math.min(1_400_000, 90_000 + bins * 5_000 + (shape.h > 1 ? 10_000 : 0));
 }
 
 /** Compute for one `ladder_redeem`: a token transfer and a little arithmetic. */
