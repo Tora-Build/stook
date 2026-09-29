@@ -316,7 +316,7 @@ function RoundBlock({ h, now, own }: { h: Holding; now: number; own: boolean }) 
       <button className="pb-row" onClick={() => setOpen(!open)} aria-expanded={open}>
         {coin && <span className="logos logos-anchor-first"><img src={coin.anchor.logo} alt="" className="logo-coin" /><img src={coin.logo} alt="" className="logo-anchor" /></span>}
         <span className="pb-name">{shownAnchor ? shownAnchor.name : feed.name}<em>in {sym} · {[calls && `${calls} ${calls === 1 ? "call" : "calls"}`, deps && `${deps} house`].filter(Boolean).join(" · ")}</em></span>
-        <span className={`stamp stamp-${stage.replace(" ", "-")}`}>{stage}</span>
+        <span className={`stamp stamp-${stage.replace(" ", "-")}`}>{stage === "locked" ? "closed" : stage}</span>
         <span className="pb-num"><em>in</em>{big(cost)}{rate !== null && <small className="pb-usd">{approxUsd(cost, l.decimals, rate)}</small>}</span>
         <span className="pb-num"><em>{final ? "pays" : "now"}</em>{worth === null ? "–" : big(worth)}{worth !== null && rate !== null && <small className="pb-usd">{approxUsd(worth, l.decimals, rate)}</small>}</span>
         <span className={`pb-num pb-res ${result === null ? "muted" : result >= 0n ? "up" : "down"}`}><em>result</em>{result === null ? "at the bell" : `${result >= 0n ? "+" : "−"}${big(result >= 0n ? result : -result)}`}{result !== null && rate !== null && <small className="pb-usd">{approxUsd(result >= 0n ? result : -result, l.decimals, rate).replace("≈ ", result >= 0n ? "≈ +" : "≈ −")}</small>}</span>

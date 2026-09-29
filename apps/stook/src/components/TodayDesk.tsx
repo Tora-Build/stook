@@ -51,8 +51,8 @@ export function TodayDesk(p: Props) {
     line = "";
     cta = { label: "Call today's close", to: `/m/${r!.pubkey.toBase58()}` };
   } else if (l && l.status === "open") {
-    kicker = "Locked"; title = "Waiting for the bell";
-    line = "No more trades. The first Pyth price at the bell settles it.";
+    kicker = "Trading closed"; title = "Waiting for the bell";
+    line = `Trades stopped at ${nyWhen(l.locksAt, { hour: "numeric", minute: "2-digit" })}. The bell at ${nyWhen(l.settlesAt, { hour: "numeric", minute: "2-digit" })} New York settles it, and the next round opens right after.`;
     cta = { label: "Watch the bell", to: `/m/${r!.pubkey.toBase58()}` };
   } else if (l && l.status === "seeding") {
     kicker = "Funded"; title = p.now < Number(l.opensAt) ? `Opens ${nyWhen(l.opensAt, { hour: "numeric", minute: "2-digit" })} NY` : "Opening";

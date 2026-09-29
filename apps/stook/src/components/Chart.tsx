@@ -162,7 +162,7 @@ export function Chart(p: ChartProps) {
       </svg>
       <div className="chart-hover">
         {hoverBox ? (<><span className="mono">{hoverBox.range}</span><span>{hoverBox.prob} chance</span>{hoverBox.pays !== null && <span className="amber">{hoverBox.pays ? hoverBox.pays === top ? "your call pays in full" : `pays ${Math.round((hoverBox.pays / top) * 100)}% of full` : "pays nothing"}</span>}</>)
-          : (<span className="muted">{p.disabled ? (p.opened === false ? "Not trading yet." : "Trading is closed.") : "Hover a band for its chance and what it pays."}</span>)}
+          : (<span className="muted">{p.disabled ? (p.opened === false ? "Not trading yet: the board fills in when the round opens." : "Trading closed until the bell. The next round opens right after it.") : "Hover a band for its chance and what it pays."}</span>)}
       </div>
     </div>
   );

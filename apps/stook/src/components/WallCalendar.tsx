@@ -89,7 +89,7 @@ export function WallCalendar(p: Props) {
           const landed = l && l.status === "settled" && l.settledBin !== null ? stook.binBounds(l.settledBin, l.p0, l.stepBps) : null;
           const body = (
             <>
-              <div className="wc-top"><span className="wc-num">{d}</span>{state && !stamped && <span className={`wc-state wc-state-${state === "void soon" ? "void" : state}`}>{state}</span>}</div>
+              <div className="wc-top"><span className="wc-num">{d}</span>{state && !stamped && <span className={`wc-state wc-state-${state === "void soon" ? "void" : state}`}>{state === "locked" ? "closed" : state}</span>}</div>
               {stamped && <span className={`stamp wc-rubber stamp-${stamped}`}>{stamped}</span>}
               {l && landed && <div className="wc-info"><span className="mono">{fmtPrice(landed[0], l.p0Expo, p.dp)}</span><span className="wc-sub">landed</span></div>}
               {l && !landed && <div className="wc-info"><span className="mono">{coinText(l.depositTotal, l.decimals, p.coinSymbol)}</span><span className="wc-sub">{l.curveSeq.toString()} trades</span></div>}

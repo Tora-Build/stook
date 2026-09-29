@@ -107,6 +107,11 @@ function Mine(p: Props) {
 }
 
 // ── one of your lines: add to it, or sell some of it ─────────────────────────
+const hm = (t: number | bigint) => nyWhen(t, { hour: "numeric", minute: "2-digit" });
+/** What a trade button says when this round takes no trades now. */
+const closedLabel = (l: Props["ladder"], now: number) =>
+  l.status === "open" ? `Closed · bell at ${hm(l.settlesAt)}` : l.status === "seeding" && now < Number(l.opensAt) ? `Opens ${hm(l.opensAt)} New York` : "Not trading";
+
 function Held(p: Props & { pos: PositionRow }) {
   const [side, setSide] = useState<"buy" | "sell">("sell");
   const s = p.pos.position.shape;
@@ -176,7 +181,7 @@ function Buy(p: Props & { held?: boolean }) {
       </div>}
       {!s ? (p.tradeable
         ? <div className="pick-hint"><span className="pick-arrow" aria-hidden="true">◀</span><span><b>Pick your price on the board.</b> {p.mode === "line" ? "Click a band." : "Drag across a range."}{p.positions.length > 0 ? " Or pick one of your calls to add to it or sell it." : ""}</span></div>
-        : <p className="explain">{l.status === "seeding" ? (p.now < Number(l.opensAt) ? `Funded. Trading opens ${nyWhen(l.opensAt, { weekday: "short", hour: "numeric", minute: "2-digit" })} NY; the House takes deposits now.` : p.now < Number(l.opensAt) + Number(stook.OPEN_WINDOW_SECS) ? "Opening in a moment. Deposits are open." : "This round did not open in time and will be void; deposits come back.") : "Trading is closed; the bell is next."}</p>)
+        : <p className="explain">{l.status === "seeding" ? (p.now < Number(l.opensAt) ? `Funded. Trading opens ${nyWhen(l.opensAt, { weekday: "short", hour: "numeric", minute: "2-digit" })} NY; the House takes deposits now.` : p.now < Number(l.opensAt) + Number(stook.OPEN_WINDOW_SECS) ? "Opening in a moment. Deposits are open." : "This round did not open in time and will be void; deposits come back.") : `Trading closed at ${hm(l.locksAt)}. The bell rings at ${hm(l.settlesAt)} New York, and the next round opens right after it.`}</p>)
         : null}
       {/* The payout ladder: each row a bar as long as what it pays, tapering
           like the target itself, with your stake marked across all of them,
@@ -240,7 +245,7 @@ function Buy(p: Props & { held?: boolean }) {
       </div>}
 {s && q && rising && <Notice tone="warn" title="Transfer fee rising">The coin's issuer has set its transfer fee to rise to {next!.bps / 100}%. If that happens before this goes through, it fails and nothing moves.</Notice>}
       {short && <Notice tone="stop" title={`Not enough ${p.quoteSymbol}`}>You hold {fmtCompact(balance.data!, dec)}; this can cost up to {fmtCompact(limit!, dec)}. On devnet, get <b>test coins</b> in the header.</Notice>}
-      <button className="primary" disabled={!q || !p.tradeable || send.isPending || !publicKey || short} onClick={submit}>{!publicKey ? "Connect a wallet" : !p.tradeable ? "Not trading" : !s ? "Pick a price first" : send.isPending ? "Sending…" : `${p.held || existing ? "Add to call" : "Place call"}${pays !== null ? ` · ${coinText(pays, dec, p.quoteSymbol)}` : ""}`}</button>
+      <button className="primary" disabled={!q || !p.tradeable || send.isPending || !publicKey || short} onClick={submit}>{!publicKey ? "Connect a wallet" : !p.tradeable ? closedLabel(l, p.now) : !s ? "Pick a price first" : send.isPending ? "Sending…" : `${p.held || existing ? "Add to call" : "Place call"}${pays !== null ? ` · ${coinText(pays, dec, p.quoteSymbol)}` : ""}`}</button>
       <p className="house-how"><Link to="/how?step=line">How a call works ›</Link></p>
     </>
   );
@@ -274,7 +279,7 @@ function Sell(p: Props & { pos: PositionRow }) {
         </PaperFold>
       </div>}
       {q && rising && <Notice tone="warn" title="Transfer fee rising">The coin's issuer has set its transfer fee to rise to {next!.bps / 100}%. If that happens before this goes through, it fails and nothing moves.</Notice>}
-      <button className="primary" disabled={!q || !p.tradeable || send.isPending || !publicKey} onClick={submit}>{!p.tradeable ? "Locked until the bell" : send.isPending ? "Sending…" : `Sell ${pct}%`}</button>
+      <button className="primary" disabled={!q || !p.tradeable || send.isPending || !publicKey} onClick={submit}>{!p.tradeable ? closedLabel(l, p.now) : send.isPending ? "Sending…" : `Sell ${pct}%`}</button>
     </>
   );
 }
