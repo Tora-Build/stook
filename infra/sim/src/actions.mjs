@@ -134,9 +134,10 @@ export function decide(ctx) {
   }
   if (!open.length) return { type: "idle", params: { why: "no round is trading" }, build: async () => { throw new Skip("no round is trading"); } };
   const coin = open[0];
-  // Now and then add to a line already held there.
+  // Often add to a line already held there, as a trader who likes a call does
+  // (and a line added to is no new account for the keeper to sweep).
   const mine = j.positions.filter((p) => p.ladder === coin.today.key.toBase58());
-  if (mine.length && rng() < 0.15) return buyAction(ctx, coin, profile.persona === "longshot" ? "far" : "near", mine[Math.floor(rng() * mine.length)]);
+  if (mine.length && rng() < 0.35) return buyAction(ctx, coin, profile.persona === "longshot" ? "far" : "near", mine[Math.floor(rng() * mine.length)]);
   return buyAction(ctx, coin, profile.persona === "longshot" ? "far" : "near");
 }
 
@@ -180,7 +181,7 @@ function houseChoice(ctx, order) {
       const l = day?.round?.l;
       if (!joinable(l, t)) continue;
       const mine = j.tranches.filter((x) => x.ladder === day.key.toBase58()).length;
-      if (mine < 2) return { coin: c, day };
+      if (mine < 1) return { coin: c, day };
     }
   }
   return null;

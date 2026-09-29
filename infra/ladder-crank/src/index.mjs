@@ -100,6 +100,8 @@ export function chainSenders(connection, payer) {
 // on (pure arithmetic; only the chosen close costs a request).
 export const LEARN_FETCHES = 10;
 export const LEARN_SCAN = 4096;
+// Sweeps and payouts per clear-up run (see clearUp).
+export const CLEAR_UP_SENDS = Number(process.env.CLEAR_UP_SENDS ?? 25);
 
 /**
  * The closes a series may be asked to take next, oldest first:
@@ -299,6 +301,10 @@ export function createKeeper({ connection, scanner, payer, sendTx, postAndConsum
   async function clearUp() {
     if (plan) refuse("clear-up");
     let failures = 0;
+    // At most CLEAR_UP_SENDS sweeps and payouts a run: a round with hundreds
+    // of finished lines clears over several runs, and the pass that opens and
+    // settles rounds never waits long behind it.
+    let sends = CLEAR_UP_SENDS;
     const config = stook.decodeProtocolConfig((await connection.getAccountInfo(stook.deriveProtocolConfig())).data);
     for (const status of ["settled", "void"]) {
       const rounds = await scanner.getProgramAccounts(SOOTH_CORE_PROGRAM_ID, { filters: stook.ladderFilters(status) });
@@ -326,13 +332,16 @@ export function createKeeper({ connection, scanner, payer, sendTx, postAndConsum
           if (open > 0) {
             const positions = await scanner.getProgramAccounts(SOOTH_CORE_PROGRAM_ID, { filters: stook.positionFilters(pubkey) });
             for (const p of positions) {
+              if (sends <= 0) break;
               const pos = stook.decodeLadderPosition(p.account.data);
               if (stook.owedTo(l, pos) === 0n) {
+                sends--;
                 await sendPlain(stook.sweepPositionIx(refs, payer.publicKey, p.pubkey, pos.owner));
                 console.log(tag, "swept", p.pubkey.toBase58().slice(0, 8));
               } else if (graceOver) {
                 const to = await ownerToken(pos.owner);
                 if (!to) continue;
+                sends--;
                 await sendPlain(stook.redeemLadderIx(refs, pos.owner, to, pos.shape, payer.publicKey));
                 console.log(tag, "paid out uncollected position to", pos.owner.toBase58().slice(0, 8));
               } else continue;
@@ -342,9 +351,11 @@ export function createKeeper({ connection, scanner, payer, sendTx, postAndConsum
           if (tranches > 0 && graceOver) {
             const ts = await scanner.getProgramAccounts(SOOTH_CORE_PROGRAM_ID, { filters: stook.trancheFilters(pubkey) });
             for (const t of ts) {
+              if (sends <= 0) break;
               const tr = stook.decodeLadderTranche(t.account.data);
               const to = await ownerToken(tr.owner);
               if (!to) continue;
+              sends--;
               await sendPlain(stook.claimLpIx(refs, tr.owner, to, tr.index, payer.publicKey), stook.claimComputeUnits(l, tr));
               console.log(tag, "paid out unclaimed deposit to", tr.owner.toBase58().slice(0, 8));
               tranches--;
