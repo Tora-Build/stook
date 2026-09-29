@@ -25,6 +25,9 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 const kind = process.argv[2];
 const flag = (f) => process.argv.includes(f);
 const dry = flag("--dry"), tgOnly = flag("--telegram-only"), still = flag("--still"), dm = flag("--dm");
+const arg = (f) => (process.argv.includes(f) ? process.argv[process.argv.indexOf(f) + 1] : null);
+// The bell's calls count and best payout (--callers 161 --topx 4.19), when known.
+const callers = arg("--callers"), topx = arg("--topx");
 const captionFile = process.argv.includes("--caption") ? process.argv[process.argv.indexOf("--caption") + 1] : null;
 if (!/^[a-z]+$/.test(kind ?? "") || (!tgOnly && !dry && kind !== "morning" && kind !== "bell")) { console.error("usage: render.mjs morning|bell [--dry] | render.mjs <scene> --telegram-only [--still] [--caption file] [--dm]"); process.exit(2); }
 const SITE = process.env.X_POST_URL ?? "https://stookstreet.xyz/x/video";
@@ -67,6 +70,7 @@ try {
   await page.waitForFunction(() => window.autoReady === true, null, { timeout: 60_000 });
   await page.waitForTimeout(1500); // the skyline paints its first frames
   const got = await page.evaluate(([k, t]) => window.autoPoster.fill(k, t), [kind, table]);
+  if (callers || topx) got.caption = await page.evaluate(([c, x]) => { if (c) document.querySelector("#callers").value = c; if (x) document.querySelector("#topx").value = x; caption(); return document.querySelector("#cap").value; }, [callers, topx]);
   caption = captionFile ? readFileSync(captionFile, "utf8").trim() : got.caption;
   if (still) {
     const png = await page.evaluate((t) => window.autoPoster.frame(t), got.dur);
