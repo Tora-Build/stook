@@ -16,7 +16,7 @@ import { COINS, anchorOf, coinByMint } from "../lib/coins";
 import { feedByHex, feedHex } from "../lib/feeds";
 import { fmtCompact, short } from "../lib/format";
 import { Amount, approxUsd, coinText, fmtUsd, toUsd, useUsdRates } from "../lib/usd";
-import { bandName, rangeName } from "../components/Ticket";
+import { ladderCallName } from "../lib/call";
 import { Book } from "../components/Book";
 import { Fold } from "../components/Fold";
 import { nyDate, nyWhen } from "../lib/time";
@@ -41,7 +41,7 @@ function value(h: Holding, now: number, dp: number): Valued {
     const p = r.position;
     if (!final && p.shares === 0n) continue;
     const s = p.shape;
-    const what = s.h > 1 ? `target at ${bandName(l, Math.floor((s.lo + s.hi) / 2), dp)}, reach ${s.h}` : `${rangeName(l, s.lo, s.hi, dp)} range`;
+    const what = ladderCallName(l, dp, s);
     let v: bigint | null = null;
     if (final) { v = stook.owedTo(l, p); ready += v > 0n ? v : 0n; }
     else if (l.status === "open" && now < Number(l.locksAt) && p.shares > 0n) {
