@@ -7,10 +7,8 @@ import { stook } from "@sooth/sdk-solana";
 import { rangeName, Ticket } from "../components/Ticket";
 import { Address } from "../components/Address";
 import { Tower, type Phase } from "../components/Tower";
-import { CallBar, CallKind, Coach, coachDone, ExactPrices, markCoachDone } from "../components/TowerDesk";
+import { CallBar, CallKind, CallKindBar, Coach, coachDone, ExactPrices, markCoachDone } from "../components/TowerDesk";
 import { approxUsd, coinText, useUsdPerCoin } from "../lib/usd";
-import { Bell } from "../components/Bell";
-import { Notice } from "../components/Notice";
 import { useLadder, useLivePrice, useMint, usePositions, useRefs, useSend, useSeries, useTranches } from "../hooks/useChain";
 import { useNow } from "../hooks/useNow";
 import { useDesk } from "../hooks/useDesk";
@@ -174,47 +172,47 @@ function Round({ l, refs, mint }: { l: stook.LadderAccount; refs: stook.LadderRe
     : <>This round was void. Deposits come back first; open calls share the rest. {mine.length || (tranches.data ?? []).length ? <button className="link" onClick={toTicket}>Get your refund</button> : null}</>,
     [phase, beforeOpen, waitText, closeAt, won, mine.length, tranches.data?.length, l.opensAt, money]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // ── the roof: the round's billboard, its LED ticker, and the bell's line ──
+  const onHelp = useCallback(() => goCoach(1), []); // eslint-disable-line react-hooks/exhaustive-deps
+  const standInShort = coin && standIn ? `Devnet: settles on ${feed.name} (${feed.symbol}) in place of ${coin.anchor.symbol}` : null;
+  const sign = useMemo(() => ({
+    symbol: feed.symbol, name: feed.name, logo: coin && !standIn ? coin.anchor.logo : undefined,
+    coin: coin ? { symbol: coin.symbol, logo: coin.logo } : undefined,
+    paidIn: `paid in ${coin ? `$${coin.symbol}` : quoteSymbol}`,
+    date: nyWhen(l.settlesAt, { weekday: "short", month: "short", day: "numeric" }),
+    closes: `closes ${hm(l.settlesAt)} New York`,
+    plaque: standIn && standInShort ? { short: standInShort, full: standIn } : null,
+    plaqueNode: coin && !standIn ? <Address label={`${coin.anchor.symbol}`} value={coin.anchor.mint} /> : undefined,
+    onHelp: tradeable ? onHelp : null,
+  }), [feed.symbol, feed.name, coin, standIn, standInShort, quoteSymbol, l.settlesAt, tradeable, onHelp]);
+  const coinAmt = (u: bigint) => `${fmtCompact(u, l.decimals)} ${quoteSymbol}`;
+  const ticker = useMemo(() => {
+    const out: { k: string; v: string; d?: string; tone?: "up" | "down" }[] = [];
+    const px = (v: number) => `$${v.toLocaleString("en-US", { minimumFractionDigits: feed.dp, maximumFractionDigits: feed.dp })}`;
+    if (livePrice !== null) out.push({ k: "NOW", v: px(livePrice), ...(openPrice !== null ? { d: `${livePrice >= openPrice ? "▲" : "▼"} ${Math.abs((livePrice / openPrice - 1) * 100).toFixed(2)}% since open`, tone: livePrice >= openPrice ? "up" as const : "down" as const } : {}) });
+    if (openPrice !== null) out.push({ k: "OPENED", v: `$${fmtPrice(l.p0, l.p0Expo, feed.dp)}`, d: `${nyWhen(l.opensAt, { weekday: "short", hour: "numeric", minute: "2-digit" })} New York` });
+    else out.push({ k: "OPENS", v: nyWhen(l.opensAt, { weekday: "short", hour: "numeric", minute: "2-digit" }), d: "New York" });
+    out.push({ k: "POOL", v: coinAmt(l.depositTotal), d: usd !== null ? approxUsd(l.depositTotal, l.decimals, usd) : "in the house" });
+    out.push({ k: "HOUSE FEES", v: coinAmt(l.feesLp), d: usd !== null ? approxUsd(l.feesLp, l.decimals, usd) : "90% of fees", tone: "up" });
+    out.push({ k: "TRADERS IN", v: coinAmt(l.basisTotal), d: usd !== null ? approxUsd(l.basisTotal, l.decimals, usd) : "on open calls" });
+    out.push({ k: "EACH FLOOR", v: `${bandUsd !== null ? `$${bandUsd.toLocaleString("en-US", { maximumSignificantDigits: 3 })}` : `${(stepBps / 100).toFixed(2)}%`} tall`, d: `${(stepBps / 100).toFixed(2)}%${preview ? ", set at open" : " of the price"}` });
+    return out;
+  }, [livePrice, openPrice, l.p0, l.p0Expo, l.opensAt, l.depositTotal, l.feesLp, l.basisTotal, l.decimals, feed.dp, usd, bandUsd, stepBps, preview, quoteSymbol]); // eslint-disable-line react-hooks/exhaustive-deps
+  const status = tradeable ? `locks in ${untilText(l.locksAt, now)}` : "";
+
   return (
     <div className="page market">
-      {/* The round's board: who it is and when the bell rings on top, the
-          numbers that move on a tape below. */}
-      <header className="round-board">
-        <div className="board-top">
-          <div className="strip-id">
-            {/* What the round is on leads; the coin is what it is paid in. */}
-            <div className="anchor-mark">{coin && !standIn ? <img src={coin.anchor.logo} alt="" /> : <span className="tick">{feed.symbol}</span>}</div>
-            <div>
-              <div className="strip-title">{feed.name} <span className="sym">{feed.symbol}</span></div>
-              <div className="board-sub">
-                {coin && <span className="paid-in"><img src={coin.logo} alt="" />paid in <b>${coin.symbol}</b></span>}
-                <span>{nyWhen(l.settlesAt, { weekday: "short", month: "short", day: "numeric" })} · closes {hm(l.settlesAt)} New York</span>
-                {coin && !standIn && <Address label={`${coin.anchor.symbol}`} value={coin.anchor.mint} />}
-              </div>
-            </div>
-          </div>
-          <div className={`status status-${l.status}`}><Bell ringing={l.status === "open" && now >= Number(l.settlesAt)} rung={l.status === "settled"} />{l.status === "open" && now < Number(l.settlesAt)
-            ? <span className="status-lines"><span>rings in {untilText(l.settlesAt, now)}</span><span className="status-sub">{now < Number(l.locksAt) ? `trading · locks in ${untilText(l.locksAt, now)}` : `trading closed at ${hm(l.locksAt)} · next round opens at the bell`}</span></span>
-            : stateText}</div>
-          {tradeable && <button className="tour-btn tw-help" onClick={() => { goCoach(1); requestAnimationFrame(() => document.querySelector(".tw-coach")?.scrollIntoView({ block: "nearest" })); }} aria-label="How it works, show the three steps again" title="How it works">?</button>}
-        </div>
-        <div className="board-tape">
-          <div className="tape-cell"><span className="strip-k">now</span><b className="mono">{livePrice !== null ? `$${fmtPrice(BigInt(Math.round(livePrice / 10 ** live.data!.expo)), live.data!.expo, feed.dp)}` : "…"}</b>
-            {livePrice !== null && openPrice !== null && <em className={`mono ${livePrice >= openPrice ? "up" : "down"}`}>{livePrice >= openPrice ? "▲" : "▼"} {Math.abs((livePrice / openPrice - 1) * 100).toFixed(2)}% since open</em>}</div>
-          {openPrice !== null && <div className="tape-cell"><span className="strip-k">opened at</span><b className="mono">${fmtPrice(l.p0, l.p0Expo, feed.dp)}</b><em>{nyWhen(l.opensAt, { weekday: "short", hour: "numeric", minute: "2-digit" })} New York</em></div>}
-          <div className="tape-cell"><span className="strip-k">pool</span><b className="mono">{fmtCompact(l.depositTotal, l.decimals)}{usd !== null && <span className="approx">{approxUsd(l.depositTotal, l.decimals, usd)}</span>}</b><em>{quoteSymbol} in the house</em></div>
-          <div className="tape-cell"><span className="strip-k">house fees</span><b className="mono tape-up">{fmtCompact(l.feesLp, l.decimals)}{usd !== null && <span className="approx">{approxUsd(l.feesLp, l.decimals, usd)}</span>}</b><em>{quoteSymbol}, 90% of fees</em></div>
-          <div className="tape-cell" title="What traders have paid for calls still open in this round"><span className="strip-k">traders in</span><b className="mono">{fmtCompact(l.basisTotal, l.decimals)}{usd !== null && <span className="approx">{approxUsd(l.basisTotal, l.decimals, usd)}</span>}</b><em>{quoteSymbol} on open calls</em></div>
-          <div className="tape-cell" title="Each floor of the tower is one band of equal percentage step. A call picks floors; the close lands on exactly one.">
-            <span className="strip-k">each floor</span>
-            <b className="mono">{bandUsd !== null ? `$${bandUsd.toLocaleString("en-US", { maximumSignificantDigits: 3 })}` : `${(stepBps / 100).toFixed(2)}%`} tall</b>
-            <em>{(stepBps / 100).toFixed(2)}%{preview ? " · set at open" : " of the price"}</em>
-          </div>
-        </div>
-      </header>
-      {standIn && <Notice tone="info" title="Devnet stand-in" className="standin">{standIn}</Notice>}
-
       <div className="tw-layout">
+        <section className="tw-main" aria-label={`The tower: ${feed.name}, ${nyWhen(l.settlesAt, { weekday: "short", month: "short", day: "numeric" })}, closes ${hm(l.settlesAt)} New York`}>
+          {grid ? <Tower grid={grid} desk={desk} phase={phase} live={livePrice} history={history.data?.points} now={towerNow}
+              opened={l.p0 > 0n} opensAt={Number(l.opensAt)} locksAt={Number(l.locksAt)} settlesAt={Number(l.settlesAt)} settledBin={l.status === "settled" ? l.settledBin : null}
+              win={heldWin ?? buyWin} money={money} short={short} symbol={quoteSymbol}
+              held={held} onHeld={onHeld} wonText={won > 0n ? `YOU WIN · ${fmtCompact(won, l.decimals)}` : null} headline={headline} all={all}
+              onPicked={onPicked} sign={sign} ticker={ticker} status={status} />
+            : <p className="muted tw-wait">Reading the price…</p>}
+        </section>
         <div className="tw-side">
+          {/* Desktop: the kind and how sure, level with the tower's top. Phones carry them in the call bar. */}
           {!final && grid && <fieldset className="tw-ctlset" disabled={!tradeable}>
             <CallKind desk={desk} grid={grid} curve={shown.curve} feeBps={order.feeBps} at={livePrice !== null ? grid.binOf(livePrice) : 32} coarse={coarse || narrow}
               onSure={() => { if (coach === 2) goCoach(3); if (sel) setSelected(null); }} />
@@ -225,19 +223,12 @@ function Round({ l, refs, mint }: { l: stook.LadderAccount; refs: stook.LadderRe
               symbol={feed.symbol} coinSymbol={coin?.symbol} dp={feed.dp} quoteSymbol={quoteSymbol} tradeable={tradeable} final={final} positions={mine} tranches={tranches.data ?? []} transferFee={mint?.report.transferFee} now={now} usd={usd} />
           </div>
         </div>
-        <section className="tw-main" aria-label="The tower">
-          <Coach step={coach} kind={desk.kind} narrow={narrow} bell={hm(l.settlesAt)} go={goCoach} />
-          {grid ? <Tower grid={grid} desk={desk} phase={phase} live={livePrice} history={history.data?.points} now={towerNow}
-              opened={l.p0 > 0n} opensAt={Number(l.opensAt)} locksAt={Number(l.locksAt)} settlesAt={Number(l.settlesAt)} settledBin={l.status === "settled" ? l.settledBin : null}
-              win={heldWin ?? buyWin} money={money} short={short} symbol={quoteSymbol}
-              held={held} onHeld={onHeld} wonText={won > 0n ? `YOU WIN · ${fmtCompact(won, l.decimals)}` : null} headline={headline} all={all}
-              onPicked={onPicked} />
-            : <p className="muted tw-wait">Reading the price…</p>}
-        </section>
       </div>
-      {step === "void" && publicKey && <p className="hint"><button className="link" onClick={() => voidIt.mutate([stook.voidLadderIx(refs, publicKey)])} disabled={voidIt.isPending}>This round cannot finish. Void it: deposits come back first, open lines share the rest</button></p>}
+      <Coach step={coach} kind={desk.kind} narrow={narrow} bell={hm(l.settlesAt)} go={goCoach} />
+      {step === "void" && publicKey && <p className="hint"><button className="link" onClick={() => voidIt.mutate([stook.voidLadderIx(refs, publicKey)])} disabled={voidIt.isPending}>This round cannot finish. Void it: deposits come back first, open calls share the rest</button></p>}
       {/* On Sell the ticket's own button is the action; the bar never offers a buy beside it. */}
-      {!final && grid && !(sel && side === "sell") && <CallBar order={order} symbol={quoteSymbol} money={money} state={tradeable ? "open" : "closed"} closedText={phase === "late" ? "Not opening. Deposits come back." : l.status === "seeding" ? `Opens ${hm(l.opensAt)} New York.` : `Closed. Bell at ${hm(l.settlesAt)}.`} pending={!!desk.pending} hasCall={!!desk.call} held={!!sel} />}
+      {!final && grid && !(sel && side === "sell") && <CallBar order={order} symbol={quoteSymbol} money={money} state={tradeable ? "open" : "closed"} closedText={phase === "late" ? "Not opening. Deposits come back." : l.status === "seeding" ? `Opens ${hm(l.opensAt)} New York.` : `Closed. Bell at ${hm(l.settlesAt)}.`} pending={!!desk.pending} hasCall={!!desk.call} held={!!sel}
+        controls={narrow ? <CallKindBar desk={desk} grid={grid} at={livePrice !== null ? grid.binOf(livePrice) : 32} onSure={() => { if (coach === 2) goCoach(3); if (sel) setSelected(null); }} /> : undefined} />}
     </div>
   );
 }

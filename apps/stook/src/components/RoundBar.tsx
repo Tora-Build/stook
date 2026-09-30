@@ -22,7 +22,7 @@ export function RoundBar({ opensAt, locksAt, settlesAt }: { opensAt: number; loc
         <span className="rb-bell"><Bell scale={1} /></span>
       </div>
       <div className="rb-labels">
-        <span className="rb-l-open"><b>{t(opensAt)}</b>opens, bands set</span>
+        <span className="rb-l-open"><b>{t(opensAt)}</b>opens, floors set</span>
         <span className="rb-l-lock"><b>{t(locksAt)}</b>trading stops</span>
         <span className="rb-l-bell"><b>{t(settlesAt)}</b>the bell</span>
       </div>

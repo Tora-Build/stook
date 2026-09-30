@@ -97,9 +97,6 @@ main { padding: 0 1rem; }
 .chart-wrap { background: var(--ink); border: 3px solid var(--cream); box-shadow: 8px 8px 0 var(--brick-2); padding: .5rem .5rem 0; }
 .chart { width: 100%; height: auto; display: block; touch-action: none; user-select: none; shape-rendering: crispEdges; }
 .bar { fill: var(--crowd-2); }
-.bar-in { fill: var(--crowd); }
-.bar-settled { fill: var(--good); }
-.line-live { stroke: var(--cream); stroke-width: 2; }
 .lbl { fill: var(--cream-3); font-family: var(--mono); font-size: 11px; }
 .lbl-live { fill: var(--cream); }
 .chart-hover { display: flex; gap: 1.25rem; padding: .5rem .5rem .6rem; font-size: .85rem; min-height: 2.2rem; color: var(--cream-2); }
@@ -360,7 +357,6 @@ a.wc-cell:hover { text-decoration: none; border-color: var(--taxi); }
 .placard-nav { margin-top: auto; padding-top: 1rem; display: flex; align-items: center; justify-content: space-between; gap: 1rem; }
 .as-link { text-decoration: none; display: inline-block; }
 .scene { display: flex; flex-direction: column; gap: .8rem; }
-.scene-svg { width: 100%; height: auto; display: block; }
 .scene-caption { font-size: .85rem; color: var(--cream-2); min-height: 2.6em; }
 .scene-caption b { color: var(--cream); }
 .scene-row { display: flex; align-items: center; gap: 1rem; flex-wrap: wrap; font-size: .8rem; color: var(--cream-2); }
@@ -411,7 +407,6 @@ a.wc-cell:hover { text-decoration: none; border-color: var(--taxi); }
 .tile-icon p { font-size: .9rem; }
 .tiles-2 { grid-template-columns: 1fr 1fr; max-width: 900px; }
 @media (max-width: 860px) { .tiles-2 { grid-template-columns: 1fr; } }
-.lbl-xs { font-size: 5px; }
 
 /* two ways in: a pair of doors off the floor */
 .doors { padding-top: 3rem; }
@@ -960,7 +955,6 @@ a.tour-btn { text-decoration: none; }
 .scene-paper .primary { width: 100%; margin-top: .5rem; }
 .scene .payl { margin: 0; }
 .scene .payl-head, .scene .payl-row { grid-template-columns: 5.5rem 1fr 4.6rem; }
-.scene-bell { display: flex; justify-content: center; }
 .scene-notes .notice { margin: 0; }
 
 /* calendar: a tab on the days you hold something in */
@@ -1107,9 +1101,14 @@ a.tour-btn { text-decoration: none; }
    windows glow cream (the crowd), coins are gold (your winnings): the two
    never share a colour. */
 .page.market { max-width: 1280px; }
-.tw-layout { display: grid; grid-template-columns: minmax(0, 1fr) minmax(300px, 340px); gap: 28px; align-items: start; }
-.tw-main { grid-column: 1; grid-row: 1; min-width: 0; }
-.tw-side { grid-column: 2; grid-row: 1; min-width: 0; }
+/* The tower leads: its sentence on top, then the building, with the right
+   panel level with the building's roof. */
+.tw-layout { display: grid; grid-template-columns: minmax(0, 1fr) minmax(300px, 340px); grid-template-rows: auto auto 1fr; grid-template-areas: "readout ." "tower side" "below side"; column-gap: 28px; align-items: start; }
+.tw-main, .tw-box { display: contents; }
+.tw-readout { grid-area: readout; }
+.tw-wrap, .tw-wait { grid-area: tower; }
+.tw-below { grid-area: below; min-width: 0; }
+.tw-side { grid-area: side; min-width: 0; }
 .tw-ticketbox .ticket { position: relative; top: auto; }
 .tw-wait { padding: 2rem 0; }
 .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
@@ -1136,6 +1135,7 @@ a.tour-btn { text-decoration: none; }
 
 /* the coach: three steps on a first visit */
 .tw-coach { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 14px; background: #f4e9c8; color: #0b1120; padding: 10px 12px; margin-bottom: 14px; box-shadow: 4px 4px 0 var(--taxi-2); }
+.tw-coach-float { position: fixed; z-index: 40; left: 50%; transform: translateX(-50%); bottom: calc(var(--tw-mbar-h, 0px) + 12px); width: min(620px, calc(100vw - 24px)); margin: 0; border: 3px solid #0b1120; }
 .tw-coach .n { font-family: var(--px); font-size: 9px; background: #0b1120; color: var(--taxi); padding: 6px 7px; line-height: 1; }
 .tw-coach p { margin: 0; flex: 1 1 220px; font-size: 16px; font-weight: 600; line-height: 1.4; }
 .tw-coach button { min-height: 40px; padding: 0 12px; border: 2px solid #0b1120; background: var(--taxi); font-family: var(--px); font-size: 9px; color: #0b1120; cursor: pointer; }
@@ -1161,9 +1161,7 @@ a.tour-btn { text-decoration: none; }
   --tw-wa: calc(10 * var(--tw-ww) + 9 * var(--tw-wg) + 2 * var(--tw-wp));
   position: relative; border: 3px solid var(--t-cream); background: var(--t-sky); box-shadow: 8px 8px 0 var(--brick-2); overflow: hidden; color: var(--t-cream);
 }
-.tw-roof { position: relative; height: 78px; }
-.tw-roof svg { position: absolute; left: 0; bottom: 0; image-rendering: pixelated; }
-.tw-bellsign { position: absolute; bottom: 26px; background: var(--t-ink); border: 2px solid var(--t-cream); padding: 3px 7px; font-family: var(--mono); font-size: 13px; line-height: 1.3; white-space: nowrap; text-align: right; z-index: 2; }
+.tw-bellsign { background: var(--t-ink); border: 2px solid var(--t-cream); padding: 3px 7px; font-family: var(--mono); font-size: 13px; line-height: 1.3; white-space: nowrap; text-align: right; z-index: 2; }
 .tw-bellsign b { font-family: var(--px); font-size: 8px; color: var(--t-gold); display: block; margin-bottom: 2px; font-weight: 400; }
 .tw-bellsign .cd { font-weight: 600; font-variant-numeric: tabular-nums; }
 .tw-sc { position: relative; z-index: 1; -webkit-tap-highlight-color: transparent; overflow-y: auto; overscroll-behavior-y: auto; scrollbar-width: none; touch-action: pan-y; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; outline: none; }
@@ -1252,7 +1250,7 @@ a.tour-btn { text-decoration: none; }
 /* not taking calls: tabs gone, the floors only read */
 .tw-still .tw-fl { cursor: default; }
 /* closed: a sign on the tower, lights down, a rope across the door */
-.tw-sign { position: absolute; z-index: 12; pointer-events: none; }
+.tw-sign { position: relative; pointer-events: none; }
 .tw-sign .chains { position: absolute; left: 0; right: 0; top: -24px; height: 26px; }
 .tw-sign .chains i { position: absolute; top: 0; width: 2px; height: 28px; background: repeating-linear-gradient(180deg, var(--t-cream-3) 0 3px, transparent 3px 5px); }
 .tw-sign .plate { background: #a8412f; color: var(--t-cream); border: 3px solid var(--t-cream); box-shadow: 4px 4px 0 var(--t-ink); padding: 10px 14px; text-align: center; transform: rotate(-4deg); transform-origin: 50% -24px; animation: tw-sway 3.2s steps(8) infinite alternate; }
@@ -1260,15 +1258,7 @@ a.tour-btn { text-decoration: none; }
 .tw-sign .big { font-family: var(--px); font-size: 22px; line-height: 1.2; display: block; letter-spacing: .06em; }
 .tw-sign .small { font-family: var(--px); font-size: 9px; line-height: 1.6; display: block; margin-top: 6px; }
 /* on a phone the sign hangs from a gantry on the roof, clear of the floors */
-.tw-sign.roofed { top: 20px; z-index: 3; }
-.tw-sign.roofed .chains { top: -14px; height: 16px; }
-.tw-sign.roofed .chains i { height: 18px; }
-.tw-sign.roofed .plate { padding: 5px 6px; border-width: 2px; box-shadow: 3px 3px 0 var(--t-ink); transform: rotate(-3deg); transform-origin: 50% -14px; }
-.tw-sign.roofed .big { font-size: 12px; }
-.tw-sign.roofed .small { font-size: 6px; margin-top: 3px; line-height: 1.4; }
 @keyframes tw-sway { from { transform: rotate(-5deg); } to { transform: rotate(-3deg); } }
-.tw-sign.roofed .plate { animation-name: tw-sway-s; }
-@keyframes tw-sway-s { from { transform: rotate(-4deg); } to { transform: rotate(-2deg); } }
 .tw-shut .tw-pa { background: #0d1426; }
 .tw-shut .tw-wn, .tw-shut .tw-co, .tw-shut .tw-pl, .tw-shut .tw-pc, .tw-shut .tw-sh { filter: brightness(.62); }
 .tw-shut .tw-w { background: #0a0f1c; }
@@ -1313,9 +1303,10 @@ a.tour-btn { text-decoration: none; }
 @media (max-width: 980px) {
   .tw-layout { display: flex; flex-direction: column; gap: 0; align-items: stretch; }
   .tw-side, .tw-main { display: contents; }
-  .tw-ctlset { order: 1; margin-bottom: 18px; }
-  .tw-coach { order: 2; }
-  .tw-box, .tw-wait { order: 3; }
+  .tw-ctlset { display: none; }
+  .tw-readout { order: 1; }
+  .tw-wrap, .tw-wait { order: 2; }
+  .tw-below { order: 3; }
   .tw-ticketbox { order: 5; margin-top: 26px; }
   .tw-ticketbox button.primary[data-coach="place"] { display: none; }
   .page.market { padding-bottom: 96px; }
@@ -1327,8 +1318,8 @@ a.tour-btn { text-decoration: none; }
   .tw-mbar .tw { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
   .tw-mbar .tw > span:last-child { font-family: var(--mono); font-size: 15px; font-weight: 600; color: var(--taxi); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .tw-mbar .tw > span.dim { color: var(--cream-3); font-weight: 400; font-size: 13px; font-family: var(--sans); }
-  .tw-mbar button { min-height: 50px; background: var(--taxi); color: #0b1120; border: 3px solid #0b1120; box-shadow: 3px 3px 0 var(--cream); font-family: var(--px); font-size: 10px; padding: 0 14px; cursor: pointer; }
-  .tw-mbar button:disabled { background: var(--sky-3); color: var(--cream-3); box-shadow: none; cursor: default; }
+  .tw-mbar-row > button { min-height: 50px; background: var(--taxi); color: #0b1120; border: 3px solid #0b1120; box-shadow: 3px 3px 0 var(--cream); font-family: var(--px); font-size: 10px; padding: 0 14px; cursor: pointer; }
+  .tw-mbar-row > button:disabled { background: var(--sky-3); color: var(--cream-3); box-shadow: none; cursor: default; }
 }
 @media (max-width: 700px) {
   .tw-seg .t { font-size: 14px; }
@@ -1354,3 +1345,134 @@ a.tour-btn { text-decoration: none; }
 .tw-small .tw-street .t { font-size: 10px; }
 .tw-small .tw-held-tag { font-size: 6px; padding: 3px 3px; margin-right: 2px; }
 .tw-small .tw-off button { font-size: 11px; padding: 0 6px; }
+
+/* ── a round page: the header is one short row, the tower comes next ──────── */
+.top-round { padding: .45rem 16px; gap: 1rem; border-bottom: 3px solid var(--taxi); }
+.page.market { margin-top: .6rem; }
+@media (max-width: 760px) {
+  .top.top-round { flex-wrap: nowrap; gap: .5rem; padding: .35rem 10px; }
+  .top-round .brand-name { display: none; }
+  .top-round .brand img { width: 26px; height: 26px; }
+  .top-round nav { gap: .6rem; }
+  .top-round nav a { font-size: .42rem; }
+  .top-round .top-right { gap: .3rem; }
+  .top-round .faucet-btn span { display: none; }
+  .top-round .faucet-btn { height: 32px; padding: 0 .35rem; }
+  .top-round .faucet-btn svg { width: 18px; height: 18px; }
+  .top-round .theme-btn { width: 32px; height: 32px; }
+  .top-round .wallet-adapter-button { height: 32px !important; padding: 0 .5rem !important; font-size: .42rem !important; }
+  .top-round .wallet-adapter-button-start-icon { display: none; }
+  .page.market { margin-top: .35rem; }
+}
+
+
+/* ── the roof: billboard, the bell (or a hanging plate), the LED ticker ────── */
+.tw-roof { position: relative; background: linear-gradient(180deg, #0d1528 0, var(--t-sky) 100%); padding: 8px 8px 0; }
+.tw-deck { display: flex; align-items: flex-end; gap: 10px; min-height: 96px; }
+.tw-bill { flex: 1 1 auto; min-width: 0; max-width: 560px; margin-right: auto; display: flex; flex-direction: column; }
+.tw-bill-face { position: relative; background: #0b1120; border: 3px solid #8d8670; box-shadow: inset 0 0 0 2px #1f3050, 3px 3px 0 #000; padding: 10px 12px 8px;
+  background-image: radial-gradient(circle, #ffe28a 0 1.5px, transparent 2px); background-size: 12px 6px; background-repeat: repeat-x; background-position: 6px 1px; }
+.tw-bill-face .l1 { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.tw-bill-face .logo { width: 34px; height: 34px; flex: none; display: grid; place-items: center; border: 2px solid var(--t-cream); background: #15213a; overflow: hidden; }
+.tw-bill-face .logo img { width: 100%; height: 100%; object-fit: cover; }
+.tw-bill-face .logo span { font-family: var(--px); font-size: 8px; color: var(--t-gold); }
+.tw-bill-face .sym { font-family: var(--px); font-size: 30px; line-height: 1; color: var(--t-gold); text-shadow: 2px 2px 0 #7a2f22, 0 0 8px rgba(240, 168, 58, .45); letter-spacing: .04em; }
+.tw-bill-face .nm { font-family: var(--px); font-size: 12px; color: var(--t-cream); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+.tw-bill-face .l2 { display: flex; align-items: center; gap: 6px; margin-top: 9px; font-family: var(--px); font-size: 10px; color: var(--t-cream); line-height: 1.4; }
+.tw-bill-face .l2 img { width: 16px; height: 16px; border-radius: 50%; }
+.tw-bill-face .l3 { margin-top: 5px; font-family: var(--mono); font-size: 14px; color: var(--t-cream-2); line-height: 1.35; }
+.tw-bill-help { margin-left: auto; flex: none; width: 26px; height: 26px; background: var(--t-ink); color: var(--t-gold); border: 2px solid var(--t-gold); font-family: var(--px); font-size: 10px; cursor: pointer; padding: 0; }
+.tw-bill-help:hover { background: var(--t-gold); color: var(--t-ink); }
+/* the billboard's legs, with a plaque between them */
+.tw-bill-posts { position: relative; min-height: 18px; display: flex; align-items: center; justify-content: center; padding: 2px 16px 0;
+  background: linear-gradient(90deg, transparent 12%, #5c2219 12% calc(12% + 4px), transparent calc(12% + 4px) calc(88% - 4px), #5c2219 calc(88% - 4px) 88%, transparent 88%); }
+.tw-plaque { position: relative; z-index: 2; display: inline-flex; align-items: center; gap: 6px; max-width: 100%; background: #c9bfa4; color: #0b1120; border: 2px solid #5c2219; font-family: var(--sans); font-size: 11px; line-height: 1.2; padding: 1px 6px; cursor: pointer; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; box-shadow: 2px 2px 0 #000; }
+.tw-plaque-t { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.tw-plaque > span[aria-hidden] { flex: none; font-family: var(--px); font-size: 7px; background: #0f7a4d; color: #f4e9c8; padding: 2px 3px; }
+.tw-plaque-node { cursor: default; }
+.tw-plaque-node a, .tw-plaque-node button { font-size: 11px; }
+.tw-plaque-full { position: absolute; z-index: 20; left: 8px; right: 8px; top: 100%; margin: 4px 0 0; background: #f4e9c8; color: #0b1120; border: 2px solid #0b1120; box-shadow: 3px 3px 0 #000; padding: 6px 8px; font-size: 12px; line-height: 1.4; }
+.tw-bellside { flex: none; align-self: center; }
+.tw-bellsign .st { display: block; font-family: var(--sans); font-size: 11px; color: var(--t-cream-2); font-weight: 400; margin-top: 1px; }
+.tw-belltower { flex: none; line-height: 0; margin-right: 2px; }
+.tw-belltower svg { image-rendering: pixelated; }
+.tw-bellside.tw-sign .plate { padding: 8px 10px; }
+.tw-bellside.tw-sign .big { font-size: 16px; }
+.tw-bellside.tw-sign .small { font-size: 7px; margin-top: 4px; }
+.tw-bellside.tw-sign .small.cd { font-family: var(--mono); font-size: 13px; font-weight: 600; letter-spacing: 0; }
+.tw-bellside.tw-sign .chains { top: -12px; height: 14px; }
+.tw-bellside.tw-sign .chains i { height: 14px; }
+.tw-shut .tw-bill-face { filter: brightness(.75) saturate(.8); }
+/* the ticker: amber LEDs on black along the roof's ledge */
+.tw-led { position: relative; margin: 6px -8px 0; background: #050608; border-top: 2px solid #3a2622; border-bottom: 2px solid #3a2622; overflow: hidden; height: 26px; }
+.tw-led::after { content: ""; position: absolute; inset: 0; pointer-events: none; background: repeating-linear-gradient(90deg, transparent 0 2px, rgba(0, 0, 0, .35) 2px 3px), repeating-linear-gradient(0deg, transparent 0 2px, rgba(0, 0, 0, .3) 2px 3px); }
+.tw-led-run { display: inline-flex; white-space: nowrap; animation: tw-marq 40s linear infinite; }
+.tw-led:hover .tw-led-run { animation-play-state: paused; }
+.tw-led .it { display: inline-block; padding: 0 22px 0 0; font-family: var(--mono); font-size: 13px; line-height: 22px; color: #ffb13b; text-shadow: 0 0 5px rgba(255, 160, 40, .7); }
+.tw-led .it::after { content: "◆"; margin-left: 22px; font-size: 8px; color: #7a4d10; vertical-align: 2px; }
+.tw-led .it b { font-family: var(--px); font-size: 8px; font-weight: 400; color: #ffe28a; margin-right: 4px; }
+.tw-led .it em { font-style: normal; color: #d8903a; }
+.tw-led .it em.up { color: #5ef08f; text-shadow: 0 0 5px rgba(94, 240, 143, .6); }
+.tw-led .it em.down { color: #ff6a5a; text-shadow: 0 0 5px rgba(255, 106, 90, .6); }
+@keyframes tw-marq { from { transform: translateX(0); } to { transform: translateX(-50%); } }
+@media (prefers-reduced-motion: reduce) {
+  .tw-led { height: auto; overflow-x: auto; scrollbar-width: none; }
+  .tw-led::-webkit-scrollbar { display: none; }
+  .tw-led-run { animation: none; }
+  .tw-led .it.dup { display: none; }
+}
+.tw-parapet { height: 12px; margin: 0 -8px; background: linear-gradient(180deg, #c9bfa4 0 3px, #8d8670 3px 100%); }
+.tw-small .tw-roof { padding: 6px 6px 0; }
+.tw-small .tw-deck { gap: 6px; min-height: 84px; }
+.tw-small .tw-bill-face { padding: 8px 8px 6px; }
+.tw-small .tw-bill-face .l1 { gap: 6px; }
+.tw-small .tw-bill-face .logo { width: 24px; height: 24px; }
+.tw-small .tw-bill-face .sym { font-size: 18px; }
+.tw-small .tw-bill-face .nm { display: none; }
+.tw-small .tw-bill-face .l2 { font-size: 7px; margin-top: 5px; }
+.tw-small .tw-bill-face .l2 img { width: 12px; height: 12px; }
+.tw-small .tw-bill-face .l3 { font-size: 10px; }
+.tw-small .tw-bill-help { width: 22px; height: 22px; font-size: 8px; }
+.tw-small .tw-plaque { font-size: 9px; padding: 1px 4px; gap: 4px; }
+.tw-small .tw-bellsign { padding: 2px 5px; }
+.tw-small .tw-bellsign .st { font-size: 9px; }
+.tw-small .tw-belltower svg { width: 34px; height: 54px; }
+.tw-small .tw-bellside.tw-sign .plate { padding: 5px 6px; border-width: 2px; }
+.tw-small .tw-bellside.tw-sign .big { font-size: 11px; }
+.tw-small .tw-bellside.tw-sign .small { font-size: 6px; margin-top: 3px; }
+.tw-small .tw-bellside.tw-sign .small.cd { font-size: 11px; }
+.tw-small .tw-led { margin: 5px -6px 0; height: 22px; }
+.tw-small .tw-led .it { font-size: 11px; line-height: 18px; padding-right: 16px; }
+.tw-small .tw-led .it::after { margin-left: 16px; }
+.tw-small .tw-parapet { margin: 0 -6px; height: 9px; }
+
+/* ── the phone's call bar: kind and how sure above spend and Place ─────────── */
+.tw-mbar-ctl { display: none; }
+@media (max-width: 980px) {
+  .tw-mbar { flex-direction: column; align-items: stretch; gap: 6px !important; padding-top: 6px !important; }
+  .tw-mbar-row { display: flex; gap: 10px; align-items: center; }
+  .tw-mbar-ctl { display: block; overflow: hidden; max-height: 48px; transition: max-height .18s ease-out; }
+  .tw-mbar-ctl.folded { max-height: 0; }
+  .tw-mbar-unfold { position: absolute; top: -18px; left: 50%; transform: translateX(-50%); min-height: 0 !important; height: 18px; width: 56px; padding: 0 !important; font-size: 10px !important; background: var(--sky-2) !important; color: var(--cream) !important; border: 3px solid var(--cream) !important; border-bottom: 0 !important; box-shadow: none !important; }
+  .tw-kbar { display: flex; gap: 6px; align-items: center; }
+  .tw-kbar .seg { display: flex; flex: none; border: 2px solid var(--cream); }
+  .tw-kbar .seg button, .tw-kbar .chips button { min-height: 36px !important; box-shadow: none !important; border: 0 !important; background: var(--sky) !important; color: var(--cream) !important; font-family: var(--sans) !important; font-size: 13px !important; font-weight: 600; padding: 0 8px !important; }
+  .tw-kbar .seg button + button { border-left: 2px solid var(--cream) !important; }
+  .tw-kbar .seg button[aria-pressed="true"] { background: var(--cream) !important; color: #0b1120 !important; }
+  .tw-kbar .chips { flex: 1; min-width: 0; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 4px; }
+  .tw-kbar .chips button { border: 2px solid var(--line) !important; padding: 0 2px !important; font-size: 12px !important; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .tw-kbar .chips button[aria-pressed="true"] { background: var(--taxi) !important; color: #0b1120 !important; border-color: var(--taxi) !important; }
+  .tw-kbar .hint { flex: 1; min-width: 0; font-size: 12px; color: var(--cream-2); line-height: 1.25; }
+  .page.market { padding-bottom: 150px; }
+}
+@media (prefers-reduced-motion: reduce) { .tw-mbar-ctl { transition: none; } }
+
+/* the How page's drawings: the round page's tower, a few floors tall */
+.tw-box.tw-demo { display: block; width: 100%; }
+.tw-demo .tw-readout { position: static; background: transparent; padding: 0 0 8px; }
+.tw-demo .tw-say { font-size: 15px; }
+.tw-demo .tw-aim { font-size: 13px; min-height: 1.4em; }
+.tw-demo .tw-legend { font-size: 12px; gap: 4px 14px; }
+.scene-tower { gap: 10px; }
+.scene-tower .tw-ctl { width: 100%; }
+.scene-tower .tw-seg .t { font-size: 13px; }

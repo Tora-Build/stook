@@ -48,7 +48,31 @@ interface Props {
   headline: ReactNode;
   all: boolean;
   onPicked: () => void;
+  /** The round on the roof: the billboard's lettering and the LED ticker. */
+  sign: RoofSign;
+  ticker: TickerItem[];
+  /** Under the bell while trading: "locks in 1 h 23 min". */
+  status: string;
+  /** A drawing for the How page: no roof, a few floors tall, nothing sent. */
+  demo?: { floors: number; legend?: boolean };
 }
+
+export interface RoofSign {
+  /** What the round is on: "BTC", "Bitcoin". */
+  symbol: string; name: string;
+  /** The anchor's logo, or none (a devnet stand-in shows its ticker instead). */
+  logo?: string;
+  /** The coin it is paid in. */
+  coin?: { symbol: string; logo: string };
+  paidIn: string;
+  date: string; closes: string;
+  /** A small plaque under the billboard: short words, and the full note on tap or hover. */
+  plaque?: { short: string; full: string } | null;
+  /** Something the plaque carries instead, like the anchor's mint. */
+  plaqueNode?: ReactNode;
+  onHelp?: (() => void) | null;
+}
+export interface TickerItem { k: string; v: string; d?: string; tone?: "up" | "down" }
 
 // ── pixel art ─────────────────────────────────────────────────────────────────
 function pix(map: string[], pal: Record<string, string>, s = 2, ox = 0, oy = 0) {
@@ -262,6 +286,8 @@ function TowerView(p: Props) {
   const tipPrice = final ? (path.pts.length ? path.pts[path.pts.length - 1]![1] : null) : p.live;
   const carY = p.phase === "void" ? null : p.phase === "settled" && settledRow !== null && (tipPrice === null || g.rowOf[g.binOf(tipPrice)] !== settledRow) ? yTop(settledRow) + M.fh / 2 : tipPrice !== null ? yOfPrice(tipPrice) : null;
   const carHtml = useMemo(() => pix(CAR, CARPAL, carS), [carS]);
+  // The car's tag names a price only when it is the price the car stands on.
+  const tagPrice = tipPrice !== null && (!final || (p.phase === "settled" && g.rowOf[g.binOf(tipPrice)] === settledRow)) ? tipPrice : null;
 
   // ── latest values for pointer and key handlers ──
   const cur = useRef({ g, desk, M, interactive, yTop, onPicked: p.onPicked });
@@ -516,33 +542,24 @@ function TowerView(p: Props) {
 
   // ── roof, street, sign ──
   const shut = p.phase === "locked" || p.phase === "settling" || p.phase === "void" || p.phase === "late";
-  const sign = p.phase === "locked" ? { big: "CLOSED", small: `BELL AT ${clock(p.settlesAt).toUpperCase()}`, tone: "" }
+  const plate = p.phase === "locked" ? { big: "CLOSED", small: `BELL AT ${clock(p.settlesAt).toUpperCase()}`, tone: "" }
     : p.phase === "settling" ? { big: "CLOSED", small: "THE BELL IS RINGING", tone: "" }
     : p.phase === "void" ? { big: "VOID", small: "MONEY COMES BACK", tone: "" }
     : p.phase === "late" ? { big: "NOT OPEN", small: "DEPOSITS COME BACK", tone: "" }
     : p.phase === "seeding" ? { big: "SOON", small: `OPENS ${clock(p.opensAt).toUpperCase()}`, tone: "soon" } : null;
-  const signW = M.small ? 124 : 200;
-  const signX = M.small ? 8 : M.plw + 30;
-  const roofH = 78, base = roofH - 10;
-  const roof = useMemo(() => {
-    const w = M.W;
-    let s = `<svg width="${w}" height="${roofH}" viewBox="0 0 ${w} ${roofH}" shape-rendering="crispEdges">`;
-    s += `<rect x="0" y="${base}" width="${w}" height="10" fill="#8d8670"/><rect x="0" y="${base - 2}" width="${w}" height="3" fill="#c9bfa4"/>`;
-    for (let x = 4; x < w - 4; x += 12) s += `<rect x="${x}" y="${base - 8}" width="5" height="6" fill="#8d8670"/>`;
-    const mx = Math.round(M.nowX - 14);
-    s += `<rect x="${mx}" y="${base - 24}" width="28" height="22" fill="#3a2622"/><rect x="${mx - 2}" y="${base - 27}" width="32" height="4" fill="#8d8670"/><rect x="${mx + 6}" y="${base - 18}" width="16" height="8" fill="#1f3050"/><rect x="${mx + 13}" y="${base - 40}" width="2" height="13" fill="#8d8670"/><rect x="${mx + 11}" y="${base - 42}" width="6" height="3" fill="#e0605a"/>`;
-    if (!M.small) { const wx = M.plw + 30; s += `<rect x="${wx}" y="${base - 36}" width="26" height="22" fill="#5c3a2a"/><rect x="${wx - 3}" y="${base - 41}" width="32" height="6" fill="#8d8670"/><rect x="${wx + 10}" y="${base - 46}" width="6" height="5" fill="#8d8670"/><rect x="${wx + 3}" y="${base - 14}" width="3" height="12" fill="#8d8670"/><rect x="${wx + 20}" y="${base - 14}" width="3" height="12" fill="#8d8670"/>`; for (let y = base - 32; y < base - 14; y += 5) s += `<rect x="${wx}" y="${y}" width="26" height="1" fill="#3a2622"/>`; }
-    // Phones hang the sign from a gantry on the roof, clear of the floors.
-    if (M.small && sign) s += `<rect x="${signX + 4}" y="4" width="3" height="${base - 6}" fill="#5c2219"/><rect x="${signX + signW - 7}" y="4" width="3" height="${base - 6}" fill="#5c2219"/><rect x="${signX}" y="3" width="${signW}" height="3" fill="#8d8670"/>`;
-    const bx = w - M.pcw - (M.small ? 20 : 24);
-    s += `<rect x="${bx}" y="${base - 48}" width="36" height="46" fill="#3a2622"/><rect x="${bx - 4}" y="${base - 52}" width="44" height="5" fill="#c9bfa4"/><rect x="${bx + 3}" y="${base - 60}" width="30" height="8" fill="#8d8670"/><rect x="${bx + 16}" y="${base - 66}" width="4" height="6" fill="#f0a83a"/>`;
-    s += `<rect x="${bx}" y="${base - 48}" width="3" height="46" fill="#5c2219"/><rect x="${bx + 33}" y="${base - 48}" width="3" height="46" fill="#5c2219"/><rect x="${bx + 17}" y="${base - 47}" width="2" height="4" fill="#8d8670"/>`;
-    s += `<g class="tw-bellg">${pix(BELL, BELLPAL, 2, bx + 8, base - 43)}</g></svg>`;
-    return s;
-  }, [M, !!sign, signX, signW]); // eslint-disable-line react-hooks/exhaustive-deps
+  const bellTower = useMemo(() => {
+    const w = 44, h = 70, base = h;
+    let s = `<svg width="${w}" height="${h}" viewBox="0 0 ${w} ${h}" shape-rendering="crispEdges">`;
+    const bx = 4;
+    s += `<rect x="${bx}" y="${base - 48}" width="36" height="48" fill="#3a2622"/><rect x="${bx - 4}" y="${base - 52}" width="44" height="5" fill="#c9bfa4"/><rect x="${bx + 3}" y="${base - 60}" width="30" height="8" fill="#8d8670"/><rect x="${bx + 16}" y="${base - 66}" width="4" height="6" fill="#f0a83a"/>`;
+    s += `<rect x="${bx}" y="${base - 48}" width="3" height="48" fill="#5c2219"/><rect x="${bx + 33}" y="${base - 48}" width="3" height="48" fill="#5c2219"/><rect x="${bx + 17}" y="${base - 47}" width="2" height="4" fill="#8d8670"/>`;
+    return s + `<g class="tw-bellg">${pix(BELL, BELLPAL, 2, bx + 8, base - 43)}</g></svg>`;
+  }, []);
+  const roofH = 0; // the roof is laid out in the page's flow; chips read the floors' own offset
 
   const tx = Math.round(M.plw + M.pw * 0.55), rx = Math.round(M.small ? M.plw + M.pw + M.shw + M.wa + 8 : M.plw + M.pw + M.shw + M.wa / 2 - 12), rs = M.small ? 2 : 3;
-  const scH = Math.min(HT, M.small ? Math.min(Math.round(vh * 0.56), 560) : Math.max(360, Math.min(vh - 260, 760)));
+  // Phones leave room for the header, the sentence, the roof and the call bar.
+  const scH = p.demo ? Math.min(HT, p.demo.floors * M.fh) : Math.min(HT, M.small ? clamp(vh - 470, 280, 540) : Math.max(360, Math.min(vh - 300, 760)));
   const vars = { "--tw-plw": `${M.plw}px`, "--tw-pw": `${M.pw}px`, "--tw-shw": `${M.shw}px`, "--tw-ww": `${M.ww}px`, "--tw-wg": `${M.wg}px`, "--tw-wp": `${M.wp}px`, "--tw-wa": `${M.wa}px`, "--tw-pcw": `${M.pcw}px`, "--tw-th": `${M.th}px`, "--tw-fh": `${M.fh}px` } as CSSProperties;
 
   // Off-screen marks: where the rest of the call, and the price now, are.
@@ -563,17 +580,21 @@ function TowerView(p: Props) {
   const nowLabel = final ? (p.phase === "settled" ? "BELL" : "") : "NOW";
 
   return (
-    <div className="tw-box">
+    <div className={`tw-box${p.demo ? " tw-demo" : ""}`}>
       <div className="tw-readout" aria-live="off">
         <div className="tw-txt"><div className="tw-say">{say}</div>{aim && <div className="tw-aim">{aim}</div>}</div>
         {xBtn}
       </div>
       <div ref={wrap} className={cls} style={vars} data-coach="tower">
-        <div className="tw-roof" aria-hidden="true">
-          <div dangerouslySetInnerHTML={{ __html: roof }} />
-          <BellSign phase={p.phase} opensAt={p.opensAt} settlesAt={p.settlesAt} right={M.pcw + (M.small ? 24 : 32)} />
-          {sign && M.small && <div className={`tw-sign roofed ${sign.tone}`} style={{ left: signX, width: signW }}><div className="chains"><i style={{ left: "18%" }} /><i style={{ right: "18%" }} /></div><div className="plate"><span className="big">{sign.big}</span><span className="small">{sign.small}</span></div></div>}
-        </div>
+        {!p.demo && <div className="tw-roof">
+          <div className="tw-deck">
+            <Billboard sign={p.sign} />
+            <BellSign phase={p.phase} opensAt={p.opensAt} settlesAt={p.settlesAt} plate={plate} status={p.status} />
+            <div className="tw-belltower" aria-hidden="true" dangerouslySetInnerHTML={{ __html: bellTower }} />
+          </div>
+          <Ticker items={p.ticker} />
+          <div className="tw-parapet" aria-hidden="true" />
+        </div>}
         <div ref={sc} className="tw-sc" style={{ height: scH }} tabIndex={0} role="group" aria-label="The tower. Each floor is a price. Arrow keys move between floors, Enter picks one." aria-disabled={!interactive}
           onPointerDown={onDown} onPointerMove={onMove} onPointerUp={onUp} onPointerCancel={() => { ptr.current = null; stopAuto(); }}
           onPointerLeave={(e) => { if (!ptr.current && e.pointerType === "mouse") setHover(null); }} onKeyDown={onKey}>
@@ -583,7 +604,7 @@ function TowerView(p: Props) {
             {p.opened && g.p0 > 0 && <span className="tw-opentag" aria-hidden="true" style={{ left: M.plw + 3, top: Math.round(yOfPrice(g.p0)) + 2 }}>open</span>}
             {carY !== null && <>
               <svg className="tw-car" width={carW} height={carH} aria-hidden="true" shapeRendering="crispEdges" style={{ left: Math.round(M.nowX - carW / 2), top: Math.round(carY - carH / 2) }} dangerouslySetInnerHTML={{ __html: carHtml }} />
-              {(tipPrice !== null || p.phase === "settled") && <span className="tw-nowtag" aria-hidden="true" style={{ left: Math.round(M.nowX - carW / 2 - 2), top: Math.round(carY - carH / 2 - (M.small ? 20 : 22)) }}><b>{final ? "CLOSE" : "NOW"}</b>{tipPrice !== null && (!final || (p.phase === "settled" && g.rowOf[g.binOf(tipPrice)] === settledRow)) ? g.fmt(tipPrice) : ""}</span>}
+              {tagPrice !== null && <span className="tw-nowtag" aria-hidden="true" style={{ left: Math.round(M.nowX - carW / 2 - 2), top: Math.round(carY - carH / 2 - (M.small ? 20 : 22)) }}><b>{final ? "CLOSE" : "NOW"}</b>{g.fmt(tagPrice)}</span>}
             </>}
             {edges.map((y, k) => <div key={k} className="tw-edge" style={{ top: y }} />)}
             {tabs}
@@ -598,30 +619,76 @@ function TowerView(p: Props) {
           {(p.phase === "locked" || p.phase === "settling") && <svg className="tw-rope" width={12 * rs} height={7 * rs} style={{ left: rx, top: M.small ? 14 : 10 }} shapeRendering="crispEdges" dangerouslySetInnerHTML={{ __html: pix(ROPE, ROPEPAL, rs) }} />}
         </div>
         <OffChips sc={sc} marks={marks} fh={M.fh} top={roofH} pcw={M.pcw} onGo={(r) => scrollToRow(r)} />
-        {sign && !M.small && <div className={`tw-sign ${sign.tone}`} style={{ left: signX, top: 150 }} aria-hidden="true"><div className="chains"><i style={{ left: "22%" }} /><i style={{ right: "22%" }} /></div><div className="plate"><span className="big">{sign.big}</span><span className="small">{sign.small}</span></div></div>}
       </div>
+      <div className="tw-below">
       {(p.phase === "locked" || p.phase === "settling") && <p className="tw-closedline" role="status"><b>CLOSED</b>Trading closed at {clock(p.locksAt)}. Bell at {clock(p.settlesAt)} New York. The next round opens right after.</p>}
-      <div className="tw-legend">
+      {(!p.demo || p.demo.legend) && <div className="tw-legend">
         <span><svg width="22" height="12" shapeRendering="crispEdges" aria-hidden="true"><rect width="22" height="12" fill="#121c33" /><path d="M1 9h4v-3h4v-2h4v3h4v-4h4" stroke="#f4e9c8" strokeWidth="2" fill="none" /></svg><b>Line:</b> the price today</span>
         <span><svg width="12" height="16" shapeRendering="crispEdges" aria-hidden="true"><rect width="12" height="16" fill="#15213a" /><rect x="2" y="2" width="8" height="12" fill="#efe6cc" /><rect x="2" y="11" width="8" height="3" fill="#d6c9a4" /></svg><b>Lit windows:</b> the crowd's chance</span>
         <span><svg width="14" height="12" shapeRendering="crispEdges" aria-hidden="true"><rect x="2" y="9" width="10" height="1" fill="#8a5a12" /><rect x="2" y="8" width="10" height="1" fill="#f0a83a" /><rect x="3" y="7" width="8" height="1" fill="#ffe28a" /><rect x="2" y="6" width="10" height="1" fill="#8a5a12" /><rect x="2" y="5" width="10" height="1" fill="#f0a83a" /><rect x="3" y="4" width="8" height="1" fill="#ffe28a" /><rect x="2" y="3" width="10" height="1" fill="#8a5a12" /><rect x="2" y="2" width="10" height="1" fill="#f0a83a" /><rect x="3" y="1" width="8" height="1" fill="#ffe28a" /><rect x="1" y="10" width="12" height="2" fill="#8d8670" /></svg><b>Gold coins:</b> what your call wins, tallest on its best floor</span>
         {p.held.length > 0 && <span><svg width="14" height="12" aria-hidden="true"><rect x="1" y="1" width="12" height="10" fill="none" stroke="#f0a83a" strokeWidth="2" strokeDasharray="3 2" /></svg><b>Dashed:</b> a call you hold</span>}
-      </div>
+      </div>}
       <div className="sr" aria-live="polite">{announced}</div>
+      </div>
     </div>
   );
 }
 
-/** The bell on the roof: the only part of the tower that ticks every second. */
-function BellSign(p: { phase: Phase; opensAt: number; settlesAt: number; right: number }) {
+/** The bell's sign on the roof: the only part of the tower that ticks every
+ *  second. When the round takes no calls it is a hanging plate instead
+ *  (CLOSED, SOON, VOID), in the same place, so it never covers the billboard. */
+function BellSign(p: { phase: Phase; opensAt: number; settlesAt: number; plate: { big: string; small: string; tone: string } | null; status: string }) {
   const now = useNow();
+  if (p.plate) {
+    const cd = p.phase === "locked" ? `IN ${hms(p.settlesAt - now)}` : p.phase === "seeding" ? (p.opensAt > now ? `IN ${hms(p.opensAt - now)}` : "ANY MOMENT") : "";
+    return (
+      <div className={`tw-bellside tw-sign ${p.plate.tone}`}>
+        <div className="chains" aria-hidden="true"><i style={{ left: "22%" }} /><i style={{ right: "22%" }} /></div>
+        <div className="plate"><span className="big">{p.plate.big}</span><span className="small">{p.plate.small}</span>{cd && <span className="small cd">{cd}</span>}</div>
+      </div>
+    );
+  }
   const bell = p.phase === "open" ? { h: `BELL ${clock(p.settlesAt)}`, cd: `in ${hms(p.settlesAt - now)}` }
-    : p.phase === "locked" ? { h: `CLOSED · ${clock(p.settlesAt)}`, cd: `Bell in ${hms(p.settlesAt - now)}` }
-    : p.phase === "settling" ? { h: `BELL ${clock(p.settlesAt)}`, cd: "ringing" }
-    : p.phase === "seeding" ? { h: `OPENS ${clock(p.opensAt)}`, cd: p.opensAt > now ? `in ${hms(p.opensAt - now)}` : "any moment" }
     : p.phase === "settled" ? { h: `RANG ${clock(p.settlesAt)}`, cd: "settled" }
-    : { h: "VOID", cd: "refunds" };
-  return <div className="tw-bellsign" style={{ right: p.right }}><b>{bell.h}</b><span className="cd">{bell.cd}</span></div>;
+    : { h: `BELL ${clock(p.settlesAt)}`, cd: "" };
+  return <div className="tw-bellside"><div className="tw-bellsign"><b>{bell.h}</b><span className="cd">{bell.cd}</span>{p.phase === "open" && p.status && <span className="st">{p.status}</span>}</div></div>;
+}
+
+/** The round's billboard on the roof: what it is on, what it is paid in, when it closes. */
+function Billboard({ sign }: { sign: RoofSign }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <div className="tw-bill">
+      <div className="tw-bill-face">
+        <div className="l1">
+          {sign.logo && <span className="logo" aria-hidden="true"><img src={sign.logo} alt="" /></span>}
+          <span className="sym">{sign.symbol}</span>
+          <span className="nm">{sign.name}</span>
+          {sign.onHelp && <button className="tw-bill-help" onClick={sign.onHelp} aria-label="How it works, show the three steps again" title="How it works">?</button>}
+        </div>
+        <div className="l2">{sign.coin && <img src={sign.coin.logo} alt="" />}{sign.paidIn}</div>
+        <div className="l3">{sign.date} · {sign.closes}</div>
+      </div>
+      <div className="tw-bill-posts">
+        {sign.plaque && <button className="tw-plaque" onClick={() => setOpen(!open)} aria-expanded={open} title={sign.plaque.full}><span aria-hidden="true">i</span><span className="tw-plaque-t">{sign.plaque.short}</span></button>}
+        {sign.plaqueNode && <span className="tw-plaque tw-plaque-node">{sign.plaqueNode}</span>}
+        {open && sign.plaque && <p className="tw-plaque-full" role="note">{sign.plaque.full}</p>}
+      </div>
+    </div>
+  );
+}
+
+/** The stock-ticker strip along the roof's ledge. It scrolls, or holds still for reduced motion. */
+function Ticker({ items }: { items: TickerItem[] }) {
+  const one = (dup: boolean) => items.map((t, n) => (
+    <span key={`${dup ? "b" : "a"}${n}`} className={`it${dup ? " dup" : ""}`}><b>{t.k}</b> {t.v}{t.d && <em className={t.tone ?? ""}> {t.d}</em>}</span>
+  ));
+  return (
+    <div className="tw-led">
+      <div className="tw-led-run" aria-hidden="true" style={{ animationDuration: `${Math.max(20, items.length * 7)}s` }}>{one(false)}{one(true)}</div>
+      <ul className="sr">{items.map((t, n) => <li key={n}>{t.k}: {t.v}{t.d ? `, ${t.d}` : ""}</li>)}</ul>
+    </div>
+  );
 }
 
 /** Chips pinned to the tower's top and bottom edge for marks scrolled out of view. */
@@ -637,9 +704,9 @@ function OffChips(p: { sc: React.RefObject<HTMLDivElement>; marks: { y: number; 
     return () => { el.removeEventListener("scroll", on); ro.disconnect(); if (raf) cancelAnimationFrame(raf); };
   }, [p.sc]);
   const up = p.marks.filter((m) => m.y < view[0] + 4).slice(0, 2), dn = p.marks.filter((m) => m.y > view[1] - 4).slice(0, 2);
-  const h = view[1] - view[0];
+  const h = view[1] - view[0], top = p.top + (p.sc.current?.offsetTop ?? 0);
   return <>
-    {up.length > 0 && <div className="tw-off" style={{ top: p.top + 6, right: p.pcw + 8 }}>{up.map((m) => <button key={m.label} className={m.now ? "now" : ""} onClick={() => p.onGo(m.row)}>▲ {m.label}</button>)}</div>}
-    {dn.length > 0 && <div className="tw-off" style={{ top: p.top + h - 40, right: p.pcw + 8 }}>{dn.map((m) => <button key={m.label} className={m.now ? "now" : ""} onClick={() => p.onGo(m.row)}>▼ {m.label}</button>)}</div>}
+    {up.length > 0 && <div className="tw-off" style={{ top: top + 6, right: p.pcw + 8 }}>{up.map((m) => <button key={m.label} className={m.now ? "now" : ""} onClick={() => p.onGo(m.row)}>▲ {m.label}</button>)}</div>}
+    {dn.length > 0 && <div className="tw-off" style={{ top: top + h - 40, right: p.pcw + 8 }}>{dn.map((m) => <button key={m.label} className={m.now ? "now" : ""} onClick={() => p.onGo(m.row)}>▼ {m.label}</button>)}</div>}
   </>;
 }

@@ -71,7 +71,7 @@ export function Coin() {
         side={<div className="desk-side"><div className="desk-next-h">{coin.anchor.symbol}, the last 24 hours, New York time</div><Chart24 points={chart.data?.points ?? []} dp={coin.anchor.dp} /></div>} />}
 
       <section className="slots">
-        <div className="plan-head"><h3>Plan ahead</h3><span className="hint">Fund any day up to 31 days out and be its house. Its bands are set the moment it opens.</span></div>
+        <div className="plan-head"><h3>Plan ahead</h3><span className="hint">Fund any day up to 31 days out and be its house. Its floors are set the moment it opens.</span></div>
         {/* A new coin learns from 20 daily closes before its first round, once.
             Say so only while that holds back the next round anyone could fund. */}
         {series.data && firstOpen !== null && firstOpen > stook.indexAtOrBefore(series.data, BigInt(now)) + 1 && <Notice tone="info" title="New on the street">{coin.anchor.name}'s rounds start {nyWhen(stook.closeOf(series.data, firstOpen), { weekday: "short", month: "short", day: "numeric" })}, once it has seen 20 daily closes ({series.data.observations} so far). After that it learns every day on its own.</Notice>}

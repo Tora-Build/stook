@@ -41,6 +41,23 @@ export function CallKind(p: { desk: Desk; grid: Grid; curve: stook.Curve; feeBps
   );
 }
 
+/** The phone's one-row version of the kind and how sure, for the call bar. */
+export function CallKindBar(p: { desk: Desk; grid: Grid; at: number; onSure: () => void }) {
+  const { desk } = p;
+  const on = desk.call?.kind === "near" ? desk.call.s : desk.lastS;
+  return (
+    <div className="tw-kbar">
+      <div className="seg" role="group" aria-label="Kind of call">
+        <button aria-pressed={desk.kind === "near"} onClick={() => desk.switchKind("near")}>Near</button>
+        <button aria-pressed={desk.kind === "between"} onClick={() => desk.switchKind("between")}>Between</button>
+      </div>
+      {desk.kind === "near"
+        ? <div className="chips" role="group" aria-label="How sure are you" data-coach="sure-m">{SURE.map(([name, s]) => <button key={s} aria-pressed={on === s} title={`Pays over ${s} floor${s > 1 ? "s" : ""} each side`} onClick={() => { desk.setSure(s, p.at); p.onSure(); }}>{name}</button>)}</div>
+        : <span className="hint">Tap two floors. Everything between pays the same.</span>}
+    </div>
+  );
+}
+
 /** Steppers for the ends (or the floor and its reach), each with a price field that snaps to its band. */
 export function ExactPrices(p: { desk: Desk; grid: Grid; all: boolean; setAll: (v: boolean) => void }) {
   const { desk, grid: g } = p;
@@ -80,11 +97,11 @@ export function ExactPrices(p: { desk: Desk; grid: Grid; all: boolean; setAll: (
   else if (c.kind === "between") body = <>
     {row("TOP", c.hi === 63 ? "no limit" : g.fmt(g.edge(c.hi + 1)), "hi", c.hi !== 63, false, c.hi === 63)}
     {row("BOTTOM", c.lo === 0 ? "no limit" : g.fmt(g.edge(c.lo)), "lo", c.lo !== 0, c.lo === 0, false)}
-    <p className="tw-note">{c.hi - c.lo + 1} price band{c.hi > c.lo ? "s" : ""}, each {(g.stepBps / 100).toFixed(2).replace(/\.?0+$/, "")}% wide.</p>
+    <p className="tw-note">{c.hi - c.lo + 1} floor{c.hi > c.lo ? "s" : ""}, each {(g.stepBps / 100).toFixed(2).replace(/\.?0+$/, "")}% of the price tall.</p>
   </>;
   else body = <>
     {row("FLOOR", g.fmt(g.edge(clamp(c.c, 1, 63))), "c", true, c.c <= g.flo, c.c >= g.fhi)}
-    {row("REACH", `±${c.s} floor${c.s > 1 ? "s" : ""}`, "w", false, c.s <= 1, c.s >= MAX_S)}
+    {row("SPREAD", `±${c.s} floor${c.s > 1 ? "s" : ""}`, "w", false, c.s <= 1, c.s >= MAX_S)}
     <p className="tw-note">Full pay from {g.fmt(g.edge(clamp(c.c, 1, 63)))} to {g.fmt(g.edge(clamp(c.c + 1, 1, 63)))}. Less on each floor away, nothing below {g.fmt(g.edge(Math.max(1, c.c - c.s)))} or above {g.fmt(g.edge(Math.min(63, c.c + c.s + 1)))}.</p>
   </>;
   return <>
@@ -113,7 +130,7 @@ export function Coach(p: { step: number; kind: "near" | "between"; narrow: boole
     p.kind === "near" ? "Choose how sure you are. Sure pays more." : "Drag the ▲ ▼ tabs. Fewer floors pays more.",
     `Place your call${p.narrow ? " with the gold button at the bottom." : "."}`,
   ];
-  const target = p.step === 1 ? "tower" : p.step === 2 ? (p.kind === "near" ? "sure" : "tower") : p.narrow ? "place-m" : "place";
+  const target = p.step === 1 ? "tower" : p.step === 2 ? (p.kind === "near" ? (p.narrow ? "sure-m" : "sure") : "tower") : p.narrow ? "place-m" : "place";
   useEffect(() => {
     if (!p.step) return;
     const el = document.querySelector(`[data-coach="${target}"]`);
@@ -122,7 +139,8 @@ export function Coach(p: { step: number; kind: "near" | "between"; narrow: boole
   }, [p.step, target]);
   if (!p.step) return null;
   return (
-    <div className="tw-coach" role="region" aria-label="How to play" aria-live="polite">
+    // Floats over the page (above the phone's call bar), so it never pushes the tower down.
+    <div className="tw-coach tw-coach-float" role="region" aria-label="How to play" aria-live="polite">
       <span className="n">{p.step} OF 3</span>
       <p>{texts[p.step - 1]}</p>
       <button onClick={() => p.go(p.step >= 3 ? 0 : p.step + 1)}>{p.step === 3 ? "Got it" : "Next"}</button>
@@ -132,8 +150,25 @@ export function Coach(p: { step: number; kind: "near" | "between"; narrow: boole
 }
 
 // ── phones: the call, what it wins and Place, always on screen ──────────────
-export function CallBar(p: { order: CallOrder; symbol: string; money: (u: bigint) => string; state: "open" | "closed"; closedText: string; pending: boolean; hasCall: boolean; held: boolean }) {
+export function CallBar(p: { order: CallOrder; symbol: string; money: (u: bigint) => string; state: "open" | "closed"; closedText: string; pending: boolean; hasCall: boolean; held: boolean; controls?: ReactNode }) {
   const o = p.order;
+  // The kind-and-how-sure row folds away while you scroll down the page and
+  // comes back on the way up, or on a tap on the bar.
+  const [folded, setFolded] = useState(false);
+  const bar = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    let last = window.scrollY;
+    const on = () => { const y = window.scrollY, d = y - last; if (Math.abs(d) < 8) return; setFolded(d > 0 && y > 40); last = y; };
+    window.addEventListener("scroll", on, { passive: true });
+    return () => window.removeEventListener("scroll", on);
+  }, []);
+  // The coach floats just above the bar, whatever its height.
+  useEffect(() => {
+    const el = bar.current; if (!el) return;
+    const set = () => document.documentElement.style.setProperty("--tw-mbar-h", `${el.offsetHeight}px`);
+    const ro = new ResizeObserver(set); ro.observe(el); set();
+    return () => { ro.disconnect(); document.documentElement.style.removeProperty("--tw-mbar-h"); };
+  }, []);
   const opts = o.unit === "usd" ? [1, 5, 10, 25, 50, 100] : [10, 50, 100, 250, 500, 1000];
   const typed = Number(o.text.replace(/,/g, ""));
   const all = opts.includes(typed) || !(typed > 0) ? opts : [...opts, typed].sort((a, b) => a - b);
@@ -142,7 +177,10 @@ export function CallBar(p: { order: CallOrder; symbol: string; money: (u: bigint
     : <span className="dim">{p.pending ? "tap the other end" : p.hasCall ? "type a spend" : "pick a floor"}</span>;
   const label = p.state === "closed" ? "Closed" : !o.connected ? "Connect" : o.send.isPending ? "Sending…" : o.short ? "Short" : p.held || o.existing ? "Add" : "Place";
   return (
-    <div className="tw-mbar">
+    <div className="tw-mbar" ref={bar} onClick={() => { if (folded) setFolded(false); }}>
+      {p.controls && p.state === "open" && <div className={`tw-mbar-ctl${folded ? " folded" : ""}`}>{p.controls}</div>}
+      {p.controls && p.state === "open" && folded && <button className="tw-mbar-unfold" onClick={(e) => { e.stopPropagation(); setFolded(false); }} aria-expanded={false} aria-label="Show near or between and how sure">▴</button>}
+      <div className="tw-mbar-row">
       <label className="sp"><span className="lb">SPEND {o.unit === "usd" ? "$" : p.symbol}</span>
         <select value={typed > 0 ? String(typed) : ""} onChange={(e) => o.setText(e.target.value)} aria-label={`Spend in ${o.unit === "usd" ? "dollars" : p.symbol}`} disabled={p.state === "closed"}>
           {!(typed > 0) && <option value="">…</option>}
@@ -151,6 +189,7 @@ export function CallBar(p: { order: CallOrder; symbol: string; money: (u: bigint
       </label>
       <div className="tw"><span className="lb">TO WIN</span>{win}</div>
       <button data-coach="place-m" disabled={p.state === "closed" || !o.q || o.stale || o.send.isPending || !o.connected || o.short} onClick={o.submit}>{label}</button>
+      </div>
     </div>
   );
 }
