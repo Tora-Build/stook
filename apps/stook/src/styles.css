@@ -17,7 +17,7 @@
   --teal: #35c4c4;
   --cream: #f4e9c8;
   --cream-2: #c9bfa4;
-  --cream-3: #8d8670;
+  --cream-3: #a39c85;
   --crowd: #4f8fd6;
   --crowd-2: #2f5d92;
   --good: #5ec48f;
@@ -29,7 +29,7 @@
 /* day: the same street with the lights off */
 :root[data-theme="day"] {
   --sky: #e8dfc6; --sky-2: #f6efdc; --sky-3: #efe6cf; --line: #c9bfa4;
-  --cream: #101a2e; --cream-2: #4a5568; --cream-3: #7a7f8c;
+  --cream: #101a2e; --cream-2: #4a5568; --cream-3: #5b606c;
   --ink: #fbf7ea; --brick-2: #a8412f;
 }
 :root[data-theme="day"] h1 { text-shadow: 3px 3px 0 var(--taxi); }
@@ -143,6 +143,16 @@ button.link { background: none; border: 0; color: var(--taxi); font: inherit; cu
   .hero h1 { font-size: 1.3rem; }
   .foot { flex-direction: column; gap: .25rem; }
   .skyline { height: 44px; }
+  /* one row for the brand and the wallet, the nav under them across the width */
+  .top:not(.top-round) { row-gap: .5rem; }
+  .top:not(.top-round) .top-right { order: 2; }
+  .top:not(.top-round) nav { order: 3; flex-basis: 100%; justify-content: space-between; border-top: 2px solid #1a2438; padding-top: .35rem; }
+}
+@media (max-width: 420px) {
+  .top:not(.top-round) { padding: .6rem 14px; }
+  .top:not(.top-round) .brand { font-size: .6rem; gap: .45rem; }
+  .top:not(.top-round) .brand img { width: 26px; height: 26px; }
+  .top:not(.top-round) .wallet-adapter-button { padding: 0 .8rem !important; }
 }
 @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
 
@@ -243,9 +253,24 @@ button.link { background: none; border: 0; color: var(--taxi); font: inherit; cu
 .screen .coin { font-family: var(--px); font-size: clamp(.6rem, 1.3vw, .8rem); color: var(--taxi); margin-bottom: .55rem; white-space: nowrap; }
 .screen .anchor { font-family: var(--px); font-size: .45rem; color: #c9bfa4; margin-bottom: .6rem; white-space: nowrap; }
 .screen .price { font-family: var(--mono); font-size: clamp(1rem, 2.2vw, 1.5rem); color: #5ef0a0; text-shadow: 0 0 8px rgba(94,240,160,.5); white-space: nowrap; }
-.screen .chg { font-family: var(--mono); font-size: .75rem; margin-top: .3rem; color: #8d8670; min-height: 1em; }
+.screen .chg { font-family: var(--mono); font-size: .75rem; margin-top: .3rem; color: #a39c85; min-height: 1em; }
 .screen .chg.up { color: #5ef0a0; } .screen .chg.down { color: #e0605a; }
-.floor-note { text-align: center; margin-top: 1.5rem; color: #8d8670; }
+/* a phone's tables are half the width: a tighter face, so the 24h line stays inside the rim */
+@media (max-width: 520px) {
+  .screen { padding: 9%; }
+  .screen .logos { width: 30px; height: 30px; margin-bottom: .3rem; }
+  .screen .logos .logo-coin { width: 30px; height: 30px; }
+  .screen .logos .logo-anchor { width: 15px; height: 15px; right: -4px; bottom: -4px; }
+  .screen .coin { margin-bottom: .25rem; }
+  .screen .anchor { margin-bottom: .3rem; }
+  .screen .price { font-size: .95rem; }
+  .screen .chg { font-size: .68rem; margin-top: .15rem; }
+  .board.crawl .crawl-mid { display: none; }
+  .board.crawl .crawl-end { flex: 1; justify-content: center; padding: .6rem .5rem; }
+  .board.crawl .crawl-end:first-child { border-right: 0; }
+}
+@media (max-width: 380px) { .screen .price { font-size: .85rem; } .board.crawl .crawl-end { padding: .6rem .35rem; gap: .4rem; font-size: .48rem; } .board.crawl .crawl-end b { font-size: .62rem; white-space: nowrap; } }
+.floor-note { text-align: center; margin-top: 1.5rem; color: #a39c85; }
 @media (max-width: 860px) { .posts { grid-template-columns: 1fr 1fr; gap: 2rem 1rem; } .hero-city { height: auto; min-height: 340px; } }
 
 /* day cards */
@@ -268,7 +293,7 @@ button.link { background: none; border: 0; color: var(--taxi); font: inherit; cu
 .posts { position: relative; }
 .floor-bubble { font-family: var(--px); font-size: .46rem; line-height: 1.7; background: #f4e9c8; color: #0b1120; padding: .4rem .55rem; border: 2px solid #0b1120; box-shadow: 2px 2px 0 #0b1120; }
 .floor-bubble.below::after { bottom: auto; top: -6px; transform: translateX(-50%) rotate(-135deg); }
-.floor-bubble::after { content: ""; position: absolute; left: 50%; bottom: -6px; width: 4px; height: 4px; background: #f4e9c8; border: 2px solid #0b1120; border-top: 0; border-left: 0; transform: translateX(-50%) rotate(45deg); }
+.floor-bubble::after { content: ""; position: absolute; left: var(--tail, 50%); bottom: -6px; width: 4px; height: 4px; background: #f4e9c8; border: 2px solid #0b1120; border-top: 0; border-left: 0; transform: translateX(-50%) rotate(45deg); }
 
 /* front-page sections shared with the old site */
 .px-h2 { font-family: var(--px); font-weight: 400; font-size: clamp(.75rem, 1.6vw, 1rem); color: var(--taxi); margin: 0 0 1.2rem; }
@@ -640,7 +665,7 @@ a.wc-cell:hover { text-decoration: none; border-color: var(--taxi); }
 /* the pocket watch: a 24-hour New York dial with the round's hours on it */
 .pocket-watch { flex: none; display: block; }
 .pocket-watch .pw-num { font-family: var(--px); font-size: 13px; fill: #2a2419; }
-.pocket-watch .pw-ny { font-family: var(--px); font-size: 8px; fill: #8d8670; }
+.pocket-watch .pw-ny { font-family: var(--px); font-size: 8px; fill: #a39c85; }
 .pocket-watch path, .pocket-watch rect, .pocket-watch g { cursor: help; }
 .desk-watch { display: flex; flex-direction: column; align-items: center; gap: .35rem; flex: none; }
 .desk-clock { font-size: 1rem; color: var(--cream); }
@@ -885,7 +910,7 @@ a.wc-cell:hover { text-decoration: none; border-color: var(--taxi); }
 .payout-slip { margin: 0 0 1.4rem; }
 .payout-slip .tp-row + .tp-row { margin-top: .25rem; }
 .payout-slip .primary { width: 100%; margin-top: .4rem; }
-.tp-dim { color: #8d8670; font-weight: 400; }
+.tp-dim { color: #a39c85; font-weight: 400; }
 .pb-filters { display: flex; justify-content: space-between; align-items: center; gap: .8rem; flex-wrap: wrap; margin: 0 0 .8rem; }
 .pb-coins { display: flex; gap: .35rem; flex-wrap: wrap; }
 .pb-chip { display: inline-flex; align-items: center; gap: .35rem; padding: .35rem .6rem; background: var(--ink); border: 2px solid var(--line); color: var(--cream-2); font: inherit; font-size: .8rem; cursor: pointer; }
@@ -1565,3 +1590,10 @@ button.slip-main:hover .slip-title { text-decoration: underline dotted; text-und
   .fp-mini.plate-hint span { font-size: 12px; margin: 0; }
   .dsign { font-size: 8px; padding: 6px 14px; }
 }
+/* Legibility floor. Press Start 2P below ~7.5px turns to noise, so:
+   small labels read in the sans, in capitals (as .amount-head does above);
+   buttons and nav in the pixel face are 9px at least; stamps and signs,
+   which stay pixel, 7.5px at least. */
+.mine-k, .ladder-table th, .strip-k, .tote-k, .chip-k, .slip-k, .desk-k, .rb-labels b, .wc-dow, .dn-day, .screen .price-k { font-family: var(--sans); font-size: .68rem; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; }
+.top:not(.top-round) nav a, .top:not(.top-round) .wallet-adapter-button, button.small, .tour-btn, .tour-back, .tour-next, .faucet-btn, .jup-buy, .book-tab, .placard-text .try, .seg button, .coin-new { font-size: .6rem !important; }
+.pill, .stamp, .pb-row .stamp, .wc-state, .pb-stamp, .wc-empty, .scene-table, .scene-dow, .scene-day, .tour-sign, .ts-sign, .ts-when, .desk-clock span, .rb-midnight em, .notice-body > b, .fee-chip, .floor-bubble, .screen .anchor { font-size: max(.5rem, 7.5px); }

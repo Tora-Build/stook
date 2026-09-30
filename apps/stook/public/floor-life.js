@@ -164,7 +164,12 @@
       const above = agent.y * P > 70;
       Object.assign(el.style, { position: "absolute", left: agent.x * P + "px", top: (above ? agent.y - 14 : agent.y + 8) * P + "px", transform: above ? "translate(-50%, -100%)" : "translate(-50%, 0)", whiteSpace: "normal", width: "max-content", maxWidth: "150px", textAlign: "center" });
       el.classList.add(above ? "above" : "below");
-      bubbles.appendChild(el); return el;
+      bubbles.appendChild(el);
+      // keep it on the screen: slide it in from the edge, the tail still on the speaker
+      const r = el.getBoundingClientRect(), vw = document.documentElement.clientWidth, m = 6;
+      const dx = r.left < m ? m - r.left : r.right > vw - m ? vw - m - r.right : 0;
+      if (dx) { el.style.left = agent.x * P + dx + "px"; el.style.setProperty("--tail", `calc(50% - ${dx}px)`); }
+      return el;
     }
 
     function step(now) {
