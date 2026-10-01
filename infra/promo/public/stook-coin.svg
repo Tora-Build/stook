@@ -1,0 +1,29 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" shape-rendering="crispEdges" width="512" height="512">
+  <!-- $STOOK token mark: round coin, the street sign, readable at 32px. -->
+  <defs><clipPath id="c"><circle cx="32" cy="32" r="32"/></clipPath></defs>
+  <g clip-path="url(#c)">
+    <rect width="64" height="64" fill="#101a2e"/>
+    <g fill="#1b2a47">
+      <rect x="0" y="44" width="10" height="20"/><rect x="10" y="38" width="7" height="26"/><rect x="17" y="47" width="5" height="17"/><rect x="22" y="35" width="8" height="29"/>
+      <rect x="30" y="41" width="5" height="23"/><rect x="35" y="33" width="7" height="31"/><rect x="42" y="45" width="6" height="19"/><rect x="48" y="37" width="8" height="27"/><rect x="56" y="43" width="8" height="21"/>
+    </g>
+    <g fill="#f0a83a"><rect x="3" y="47" width="1" height="1"/><rect x="12" y="41" width="1" height="1"/><rect x="25" y="38" width="1" height="1"/><rect x="26" y="43" width="1" height="1"/><rect x="37" y="36" width="1" height="1"/><rect x="39" y="40" width="1" height="1"/><rect x="51" y="40" width="1" height="1"/><rect x="59" y="46" width="1" height="1"/></g>
+    <rect x="31" y="34" width="2" height="30" fill="#8a8f99"/>
+    <rect x="6" y="18" width="52" height="18" fill="#f4e9c8"/>
+    <rect x="7" y="19" width="50" height="16" fill="#0f7a4d"/>
+    <g fill="#f4e9c8" transform="translate(0,1)">
+      <!-- STOOK, 7px tall caps, 2px strokes for legibility at small sizes -->
+      <!-- S -->
+      <rect x="10" y="22" width="7" height="2"/><rect x="10" y="24" width="2" height="2"/><rect x="10" y="26" width="7" height="2"/><rect x="15" y="28" width="2" height="2"/><rect x="10" y="30" width="7" height="2"/>
+      <!-- T -->
+      <rect x="19" y="22" width="8" height="2"/><rect x="22" y="24" width="2" height="8"/>
+      <!-- O -->
+      <rect x="29" y="22" width="7" height="2"/><rect x="29" y="24" width="2" height="6"/><rect x="34" y="24" width="2" height="6"/><rect x="29" y="30" width="7" height="2"/>
+      <!-- O -->
+      <rect x="38" y="22" width="7" height="2"/><rect x="38" y="24" width="2" height="6"/><rect x="43" y="24" width="2" height="6"/><rect x="38" y="30" width="7" height="2"/>
+      <!-- K -->
+      <rect x="47" y="22" width="2" height="10"/><rect x="52" y="22" width="2" height="2"/><rect x="51" y="24" width="2" height="2"/><rect x="49" y="26" width="2" height="2"/><rect x="51" y="28" width="2" height="2"/><rect x="52" y="30" width="2" height="2"/>
+    </g>
+  </g>
+  <circle cx="32" cy="32" r="31" fill="none" stroke="#f0a83a" stroke-width="2"/>
+</svg>
