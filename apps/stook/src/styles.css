@@ -401,6 +401,16 @@ a.wc-cell:hover { text-decoration: none; border-color: var(--taxi); }
 .scene-legend { display: flex; justify-content: space-between; gap: 1rem; font-size: .8rem; color: var(--cream-2); flex-wrap: wrap; }
 .scene-legend b { color: var(--cream); }
 @media (max-width: 760px) { .placard { grid-template-columns: 1fr; } .placard-scene { border-right: 0; border-bottom: 3px solid var(--cream); } }
+/* a desktop placard keeps one height from step to step (no jump as you page
+   through), and the first step's tables fill the scene instead of a strip */
+@media (min-width: 761px) {
+  .placard { min-height: 600px; }
+  .scene-tables { grid-template-columns: repeat(2, 1fr); gap: .9rem; max-width: 420px; margin: 0 auto; width: 100%; }
+  .scene-tables .scene-table { padding: 1.4rem .5rem; gap: .7rem; font-size: .6rem; }
+  .scene-tables .scene-table img { width: 72px; height: 72px; }
+  .scene-tables + .scene-caption { margin-top: 1.2rem; text-align: center; font-size: 1rem; }
+  .scene-tables + .scene-caption .scene-anchor { width: 24px; height: 24px; }
+}
 
 
 .wc-stamp { font-family: "Caveat", cursive; font-size: 1.15rem; color: var(--bad); transform: rotate(-12deg); opacity: .8; align-self: center; margin-top: .2rem; }
@@ -468,6 +478,15 @@ a.wc-cell:hover { text-decoration: none; border-color: var(--taxi); }
 .stmt-meta dt { color: var(--cream-3); text-transform: uppercase; font-size: .7rem; letter-spacing: .08em; align-self: center; }
 .stmt-meta dd { margin: 0; }
 .stmt-empty { padding: 2rem 0; color: var(--cream-2); }
+/* no wallet: the button, then a faded example of the statement */
+.stmt-none-cta { display: flex; align-items: center; justify-content: space-between; gap: 1rem 2rem; flex-wrap: wrap; padding: 1.2rem 1.4rem; margin-bottom: 1.6rem; background: var(--sky-2); border: 3px solid var(--cream); box-shadow: 6px 6px 0 var(--brick-2); }
+.stmt-none-cta p { margin: 0; max-width: 46ch; color: var(--cream); font-size: 1.05rem; }
+.stmt-sample { position: relative; opacity: .45; pointer-events: none; user-select: none; }
+.stmt-sample .tote { margin-bottom: .8rem; }
+.stmt-sample-tag { position: absolute; z-index: 2; top: 42%; left: 50%; transform: translate(-50%, -50%) rotate(-8deg); font-family: var(--px); font-size: 1.3rem; color: var(--taxi); border: 4px solid var(--taxi); padding: .5rem 1rem; background: var(--sky); letter-spacing: .1em; }
+.stmt-sample-row { display: grid; grid-template-columns: 1.2fr 1.5fr auto; gap: 1rem; align-items: center; padding: .8rem 1rem; margin-bottom: .6rem; background: var(--sky-2); border: 3px solid var(--line); color: var(--cream-2); }
+.stmt-sample-row b { color: var(--cream); }
+@media (max-width: 640px) { .stmt-sample-row { grid-template-columns: 1fr auto; } .stmt-sample-row span:nth-child(2) { display: none; } .stmt-sample-tag { font-size: .9rem; } }
 .tote { display: grid; grid-template-columns: repeat(3, 1fr); gap: 0; border: 3px solid var(--cream); background: var(--ink); margin-bottom: 1.6rem; }
 .tote-cell { padding: .9rem 1rem; }
 .tote-cell + .tote-cell { border-left: 3px solid var(--cream); }
@@ -1082,7 +1101,9 @@ a.tour-btn { text-decoration: none; }
 
 /* rubber stamps on finished calendar days */
 .wc-rubber { position: absolute; left: 50%; top: 58%; transform: translate(-50%, -50%) rotate(-12deg); font-size: .5rem; padding: .3rem .45rem; border-width: 3px; background: transparent; opacity: .85; pointer-events: none; }
-.wc-rubber.stamp-passed, .wc-rubber.stamp-closed { color: var(--bad); }
+.wc-rubber.stamp-passed, .wc-rubber.stamp-closed { color: var(--cream-3); }
+.wc-past .wc-none { color: var(--cream-3); margin-top: auto; }
+.wc-past { border-color: transparent; background: transparent; }
 .stamp-passed, .stamp-closed { color: var(--bad); }
 .dp-showing { display: flex; align-items: center; gap: .8rem; margin: .2rem 0 .6rem; font-size: .85rem; color: var(--cream-2); }
 .pb-row .stamp { font-size: .4rem; }
@@ -1362,7 +1383,17 @@ a.tour-btn { text-decoration: none; }
 /* ── the roof: billboard, the bell (or a hanging plate), the LED ticker ────── */
 .tw-roof { position: relative; background: linear-gradient(180deg, #0d1528 0, var(--t-sky) 100%); padding: 8px 8px 0; }
 .tw-deck { display: flex; align-items: flex-end; gap: 10px; min-height: 96px; }
-.tw-bill { flex: 1 1 auto; min-width: 0; max-width: 560px; margin-right: auto; display: flex; flex-direction: column; }
+.tw-bill { flex: 0 1 auto; min-width: 0; max-width: 560px; display: flex; flex-direction: column; }
+/* the notice board between the billboard and the bell: what to do next, or
+   what the floor under the pointer pays. It fills the roof's middle. */
+.tw-board { flex: 1 1 200px; min-width: 0; align-self: stretch; margin: 4px 0 18px; display: flex; flex-direction: column; background: #0b1120; border: 2px solid #c9bfa4; box-shadow: inset 0 0 0 2px #1f3050, 3px 3px 0 #000; color: var(--t-cream); }
+.tw-board-h { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 22px; padding: 0 0 0 8px; background: #1f3050; border-bottom: 2px solid #c9bfa4; font-family: var(--px); font-size: 8px; color: var(--t-gold); letter-spacing: .04em; }
+.tw-board-h .tw-x { min-width: 26px; min-height: 22px; border: 0; border-left: 2px solid #c9bfa4; color: var(--t-cream); font-size: 12px; line-height: 1; padding: 0 6px; }
+.tw-board-h .tw-x:hover { background: var(--t-gold); color: #0b1120; }
+.tw-board-t { padding: 6px 9px 7px; font-size: 13.5px; line-height: 1.4; }
+.tw-board-t b { color: var(--t-gold); font-family: var(--mono); font-weight: 600; }
+.tw-board-aim { color: var(--t-cream-2); }
+.tw-board .tw-undo { color: var(--t-gold); padding: 0 2px; min-height: 0; }
 .tw-bill-face { position: relative; background: #0b1120; border: 3px solid #8d8670; box-shadow: inset 0 0 0 2px #1f3050, 3px 3px 0 #000; padding: 10px 12px 8px;
   background-image: radial-gradient(circle, #ffe28a 0 1.5px, transparent 2px); background-size: 12px 6px; background-repeat: repeat-x; background-position: 6px 1px; }
 .tw-bill-face .l1 { display: flex; align-items: center; gap: 10px; min-width: 0; }
@@ -1417,6 +1448,11 @@ a.tour-btn { text-decoration: none; }
 .tw-parapet { height: 12px; margin: 0 -8px; background: linear-gradient(180deg, #c9bfa4 0 3px, #8d8670 3px 100%); }
 .tw-small .tw-roof { padding: 6px 6px 0; }
 .tw-small .tw-deck { gap: 6px; min-height: 84px; }
+/* a phone's roof: the billboard and the bell up top, the notice board under them */
+.tw-small .tw-deck { flex-wrap: wrap; }
+.tw-small .tw-bill { flex: 1 1 0; }
+.tw-small .tw-board { order: 5; flex: 1 1 100%; margin: 2px 0 6px; }
+.tw-small .tw-board-t { font-size: 13px; padding: 5px 8px 6px; }
 .tw-small .tw-bill-face { padding: 8px 8px 6px; }
 .tw-small .tw-bill-face .l1 { gap: 6px; }
 .tw-small .tw-bill-face .logo { width: 24px; height: 24px; }

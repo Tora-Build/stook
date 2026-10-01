@@ -482,7 +482,7 @@ function TowerView(p: Props) {
 
   let say: ReactNode, xBtn: ReactNode = null;
   if (!interactive) say = p.headline;
-  else if (desk.pending) { say = <>Now {verb.toLowerCase()} the other end.</>; xBtn = <button className="tw-x" onClick={desk.cancelPending} aria-label="Cancel this range">✕</button>; }
+  else if (desk.pending) { say = <>Now {verb.toLowerCase()} the other end.</>; xBtn = <button className="tw-x" onClick={desk.cancelPending} aria-label="Cancel this range" title="Cancel this range">✕</button>; }
   else if (!desk.call) say = desk.kind === "near" ? <>{verb} the floor where you think the price stops at {clock(p.settlesAt)}.</> : <>{verb} the floor at one end, then the other end.</>;
   else {
     const c = desk.call, pr = callChance(g, c);
@@ -491,8 +491,16 @@ function TowerView(p: Props) {
         ? <>Your call: if it closes {callWords(g, c)}, it pays <b>{p.money(p.win.toWin)}</b> ({fx(p.win.mult)} what you paid). The crowd gives that {pctText(pr)}.</>
         : <>If it closes {callWords(g, c)}, you win <b>{p.money(p.win.toWin)}</b> ({fx(p.win.mult)}). The crowd gives that {pctText(pr)}.</>)
       : <>If it closes {callWords(g, c)}, the crowd gives that {pctText(pr)}. Type what you spend to see what it wins.</>;
-    xBtn = <button className="tw-x" onClick={desk.clear} aria-label="Clear your call">✕</button>;
+    xBtn = <button className="tw-x" onClick={desk.clear} aria-label="Clear your call" title="Clear your call">✕</button>;
   }
+  // On a round the roof's notice board speaks instead of the sentence above:
+  // what to do next, or what the floor under the pointer pays. What the call
+  // wins is the ticket's job, so it is not repeated here.
+  let tag = "", note: ReactNode = null;
+  if (!interactive) { tag = "THE ROUND"; note = p.headline; }
+  else if (desk.pending) { tag = "RANGE"; note = say; }
+  else if (!desk.call) { tag = "START"; note = say; }
+  else { tag = "YOUR CALL"; note = <>Pays most if it closes {callWords(g, desk.call)}.</>; }
   const aimRow = cursor ?? hover;
   let aim: ReactNode = null, floorSay = "";
   if (interactive && (desk.msg || (desk.undo && aimRow === null))) aim = <>{desk.msg}{desk.msg && " "}{desk.undo && !desk.pending && <button className="tw-undo" onClick={desk.undoIt}>Undo</button>}</>;
@@ -581,14 +589,18 @@ function TowerView(p: Props) {
 
   return (
     <div className={`tw-box${p.demo ? " tw-demo" : ""}`}>
-      <div className="tw-readout" aria-live="off">
+      {p.demo && <div className="tw-readout" aria-live="off">
         <div className="tw-txt"><div className="tw-say">{say}</div>{aim && <div className="tw-aim">{aim}</div>}</div>
         {xBtn}
-      </div>
+      </div>}
       <div ref={wrap} className={cls} style={vars} data-coach="tower">
         {!p.demo && <div className="tw-roof">
           <div className="tw-deck">
             <Billboard sign={p.sign} />
+            {(note || aim) && <div className="tw-board" aria-live="off">
+              <div className="tw-board-h"><span>{aimRow !== null && aimRow < NR ? "FLOOR" : tag}</span>{xBtn}</div>
+              <div className="tw-board-t">{aimRow !== null && aimRow < NR ? aim : <>{note}{aim && <span className="tw-board-aim"> {aim}</span>}</>}</div>
+            </div>}
             <BellSign phase={p.phase} opensAt={p.opensAt} settlesAt={p.settlesAt} plate={plate} status={p.status} />
             <div className="tw-belltower" aria-hidden="true" dangerouslySetInnerHTML={{ __html: bellTower }} />
           </div>
