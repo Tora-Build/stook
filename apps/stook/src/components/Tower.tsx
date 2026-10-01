@@ -502,7 +502,12 @@ function TowerView(p: Props) {
   if (!interactive) { tag = "THE ROUND"; note = p.headline; }
   else if (desk.pending) { tag = "RANGE"; note = say; }
   else if (!desk.call) { tag = "START"; note = say; }
-  else { tag = "YOUR CALL"; note = <>Pays most if it closes {callWords(g, desk.call)}.</>; }
+  else {
+    tag = "YOUR CALL"; const c = desk.call;
+    note = c.kind === "near"
+      ? <>Best {callWords(g, c)} · pays from {g.fmt(g.edge(Math.max(1, c.c - c.s)))} to {g.fmt(g.edge(Math.min(63, c.c + c.s + 1)))}</>
+      : <>Same pay {callWords(g, c)}{M.coarse ? "" : " · drag ▲ ▼ to resize"}</>;
+  }
   const aimRow = cursor ?? hover;
   let aim: ReactNode = null, floorSay = "";
   if (interactive && (desk.msg || (desk.undo && aimRow === null))) aim = <>{desk.msg}{desk.msg && " "}{desk.undo && !desk.pending && <button className="tw-undo" onClick={desk.undoIt}>Undo</button>}</>;
@@ -514,7 +519,7 @@ function TowerView(p: Props) {
     const words = `${name}: the crowd gives it ${pctText(R.p)}.${tail}`;
     aim = words;
     if (aimRow === cursor) floorSay = words;
-  } else if (interactive && call && !M.small) {
+  } else if (interactive && call && !M.small && p.demo) {
     aim = call.kind === "near" ? `Nearby floors pay less. Nothing pays below ${g.fmt(g.edge(Math.max(1, call.c - call.s)))} or above ${g.fmt(g.edge(Math.min(63, call.c + call.s + 1)))}.` : "Every floor inside pays the same. Drag the ▲ ▼ tabs to change it.";
   }
 
@@ -688,7 +693,7 @@ function Billboard({ sign }: { sign: RoofSign }) {
           {sign.onHelp && <button className="tw-bill-help" onClick={sign.onHelp} aria-label="How it works, show the three steps again" title="How it works">?</button>}
         </div>
         <div className="l2">{sign.coin && <img src={sign.coin.logo} alt="" />}{sign.paidIn}</div>
-        <div className="l3">{sign.date} · {sign.closes}</div>
+        <div className="l3">{sign.date} · New York</div>
       </div>
       <div className="tw-bill-posts">
         {sign.plaque && <button className="tw-plaque" onClick={() => setOpen(!open)} aria-expanded={open} title={sign.plaque.full}><span aria-hidden="true">i</span><span className="tw-plaque-t">{sign.plaque.short}</span></button>}

@@ -18,40 +18,39 @@ export interface Slip {
   actions?: ReactNode;
 }
 
-const FOLDED = 3;
-
-export function Rack(p: { kind: "call" | "house"; title: string; summary: ReactNode; extra?: ReactNode; slips: Slip[]; footer?: ReactNode; tour?: string; label: string }) {
-  const [all, setAll] = useState(false);
-  const long = p.slips.length > FOLDED + 1;
-  // Folded, the rack keeps its first few and the picked slip, wherever it is.
-  const shown = !long || all ? p.slips : p.slips.filter((s, i) => i < FOLDED || s.on);
-  const hidden = p.slips.length - shown.length;
+/** The rack is one line until opened: its tag, how many, what is in. Opened, the
+ *  slips unfold under it in a box of their own that scrolls, so a long rack
+ *  never pushes the ticket off the screen. A picked slip keeps it open; a
+ *  finished round opens it, since that is when the slips carry what to claim.
+ *  The footer (a claim button) stays outside the fold. */
+export function Rack(p: { kind: "call" | "house"; title: string; summary: ReactNode; extra?: ReactNode; slips: Slip[]; footer?: ReactNode; tour?: string; label: string; startOpen?: boolean; more?: ReactNode }) {
+  const [want, setWant] = useState(!!p.startOpen);
+  const open = want || p.slips.some((s) => s.on);
   return (
-    <section className={`rack rack-${p.kind}`} data-tour={p.tour} aria-label={p.label}>
-      <div className="rack-head">
+    <section className={`rack rack-${p.kind}${open ? " rack-open" : ""}`} data-tour={p.tour} aria-label={p.label}>
+      <button className="rack-head" aria-expanded={open} onClick={() => setWant(!open)}>
         <span className="rack-tag">{p.title}</span>
         <span className="rack-sum mono">{p.summary}</span>
         {p.extra && <span className="rack-extra mono">{p.extra}</span>}
+        <span className="rack-caret" aria-hidden="true">{open ? "▾" : "▸"}</span>
+      </button>
+      <div className={`fold${open ? " fold-open" : ""}`}>
+        <div className="fold-in">
+          <ul className="rack-list">
+            {p.slips.map((s) => (
+              <li key={s.key} className={`slip-li${s.on ? " on" : ""}`}>
+                <div className="rk-slip">
+                  {s.onClick
+                    ? <button className="slip-main" aria-pressed={!!s.on} onClick={s.onClick}><SlipBody s={s} /></button>
+                    : <div className="slip-main"><SlipBody s={s} /></div>}
+                  {s.on && s.actions}
+                </div>
+              </li>
+            ))}
+          </ul>
+          {p.more && <div className="rack-more">{p.more}</div>}
+        </div>
       </div>
-      <ul className="rack-list">
-        {shown.map((s) => (
-          <li key={s.key} className={`slip-li${s.on ? " on" : ""}`}>
-            <div className="rk-slip">
-              {s.onClick
-                ? <button className="slip-main" aria-pressed={!!s.on} onClick={s.onClick}><SlipBody s={s} /></button>
-                : <div className="slip-main"><SlipBody s={s} /></div>}
-              {s.on && s.actions}
-            </div>
-          </li>
-        ))}
-        {long && (
-          <li className="slip-li slip-more-li">
-            <button className="slip-more" aria-expanded={all} onClick={() => setAll(!all)}>
-              {all ? "Show fewer" : <>Show all {p.slips.length}<em>{hidden} more</em></>}
-            </button>
-          </li>
-        )}
-      </ul>
       {p.footer && <div className="rack-foot">{p.footer}</div>}
     </section>
   );

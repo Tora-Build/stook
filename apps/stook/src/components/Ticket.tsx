@@ -126,7 +126,8 @@ function Mine(p: Props) {
         key: r.pubkey.toBase58(), on, title: (p.slipName ?? p.name)(r.position.shape),
         lines: [{ k: "paid", v: fmtCompact(r.position.netPaid, dec) }, { k: "pays up to", v: fmtCompact(best(r), dec), tone: "up" as const }],
         onClick: () => (on ? p.onDeselect() : p.onSelect(r)),
-        actions: <SideStamps side={p.side} setSide={p.setSide} /> }; })} />
+        actions: <SideStamps side={p.side} setSide={p.setSide} /> }; })}
+      more={<Link to="/yours">Every round you are in: your statement ›</Link>} />
   );
 }
 
@@ -164,8 +165,9 @@ function Buy(p: Props & { held?: boolean }) {
 
   return (
     <>
+      {/* What to do next is said once, on the tower's roof; the ticket only explains a round that takes no calls. */}
       {!p.shape ? (p.tradeable
-        ? <div className="pick-hint"><span className="pick-arrow" aria-hidden="true">◀</span><span><b>Pick your price on the tower.</b> {typeof matchMedia !== "undefined" && matchMedia("(pointer: coarse)").matches ? "Tap" : "Click"} a floor.{p.positions.length > 0 ? " Or pick one of your calls to add to it or sell it." : ""}</span></div>
+        ? null
         : <p className="explain">{l.status === "seeding" ? (p.now < Number(l.opensAt) ? `Funded. Trading opens ${nyWhen(l.opensAt, { weekday: "short", hour: "numeric", minute: "2-digit" })} NY; the House takes deposits now.` : p.now < Number(l.opensAt) + Number(stook.OPEN_WINDOW_SECS) ? "Opening in a moment. Deposits are open." : "This round did not open in time and will be void; deposits come back.") : `Trading closed at ${hm(l.locksAt)}. The bell rings at ${hm(l.settlesAt)} New York, and the next round opens right after it.`}</p>)
         : null}
       <div className="field" data-tour="order">

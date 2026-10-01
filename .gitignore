@@ -8,3 +8,7 @@ test-ledger
 .env.*.local
 dist
 apps/stook/dist
+
+# wrangler's local dev state and cache
+site/.wrangler
+.wrangler
