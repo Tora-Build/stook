@@ -8,7 +8,7 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/../../.." && pwd)"
 rsync -az --delete \
   --exclude node_modules --exclude target --exclude .git --exclude dist \
-  --exclude '.env*' --exclude test-ledger --exclude .anchor \
+  --exclude '.env*' --exclude test-ledger --exclude .anchor --exclude .claude --exclude .agents \
   "$ROOT/" tora:stook/
 ssh tora bash <<'REMOTE'
 set -e
