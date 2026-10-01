@@ -1418,7 +1418,7 @@ a.tour-btn { text-decoration: none; }
 .tw-board-h { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 22px; padding: 0 0 0 8px; background: #1f3050; border-bottom: 2px solid #c9bfa4; font-family: var(--px); font-size: 8px; color: var(--t-gold); letter-spacing: .04em; }
 .tw-board-h .tw-x { min-width: 26px; min-height: 22px; border: 0; border-left: 2px solid #c9bfa4; color: var(--t-cream); font-size: 12px; line-height: 1; padding: 0 6px; }
 .tw-board-h .tw-x:hover { background: var(--t-gold); color: #0b1120; }
-.tw-board-t { padding: 6px 9px 7px; font-size: 13.5px; line-height: 1.4; }
+.tw-board-t { flex: 1; display: flex; align-items: center; flex-wrap: wrap; gap: 0 .3em; padding: 6px 9px 7px; font-size: 13.5px; line-height: 1.4; }
 .tw-board-t b { color: var(--t-gold); font-family: var(--mono); font-weight: 600; }
 .tw-board-aim { color: var(--t-cream-2); }
 .tw-board .tw-undo { color: var(--t-gold); padding: 0 2px; min-height: 0; }
@@ -1585,7 +1585,16 @@ a.tour-btn { text-decoration: none; }
 
 /* the rack: what you hold, as small paper slips */
 .rack { margin: 0 0 16px; min-width: 0; }
-.rack-head { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; margin-bottom: 8px; min-width: 0; }
+.rack-head { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; width: 100%; min-width: 0; padding: 8px 10px; background: var(--sky-3); color: var(--cream); border: 2px solid var(--line); font: inherit; text-align: left; cursor: pointer; }
+.rack-head:hover { border-color: var(--cream-3); }
+.rack-head:focus-visible { outline: 2px solid var(--teal); outline-offset: 2px; }
+.rack-open .rack-head { border-color: var(--cream-3); border-bottom-style: dashed; }
+.rack-caret { margin-left: auto; color: var(--cream-2); font-size: 12px; }
+/* opened, the slips sit in their own scrolling box under the head */
+.rack .fold-in > .rack-list { max-height: 296px; overflow-y: auto; overscroll-behavior: contain; padding: 12px 8px 6px 2px; scrollbar-width: thin; }
+.rack-more { padding: 6px 2px 2px; font-size: .8rem; }
+.rack-foot { margin-top: 10px; }
+.rack .fold:not(.fold-open) { min-height: 0; border: 0; background: none; }
 .rack-tag { flex: none; font-family: var(--px); font-size: 8px; line-height: 1; color: #f4e9c8; background: var(--crowd-2); border: 2px solid #0b1120; padding: 5px 7px; box-shadow: 2px 2px 0 var(--brick-2); text-transform: uppercase; }
 .rack-house .rack-tag { background: var(--green); }
 .rack-sum { min-width: 0; font-size: 13px; font-weight: 600; overflow-wrap: anywhere; }
@@ -1620,11 +1629,6 @@ button.slip-main:hover .slip-title { text-decoration: underline dotted; text-und
 .st-sell[aria-pressed="true"] { background: #a8412f; border-color: #a8412f; color: #f4e9c8; }
 .rk-stamp:hover:not([aria-pressed="true"]) { background: rgba(16, 26, 46, .07); }
 .rk-stamp:focus-visible { outline: 3px solid #0b1120; outline-offset: 2px; }
-.slip-more-li { filter: none; }
-.slip-more { width: 100%; height: 100%; min-height: 70px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; padding: 8px; background: transparent; border: 2px dashed var(--cream-3); color: var(--cream-2); font-family: var(--px); font-size: 9px; line-height: 1.5; cursor: pointer; }
-.slip-more em { font-style: normal; font-family: var(--sans); font-size: 12px; color: var(--cream-3); }
-.slip-more:hover { border-color: var(--taxi); color: var(--taxi-ink, var(--taxi)); }
-.slip-more:focus-visible { outline: 3px solid var(--taxi); outline-offset: 2px; }
 .rack-foot { margin-top: 14px; }
 
 /* nothing in the side panel crosses its edge */

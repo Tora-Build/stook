@@ -104,7 +104,8 @@ export function LpPanel(p: Props) {
           tranche (it joined at that moment's odds and earns fees from then),
           so they cannot merge; here they add up, entry by entry inside. */}
       {rows.length > 0 && (
-        <Rack kind="house" title="Your deposits" label="Your deposits in the house this round"
+        <Rack kind="house" title="Your deposits" label="Your deposits in the house this round" startOpen={final}
+          more={<Link to="/yours">Every round you are in: your statement ›</Link>}
           summary={<>{rows.length} deposit{rows.length === 1 ? "" : "s"} · {coinText(sum.in, dec, p.quoteSymbol)} in{rate !== null && <span className="approx">{approxUsd(sum.in, dec, rate)}</span>}</>}
           extra={sum.worth !== null ? <>{fmtCompact(sum.worth, dec)} to claim</> : sum.fees > 0n ? <>+{fmtCompact(sum.fees, dec)} fees</> : undefined}
           slips={rows.map((r) => ({ key: String(r.t.index), title: <>Deposit <span className="mono">{r.t.index + 1}</span></>,

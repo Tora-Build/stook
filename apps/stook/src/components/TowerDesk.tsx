@@ -45,7 +45,8 @@ export function CallKind(p: { desk: Desk; grid: Grid; curve: stook.Curve; feeBps
           </button>
         ))}
       </div>
-      <div className="brass floor-plate" data-coach="sure">
+      {/* How sure is a choice only near a price; a range is drawn on the tower, so there is nothing to pick here. */}
+      {desk.kind === "near" && <div className="brass floor-plate" data-coach="sure">
         <Screws />
         <span className="plate-lbl">HOW SURE?</span>
         {desk.kind === "near" ? (
@@ -62,8 +63,8 @@ export function CallKind(p: { desk: Desk; grid: Grid; curve: stook.Curve; feeBps
               );
             })}
           </div>
-        ) : <p className="plate-hint">{p.coarse ? "Tap two floors." : "Click one floor, then another."} <span>Everything between pays the same. Fewer floors pays more.</span></p>}
-      </div>
+        ) : null}
+      </div>}
     </section>
   );
 }
@@ -91,7 +92,7 @@ export function CallKindBar(p: { desk: Desk; grid: Grid; at: number; onSure: () 
               </button>
             ))}
           </div>
-        : <p className="brass floor-plate fp-mini plate-hint">Tap two floors. <span>Everything between pays the same.</span></p>}
+        : null}
     </div>
   );
 }
