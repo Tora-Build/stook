@@ -1446,7 +1446,7 @@ a.tour-btn { text-decoration: none; }
 .tw-plaque-full { position: absolute; z-index: 20; left: 8px; right: 8px; top: 100%; margin: 4px 0 0; background: #f4e9c8; color: #0b1120; border: 2px solid #0b1120; box-shadow: 3px 3px 0 #000; padding: 6px 8px; font-size: 12px; line-height: 1.4; }
 .tw-bellside { flex: none; align-self: center; }
 .tw-bellsign .st { display: block; font-family: var(--sans); font-size: 11px; color: var(--t-cream-2); font-weight: 400; margin-top: 1px; }
-.tw-belltower { flex: none; line-height: 0; margin-right: 2px; }
+.tw-belltower { flex: none; line-height: 0; margin-right: 2px; align-self: flex-end; margin-bottom: -6px; } /* stands on the ticker's ledge, not above it */
 .tw-belltower svg { image-rendering: pixelated; }
 .tw-bellside.tw-sign .plate { padding: 8px 10px; }
 .tw-bellside.tw-sign .big { font-size: 16px; }
@@ -1479,7 +1479,9 @@ a.tour-btn { text-decoration: none; }
 /* a phone's roof: the billboard and the bell up top, the notice board under them */
 .tw-small .tw-deck { flex-wrap: wrap; }
 .tw-small .tw-bill { flex: 1 1 0; }
-.tw-small .tw-board { order: 5; flex: 1 1 100%; margin: 2px 0 6px; }
+.tw-small .tw-board { order: 5; flex: 1 1 calc(100% - 48px); min-width: 0; margin: 2px 0 6px; }
+/* a phone's chimney goes to the lower row, beside the board, so it still stands on the ledge */
+.tw-small .tw-belltower { order: 6; margin-bottom: -5px; }
 .tw-small .tw-board-t { font-size: 13px; padding: 5px 8px 6px; }
 .tw-small .tw-bill-face { padding: 8px 8px 6px; }
 .tw-small .tw-bill-face .l1 { gap: 6px; }
