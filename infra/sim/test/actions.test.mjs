@@ -28,6 +28,7 @@ test("a round is due once finished and past the wallet's delay; void at once", (
   c.today.round.l = { ...c.today.round.l, status: "void" };
   assert.equal(dueRounds(j, p, 1600, w).length, 2);
   assert.equal(fleetLines({ wallets: { 0: j, 1: { positions: [{ ladder: "old" }], tranches: [] } } }).get("old"), 2);
+  assert.equal(fleetLines({ wallets: { 0: j, 1: { positions: [{ ladder: "old" }], tranches: [] } } }, (i) => i === 1).get("old"), 1);
 });
 
 test("an empty wallet takes test coins first, once a UTC day", () => {
@@ -115,7 +116,7 @@ test("the faucet mints the test USDC first, as the app does, when its mint is se
   assert.equal((await none.build())[0].ixs.length, 2);
 });
 
-test("a probe buy sizes past the depth cap", async () => {
+test("a probe buy sizes past the depth cap, up to SIM_PROBE_DEPTH_FRAC of the round", async () => {
   const w = worldAt(TUE_11_NY);
   const c = w.coins[0];
   const reader = { ladder: async () => c.today.round.l, livePrice: async () => ({ price: 6_500_000_000_000n, expo: -8, publishTime: 0 }) };
@@ -130,4 +131,5 @@ test("a probe buy sizes past the depth cap", async () => {
   const depthCap = (c.today.round.l.depositTotal * 300n) / 10_000n;
   assert.ok(sizes[0] <= depthCap);
   assert.ok(sizes[1] > depthCap, `${sizes[1]} vs ${depthCap}`);
+  assert.ok(sizes[1] <= (c.today.round.l.depositTotal * 500n) / 10_000n, `${sizes[1]}`);
 });

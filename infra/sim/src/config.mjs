@@ -93,10 +93,23 @@ export function loadConfig(env = process.env) {
     dailySol: num(pick("SIM_DAILY_SOL"), 2),
     personas: pick("SIM_PERSONAS") ?? "",
     seed: pick("SIM_SEED") ?? "stook-sim",
-    /** Most one trade may spend, as a share of the round's deposits. */
-    maxDepthFrac: num(pick("SIM_MAX_DEPTH_FRAC"), 0.03),
-    /** Share of buys that ignore that cap and size to the most the round can price, as the app lets anyone. */
-    probeShare: num(pick("SIM_PROBE_SHARE"), 0.05),
+    /** Most one buy may spend, as a share of the round's deposits (an arbitrageur's has its own, below). */
+    maxDepthFrac: num(pick("SIM_MAX_DEPTH_FRAC"), 0.01),
+    /** Share of buys that are whale-sized and ignore the edge and SIM_MAX_DEPTH_FRAC... */
+    probeShare: num(pick("SIM_PROBE_SHARE"), 0.01),
+    /** ...held to this share of the round's deposits instead. */
+    probeDepthFrac: num(pick("SIM_PROBE_DEPTH_FRAC"), 0.05),
+    /** Most one arbitrage trade may spend, as a share of the round's deposits. */
+    arbDepthFrac: num(pick("SIM_ARB_DEPTH_FRAC"), 0.03),
+    /** How far past fair (beyond the fees) a band's odds must be before an arbitrageur trades it. */
+    arbMargin: num(pick("SIM_ARB_MARGIN"), 0.03),
+    /** Bands under these fair odds are left alone; at most this many contiguous bands in one buy. */
+    arbMinFair: num(pick("SIM_ARB_MIN_FAIR"), 0.005),
+    arbMaxWidth: Math.max(1, Math.floor(num(pick("SIM_ARB_MAX_WIDTH"), 3))),
+    /** Lines the arbitrageurs together hold in one round at most, apart from the caps above (so the keeper's sweep grows by this much at most). */
+    arbLinesPerRound: num(pick("SIM_ARB_LINES_PER_ROUND"), 8),
+    /** How much more often an arbitrageur takes the turn than its activity says, while a round trades. */
+    arbTurnWeight: num(pick("SIM_ARB_TURN_WEIGHT"), 4),
     // The keeper sweeps each losing line after the close with its own
     // transaction, one after another, before its next heartbeat. These keep
     // the fleet's part of that sweep to a minute or two: at most this many

@@ -7,7 +7,7 @@ import { execFile } from "node:child_process";
 import { existsSync, statSync } from "node:fs";
 import { SystemProgram } from "@solana/web3.js";
 import { LAMPORTS } from "./config.mjs";
-import { decide, decideRetiring, dueRounds, fleetLines, forgetLine, holdsNothing, Skip, walletJournal } from "./actions.mjs";
+import { arbSurvey, decide, decideRetiring, dueRounds, fleetLines, forgetLine, holdsNothing, Skip, tradeable, walletJournal } from "./actions.mjs";
 import { classify, kindOf, renamed } from "./classify.mjs";
 import { chunks, feeFor, planReclaims, planTopUps, runway, SolBudget } from "./budget.mjs";
 import { nextArrival, nyClock, pauseReason } from "./schedule.mjs";
@@ -57,6 +57,8 @@ export function createSim(deps) {
   const profiles = active.map((w) => profileOf(w.index, weights, cfg.seed));
   const retiringProfiles = new Map(retiring.map((w) => [w.index, { ...profileOf(w.index, weights, cfg.seed), collectDelay: 0, retiring: true }]));
   const starters = profiles.filter((p) => p.persona === "starter").map((p) => p.index);
+  // The arbitrageurs' lines are capped apart from the rest of the fleet's (actions.mjs).
+  const arbs = new Set(profiles.filter((p) => p.persona === "arb").map((p) => p.index));
   // With no starter in the mix, houses fund rounds.
   const funders = starters.length ? starters : profiles.filter((p) => p.persona === "house").map((p) => p.index);
   state.sol ??= {};
@@ -295,14 +297,22 @@ export function createSim(deps) {
     return c;
   }
 
-  /** A wallet to act, weighted by how active it is, among those with SOL to act with. */
+  /**
+   * A wallet to act, weighted by how active it is, among those with SOL to
+   * act with. While a round trades, an arbitrageur's weight is
+   * SIM_ARB_TURN_WEIGHT times its activity: they take more of the turns, and
+   * the minute cap over every send still holds.
+   */
   function pickWallet() {
     const floor = BigInt(Math.round(Math.min(cfg.solMin, 0.008) * LAMPORTS));
     const ready = profiles.filter((p) => plan || !lamports.has(p.index) || lamports.get(p.index) >= floor);
     const pool = ready.length ? ready : profiles;
-    const total = pool.reduce((a, p) => a + p.activity, 0);
+    const t = Math.floor(now() / 1000);
+    const trading = (world?.coins ?? []).some((c) => tradeable(c.today?.round?.l, t));
+    const weight = (p) => p.activity * (trading && p.persona === "arb" ? (cfg.arbTurnWeight ?? 1) : 1);
+    const total = pool.reduce((a, p) => a + weight(p), 0);
     let x = rng() * total;
-    for (const p of pool) { if (x < p.activity) return p; x -= p.activity; }
+    for (const p of pool) { const w = weight(p); if (x < w) return p; x -= w; }
     return pool[pool.length - 1];
   }
 
@@ -345,7 +355,7 @@ export function createSim(deps) {
     }
     const rates = await reader.usdRates();
     const j = walletJournal(journal, profile.index);
-    const ctx = { cfg, world, profile, bal, j, rng, t: Math.floor(now() / 1000), rates, faucet: deps.faucet, wallet: w.keypair, starters: funders, lines: fleetLines(journal), detail: {} };
+    const ctx = { cfg, world, profile, bal, j, rng, t: Math.floor(now() / 1000), rates, faucet: deps.faucet, wallet: w.keypair, starters: funders, lines: fleetLines(journal, (i) => !arbs.has(i)), arbLines: fleetLines(journal, (i) => arbs.has(i)), detail: {} };
     if (isRetiring && deps.treasury) ctx.payer = deps.treasury;
     const a = isRetiring ? decideRetiring(ctx) : decide(ctx);
     if (!a) return null;
@@ -356,11 +366,16 @@ export function createSim(deps) {
       if (!(await topUp(need, "rent")).length) { count(a.type, "skip"); record({ at: new Date(now()).toISOString(), wallet: profile.index, persona: profile.persona, action: a.type, coin: a.coin ?? null, skip: "not enough SOL for the rent and no allowance left today", ms: now() - started }); return null; }
       bal.lamports += need[0].lamports;
     }
-    const base = { at: new Date(now()).toISOString(), wallet: profile.index, persona: profile.persona, action: a.type, coin: a.coin ?? null, round: a.round ?? null };
+    // Read after the build too: an arbitrageur's turn names its trade (and its round) only once built.
+    const at = new Date(now()).toISOString();
+    const baseOf = () => ({ at, wallet: profile.index, persona: profile.persona, action: a.type, coin: a.coin ?? null, round: a.round ?? null });
+    let base = baseOf();
     let txs;
     try {
       txs = await a.build({ ...reader, conn: deps.conn });
+      base = baseOf();
     } catch (e) {
+      base = baseOf();
       if (e instanceof Skip) {
         if (ctx.dropPosition) forgetLine(j, a.round, ctx.dropPosition);
         persist("journal");
@@ -469,6 +484,9 @@ export function createSim(deps) {
     let t = now();
     for (let k = 0; k < 10; k++) { t = nextArrival(t, rng, cfg); arrivals.push(new Date(t).toISOString()); }
     out(JSON.stringify({ plan: "next arrivals", at: arrivals }));
+    // The arbitrageurs' view of each round trading now: how spiky it is, the
+    // bands furthest under fair, and the buy an arbitrageur would make there.
+    for (const row of await arbSurvey({ world, reader, cfg, t: Math.floor(now() / 1000) })) out(JSON.stringify({ plan: "arb", ...row }, (_k, v) => (typeof v === "bigint" ? v.toString() : v)));
     for (let k = 0; k < n; k++) await act();
     return planned;
   }
@@ -518,7 +536,7 @@ export function createSim(deps) {
   /** Stop sending: sends in flight finish, nothing new starts. */
   function stop() { stopping = true; }
 
-  return { act, once, watch, stop, planRun, fundingSweep, report, reportDue, paused, profiles, retiringProfiles, retired, journal, state, budget, refreshWorld, get world() { return world; } };
+  return { act, once, watch, stop, planRun, pickWallet, fundingSweep, report, reportDue, paused, profiles, retiringProfiles, retired, journal, state, budget, refreshWorld, get world() { return world; } };
 }
 
 /** "about 12.5 days at 0.40 SOL a day", or that nothing is going out. */

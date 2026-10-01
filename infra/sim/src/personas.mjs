@@ -4,17 +4,41 @@
 
 import { createHash } from "node:crypto";
 
-export const PERSONAS = ["caller", "longshot", "trader", "house", "starter", "collector"];
-export const DEFAULT_WEIGHTS = { caller: 45, longshot: 10, trader: 20, house: 10, starter: 5, collector: 10 };
+export const PERSONAS = ["caller", "arb", "longshot", "trader", "house", "starter", "collector"];
+// A wallet's persona is where a fixed draw falls along these weights laid end
+// to end, in this order. "arb" sits right after "caller" and takes the top 7
+// of the callers' old 45, so with the defaults only the callers whose draw
+// fell in that slice became arbitrageurs; every other wallet kept its persona.
+// "arb:0" gives that slice back to the callers (the mix before the arbs).
+// Only callers in [38, 45) per 100 of the draw changed, to arbs.
+export const DEFAULT_WEIGHTS = { caller: 38, arb: 7, longshot: 10, trader: 20, house: 10, starter: 5, collector: 10 };
 
-/** "caller:50,house:20": weights over the defaults; unknown names are refused. */
+/**
+ * "caller:50,house:20": weights over the defaults; unknown names are refused.
+ * The arbitrageurs' share comes out of the callers': a list that sets
+ * "caller" but not "arb" gives 7/45 of its callers' weight to the arbs (the
+ * defaults' split), so an override written before the arbs keeps its total
+ * and every wallet but those callers keeps its persona. One that sets "arb"
+ * but not "caller" takes it from the callers' 45 ("arb:0" is the fleet as it
+ * was before the arbs, "arb:10" makes 3 more of every 100 wallets arbs).
+ */
 export function parseWeights(text) {
   const w = { ...DEFAULT_WEIGHTS };
   if (!text) return w;
+  const set = new Set();
   for (const part of text.split(",").map((s) => s.trim()).filter(Boolean)) {
     const [k, v] = part.split(":");
     if (!PERSONAS.includes(k) || !(Number(v) >= 0)) throw new Error(`SIM_PERSONAS: not a weight: ${part}`);
     w[k] = Number(v);
+    set.add(k);
+  }
+  const pair = DEFAULT_WEIGHTS.caller + DEFAULT_WEIGHTS.arb;
+  if (set.has("caller") && !set.has("arb")) {
+    const both = w.caller;
+    w.arb = (both * DEFAULT_WEIGHTS.arb) / pair;
+    w.caller = both - w.arb;
+  } else if (set.has("arb") && !set.has("caller")) {
+    w.caller = Math.max(0, pair - w.arb);
   }
   if (!Object.values(w).some((v) => v > 0)) throw new Error("SIM_PERSONAS: every weight is zero");
   return w;
@@ -63,7 +87,7 @@ export const seedUsd = (tier, rng) => logUniform(rng, SEED[tier]);
 
 // How long after a round finishes each persona gets round to collecting, seconds.
 const COLLECT_DELAY = {
-  caller: [5 * 60, 45 * 60], longshot: [5 * 60, 3 * 3600], trader: [10 * 60, 60 * 60],
+  caller: [5 * 60, 45 * 60], arb: [5 * 60, 30 * 60], longshot: [5 * 60, 3 * 3600], trader: [10 * 60, 60 * 60],
   house: [15 * 60, 2 * 3600], starter: [15 * 60, 2 * 3600], collector: [2 * 3600, 3 * 86_400],
 };
 

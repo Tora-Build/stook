@@ -13,6 +13,7 @@ import { stook } from "@sooth/sdk-solana";
 import { ataOf, ensureAta, readAccounts } from "./chain.mjs";
 import { depositUsd, seedUsd, spendUsd, unit } from "./personas.mjs";
 import { expectedLevel, pickLine, sharesFor, sigmaFor } from "./pricing.mjs";
+import { cheapBands, crowdOdds, fairOdds, feeFrac, planArbBuy, planArbSell, rawPrice, richness, sellAbove, spikiness } from "./arb.mjs";
 import { utcDay } from "./budget.mjs";
 import { nyClock } from "./schedule.mjs";
 
@@ -52,10 +53,13 @@ export function walletJournal(journal, index) {
   return journal.wallets[k];
 }
 
-/** Lines the fleet holds in each round, by round address. */
-export function fleetLines(journal) {
+/** Lines the fleet (or the wallets `which(index)` picks) holds in each round, by round address. */
+export function fleetLines(journal, which = null) {
   const by = new Map();
-  for (const w of Object.values(journal.wallets ?? {})) for (const p of w.positions) by.set(p.ladder, (by.get(p.ladder) ?? 0) + 1);
+  for (const [k, w] of Object.entries(journal.wallets ?? {})) {
+    if (which && !which(Number(k))) continue;
+    for (const p of w.positions) by.set(p.ladder, (by.get(p.ladder) ?? 0) + 1);
+  }
   return by;
 }
 
@@ -129,6 +133,10 @@ export function decide(ctx) {
         return sellAction(ctx, open.find((c) => c.today.key.toBase58() === p.ladder), p, pct);
       }
       break;
+    }
+    case "arb": {
+      if (open.length) return arbAction(ctx, open);
+      return { type: "idle", params: { why: "no round is trading" }, build: async () => { throw new Skip("no round is trading"); } };
     }
     default:
   }
@@ -214,18 +222,25 @@ function faucetAction(ctx, coins) {
   };
 }
 
-/** A budget in base units: dollars by tier at the coin's rate, else coins; held to the wallet and, unless `probe`, to the round's depth. */
-function budgetFor(ctx, c, l, usd, probe = false) {
+/** `frac` of the round's deposits, base units. */
+export const depthShare = (l, frac) => (l.depositTotal * BigInt(Math.max(0, Math.round((frac ?? 0) * 10_000)))) / 10_000n;
+
+/**
+ * A budget in base units: dollars by tier at the coin's rate, else coins;
+ * held to the wallet and to a share of the round's depth: SIM_MAX_DEPTH_FRAC
+ * for a buy, SIM_PROBE_DEPTH_FRAC (wider) for a probe.
+ */
+export function budgetFor(ctx, c, l, usd, probe = false) {
   const rate = ctx.rates?.[c.symbol];
   let b = rate ? fromUsd(usd, c.decimals, rate) : BigInt(Math.round(usd * 20)) * whole(c.decimals);
   const bal = ctx.bal.coins[c.symbol] ?? 0n;
   b = min(b, (bal * 98n) / 100n);
-  const depth = (l.depositTotal * BigInt(Math.round(ctx.cfg.maxDepthFrac * 10_000))) / 10_000n;
-  return { budget: probe ? b : min(b, depth), balance: bal, depthCap: depth };
+  const depth = depthShare(l, probe ? (ctx.cfg.probeDepthFrac ?? 0.05) : ctx.cfg.maxDepthFrac);
+  return { budget: min(b, depth), balance: bal, depthCap: depth };
 }
 
 // Belief-weighted value per unit spent below which a persona does not buy.
-const EDGE = { caller: 1, collector: 1, trader: 1.1, starter: 1, house: 1, longshot: 0.5 };
+const EDGE = { caller: 1, collector: 1, trader: 1.1, starter: 1, house: 1, longshot: 0.5, arb: 1 };
 
 /** Lines the fleet holds across every round of the world closing at `settlesAt`. */
 export function linesClosingAt(ctx, settlesAt) {
@@ -239,8 +254,9 @@ export function linesClosingAt(ctx, settlesAt) {
 
 function buyAction(ctx, c, kind, add = null) {
   const { profile, rng, t, cfg, lines } = ctx;
-  // Now and then a buy sized to the most the round can price (the app's
-  // "Round limit"), past the depth cap and whatever the edge.
+  // Now and then a whale-sized buy whatever the edge, past SIM_MAX_DEPTH_FRAC
+  // up to SIM_PROBE_DEPTH_FRAC of the round (the app's "Round limit" checks
+  // still run on it), so the round's limits see a large trade now and then.
   const probe = !add && rng() < (cfg.probeShare ?? 0);
   const usd = probe ? 2 * spendUsd("whale", rng) : spendUsd(profile.tier, rng);
   return {
@@ -320,6 +336,179 @@ function sellAction(ctx, c, p, pct) {
     // does not offer it for sale again. Part of one waits another hold.
     done: () => { p.boughtAt = ctx.soldAll ? t + 10 * 86_400 : t; },
   };
+}
+
+/**
+ * A wallet's own lines in one round an arbitrageur keeps at most (an add to
+ * one it holds is always allowed). The arbitrageurs together keep at most
+ * SIM_ARB_LINES_PER_ROUND in a round, outside the fleet's other line caps
+ * (`ctx.lines` leaves their lines out), so the others' lines never crowd
+ * them out of a round, nor theirs the others'.
+ */
+export const ARB_LINES_PER_ROUND = 4;
+const sameShape = (p, s) => p.lo === s.lo && p.hi === s.hi && p.h === s.h;
+const r4 = (x) => +x.toFixed(4);
+
+/** The odds an arbitrage moves, per band: the crowd's before and after, and fair. */
+function oddsDetail(shape, fair, crowd, after) {
+  const [a, z] = stook.shapeBins(shape);
+  const out = [];
+  for (let i = a; i <= z; i++) out.push({ band: i, crowd: r4(crowd[i]), fair: r4(fair[i]), after: r4(after[i]) });
+  return out;
+}
+
+/** The trade instruction as the app's Ticket builds it, with its token account first. */
+function tradeTx(ctx, c, key, l, shape, shares, limit) {
+  const owner = ctx.wallet.publicKey;
+  return {
+    ixs: [ensureAta(l.quoteMint, owner, c.tokenProgram), stook.tradeLadderIx(refsOf(key, l, c), { user: owner, userToken: ataOf(l.quoteMint, owner, c.tokenProgram), shape, shares, limit })],
+    cu: stook.tradeComputeUnits(shape), signers: [ctx.wallet],
+  };
+}
+
+/**
+ * An arbitrageur's turn over the rounds trading now: sell part of a held
+ * line the crowd prices over fair, else buy the band (or run of bands) it
+ * prices furthest under fair, sized to move it toward fair and never past
+ * (arb.mjs). Screened on the world's curves, then sized again on a fresh
+ * read of the chosen round. Its type ("buy" or "sell") is known only once
+ * built; until then it is "arb".
+ */
+function arbAction(ctx, open) {
+  const { t, cfg, j } = ctx;
+  const margin = cfg.arbMargin ?? 0.03;
+  const opts = { margin, minFair: cfg.arbMinFair ?? 0.005, maxWidth: cfg.arbMaxWidth ?? 3 };
+  const a = {
+    type: "arb",
+    coin: open[0].symbol,
+    round: open[0].today.key.toBase58(),
+    params: {},
+    build: async (reader) => {
+      const view = (c, l, live) => ({
+        fair: fairOdds(l, live, stook.seriesVariance(c.series), Number(l.settlesAt) - t),
+        feeBps: stook.feeBpsAt(l.feeBps, BigInt(t + 10), l.settlesAt),
+      });
+      const budgetOf = (c, l) => {
+        const bal = ctx.bal.coins[c.symbol] ?? 0n;
+        return min((bal * 98n) / 100n, depthShare(l, cfg.arbDepthFrac ?? 0.03));
+      };
+      const allowFor = (c, l) => (shape) => {
+        const key = c.today.key.toBase58();
+        const mine = j.positions.filter((p) => p.ladder === key);
+        if (mine.some((p) => sameShape(p, shape))) return true;
+        return mine.length < ARB_LINES_PER_ROUND && (ctx.arbLines?.get(key) ?? 0) < (cfg.arbLinesPerRound ?? 8);
+      };
+      const plan = (c, l, live, held = null) => {
+        const v = view(c, l, live);
+        if (!v.fair) return null;
+        if (held) return planArbSell(l, v.fair, { feeBps: v.feeBps, transferFee: c.transferFee, held, margin });
+        return planArbBuy(l, v.fair, { feeBps: v.feeBps, transferFee: c.transferFee, budget: budgetOf(c, l), allow: allowFor(c, l), ...opts });
+      };
+
+      // Screen every round trading now on the world's read (a minute old at most).
+      let best = null, broke = 0;
+      for (const c of open) {
+        if (budgetOf(c, c.today.round.l) <= 0n && !j.positions.some((p) => p.ladder === c.today.key.toBase58())) { broke++; continue; }
+        const l = c.today.round.l, key = c.today.key.toBase58();
+        const live = await reader.livePrice(c);
+        if (!live) continue;
+        const mine = j.positions.filter((p) => p.ladder === key && !p.soldOut);
+        // Only how rich here; sized on the fresh read, where the line's shares are known.
+        if (mine.length) {
+          const v = view(c, l, live), crowd = crowdOdds(l.curve), thr = sellAbove(feeFrac(v.feeBps, c.transferFee), margin);
+          for (const p of mine) {
+            const ratio = v.fair ? richness(p, v.fair, crowd) : 0;
+            if (ratio > thr && (!best || best.side === "buy" || ratio > best.ratio)) best = { side: "sell", c, live, p, ratio };
+          }
+        }
+        if (best?.side === "sell") continue;
+        const b = plan(c, l, live);
+        if (b && (!best || b.ratio < best.ratio)) best = { side: "buy", c, live, ratio: b.ratio };
+      }
+      if (!best && broke === open.length) throw new Skip("no coins to trade with", "InsufficientFunds");
+      if (!best) throw new Skip("no band mispriced past the fees and margin");
+      const c = best.c, key = c.today.key;
+      Object.assign(a, { type: best.side, coin: c.symbol, round: key.toBase58() });
+      const owner = ctx.wallet.publicKey;
+
+      if (best.side === "sell") {
+        const shape = { lo: best.p.lo, hi: best.p.hi, h: best.p.h };
+        const [la, pa] = await readAccounts(reader.conn, [key, stook.deriveLadderPosition(key, owner, shape)]);
+        if (!pa) { ctx.dropPosition = shape; throw new Skip("line no longer held", "NothingToCollect"); }
+        const l = stook.decodeLadder(la.data), pos = stook.decodeLadderPosition(pa.data);
+        if (!tradeable(l, t)) throw new Skip("round not trading", "LadderNotOpen");
+        if (pos.shares <= 0n) { best.p.soldOut = true; throw new Skip("line already sold"); }
+        const s = plan(c, l, best.live, [{ shape, shares: pos.shares }]);
+        if (!s) throw new Skip("no longer over fair");
+        const v = view(c, l, best.live);
+        const limit = stook.minNetOf(s.q.total, [c.transferFee]);
+        checked(ctx, key, l, "LadderInsufficientShares");
+        ctx.arbLine = best.p;
+        ctx.soldAll = s.shares === pos.shares;
+        Object.assign(ctx.detail, {
+          arb: "sell", shape, size: s.shares.toString(), held: pos.shares.toString(), gets: s.gets.toString(), worth: s.worth.toString(), limit: limit.toString(),
+          feeBps: v.feeBps, ratio: r4(s.ratio), odds: oddsDetail(shape, v.fair, s.crowd, s.after), price: best.live.source, curveSeq: l.curveSeq.toString(), round: spikiness(l.curve),
+        });
+        return [tradeTx(ctx, c, key, l, shape, -s.shares, limit)];
+      }
+
+      const l = (await reader.ladder(key)) ?? c.today.round.l;
+      if (!tradeable(l, t)) throw new Skip("round not trading", "LadderNotOpen");
+      const s = plan(c, l, best.live);
+      if (!s) throw new Skip("no band mispriced past the fees and margin");
+      const v = view(c, l, best.live);
+      const balance = ctx.bal.coins[c.symbol] ?? 0n;
+      const limit = stook.maxGrossFor(s.q.total, [c.transferFee]);
+      if (balance < limit) throw new Skip("balance under the limit", "InsufficientFunds");
+      checked(ctx, key, l, "InsufficientFunds");
+      Object.assign(ctx.detail, {
+        arb: "buy", shape: s.shape, shares: s.shares.toString(), pays: s.pays.toString(), worth: s.worth.toString(), limit: limit.toString(), budget: budgetOf(c, l).toString(),
+        feeBps: v.feeBps, ratio: r4(s.ratio), odds: oddsDetail(s.shape, v.fair, s.crowd, s.after), price: best.live.source, curveSeq: l.curveSeq.toString(), balance: balance.toString(), round: spikiness(l.curve),
+      });
+      return [tradeTx(ctx, c, key, l, s.shape, s.shares, limit)];
+    },
+    done: () => {
+      if (a.type === "sell") { if (ctx.arbLine && ctx.soldAll) ctx.arbLine.soldOut = true; return; }
+      const s = ctx.detail.shape, key = a.round;
+      const had = ctx.j.positions.find((p) => p.ladder === key && sameShape(p, s));
+      if (had) { delete had.soldOut; return; }
+      const c = open.find((x) => x.symbol === a.coin);
+      ctx.j.positions.push({ ladder: key, coin: a.coin, lo: s.lo, hi: s.hi, h: s.h, settlesAt: Number(c.today.round.l.settlesAt), boughtAt: t });
+    },
+  };
+  return a;
+}
+
+/**
+ * For `--plan`: each round trading now as an arbitrageur sees it: how spiky
+ * the crowd's odds are, the bands furthest under fair, and the buy it would
+ * make with a budget of SIM_ARB_DEPTH_FRAC of the round (its wallet aside).
+ */
+export async function arbSurvey({ world, reader, cfg, t }) {
+  const rows = [];
+  for (const c of world.coins) {
+    const l = c.today?.round?.l;
+    if (!tradeable(l, t)) continue;
+    const row = { coin: c.symbol, round: c.today.key.toBase58(), depositTotal: l.depositTotal, decimals: l.decimals, crowd: spikiness(l.curve) };
+    rows.push(row);
+    const live = await reader.livePrice(c);
+    if (!live) { row.skip = "no live price"; continue; }
+    const fair = fairOdds(l, live, stook.seriesVariance(c.series), Number(l.settlesAt) - t);
+    if (!fair) { row.skip = "no fair odds"; continue; }
+    const feeBps = stook.feeBpsAt(l.feeBps, BigInt(t + 10), l.settlesAt);
+    const fee = feeFrac(feeBps, c.transferFee);
+    const crowd = crowdOdds(l.curve);
+    const top = fair.reduce((m, x, i) => (x > fair[m] ? i : m), 0);
+    Object.assign(row, {
+      feeBps, transferFeeBps: c.transferFee?.bps ?? 0, livePrice: rawPrice(live, l.p0Expo), priceBand: stook.binFor(BigInt(Math.max(1, Math.round(rawPrice(live, l.p0Expo)))), l.p0, l.stepBps),
+      fair: { maxProb: r4(fair[top]), maxBand: top, bandsOver1pct: fair.filter((x) => x >= 0.01).length },
+      cheapest: cheapBands(fair, crowd, { fee, margin: cfg.arbMargin ?? 0.03, minFair: cfg.arbMinFair ?? 0.005 }).slice(0, 5).map((x) => ({ band: x.i, crowd: r4(x.crowd), fair: r4(x.fair), ratio: r4(x.ratio) })),
+      richest: crowd.map((x, i) => ({ band: i, crowd: r4(x), fair: r4(fair[i]), ratio: fair[i] > 0 ? r4(x / fair[i]) : null })).filter((x) => x.crowd >= 0.01).sort((a, b) => (b.ratio ?? Infinity) - (a.ratio ?? Infinity)).slice(0, 3),
+    });
+    const b = planArbBuy(l, fair, { feeBps, transferFee: c.transferFee, budget: depthShare(l, cfg.arbDepthFrac ?? 0.03), margin: cfg.arbMargin ?? 0.03, minFair: cfg.arbMinFair ?? 0.005, maxWidth: cfg.arbMaxWidth ?? 3 });
+    row.buy = b ? { shape: b.shape, shares: b.shares, pays: b.pays, worth: b.worth, paysFracOfDepth: r4(Number(b.pays) / Number(l.depositTotal)), odds: oddsDetail(b.shape, fair, b.crowd, b.after), roundAfter: spikiness(b.q.curve) } : null;
+  }
+  return rows;
 }
 
 function nextTrancheIndex(j, ladder) {

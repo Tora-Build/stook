@@ -35,6 +35,13 @@ test("the defaults keep the keeper's sweep short and use the app's priority fee"
   assert.equal(configProblem(c), null);
 });
 
+test("fleet buys are small by default, arbitrage has its own settings, and the environment overrides them", () => {
+  const c = loadConfig({ SIM_DIR: simDir("") });
+  assert.deepEqual([c.maxDepthFrac, c.probeShare, c.probeDepthFrac, c.arbDepthFrac, c.arbMargin, c.arbTurnWeight], [0.01, 0.01, 0.05, 0.03, 0.03, 4]);
+  const o = loadConfig({ SIM_DIR: simDir("SIM_ARB_MARGIN=0.05\n"), SIM_MAX_DEPTH_FRAC: "0.02", SIM_PROBE_SHARE: "0", SIM_PROBE_DEPTH_FRAC: "0.1", SIM_ARB_DEPTH_FRAC: "0.04", SIM_ARB_TURN_WEIGHT: "2", SIM_ARB_MAX_WIDTH: "1" });
+  assert.deepEqual([o.maxDepthFrac, o.probeShare, o.probeDepthFrac, o.arbDepthFrac, o.arbMargin, o.arbTurnWeight, o.arbMaxWidth], [0.02, 0, 0.1, 0.04, 0.05, 2, 1]);
+});
+
 test("a cap of 0 is refused before anything runs", () => {
   const base = loadConfig({ SIM_DIR: simDir("") });
   assert.match(configProblem({ ...base, txPerMin: 0 }), /SIM_TX_PER_MIN/);

@@ -51,6 +51,29 @@ function deps({ plan, conn, world, clock, coins = 5_000_000_000n }) {
   };
 }
 
+test("while a round trades, arbitrageurs take SIM_ARB_TURN_WEIGHT times their share of the turns", async () => {
+  const clock = () => TUE_11_NY;
+  const share = async (world) => {
+    const d = deps({ plan: true, conn: mockConn(), world, clock });
+    d.wallets = fleet(200);
+    d.weights = { caller: 1, arb: 1 };
+    d.cfg = cfgFor({ arbTurnWeight: 4 });
+    d.rng = rngFrom("turns");
+    const sim = createSim(d);
+    await sim.refreshWorld(true);
+    let arb = 0;
+    for (let k = 0; k < 4000; k++) if (sim.pickWallet().persona === "arb") arb++;
+    const act = (p) => sim.profiles.filter((x) => x.persona === p).reduce((a, x) => a + x.activity, 0);
+    return { got: arb / 4000, even: act("arb") / (act("arb") + act("caller")), boosted: (4 * act("arb")) / (4 * act("arb") + act("caller")) };
+  };
+  const trading = await share(worldAt(TUE_11_NY));
+  assert.ok(Math.abs(trading.got - trading.boosted) < 0.03, JSON.stringify(trading));
+  const closed = worldAt(TUE_11_NY);
+  closed.coins[0].today.round.l = { ...closed.coins[0].today.round.l, status: "settled" };
+  const quiet = await share(closed);
+  assert.ok(Math.abs(quiet.got - quiet.even) < 0.03, JSON.stringify(quiet));
+});
+
 test("--plan goes alone", () => {
   assert.throws(() => parseArgs(["--plan", "--watch"]), /cannot go with --watch/);
   assert.throws(() => parseArgs(["--plan", "--once", "2"]), /cannot go with --once/);
@@ -80,6 +103,10 @@ test("plan mode builds turns and the funding it would do, and sends nothing", as
   // Some turns built real transactions (buys, the faucet), none went out.
   assert.ok(planned.some((p) => p.txs?.length), JSON.stringify(planned.slice(0, 3)));
   const fund = lines.map((l) => JSON.parse(l)).find((x) => x.plan === "fund");
+  // The arbitrageurs' view of the round trading now: its spikiness and the fair odds beside it.
+  const arb = lines.map((l) => JSON.parse(l)).find((x) => x.plan === "arb");
+  assert.equal(arb.coin, "STOOK");
+  assert.ok(arb.crowd.maxProb > 0 && arb.fair.maxProb > 0 && Array.isArray(arb.cheapest));
   assert.equal(fund.wallets, 6);
   assert.ok(fund.sol > 0 && fund.sol <= 9);
   // Nothing on disk moved: the persisted state is untouched.

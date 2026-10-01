@@ -18,9 +18,15 @@
 //   SIM_SOL_MIN / SIM_SOL_TARGET / SIM_SOL_RECLAIM   0.012 / 0.04 / 0.06: topped up under the min, back
 //                         to the treasury over the reclaim
 //   SIM_DAILY_SOL         2, the treasury's net outflow a UTC day (top-ups and fees less SOL returned)
-//   SIM_PERSONAS          e.g. "caller:45,longshot:10,trader:20,house:10,starter:5,collector:10"
+//   SIM_PERSONAS          e.g. "caller:38,arb:7,longshot:10,trader:20,house:10,starter:5,collector:10" (the defaults);
+//                         a list setting caller but not arb gives 7/45 of the callers to the arbs, "arb:0" none
 //   SIM_MAX_POSITIONS_PER_ROUND / SIM_MAX_LINES_PER_CLOSE   15 / 40, so the keeper's sweep stays short
-//   SIM_PROBE_SHARE       0.05 of buys sized to the round's limit, past SIM_MAX_DEPTH_FRAC (0.03)
+//   SIM_MAX_DEPTH_FRAC    0.01 of the round's deposits, the most one buy spends
+//   SIM_PROBE_SHARE       0.01 of buys whale-sized whatever the edge, held to SIM_PROBE_DEPTH_FRAC (0.05) instead
+//   SIM_ARB_DEPTH_FRAC    0.03, the most one arbitrage trade spends; SIM_ARB_MARGIN 0.03 past fair (beyond
+//                         the fees) before an arb trades; SIM_ARB_MIN_FAIR 0.005, SIM_ARB_MAX_WIDTH 3 bands;
+//                         SIM_ARB_TURN_WEIGHT 4, an arb's turn weight over its activity while a round trades;
+//                         SIM_ARB_LINES_PER_ROUND 8 arb lines a round (4 a wallet), apart from the caps above
 //   SIM_KEEPER_BEAT       keeper heartbeat file (HEARTBEAT_FILE, ~/ladder-crank.beat); empty turns the check off
 //   sim.env               FAUCET_AUTHORITY (JSON bytes), DEVNET_MINTS (JSON {symbol: mint}), QUOTE_MINT;
 //                         any SIM_* setting here wins over the environment
