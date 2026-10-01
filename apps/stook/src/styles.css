@@ -56,7 +56,7 @@ h3 { font-family: var(--px); font-size: .6rem; color: var(--teal); margin: 0 0 .
 .sign { display: inline-block; background: var(--green); color: var(--cream); font-family: var(--px); font-size: .55rem; padding: .5rem .8rem; border: 3px solid var(--cream); margin-bottom: 1rem; }
 
 .app { min-height: 100vh; display: flex; flex-direction: column; }
-.top { display: flex; align-items: center; gap: 1.5rem; padding: .8rem 20px; background: #0b1120; }
+.top { display: flex; align-items: center; gap: 1.5rem; padding: .8rem 20px; background: #0b1120; position: relative; z-index: 45; } /* above the page, so the wallet menu that hangs off it is never under a panel */
 .brand { display: flex; align-items: center; gap: .6rem; font-family: var(--px); font-size: .75rem; color: #f4e9c8; }
 .brand img { image-rendering: pixelated; }
 .top nav { display: flex; gap: 1.2rem; }
@@ -360,7 +360,7 @@ a.wc-cell:hover { text-decoration: none; border-color: var(--taxi); }
 @keyframes drop-in { from { transform: perspective(1400px) rotateX(-92deg); } to { transform: perspective(1400px) rotateX(0); } }
 @media (max-width: 640px) { .wallcal { padding: 1.2rem .5rem .6rem; } .wc-grid { gap: 2px; } .wc-cell { min-height: 54px; padding: .25rem; } .wc-state, .wc-sub, .wc-left, .wc-empty { display: none; } .wc-info { font-size: .62rem; word-break: break-word; } .wc-stamp { font-size: .55rem; } }
 @media (prefers-reduced-motion: reduce) { .turn-out-fwd, .turn-in-fwd, .turn-out-back, .turn-in-back { animation: none; } }
-.sheet-back { position: fixed; inset: 0; background: rgba(11, 17, 32, .7); display: grid; place-items: center; z-index: 40; padding: 1rem; overflow-y: auto; }
+.sheet-back { position: fixed; inset: 0; background: rgba(11, 17, 32, .7); display: grid; place-items: center; z-index: 55; padding: 1rem; overflow-y: auto; }
 .sheet { width: min(520px, 100%); margin: auto 0; max-height: none; }
 @media (max-width: 640px) { .cal-cell { min-height: 54px; padding: .3rem; } .cal-status { display: none; } }
 
