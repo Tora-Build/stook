@@ -48,13 +48,15 @@ export function CallKind(p: { desk: Desk; grid: Grid; curve: stook.Curve; feeBps
       {/* How sure is a choice only near a price; a range is drawn on the tower, so there is nothing to pick here. */}
       {desk.kind === "near" && <div className="brass floor-plate" data-coach="sure">
         <Screws />
-        <span className="plate-lbl">HOW SURE?</span>
+        <span className="plate-lbl">HOW SURE?{!p.coarse && <span className="plate-or">or drag ▲ ▼ on the tower</span>}</span>
         {desk.kind === "near" ? (
           <div className="floors" role="group" aria-label="How sure are you">
-            {SURE.map(([name, s]) => {
-              const mult = fx(aboutMultiple(p.curve, nearAt(g, L, s), p.feeBps));
+            {/* The three, and a fourth only while the call is a width none of them is (dragged on the tower). */}
+            {[...SURE, ...(SURE.some(([, s]) => s === on) ? [] : [["Custom", on] as [string, number]])].map(([name, s]) => {
+              const mult = fx(aboutMultiple(p.curve, nearAt(g, L, s), p.feeBps)), custom = name === "Custom";
               return (
-                <button key={s} className="floor-btn" aria-pressed={on === s} aria-label={sureLabel(name, s, mult)} title={sureLabel(name, s, mult)}
+                <button key={s} className={`floor-btn${custom ? " fl-custom" : ""}`} aria-pressed={on === s} aria-label={sureLabel(name, s, mult)} title={sureLabel(name, s, mult)}
+                  onMouseEnter={() => desk.setPeek(s)} onMouseLeave={() => desk.setPeek(null)} onFocus={() => desk.setPeek(s)} onBlur={() => desk.setPeek(null)}
                   onClick={() => { desk.setSure(s, p.at); p.onSure(); }}>
                   <span className="bezel" aria-hidden="true"><span className="lens">±{s}</span></span>
                   <span className="fl-name">{name}</span>
@@ -85,8 +87,8 @@ export function CallKindBar(p: { desk: Desk; grid: Grid; at: number; onSure: () 
       </div>
       {desk.kind === "near"
         ? <div className="brass floor-plate fp-mini" role="group" aria-label="How sure are you" data-coach="sure-m">
-            {SURE.map(([name, s]) => (
-              <button key={s} className="floor-btn" aria-pressed={on === s} aria-label={sureLabel(name, s)} onClick={() => { desk.setSure(s, p.at); p.onSure(); }}>
+            {[...SURE, ...(SURE.some(([, s]) => s === on) ? [] : [["Custom", on] as [string, number]])].map(([name, s]) => (
+              <button key={s} className={`floor-btn${name === "Custom" ? " fl-custom" : ""}`} aria-pressed={on === s} aria-label={sureLabel(name, s)} onClick={() => { desk.setSure(s, p.at); p.onSure(); }}>
                 <span className="bezel" aria-hidden="true"><span className="lens">±{s}</span></span>
                 <span className="fl-name">{name}</span>
               </button>

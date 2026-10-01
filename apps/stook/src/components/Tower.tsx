@@ -597,6 +597,14 @@ function TowerView(p: Props) {
     return out;
   }, [desk.call, desk.pending, interactive, g, yTop, M.fh, pendRow, settledRow, carY, final, liveRow]);
 
+  // A "how sure" being hovered: where that width would pay, as dashed lines with
+  // its two prices, over the call's own; the call itself is unchanged.
+  const peekSpan = (() => {
+    const c = desk.call, s = desk.peek;
+    if (!interactive || desk.pending || s === null || c?.kind !== "near" || s === c.s) return null;
+    const up = Math.min(63, c.c + s), dn = Math.max(0, c.c - s);
+    return { t: yTop(g.rowOf[up]!) - 1, b: yTop(g.rowOf[dn]!) + M.fh - 2, hi: up >= 63 ? "top" : g.fmt(g.edge(up + 1)), lo: dn <= 0 ? "bottom" : g.fmt(g.edge(dn)) };
+  })();
   const cls = ["tw-wrap", shut ? "tw-shut" : "", p.phase === "seeding" ? "tw-soon" : "", p.phase === "settled" ? "tw-done" : "", interactive ? "" : "tw-still", M.small ? "tw-small" : ""].join(" ");
 
   return (
@@ -631,6 +639,10 @@ function TowerView(p: Props) {
               {tagPrice !== null && <span className="tw-nowtag" aria-hidden="true" style={{ left: Math.round(M.nowX - carW / 2 - 2), top: Math.round(carY - carH / 2 - (M.small ? 20 : 22)) }}><b>{final ? "CLOSE" : "NOW"}</b>{g.fmt(tagPrice)}</span>}
             </>}
             {edges.map((y, k) => <div key={k} className="tw-edge" style={{ top: y }} />)}
+            {peekSpan && <>
+              <div className="tw-edge tw-peek" style={{ top: peekSpan.t }}><span>▲ {peekSpan.hi}</span></div>
+              <div className="tw-edge tw-peek" style={{ top: peekSpan.b }}><span>▼ {peekSpan.lo}</span></div>
+            </>}
             {tabs}
           </div>
         </div>

@@ -13,6 +13,8 @@ export interface DeskState {
   msg: string;
   /** The last "how sure" used: ± floors of a near call. */
   lastS: number;
+  /** A "how sure" being looked at (hovered or focused), drawn on the tower without changing the call. */
+  peek: number | null;
 }
 
 export interface Desk extends DeskState {
@@ -27,10 +29,11 @@ export interface Desk extends DeskState {
   switchKind: (k: Kind) => void;
   setSure: (s: number, at: number) => void;
   setMsg: (msg: string) => void;
+  setPeek: (s: number | null) => void;
 }
 
 export function useDesk(grid: Grid | null): Desk {
-  const [st, setSt] = useState<DeskState>({ kind: "near", call: null, pending: null, undo: null, msg: "", lastS: 3 });
+  const [st, setSt] = useState<DeskState>({ kind: "near", call: null, pending: null, undo: null, msg: "", lastS: 3, peek: null });
   const set = useCallback((call: Call | null, o: { undoable?: boolean; msg?: string } = {}) => setSt((p) => ({
     ...p, call, pending: null, kind: call?.kind ?? p.kind, lastS: call?.kind === "near" ? call.s : p.lastS, msg: o.msg ?? "",
     undo: o.undoable && p.call && !same(p.call, call) ? { call: p.call } : null,
@@ -42,6 +45,7 @@ export function useDesk(grid: Grid | null): Desk {
   const undoIt = useCallback(() => setSt((p) => (p.undo ? { ...p, call: p.undo.call, kind: p.undo.call?.kind ?? p.kind, undo: null, pending: null, msg: "" } : p)), []);
   const load = useCallback((call: Call | null) => setSt((p) => ({ ...p, call, kind: call?.kind ?? p.kind, lastS: call?.kind === "near" ? call.s : p.lastS, pending: null, undo: null, msg: "" })), []);
   const setMsg = useCallback((msg: string) => setSt((p) => ({ ...p, msg })), []);
+  const setPeek = useCallback((peek: number | null) => setSt((p) => (p.peek === peek ? p : { ...p, peek })), []);
   const switchKind = useCallback((k: Kind) => setSt((p) => {
     if (p.kind === k || !grid) return p;
     const c = p.call;
@@ -58,5 +62,5 @@ export function useDesk(grid: Grid | null): Desk {
     if (p.kind === "near" && !p.call) return { ...p, lastS, call: nearAt(grid, at, lastS), msg: "" };
     return { ...p, lastS };
   }), [grid]);
-  return useMemo(() => ({ ...st, set, drag, startPending, cancelPending, clear, undoIt, load, switchKind, setSure, setMsg }), [st, set, drag, startPending, cancelPending, clear, undoIt, load, switchKind, setSure, setMsg]);
+  return useMemo(() => ({ ...st, set, drag, startPending, cancelPending, clear, undoIt, load, switchKind, setSure, setMsg, setPeek }), [st, set, drag, startPending, cancelPending, clear, undoIt, load, switchKind, setSure, setMsg, setPeek]);
 }
