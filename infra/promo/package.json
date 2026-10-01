@@ -2,12 +2,15 @@
   "name": "@stook/promo",
   "version": "0.1.0",
   "private": true,
-  "description": "Stook Street's 15-second ad for X, built with Remotion: square and vertical.",
+  "description": "Stook Street's ads for X, built with Remotion: 15 s and 6 s, square and vertical.",
   "scripts": {
     "studio": "remotion studio",
-    "render:square": "remotion render src/index.ts Square out/stook-15s-square.mp4",
-    "render:vertical": "remotion render src/index.ts Vertical out/stook-15s-vertical.mp4",
-    "render": "npm run render:square && npm run render:vertical"
+    "render": "sh render.sh",
+    "render:silent": "RENDER=silent sh render.sh",
+    "music": "node scripts/chiptune.mjs",
+    "record": "node scripts/record.mjs",
+    "check": "sh check.sh",
+    "typecheck": "tsc -p tsconfig.json"
   },
   "dependencies": {
     "@remotion/cli": "4.0.532",
@@ -18,6 +21,7 @@
   },
   "devDependencies": {
     "@types/react": "19.1.12",
+    "playwright-core": "1.55.1",
     "typescript": "5.9.2"
   }
 }
