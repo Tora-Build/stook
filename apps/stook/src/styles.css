@@ -1171,7 +1171,7 @@ a.tour-btn { text-decoration: none; }
 
 .tw-wrap {
   --t-ink: #0b1120; --t-sky: #101a2e; --t-pane: #121c33; --t-glass: #15213a; --t-stone: #3a2622;
-  --t-brick-2: #7a2f22; --t-brick-3: #5c2219; --t-cream: #f4e9c8; --t-cream-2: #c9bfa4; --t-cream-3: #8d8670;
+  --t-brick-2: #7a2f22; --t-brick-3: #5c2219; --t-cream: #f4e9c8; --t-cream-2: #c9bfa4; --t-cream-3: #a39c85;
   --t-gold: #f0a83a; --t-gold-2: #b47416; --t-gold-hi: #ffe28a;
   /* lit windows: a soft cream glow, well clear of the coins' gold */
   --t-lamp: #efe6cc; --t-lamp-2: #d6c9a4; --t-lamp-glow: rgba(244, 233, 200, .16);
@@ -1212,7 +1212,7 @@ a.tour-btn { text-decoration: none; }
 .tw-tag { align-self: center; background: var(--t-cream); color: var(--t-ink); font-family: var(--mono); font-weight: 600; font-size: 12px; padding: 2px 5px; border: 2px solid var(--t-ink); box-shadow: 2px 2px 0 var(--t-gold-2); white-space: nowrap; line-height: 1.2; z-index: 2; }
 .tw-tag.two { font-size: 9px; padding: 1px 3px; line-height: 1.15; display: flex; flex-direction: column; }
 .tw-won-tag { background: #5ec48f; box-shadow: 2px 2px 0 #0f7a4d; }
-.tw-held-tag { margin-left: auto; margin-right: 4px; align-self: center; background: var(--t-ink); color: var(--t-gold); border: 2px dashed var(--t-gold); font-family: var(--px); font-size: 7px; padding: 4px 5px; line-height: 1; cursor: pointer; z-index: 3; }
+.tw-held-tag { margin-left: auto; margin-right: 4px; align-self: center; background: var(--t-ink); color: var(--t-gold); border: 2px dashed var(--t-gold); font-family: var(--px); font-size: 8px; padding: 4px 5px; line-height: 1; cursor: pointer; z-index: 3; }
 .tw-held-tag.sel { border-style: solid; background: var(--t-gold); color: var(--t-ink); }
 .tw-held-tag:hover { color: var(--t-cream); border-color: var(--t-cream); }
 /* the tails, folded */
@@ -1244,7 +1244,7 @@ a.tour-btn { text-decoration: none; }
 .tw-chart { position: absolute; top: 0; left: var(--tw-plw); pointer-events: none; z-index: 2; image-rendering: pixelated; }
 .tw-car { position: absolute; z-index: 4; pointer-events: none; image-rendering: pixelated; }
 .tw-nowtag { position: absolute; z-index: 5; background: var(--t-cream); color: var(--t-ink); font-family: var(--mono); font-weight: 600; font-size: 12px; padding: 1px 4px; white-space: nowrap; pointer-events: none; border: 2px solid var(--t-ink); transform: translateX(-100%); }
-.tw-nowtag b { font-family: var(--px); font-size: 7px; font-weight: 400; margin-right: 4px; }
+.tw-nowtag b { font-family: var(--px); font-size: 8px; font-weight: 400; margin-right: 4px; }
 .tw-opentag { position: absolute; z-index: 3; font-family: var(--mono); font-size: 10px; color: var(--t-cream-2); background: var(--t-pane); padding: 0 3px; pointer-events: none; white-space: nowrap; }
 
 /* tabs: elevator call buttons over the price column */
@@ -1330,7 +1330,7 @@ a.tour-btn { text-decoration: none; }
   body:has(.tw-mbar) .toasts { bottom: 92px; }
   .tw-mbar { position: fixed; left: 0; right: 0; bottom: 0; z-index: 30; background: var(--sky-2); border-top: 3px solid var(--cream); padding: 8px 16px calc(8px + env(safe-area-inset-bottom)); display: flex; gap: 10px; align-items: center; }
   .tw-mbar .sp { display: flex; flex-direction: column; gap: 2px; }
-  .tw-mbar .lb { font-family: var(--px); font-size: 7px; color: var(--cream-3); }
+  .tw-mbar .lb { font-family: var(--px); font-size: 8px; color: var(--cream-3); }
   .tw-mbar select { min-height: 40px; border: 2px solid var(--cream); font-size: 15px; padding: 0 4px; }
   .tw-mbar .tw { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
   .tw-mbar .tw > span:last-child { font-family: var(--mono); font-size: 15px; font-weight: 600; color: var(--taxi); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -1350,14 +1350,14 @@ a.tour-btn { text-decoration: none; }
 .tw-small .tw-hdl { font-size: 9px; gap: 1px; letter-spacing: -.04em; }
 .tw-small .tw-co { gap: 2px; padding-left: 1px; }
 .tw-small .tw-sg { padding: 0 4px; gap: 3px; flex-direction: column; align-items: flex-start; justify-content: center; }
-.tw-small .tw-sg .k { font-size: 6px; padding: 2px 3px; }
+.tw-small .tw-sg .k { font-size: 8px; padding: 2px 3px; }
 .tw-small .tw-sg .v { font-size: 10px; line-height: 1; }
 .tw-small .tw-nowtag { font-size: 10px; padding: 0 3px; }
 .tw-small .tw-nowtag b { display: none; }
 .tw-small .tw-bellsign { font-size: 11px; padding: 2px 5px; }
 .tw-small.tw-shut .tw-bellsign { font-size: 13px; }
 .tw-small .tw-street .t { font-size: 10px; }
-.tw-small .tw-held-tag { font-size: 6px; padding: 3px 3px; margin-right: 2px; }
+.tw-small .tw-held-tag { font-size: 8px; padding: 3px 3px; margin-right: 2px; }
 .tw-small .tw-off button { font-size: 11px; padding: 0 6px; }
 
 /* ── a round page: the header is one short row, the tower comes next ──────── */
@@ -1368,15 +1368,22 @@ a.tour-btn { text-decoration: none; }
   .top-round .brand-name { display: none; }
   .top-round .brand img { width: 26px; height: 26px; }
   .top-round nav { gap: .6rem; }
-  .top-round nav a { font-size: .42rem; }
+  .top-round nav a { font-size: 8px; white-space: nowrap; }
   .top-round .top-right { gap: .3rem; }
   .top-round .faucet-btn span { display: none; }
   .top-round .faucet-btn { height: 32px; padding: 0 .35rem; }
   .top-round .faucet-btn svg { width: 18px; height: 18px; }
   .top-round .theme-btn { width: 32px; height: 32px; }
-  .top-round .wallet-adapter-button { height: 32px !important; padding: 0 .5rem !important; font-size: .42rem !important; }
+  .top-round .wallet-adapter-button { height: 32px !important; padding: 0 .5rem !important; font-size: 8px !important; white-space: nowrap; }
   .top-round .wallet-adapter-button-start-icon { display: none; }
   .page.market { margin-top: .35rem; }
+}
+/* below 420px one row cannot hold the nav and the wallet at a readable 8px:
+   the brand and the wallet on top, the nav on a slim row under them */
+@media (max-width: 420px) {
+  .top.top-round { flex-wrap: wrap; row-gap: 0; padding-bottom: .2rem; }
+  .top-round .top-right { order: 2; margin-left: auto; }
+  .top-round nav { order: 3; flex-basis: 100%; justify-content: space-between; padding: .3rem 0 .1rem; border-top: 2px solid #1a2438; margin-top: .3rem; }
 }
 
 
@@ -1412,7 +1419,7 @@ a.tour-btn { text-decoration: none; }
   background: linear-gradient(90deg, transparent 12%, #5c2219 12% calc(12% + 4px), transparent calc(12% + 4px) calc(88% - 4px), #5c2219 calc(88% - 4px) 88%, transparent 88%); }
 .tw-plaque { position: relative; z-index: 2; display: inline-flex; align-items: center; gap: 6px; max-width: 100%; background: #c9bfa4; color: #0b1120; border: 2px solid #5c2219; font-family: var(--sans); font-size: 11px; line-height: 1.2; padding: 1px 6px; cursor: pointer; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; box-shadow: 2px 2px 0 #000; }
 .tw-plaque-t { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
-.tw-plaque > span[aria-hidden] { flex: none; font-family: var(--px); font-size: 7px; background: #0f7a4d; color: #f4e9c8; padding: 2px 3px; }
+.tw-plaque > span[aria-hidden] { flex: none; font-family: var(--px); font-size: 8px; background: #0f7a4d; color: #f4e9c8; padding: 2px 3px; }
 .tw-plaque-node { cursor: default; }
 .tw-plaque-node a, .tw-plaque-node button { font-size: 11px; }
 .tw-plaque-full { position: absolute; z-index: 20; left: 8px; right: 8px; top: 100%; margin: 4px 0 0; background: #f4e9c8; color: #0b1120; border: 2px solid #0b1120; box-shadow: 3px 3px 0 #000; padding: 6px 8px; font-size: 12px; line-height: 1.4; }
@@ -1422,7 +1429,7 @@ a.tour-btn { text-decoration: none; }
 .tw-belltower svg { image-rendering: pixelated; }
 .tw-bellside.tw-sign .plate { padding: 8px 10px; }
 .tw-bellside.tw-sign .big { font-size: 16px; }
-.tw-bellside.tw-sign .small { font-size: 7px; margin-top: 4px; }
+.tw-bellside.tw-sign .small { font-size: 8px; margin-top: 4px; }
 .tw-bellside.tw-sign .small.cd { font-family: var(--mono); font-size: 13px; font-weight: 600; letter-spacing: 0; }
 .tw-bellside.tw-sign .chains { top: -12px; height: 14px; }
 .tw-bellside.tw-sign .chains i { height: 14px; }
@@ -1458,7 +1465,7 @@ a.tour-btn { text-decoration: none; }
 .tw-small .tw-bill-face .logo { width: 24px; height: 24px; }
 .tw-small .tw-bill-face .sym { font-size: 18px; }
 .tw-small .tw-bill-face .nm { display: none; }
-.tw-small .tw-bill-face .l2 { font-size: 7px; margin-top: 5px; }
+.tw-small .tw-bill-face .l2 { font-size: 8px; margin-top: 5px; }
 .tw-small .tw-bill-face .l2 img { width: 12px; height: 12px; }
 .tw-small .tw-bill-face .l3 { font-size: 10px; }
 .tw-small .tw-bill-help { width: 22px; height: 22px; font-size: 8px; }
@@ -1468,7 +1475,7 @@ a.tour-btn { text-decoration: none; }
 .tw-small .tw-belltower svg { width: 34px; height: 54px; }
 .tw-small .tw-bellside.tw-sign .plate { padding: 5px 6px; border-width: 2px; }
 .tw-small .tw-bellside.tw-sign .big { font-size: 11px; }
-.tw-small .tw-bellside.tw-sign .small { font-size: 6px; margin-top: 3px; }
+.tw-small .tw-bellside.tw-sign .small { font-size: 8px; margin-top: 3px; }
 .tw-small .tw-bellside.tw-sign .small.cd { font-size: 11px; }
 .tw-small .tw-led { margin: 5px -6px 0; height: 22px; }
 .tw-small .tw-led .it { font-size: 11px; line-height: 18px; padding-right: 16px; }
@@ -1545,7 +1552,7 @@ a.tour-btn { text-decoration: none; }
 /* call / house: enamel door signs at the top of the panel */
 .dsigns { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin: 0 0 16px; }
 .dsign { --ds-bg: #101a2e; position: relative; min-width: 0; display: flex; align-items: center; justify-content: center; gap: 8px; min-height: 42px; padding: 6px 16px;
-  background: var(--ds-bg); color: #8d8670; border: 3px solid #8a6824; box-shadow: inset 0 0 0 2px #0b1120; font-family: var(--px); font-size: 9px; cursor: pointer; transform: translateY(2px); }
+  background: var(--ds-bg); color: #a39c85; border: 3px solid #8a6824; box-shadow: inset 0 0 0 2px #0b1120; font-family: var(--px); font-size: 9px; cursor: pointer; transform: translateY(2px); }
 .dsign .screw { top: 50%; margin-top: -3px; }
 .dsign .screw.l { left: 4px; } .dsign .screw.r { right: 4px; }
 .dsign svg { flex: none; }
@@ -1577,7 +1584,7 @@ button.slip-main:hover .slip-title { text-decoration: underline dotted; text-und
 .slip-line .k { flex: none; font-size: 11px; color: #5b5446; }
 .slip-line .v { margin-left: auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; font-weight: 600; }
 .slip-line .v.up { color: #0f7a4d; }
-.slip-mark { align-self: flex-start; margin-top: 4px; font-family: var(--px); font-size: 7px; line-height: 1; text-transform: uppercase; color: #0f7a4d; border: 2px solid #0f7a4d; padding: 3px 4px; transform: rotate(-3deg); }
+.slip-mark { align-self: flex-start; margin-top: 4px; font-family: var(--px); font-size: 8px; line-height: 1; text-transform: uppercase; color: #0f7a4d; border: 2px solid #0f7a4d; padding: 3px 4px; transform: rotate(-3deg); }
 /* the picked slip: pinned up, a gold edge, its own stamps */
 .slip-li.on { grid-column: 1 / -1; transform: translateY(-2px); filter: drop-shadow(4px 5px 0 var(--brick-2)); }
 .slip-li.on .rk-slip { background: #fff4d6; box-shadow: inset 4px 0 0 #f0a83a, inset -4px 0 0 #f0a83a; padding-left: 13px; padding-right: 13px; }
