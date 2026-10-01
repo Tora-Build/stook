@@ -1,0 +1,23 @@
+{
+  "name": "@stook/promo",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Stook Street's 15-second ad for X, built with Remotion: square and vertical.",
+  "scripts": {
+    "studio": "remotion studio",
+    "render:square": "remotion render src/index.ts Square out/stook-15s-square.mp4",
+    "render:vertical": "remotion render src/index.ts Vertical out/stook-15s-vertical.mp4",
+    "render": "npm run render:square && npm run render:vertical"
+  },
+  "dependencies": {
+    "@remotion/cli": "4.0.532",
+    "@remotion/google-fonts": "4.0.532",
+    "react": "19.1.1",
+    "react-dom": "19.1.1",
+    "remotion": "4.0.532"
+  },
+  "devDependencies": {
+    "@types/react": "19.1.12",
+    "typescript": "5.9.2"
+  }
+}
