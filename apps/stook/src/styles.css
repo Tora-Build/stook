@@ -1640,3 +1640,45 @@ button.slip-main:hover .slip-title { text-decoration: underline dotted; text-und
 .mine-k, .ladder-table th, .strip-k, .tote-k, .chip-k, .slip-k, .desk-k, .rb-labels b, .wc-dow, .dn-day, .screen .price-k { font-family: var(--sans); font-size: .68rem; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; }
 .top:not(.top-round) nav a, .top:not(.top-round) .wallet-adapter-button, button.small, .tour-btn, .tour-back, .tour-next, .faucet-btn, .jup-buy, .book-tab, .placard-text .try, .seg button, .coin-new { font-size: .6rem !important; }
 .pill, .stamp, .pb-row .stamp, .wc-state, .pb-stamp, .wc-empty, .scene-table, .scene-dow, .scene-day, .tour-sign, .ts-sign, .ts-when, .desk-clock span, .rb-midnight em, .notice-body > b, .fee-chip, .floor-bubble, .screen .anchor { font-size: max(.5rem, 7.5px); }
+
+/* The wallet's menu and picker in the street's paper, not the adapter's
+   rounded dark sheet. The menu is a slip that swings down off the wallet
+   button on a crease (the ticket's unfold), its bottom edge perforated like
+   the ticket; the picker is a panel that unfolds the same way. */
+.wallet-adapter-dropdown { perspective: 800px; perspective-origin: 50% 0; }
+.wallet-adapter-dropdown-list { top: calc(100% + 6px); right: 0; min-width: 210px; padding: .35rem 0 .7rem; gap: 0; grid-row-gap: 0; border-radius: 0; background: #f4e9c8; color: #101a2e; border: 0; box-shadow: 4px 4px 0 var(--brick-2); font-family: var(--px);
+  transform-origin: top center; transform: rotateX(-90deg); transition: none; opacity: 1;
+  -webkit-mask: radial-gradient(circle 5px at 50% 100%, transparent 98%, #000) bottom / 14px 51% repeat-x, linear-gradient(#000, #000) top / 100% 51% no-repeat;
+          mask: radial-gradient(circle 5px at 50% 100%, transparent 98%, #000) bottom / 14px 51% repeat-x, linear-gradient(#000, #000) top / 100% 51% no-repeat; }
+.wallet-adapter-dropdown-list::before { content: ""; position: absolute; inset: 0; pointer-events: none; background: linear-gradient(180deg, rgba(70, 50, 20, .45), rgba(70, 50, 20, .12) 70%, transparent); opacity: 0; }
+.wallet-adapter-dropdown-list-active { visibility: visible; transform: rotateX(0); animation: unfold .55s cubic-bezier(.25, .8, .3, 1) both; }
+.wallet-adapter-dropdown-list-active::before { animation: shade .55s ease-out both; }
+.wallet-adapter-dropdown-list:not(.wallet-adapter-dropdown-list-active) { visibility: hidden; animation: refold .3s ease-in both; transition: visibility 0s .3s; }
+.wallet-adapter-dropdown-list-item { justify-content: flex-start; height: auto; min-height: 40px; padding: 0 1rem; margin: 0; border-radius: 0; background: transparent; color: #101a2e; font-family: var(--px); font-size: 9px; font-weight: 400; letter-spacing: .02em; border-bottom: 2px dotted rgba(16, 26, 46, .3); }
+.wallet-adapter-dropdown-list-item:last-child { border-bottom: 0; }
+.wallet-adapter-dropdown-list-item:not([disabled]):hover, .wallet-adapter-dropdown-list-item:focus-visible { background: var(--taxi); color: #101a2e; outline: none; }
+@media (prefers-reduced-motion: reduce) { .wallet-adapter-dropdown-list, .wallet-adapter-dropdown-list::before { animation: none !important; transform: none; } }
+
+.wallet-adapter-modal-overlay { background: rgba(5, 8, 16, .72); }
+.wallet-adapter-modal-wrapper { border-radius: 0; background: var(--sky-2); color: var(--cream); border: 3px solid var(--cream); box-shadow: 8px 8px 0 var(--brick-2); font-family: var(--sans); transform-origin: top center; }
+/* the perspective rides in the animation: a perspective on the container would
+   stack the panel under the adapter's overlay */
+.wallet-adapter-modal-fade-in .wallet-adapter-modal-wrapper { animation: wa-unfold .55s cubic-bezier(.25, .8, .3, 1) both; }
+@keyframes wa-unfold { 0% { transform: perspective(1000px) rotateX(-90deg); } 70% { transform: perspective(1000px) rotateX(6deg); } 100% { transform: none; } }
+.wallet-adapter-button:not([disabled]):focus-visible { outline: 2px solid var(--teal); outline-offset: 2px; }
+.wallet-adapter-modal-title { font-family: var(--px); font-weight: 400; font-size: .85rem; line-height: 1.7; color: var(--taxi); text-shadow: 2px 2px 0 var(--brick-2); padding: 2.6rem 3.6rem 1.4rem; }
+.wallet-adapter-modal-button-close { border-radius: 0; background: var(--ink); border: 2px solid var(--cream); top: 14px; right: 14px; padding: 9px; }
+.wallet-adapter-modal-button-close svg { fill: var(--cream); }
+.wallet-adapter-modal-button-close:hover { background: var(--taxi); }
+.wallet-adapter-modal-button-close:hover svg { fill: #101a2e; }
+.wallet-adapter-modal-list { margin: 0 1.2rem 1.2rem; border: 3px solid var(--line); }
+.wallet-adapter-modal-list li + li { border-top: 2px dashed var(--line); }
+.wallet-adapter-modal-list .wallet-adapter-button { background: var(--ink) !important; color: var(--cream) !important; border: 0 !important; box-shadow: none !important; height: 52px !important; font-family: var(--px) !important; font-size: 9px !important; padding: 0 1rem !important; }
+.wallet-adapter-modal-list .wallet-adapter-button:not([disabled]):hover, .wallet-adapter-modal-list .wallet-adapter-button:focus-visible { background: var(--taxi) !important; color: #101a2e !important; }
+.wallet-adapter-modal-list .wallet-adapter-button-end-icon, .wallet-adapter-modal-list .wallet-adapter-button-start-icon, .wallet-adapter-modal-list .wallet-adapter-button-end-icon img, .wallet-adapter-modal-list .wallet-adapter-button-start-icon img { width: 26px; height: 26px; border-radius: 0; }
+.wallet-adapter-modal-list .wallet-adapter-button span { font-family: var(--sans); font-size: .8rem; color: inherit; opacity: .75; }
+.wallet-adapter-modal-list-more { font-family: var(--px); font-size: 9px; color: var(--cream-2); padding: 1rem 1.2rem 1.4rem; }
+.wallet-adapter-modal-list-more svg { fill: var(--cream-2); }
+.wallet-adapter-modal-middle { padding: 0 1.4rem 1.4rem; }
+.wallet-adapter-modal-middle-button { border-radius: 0; background: var(--taxi); color: #101a2e; font-family: var(--px); font-size: 9px; border: 3px solid var(--ink); box-shadow: 3px 3px 0 var(--brick-2); }
+@media (prefers-reduced-motion: reduce) { .wallet-adapter-modal-wrapper { animation: none !important; } }
