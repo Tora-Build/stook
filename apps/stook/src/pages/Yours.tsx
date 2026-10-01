@@ -6,7 +6,7 @@ import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { PublicKey } from "@solana/web3.js";
 import { useConnection, useWallet } from "@solana/wallet-adapter-react";
-import { WalletMultiButton } from "@solana/wallet-adapter-react-ui";
+import { ConnectWallet } from "../components/ConnectWallet";
 import { useQueryClient } from "@tanstack/react-query";
 import { stook } from "@sooth/sdk-solana";
 import { useHoldings, useMint, useSend } from "../hooks/useChain";
@@ -387,7 +387,7 @@ function NoAccount() {
     <div className="stmt-none">
       <div className="stmt-none-cta">
         <p>Your calls, your house deposits and what is ready to collect, one statement for every table.</p>
-        <WalletMultiButton>Connect a wallet</WalletMultiButton>
+        <ConnectWallet>Connect a wallet</ConnectWallet>
       </div>
       <div className="stmt-sample" aria-hidden="true">
         <span className="stmt-sample-tag">EXAMPLE</span>

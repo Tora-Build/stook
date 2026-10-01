@@ -7,7 +7,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { PublicKey } from "@solana/web3.js";
 import { useInfiniteQuery } from "@tanstack/react-query";
-import { WalletMultiButton } from "@solana/wallet-adapter-react-ui";
+import { ConnectWallet } from "./ConnectWallet";
 import { COINS, coinByMint, type Coin } from "../lib/coins";
 import { EXPLORER } from "../lib/config";
 import { fmtCompact } from "../lib/format";
@@ -86,7 +86,7 @@ export function History({ wallet, own }: { wallet: PublicKey | null; own: boolea
   if (!wallet) return (
     <div className="hist-none">
       <p>Connect a wallet to see every round it played, collected ones included.</p>
-      <WalletMultiButton>Connect a wallet</WalletMultiButton>
+      <ConnectWallet>Connect a wallet</ConnectWallet>
     </div>
   );
   if (q.isLoading) return <p className="stmt-empty">Reading the ledger…</p>;

@@ -1855,3 +1855,4 @@ button.slip-main:hover .slip-title { text-decoration: underline dotted; text-und
   .ha-time { grid-area: time; } .ha-tx { grid-area: tx; justify-self: end; } .ha-what { grid-area: what; } .ha-amt { grid-area: amt; }
   .hr-usd { min-width: 0; }
 }
+a.wallet-adapter-button { text-decoration: none; display: inline-flex; align-items: center; }

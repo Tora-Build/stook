@@ -1,5 +1,5 @@
 import { Link, NavLink, Outlet } from "react-router-dom";
-import { WalletMultiButton } from "@solana/wallet-adapter-react-ui";
+import { ConnectWallet } from "./ConnectWallet";
 import { Faucet } from "./Faucet";
 import { Skyline } from "./Skyline";
 import { ThemeToggle } from "./Theme";
@@ -26,7 +26,7 @@ export function Layout() {
         <div className="top-right">
           <Faucet />
           <ThemeToggle />
-          <WalletMultiButton />
+          <ConnectWallet />
         </div>
       </header>
       {!home && !round && <Skyline />}
