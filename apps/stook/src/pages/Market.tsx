@@ -4,7 +4,7 @@ import { PublicKey } from "@solana/web3.js";
 import { useWallet } from "@solana/wallet-adapter-react";
 import { useQuery } from "@tanstack/react-query";
 import { stook } from "@sooth/sdk-solana";
-import { rangeName, Ticket } from "../components/Ticket";
+import { rangeName, SideSigns, Ticket, type SideTab } from "../components/Ticket";
 import { Address } from "../components/Address";
 import { Tower, type Phase } from "../components/Tower";
 import { CallBar, CallKind, CallKindBar, Coach, coachDone, ExactPrices, markCoachDone } from "../components/TowerDesk";
@@ -19,6 +19,7 @@ import { fmtCompact, fmtPrice, untilText } from "../lib/format";
 import { nyWhen } from "../lib/time";
 import { callName, callShort, fromShape, makeGrid, nearAt, sameShape, toShape } from "../lib/call";
 import type { MintInfo } from "../lib/chain";
+import { Title } from "../components/Title";
 
 export function Market() {
   const { id } = useParams();
@@ -109,6 +110,7 @@ function Round({ l, refs, mint }: { l: stook.LadderAccount; refs: stook.LadderRe
   useEffect(() => { if (tradeable && sel && !sameShape(shape, sel.position.shape)) setSelected(null); }, [shape?.lo, shape?.hi, shape?.h]); // eslint-disable-line react-hooks/exhaustive-deps
   // Add more or Sell on a held call; a newly picked call opens on Sell.
   const [side, setSide] = useState<"buy" | "sell">("sell");
+  const [tab, setTab] = useState<SideTab>("trade");
   const pick = (key: string | null) => {
     const r = key ? mine.find((x) => x.pubkey.toBase58() === key) : null;
     setSide("sell");
@@ -203,6 +205,7 @@ function Round({ l, refs, mint }: { l: stook.LadderAccount; refs: stook.LadderRe
 
   return (
     <div className="page market">
+      <Title text={`${feed.name} · ${nyWhen(l.settlesAt, { weekday: "short", month: "short", day: "numeric" })}, bell ${hm(l.settlesAt)}`} />
       <div className="tw-layout">
         <section className="tw-main" aria-label={`The tower: ${feed.name}, ${nyWhen(l.settlesAt, { weekday: "short", month: "short", day: "numeric" })}, closes ${hm(l.settlesAt)} New York`}>
           {grid ? <Tower grid={grid} desk={desk} phase={phase} live={livePrice} history={history.data?.points} now={towerNow}
@@ -214,21 +217,23 @@ function Round({ l, refs, mint }: { l: stook.LadderAccount; refs: stook.LadderRe
         </section>
         <div className="tw-side">
           {/* Desktop: the kind and how sure, level with the tower's top. Phones carry them in the call bar. */}
-          {!final && grid && <fieldset className="tw-ctlset" disabled={!tradeable}>
+          {/* Call or House first: the kind and how sure below it only shape a call, so they show under Call only. */}
+          <SideSigns tab={tab} setTab={setTab} />
+          {!final && grid && tab === "trade" && <fieldset className="tw-ctlset" disabled={!tradeable}>
             <CallKind desk={desk} grid={grid} curve={shown.curve} feeBps={order.feeBps} at={livePrice !== null ? grid.binOf(livePrice) : 32} coarse={coarse || narrow}
               onSure={() => { if (coach === 2) goCoach(3); if (sel) setSelected(null); }} />
           </fieldset>}
           <div id="ticket" className="tw-ticketbox">
             <Ticket refs={refs} ladder={shown} shape={shape} selected={sel} onSelect={(r) => pick(r.pubkey.toBase58())} onDeselect={() => { setSelected(null); desk.load(null); }}
               order={order} name={name} slipName={slipName} side={side} setSide={setSide} exact={grid && tradeable ? <ExactPrices desk={desk} grid={grid} all={all} setAll={setAll} /> : undefined}
-              symbol={feed.symbol} coinSymbol={coin?.symbol} dp={feed.dp} quoteSymbol={quoteSymbol} tradeable={tradeable} final={final} positions={mine} tranches={tranches.data ?? []} transferFee={mint?.report.transferFee} now={now} usd={usd} />
+              symbol={feed.symbol} coinSymbol={coin?.symbol} dp={feed.dp} quoteSymbol={quoteSymbol} tradeable={tradeable} final={final} positions={mine} tranches={tranches.data ?? []} transferFee={mint?.report.transferFee} now={now} usd={usd} tab={tab} />
           </div>
         </div>
       </div>
       <Coach step={coach} kind={desk.kind} narrow={narrow} bell={hm(l.settlesAt)} go={goCoach} />
       {step === "void" && publicKey && <p className="hint"><button className="link" onClick={() => voidIt.mutate([stook.voidLadderIx(refs, publicKey)])} disabled={voidIt.isPending}>This round cannot finish. Void it: deposits come back first, open calls share the rest</button></p>}
       {/* On Sell the ticket's own button is the action; the bar never offers a buy beside it. */}
-      {!final && grid && !(sel && side === "sell") && <CallBar order={order} symbol={quoteSymbol} money={money} state={tradeable ? "open" : "closed"} closedText={phase === "late" ? "Not opening. Deposits come back." : l.status === "seeding" ? `Opens ${hm(l.opensAt)} New York.` : `Closed. Bell at ${hm(l.settlesAt)}.`} pending={!!desk.pending} hasCall={!!desk.call} held={!!sel}
+      {!final && grid && tab === "trade" && !(sel && side === "sell") && <CallBar order={order} symbol={quoteSymbol} money={money} state={tradeable ? "open" : "closed"} closedText={phase === "late" ? "Not opening. Deposits come back." : l.status === "seeding" ? `Opens ${hm(l.opensAt)} New York.` : `Closed. Bell at ${hm(l.settlesAt)}.`} pending={!!desk.pending} hasCall={!!desk.call} held={!!sel}
         controls={narrow ? <CallKindBar desk={desk} grid={grid} at={livePrice !== null ? grid.binOf(livePrice) : 32} onSure={() => { if (coach === 2) goCoach(3); if (sel) setSelected(null); }} /> : undefined} />}
     </div>
   );

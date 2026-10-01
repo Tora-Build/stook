@@ -127,7 +127,7 @@ export function LpPanel(p: Props) {
               <input value={text} onChange={(e) => setText(e.target.value)} inputMode="decimal" aria-label={inUsd ? "Deposit in dollars" : `Deposit in ${p.quoteSymbol}`} />
               {!inUsd && <span className="amount-unit">{p.quoteSymbol}</span>}
             </div>
-            <span className="hint">balance {balance.data !== undefined ? <>{fmtCompact(balance.data, dec)} {p.quoteSymbol}</> : "…"}</span>
+            <span className="hint">{!publicKey ? "Connect a wallet to see your balance" : <>balance {balance.data !== undefined ? <>{fmtCompact(balance.data, dec)} {p.quoteSymbol}</> : "…"}</>}</span>
           </div>
           {depth && deposit && gross !== null && (
             <div className="ticket-paper" role="group" aria-label="Your deposit">

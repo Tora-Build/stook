@@ -17,6 +17,7 @@ import { useNow } from "../hooks/useNow";
 import { firstOpenableDay, nyWhen } from "../lib/time";
 import { fmtUsd, useCoinQuotes } from "../lib/usd";
 import { Notice } from "../components/Notice";
+import { Title } from "../components/Title";
 
 const DATA = "";
 /** A slot can be started until this long before it settles: the program's
@@ -43,6 +44,7 @@ export function Coin() {
 
   return (
     <div className="page">
+      <Title text={coin ? `$${coin.symbol} · ${coin.anchor.name}` : "Coin"} />
       {/* The coin's board, as a round's: who it is on top, the numbers that
           move on a tape below. */}
       <header className="round-board coin-board">

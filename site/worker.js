@@ -104,6 +104,23 @@ async function series(src, record = false) {
 // What the floor talks about: each coin's anchor (name, price, move) and the
 // coin's own dollar price and move, and the time to the bell.
 const ANCHORS = { STOOK: ["the S&P 500", 2], ZCAT: ["Zcash", 2], KNOTS: ["STONK", 4], GP: ["gold", 2] };
+
+/** A coin page's link preview: crawlers read the HTML and run no script, so the
+ *  page's title and description are set here, on the way out. Anything else
+ *  passes through untouched. */
+function coinPreview(url, res) {
+  const m = url.pathname.match(/^\/c\/([A-Za-z]+)\/?$/), sym = m && m[1].toUpperCase();
+  if (!sym || !ANCHORS[sym] || !(res.headers.get("content-type") || "").includes("text/html")) return res;
+  const title = `$${sym} · where will ${ANCHORS[sym][0]} close? — Stook Street`;
+  const desc = `Call where ${ANCHORS[sym][0]} closes at 4 PM New York, paid in $${sym}. The closer you are, the more it pays.`;
+  const set = (v) => ({ element(e) { e.setAttribute("content", v); } });
+  return new HTMLRewriter()
+    .on("title", { element(e) { e.setInnerContent(title); } })
+    .on('meta[property="og:title"]', set(title)).on('meta[name="twitter:title"]', set(title))
+    .on('meta[name="description"]', set(desc)).on('meta[property="og:description"]', set(desc)).on('meta[name="twitter:description"]', set(desc))
+    .on('meta[property="og:url"]', set(url.origin + url.pathname))
+    .transform(res);
+}
 async function floorData(env) {
   const [tape, coins] = await Promise.all([fromTape(env, "/prices").catch(() => null), coinQuotes(env).catch(() => ({}))]);
   const bell = bellIn();
@@ -304,7 +321,7 @@ export default {
       ctx.waitUntil(cache.put(key, res.clone()));
       return res;
     }
-    if (url.pathname !== "/prices" && url.pathname !== "/chart") return env.ASSETS.fetch(request);
+    if (url.pathname !== "/prices" && url.pathname !== "/chart") return coinPreview(url, await env.ASSETS.fetch(request));
     const cache = caches.default;
     const key = new Request(url.origin + url.pathname + (url.pathname === "/chart" ? `?coin=${url.searchParams.get("coin")}&sym=${url.searchParams.get("sym")}` : ""));
     let maxAge;

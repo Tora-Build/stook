@@ -87,6 +87,8 @@ const TAXIPAL = { a: "#f0a83a", b: "#1f3050", c: "#f4e9c8", d: "#0b1120" };
 const CAR = ["cccccccc", "cabbbbac", "cabddbac", "cabddbac", "cabbbbac", "cabbbbac", "cccccccc"];
 const CARPAL = { c: "#f4e9c8", a: "#1f3050", b: "#0b1120", d: "#f4e9c8" };
 const ROPE = ["a..........a", "ab........ba", "abrr....rrba", "a..rrrrrr..a", "a..........a", "a..........a", "aa........aa"];
+// the bell's finish flag: a pole and a checkered flag, 10×15
+const FLAG = `<rect x="0" y="0" width="1" height="15" fill="#c9bfa4"/>` + Array.from({ length: 4 * 9 }, (_, k) => { const cx = k % 9, cy = Math.floor(k / 9); return `<rect x="${1 + cx}" y="${1 + cy}" width="1" height="1" fill="${(cx + cy) % 2 ? "#0b1120" : "#f4e9c8"}"/>`; }).join("");
 const ROPEPAL = { a: "#f0a83a", b: "#ffe28a", r: "#c0392b" };
 
 // ── metrics: the columns of a floor, set from the tower's width ─────────────
@@ -271,14 +273,14 @@ function TowerView(p: Props) {
     const { t0, pts } = path, span_ = Math.max(1, t1 - t0);
     const X = (t: number) => Math.round(clamp((t - t0) / span_, 0, 1) * (chartW - 1)), Y = (v: number) => Math.round(yOfPrice(v));
     let o = "";
-    if (p.opened && g.p0 > 0) { const yo = Y(g.p0); for (let x = 0; x < chartW; x += 6) o += `<rect x="${x}" y="${yo}" width="3" height="1" fill="#8d8670"/>`; }
+    if (p.opened && g.p0 > 0) { const yo = Y(g.p0); for (let x = 0; x < chartW; x += 6) o += `<rect x="${x}" y="${yo}" width="3" height="1" class="to"/>`; }
     let sh = "", ln = "", fill = "";
     for (let k = 0; k < pts.length - 1; k++) {
       const x0 = X(pts[k]![0]), x1 = X(pts[k + 1]![0]), y0 = Y(pts[k]![1]), y1 = Y(pts[k + 1]![1]);
-      ln += `<rect x="${x0}" y="${y0 - 1}" width="${Math.max(1, x1 - x0 + 1)}" height="2" fill="#f4e9c8"/>`;
-      if (y1 !== y0) ln += `<rect x="${x1 - 1}" y="${Math.min(y0, y1) - 1}" width="2" height="${Math.abs(y1 - y0) + 2}" fill="#f4e9c8"/>`;
-      sh += `<rect x="${x0 + 1}" y="${y0 + 1}" width="${Math.max(1, x1 - x0 + 1)}" height="1" fill="#0b1120"/>`;
-      if (x1 > x0) fill += `<rect x="${x0}" y="${y0}" width="${x1 - x0}" height="${Math.max(0, HT - y0)}" fill="#f4e9c8" fill-opacity=".06"/>`;
+      ln += `<rect x="${x0}" y="${y0 - 1}" width="${Math.max(1, x1 - x0 + 1)}" height="2" class="tl"/>`;
+      if (y1 !== y0) ln += `<rect x="${x1 - 1}" y="${Math.min(y0, y1) - 1}" width="2" height="${Math.abs(y1 - y0) + 2}" class="tl"/>`;
+      sh += `<rect x="${x0 + 1}" y="${y0 + 1}" width="${Math.max(1, x1 - x0 + 1)}" height="1" class="ts"/>`;
+      if (x1 > x0) fill += `<rect x="${x0}" y="${y0}" width="${x1 - x0}" height="${Math.max(0, HT - y0)}" class="tf"/>`;
     }
     return fill + o + sh + ln;
   }, [path, t1, chartW, HT, yOfPrice, p.opened, g.p0]);
@@ -565,7 +567,13 @@ function TowerView(p: Props) {
   }, []);
   const roofH = 0; // the roof is laid out in the page's flow; chips read the floors' own offset
 
-  const tx = Math.round(M.plw + M.pw * 0.55), rx = Math.round(M.small ? M.plw + M.pw + M.shw + M.wa + 8 : M.plw + M.pw + M.shw + M.wa / 2 - 12), rs = M.small ? 2 : 3;
+  // The street is the round's ride: from the open (left) to the bell's flag
+  // (right). The taxi is now, the road behind it lit gold; the striped post is
+  // the lock; after the bell the taxi waits at the flag.
+  const dayLen = Math.max(1, p.settlesAt - p.opensAt), ride = (t: number) => clamp((t - p.opensAt) / dayLen, 0, 1);
+  const r0 = M.plw, r1 = Math.max(r0 + 40, M.W - 30), run = r1 - r0 - 32;
+  const tx = Math.round(r0 + (final ? 1 : ride(p.now)) * run), lockX = Math.round(r0 + ride(p.locksAt) * run + 30);
+  const rx = Math.round(M.small ? M.plw + M.pw + M.shw + M.wa + 8 : M.plw + M.pw + M.shw + M.wa / 2 - 12), rs = M.small ? 2 : 3;
   // Phones leave room for the header, the sentence, the roof and the call bar.
   const scH = p.demo ? Math.min(HT, p.demo.floors * M.fh) : Math.min(HT, M.small ? clamp(vh - 470, 280, 540) : Math.max(360, Math.min(vh - 300, 760)));
   const vars = { "--tw-plw": `${M.plw}px`, "--tw-pw": `${M.pw}px`, "--tw-shw": `${M.shw}px`, "--tw-ww": `${M.ww}px`, "--tw-wg": `${M.wg}px`, "--tw-wp": `${M.wp}px`, "--tw-wa": `${M.wa}px`, "--tw-pcw": `${M.pcw}px`, "--tw-th": `${M.th}px`, "--tw-fh": `${M.fh}px` } as CSSProperties;
@@ -585,7 +593,6 @@ function TowerView(p: Props) {
   }, [desk.call, desk.pending, interactive, g, yTop, M.fh, pendRow, settledRow, carY, final, liveRow]);
 
   const cls = ["tw-wrap", shut ? "tw-shut" : "", p.phase === "seeding" ? "tw-soon" : "", p.phase === "settled" ? "tw-done" : "", interactive ? "" : "tw-still", M.small ? "tw-small" : ""].join(" ");
-  const nowLabel = final ? (p.phase === "settled" ? "BELL" : "") : "NOW";
 
   return (
     <div className={`tw-box${p.demo ? " tw-demo" : ""}`}>
@@ -624,10 +631,12 @@ function TowerView(p: Props) {
         </div>
         <div className="tw-street" aria-hidden="true">
           <div className="lane" />
-          <span className="t" style={{ left: M.plw }}>{clock(path.t0)}</span>
-          {nowLabel && <span className="t" style={{ left: Math.round(M.nowX), transform: "translateX(-50%)" }}><b>{nowLabel}</b> {final ? "" : clock(p.now)}</span>}
-          <span className="t" style={{ right: 2 }}><b>{clock(p.settlesAt)}</b></span>
-          <svg width={32} height={14} style={{ left: tx, top: 30 }} shapeRendering="crispEdges" dangerouslySetInnerHTML={{ __html: pix(TAXI, TAXIPAL, 2) }} />
+          <div className="tw-road" style={{ left: r0, width: Math.max(0, tx + 16 - r0) }} />
+          <span className="t" style={{ left: r0 }}>OPEN {clock(p.opensAt)}</span>
+          <span className="t tw-bell-t" style={{ right: 30 }}><b>{final ? "RANG" : "BELL"} {clock(p.settlesAt)}</b></span>
+          <i className="tw-lockpost" style={{ left: lockX }} title={`Trading stops at ${clock(p.locksAt)}`} />
+          <svg className="tw-flag" width={20} height={30} viewBox="0 0 10 15" style={{ right: 6, top: 8 }} shapeRendering="crispEdges" dangerouslySetInnerHTML={{ __html: FLAG }} />
+          <svg className={`tw-taxi${final || p.phase === "seeding" ? "" : " go"}`} width={32} height={14} style={{ left: tx, top: 30 }} shapeRendering="crispEdges" dangerouslySetInnerHTML={{ __html: `<title>${final ? "At the bell" : `Now, ${clock(p.now)}`}</title>` + pix(TAXI, TAXIPAL, 2) }} />
           {(p.phase === "locked" || p.phase === "settling") && <svg className="tw-rope" width={12 * rs} height={7 * rs} style={{ left: rx, top: M.small ? 14 : 10 }} shapeRendering="crispEdges" dangerouslySetInnerHTML={{ __html: pix(ROPE, ROPEPAL, rs) }} />}
         </div>
         <OffChips sc={sc} marks={marks} fh={M.fh} top={roofH} pcw={M.pcw} onGo={(r) => scrollToRow(r)} />
