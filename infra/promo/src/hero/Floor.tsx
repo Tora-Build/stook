@@ -16,6 +16,8 @@ const LOOKS = [
   { h: "#6b3a1e", f: "#c88d64", e: "#0b1120", s: "#3a3f4c", t: "#5ec48f", d: "#0b1120" },
 ];
 // one line a table, in the order the camera passes them; each up for 26 frames
+// what each reward coin pays its holders in: its anchor
+const REWARD_IN: Record<number, string> = { 1: "ZEC", 2: "STONK", 3: "GLDx" };
 const COIN = ["..aaa..", ".abbba.", "abcbbba", "abbbbba", "abbbbba", ".abbba.", "..aaa.."];
 const COINPAL = { a: "#8a5a12", b: "#f0a83a", c: "#ffe28a" };
 const LINES = ["Bell's at four.", "Where's it closing?", "Sure pays more.", "I'm the house today."];
@@ -61,7 +63,14 @@ export function FloorScene(p: { pops?: number[]; rewardsAt?: number }) {
               <Table t={t} d={d} at={p.pops?.[i] ?? 2 + i * 4} />
               {lit && COPY.rewardTables.includes(i) && <>
                 <div style={{ position: "absolute", left: 8, top: 8, width: d - 16, height: d - 16, borderRadius: "50%", border: `8px solid ${C.taxi}`, boxShadow: `0 0 ${30 + glow * 30}px rgba(240,168,58,.8), inset 0 0 30px rgba(240,168,58,.4)`, opacity: litIn, zIndex: 2 }} />
-                {[0, 1, 2].map((k) => { const t = ((rf + k * 18 + i * 7) % 54) / 54; return <div key={k} style={{ position: "absolute", left: d / 2 - 21, top: d * 0.62 - t * d * 0.45, opacity: litIn * (t < 0.15 ? t / 0.15 : t > 0.8 ? (1 - t) / 0.2 : 1), zIndex: 4 }}><Pixel map={COIN} pal={COINPAL} s={6} /></div>; })}
+                {/* the reward lands outside the rim: coins drop into a badge beside the table, never over the logo or name */}
+                <div style={{ position: "absolute", left: d * 0.78, top: -d * 0.02, zIndex: 6, opacity: litIn, display: "flex", flexDirection: "column", alignItems: "center", gap: 4 }}>
+                  <div style={{ position: "relative", width: 54, height: 70 }}>
+                    {Array.from({ length: Math.min(4, Math.floor(Math.max(0, rf) / 16) + 1) }, (_, k) => <div key={k} style={{ position: "absolute", left: 6, bottom: k * 12 }}><Pixel map={COIN} pal={COINPAL} s={6} /></div>)}
+                    {(() => { const t = (Math.max(0, rf) % 16) / 16; return <div style={{ position: "absolute", left: 6, top: -70 + t * 70, opacity: t < 0.85 ? 1 : 0 }}><Pixel map={COIN} pal={COINPAL} s={6} /></div>; })()}
+                  </div>
+                  <div style={{ fontFamily: MONO, fontWeight: 700, fontSize: tall ? 22 : 18, color: C.ink, background: C.taxi, padding: "3px 8px", border: `3px solid ${C.ink}`, whiteSpace: "nowrap" }}>+{REWARD_IN[i]}</div>
+                </div>
               </>}
               {/* traders round the rim, the near ones in front */}
               {[200, 245, 295, 340, 20, 150].map((deg, k) => {

@@ -70,7 +70,7 @@ export function TV(p: { bars?: number[] }) {
           {on < 1 && <div style={{ position: "absolute", left: 0, right: 0, top: scrH / 2 - 2, height: 4, background: "#fff", boxShadow: "0 0 30px #fff", opacity: 1 - on }} />}
         </div>
       </AbsoluteFill>
-      {f < diveFrom + 6 && <div style={{ opacity: 1 - dive * 3 }}><Explainer top={tall ? 1640 : 56} size={tall ? 46 : 34} /></div>}
+      {f < diveFrom + 6 && <div style={{ opacity: 1 - dive * 3 }}><Explainer top={tall ? 80 : 30} /></div>}
       {/* paper ticker tape streaming past in front of the set */}
       <div style={{ position: "absolute", left: -100, right: -100, top: tall ? H * 0.8 : H * 0.84, height: 58, transform: `rotate(-4deg) scale(${1 + dive * 2})`, transformOrigin: "50% 50%", background: "#efe6cc", boxShadow: "0 6px 0 rgba(0,0,0,.35)", overflow: "hidden", whiteSpace: "nowrap", opacity: 1 - dive }}>
         <div style={{ transform: `translateX(${tapeX}px)`, fontFamily: MONO, fontWeight: 700, fontSize: 28, lineHeight: "58px", color: "#2a1a10", letterSpacing: "0.04em" }}>{TAPE + TAPE + TAPE}</div>
