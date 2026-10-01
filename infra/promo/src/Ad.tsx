@@ -8,6 +8,13 @@ import { loadFont as loadMono } from "@remotion/google-fonts/IBMPlexMono";
 import { Skyline } from "./Skyline";
 import { TowerScene } from "./TowerScene";
 import { BellScene } from "./BellScene";
+import { FULL, LONG, SHORT } from "./config";
+import { HouseScene } from "./hero/House";
+import { COPY } from "./copy";
+import { TV } from "./hero/TV";
+import { Flap } from "./hero/Flap";
+import { FloorScene } from "./hero/Floor";
+import { Elevator } from "./hero/Elevator";
 
 export const PX = loadPixel().fontFamily;
 export const SANS = loadSans("normal", { weights: ["500", "600", "700"] }).fontFamily;
@@ -29,12 +36,24 @@ export function Rise(p: { at: number; children: React.ReactNode; style?: React.C
   return <div style={{ opacity: interpolate(f - p.at, [0, 4], [0, 1], { extrapolateLeft: "clamp", extrapolateRight: "clamp" }), transform: `translateY(${(1 - s) * 60}px)`, ...p.style }}>{p.children}</div>;
 }
 
+
+/** The one plain line a first-time, muted viewer needs: under the headline from the first frame. */
+export function Explainer(p: { top: number; size?: number }) {
+  const { tall } = useLay(), size = p.size ?? (tall ? 50 : 40);
+  return (
+    <div style={{ position: "absolute", left: 60, right: 60, top: p.top, display: "flex", justifyContent: "center", zIndex: 20 }}>
+      <div style={{ fontFamily: SANS, fontWeight: 700, fontSize: size, lineHeight: 1.22, color: C.cream, textAlign: "center", background: "rgba(11,17,32,.82)", border: `4px solid ${C.cream}`, boxShadow: `8px 8px 0 ${C.brick2}`, padding: tall ? "20px 30px" : "16px 26px", textShadow: `3px 3px 0 ${C.ink}`, maxWidth: tall ? 900 : 940, textWrap: "balance" } as React.CSSProperties}>{COPY.explainer}</div>
+    </div>
+  );
+}
+
 // ── 1. the hook ──────────────────────────────────────────────────────────────
-function Hook() {
-  const f = useCurrentFrame(), { fps } = useVideoConfig(), { W, H, tall } = useLay();
-  const slam = spring({ frame: f - 8, fps, config: { damping: 11, stiffness: 220, mass: 0.8 } });
-  const scale = interpolate(slam, [0, 1], [2.6, 1]);
-  const land = f - 8 - 7, shake = land >= 0 && land < 8 ? Math.round(Math.sin(land * 2.6) * (8 - land) * 1.6) : 0;
+/** The hook. The words hit full size on `slamAt` (the drop): in from 2.2x over
+ *  four frames, then the street shakes. */
+function Hook(p: { slamAt?: number }) {
+  const f = useCurrentFrame(), { W, H, tall } = useLay(), at = (p.slamAt ?? 8) - 4;
+  const scale = interpolate(f, [at, at + 4], [2.2, 1], { extrapolateLeft: "clamp", extrapolateRight: "clamp", easing: Easing.out(Easing.quad) });
+  const land = f - at - 4, shake = land >= 0 && land < 10 ? Math.round(Math.sin(land * 2.6) * (10 - land) * 1.8) : 0;
   const push = interpolate(f, [0, 66], [1, 1.07], { easing: ease });
   const size = tall ? 92 : 80;
   return (
@@ -44,22 +63,23 @@ function Hook() {
       </AbsoluteFill>
       <AbsoluteFill style={{ background: "linear-gradient(180deg, rgba(11,17,32,.55) 0%, rgba(11,17,32,0) 45%)" }} />
       <AbsoluteFill style={{ alignItems: "center", paddingTop: tall ? 330 : 150 }}>
-        <div style={{ transform: `translate(${shake}px, ${-shake / 2}px) scale(${scale})`, opacity: interpolate(f, [8, 11], [0, 1], { extrapolateLeft: "clamp", extrapolateRight: "clamp" }), textAlign: "center" }}>
+        <div style={{ transform: `translate(${shake}px, ${-shake / 2}px) scale(${scale})`, opacity: interpolate(f, [at, at + 2], [0, 1], { extrapolateLeft: "clamp", extrapolateRight: "clamp" }), textAlign: "center" }}>
           <Shout size={size} shadow={C.brick2}>{tall ? <>WHERE<br />WILL IT<br />LAND?</> : <>WHERE WILL<br />IT LAND?</>}</Shout>
         </div>
       </AbsoluteFill>
+      <Explainer top={tall ? 760 : 410} />
     </AbsoluteFill>
   );
 }
 
 // ── 2. the idea: four tables, each a memecoin playing a stock or an asset ────
-const TABLES = [
+export const TABLES = [
   { coin: "$STOOK", logo: "logos/stook.png", anchor: "S&P 500", alogo: "logos/spyx.png" },
   { coin: "$ZCAT", logo: "logos/zcat.jpg", anchor: "Zcash", alogo: "logos/zec.svg" },
   { coin: "$KNOTS", logo: "logos/knots.png", anchor: "STONK", alogo: "logos/stonk.png" },
   { coin: "$GP", logo: "logos/gp.jpg", anchor: "Gold", alogo: "logos/gldx.png" },
 ];
-function Table(p: { t: (typeof TABLES)[number]; d: number; at: number }) {
+export function Table(p: { t: (typeof TABLES)[number]; d: number; at: number }) {
   const f = useCurrentFrame(), { fps } = useVideoConfig();
   const s = spring({ frame: f - p.at, fps, config: { damping: 12, stiffness: 180 } });
   const spin = (f / fps) * 40;
@@ -103,7 +123,7 @@ function Idea() {
 }
 
 // ── 5. the door ──────────────────────────────────────────────────────────────
-function EndCard() {
+export function EndCard() {
   const f = useCurrentFrame(), { fps } = useVideoConfig(), { W, H, tall } = useLay();
   const coin = spring({ frame: f - 2, fps, config: { damping: 9, stiffness: 140 } });
   const pulse = 1 + Math.max(0, Math.sin((f - 40) / 6)) * 0.04 * (f > 40 ? 1 : 0);
@@ -113,7 +133,7 @@ function EndCard() {
       <AbsoluteFill style={{ background: "linear-gradient(180deg, rgba(11,17,32,.9) 0%, rgba(11,17,32,.55) 55%, rgba(11,17,32,.2) 100%)" }} />
       <AbsoluteFill style={{ alignItems: "center", justifyContent: "center", gap: tall ? 56 : 34, paddingBottom: tall ? 220 : 120 }}>
         <Img src={staticFile("stook-coin.svg")} style={{ width: tall ? 300 : 210, height: tall ? 300 : 210, imageRendering: "pixelated", transform: `scale(${coin}) rotate(${(1 - coin) * -200}deg)` }} />
-        <Rise at={8}><Shout size={tall ? 70 : 60}>STOOK STREET</Shout></Rise>
+        <Rise at={8} style={{ textAlign: "center" }}><Shout size={tall ? 70 : 60}>STOOK STREET</Shout><div style={{ fontFamily: PX, fontSize: tall ? 30 : 24, color: C.cream2, marginTop: tall ? 22 : 14 }}>WHERE WILL IT LAND?</div></Rise>
         <Rise at={14}><div style={{ fontFamily: MONO, fontWeight: 600, fontSize: tall ? 68 : 58, color: C.taxi, letterSpacing: "0.01em" }}>stookstreet.xyz</div></Rise>
         <Rise at={22}>
           <div style={{ transform: `scale(${pulse})`, fontFamily: PX, fontSize: tall ? 36 : 30, color: C.ink, background: C.taxi, padding: tall ? "30px 44px" : "24px 36px", border: `6px solid ${C.ink}`, boxShadow: `10px 10px 0 ${C.brick2}` }}>MAKE YOUR CALL ›</div>
@@ -124,25 +144,105 @@ function EndCard() {
 }
 
 // a 3-frame flash at each cut, the street's amber
-function Cut({ at }: { at: number }) {
+export function Cut({ at }: { at: number }) {
   const f = useCurrentFrame();
   const o = interpolate(f, [at, at + 1, at + 4], [0, 0.55, 0], { extrapolateLeft: "clamp", extrapolateRight: "clamp" });
   return o > 0 ? <AbsoluteFill style={{ background: C.cream, opacity: o, pointerEvents: "none" }} /> : null;
 }
 
-export const BEATS = { hook: [0, 66], idea: [66, 84], call: [150, 120], bell: [270, 90], end: [360, 90] } as const;
+/** Film grain and faint scanlines over the whole picture, a broadcast from 1971. */
+export function Grain() {
+  const f = useCurrentFrame();
+  return <>
+    <AbsoluteFill style={{ pointerEvents: "none", background: "repeating-linear-gradient(0deg, rgba(0,0,0,.10) 0 2px, transparent 2px 4px)", mixBlendMode: "multiply" }} />
+    <AbsoluteFill style={{ pointerEvents: "none", opacity: 0.07, mixBlendMode: "screen" }}>
+      <svg width="100%" height="100%"><filter id={`g${f % 6}`}><feTurbulence type="fractalNoise" baseFrequency="0.85" numOctaves="2" seed={f % 6} /></filter><rect width="100%" height="100%" filter={`url(#g${f % 6})`} /></svg>
+    </AbsoluteFill>
+    <AbsoluteFill style={{ pointerEvents: "none", background: "radial-gradient(ellipse at 50% 50%, rgba(0,0,0,0) 60%, rgba(0,0,0,.35) 100%)" }} />
+  </>;
+}
 
-export function Ad() {
-  const music = getStaticFiles().some((f) => f.name === "music.mp3");
+/** What plays under the ad: public/music.mp3 from `start` (s) into the track,
+ *  a short fade in and `fadeOut` frames out; silent if the file is absent or
+ *  `track` is "none". With music on, public/sfx/<name>.(mp3|wav) plays on its hit. */
+export type AdProps = { track?: string | null };
+export function Sound(p: AdProps & { length: number; start: number; fadeOut: number; hits: [name: string, frame: number][] }) {
+  const files = getStaticFiles().map((x) => x.name);
+  const track = p.track === "none" ? null : p.track ?? (files.includes("music.mp3") ? "music.mp3" : null);
+  if (!track) return null;
+  const sfx = (n: string) => ["mp3", "wav"].map((e) => `sfx/${n}.${e}`).find((x) => files.includes(x));
+  return <>
+    <Audio src={staticFile(track)} trimBefore={Math.round(p.start * 30)} volume={(fr) => interpolate(fr, [0, 9, p.length - p.fadeOut, p.length], [0, 1, 1, 0], { extrapolateLeft: "clamp", extrapolateRight: "clamp" })} />
+    {p.hits.map(([n, fr], i) => { const src = sfx(n); return src ? <Sequence key={i} from={fr}><Audio src={staticFile(src)} volume={0.5} /></Sequence> : null; })}
+  </>;
+}
+
+/** Small motion hits: the picture bumps on every beat after the drop. */
+function Pulse(p: { beats: number[]; from: number; children: React.ReactNode }) {
+  const f = useCurrentFrame();
+  const last = p.beats.filter((b) => b <= f && b >= p.from).pop();
+  const k = last === undefined ? 0 : Math.exp(-(f - last) / 3);
+  return <AbsoluteFill style={{ transform: `scale(${1 + 0.012 * k})` }}>{p.children}</AbsoluteFill>;
+}
+
+/** The full-length ad, as long as the track: an intro on a 1970s TV, then a
+ *  scene a phrase (4 bars), every cut on a bar line. */
+export function Full(p: AdProps) {
+  const [drop, flap, floor, tower, lift, house, bell, end] = FULL.cuts as [number, number, number, number, number, number, number, number];
+  const bars = [1, 2, 3].map((k) => Math.round(drop * k / 4));
   return (
     <AbsoluteFill style={{ background: C.ink }}>
-      <Sequence from={BEATS.hook[0]} durationInFrames={BEATS.hook[1]}><Hook /></Sequence>
-      <Sequence from={BEATS.idea[0]} durationInFrames={BEATS.idea[1]}><Idea /></Sequence>
-      <Sequence from={BEATS.call[0]} durationInFrames={BEATS.call[1]}><TowerScene /></Sequence>
-      <Sequence from={BEATS.bell[0]} durationInFrames={BEATS.bell[1]}><BellScene /></Sequence>
-      <Sequence from={BEATS.end[0]} durationInFrames={BEATS.end[1]}><EndCard /></Sequence>
-      {[BEATS.idea[0], BEATS.call[0], BEATS.bell[0], BEATS.end[0]].map((a) => <Cut key={a} at={a} />)}
-      {music && <Audio src={staticFile("music.mp3")} volume={(fr) => interpolate(fr, [0, 10, 420, 450], [0, 1, 1, 0], { extrapolateRight: "clamp" })} />}
+      <Pulse beats={FULL.beats} from={drop}>
+        <Sequence durationInFrames={drop}><TV bars={bars} /></Sequence>
+        <Sequence from={drop} durationInFrames={flap - drop}><Hook slamAt={0} /></Sequence>
+        <Sequence from={flap} durationInFrames={floor - flap}><Flap rows={FULL.flaps.map((x) => x - flap)} /></Sequence>
+        <Sequence from={floor} durationInFrames={tower - floor}><FloorScene pops={FULL.pops.map((x) => x - floor)} rewardsAt={FULL.rewards - floor} /></Sequence>
+        <Sequence from={tower} durationInFrames={lift - tower}><TowerScene coinsAt={FULL.coins - tower} winAt={FULL.win - tower} /></Sequence>
+        <Sequence from={lift} durationInFrames={house - lift}><Elevator stopAt={FULL.stop - lift} coinsAt={FULL.lift - lift} winAt={FULL.liftWin - lift} /></Sequence>
+        <Sequence from={house} durationInFrames={bell - house}><HouseScene pages={FULL.pages.map((x) => x - house)} fundedAt={FULL.funded - house} /></Sequence>
+        <Sequence from={bell} durationInFrames={end - bell}><BellScene ringAt={FULL.bell - bell} clockAt={FULL.four - bell} confetti stamp={false} /></Sequence>
+        <Sequence from={end} durationInFrames={FULL.total - end}><EndCard /></Sequence>
+      </Pulse>
+      {FULL.cuts.map((a) => <Cut key={a} at={a} />)}
+      <Grain />
+      <Sound track={p.track} length={FULL.total} start={FULL.start} fadeOut={FULL.fadeOut} hits={[...FULL.flaps.map((x) => ["flap", x] as [string, number]), ["coins", FULL.coins], ["stop", FULL.stop], ["coins", FULL.lift], ["bell", FULL.bell]]} />
+    </AbsoluteFill>
+  );
+}
+
+/** The 15 s cut: the TV open, the drop on the hook, the board, the call, the bell, the door. */
+export function Ad(p: AdProps) {
+  const [drop, flap, call, bell, end] = LONG.cuts as [number, number, number, number, number];
+  return (
+    <AbsoluteFill style={{ background: C.ink }}>
+      <Pulse beats={LONG.beats} from={drop}>
+        <Sequence durationInFrames={drop}><TV /></Sequence>
+        <Sequence from={drop} durationInFrames={flap - drop}><Hook slamAt={0} /></Sequence>
+        <Sequence from={flap} durationInFrames={call - flap}><Flap rows={LONG.flaps.map((x) => x - flap)} /></Sequence>
+        <Sequence from={call} durationInFrames={bell - call}><TowerScene coinsAt={LONG.coins - call} winAt={LONG.win - call} /></Sequence>
+        <Sequence from={bell} durationInFrames={end - bell}><BellScene ringAt={LONG.bell - bell} /></Sequence>
+        <Sequence from={end} durationInFrames={LONG.total - end}><EndCard /></Sequence>
+      </Pulse>
+      {LONG.cuts.map((a) => <Cut key={a} at={a} />)}
+      <Grain />
+      <Sound track={p.track} length={LONG.total} start={LONG.start} fadeOut={LONG.fadeOut} hits={[...LONG.flaps.map((x) => ["flap", x] as [string, number]), ["coins", LONG.coins], ["bell", LONG.bell]]} />
+    </AbsoluteFill>
+  );
+}
+
+/** The 6 s cut-down for pre-roll: the hook on the drop, the fastest pick, the door. */
+export function Ad6(p: AdProps) {
+  const [call, end] = SHORT.cuts as [number, number];
+  return (
+    <AbsoluteFill style={{ background: C.ink }}>
+      <Pulse beats={SHORT.beats} from={SHORT.drop}>
+        <Sequence durationInFrames={call}><Hook slamAt={SHORT.drop} /></Sequence>
+        <Sequence from={call} durationInFrames={end - call}><TowerScene fast coinsAt={SHORT.coins - call} winAt={SHORT.win - call} /></Sequence>
+        <Sequence from={end} durationInFrames={SHORT.total - end}><EndCard /></Sequence>
+      </Pulse>
+      {[SHORT.drop, ...SHORT.cuts].map((a) => <Cut key={a} at={a} />)}
+      <Grain />
+      <Sound track={p.track} length={SHORT.total} start={SHORT.start} fadeOut={SHORT.fadeOut} hits={[["coins", SHORT.coins]]} />
     </AbsoluteFill>
   );
 }
