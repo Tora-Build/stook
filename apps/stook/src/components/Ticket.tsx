@@ -73,25 +73,35 @@ interface Props {
   now: number;
   /** Dollars per whole coin, or null while unknown. */
   usd: number | null;
+  /** Call or House, kept by the page: its switch heads the side panel (SideSigns). */
+  tab: SideTab;
+}
+
+export type SideTab = "trade" | "house";
+
+/** Call or House: two enamel signs on the door, the side you are on lit. They
+ *  head the side panel, above the call's own controls, which only a Call uses. */
+export function SideSigns({ tab, setTab }: { tab: SideTab; setTab: (t: SideTab) => void }) {
+  return (
+    <div className="dsigns" role="tablist" aria-label="Call or house">
+      <button role="tab" aria-selected={tab === "trade"} className={`dsign ds-call${tab === "trade" ? " on" : ""}`} onClick={() => setTab("trade")} title="Pick the close">
+        <i className="screw l" aria-hidden="true" /><i className="screw r" aria-hidden="true" />
+        <svg viewBox="0 0 10 8" width="20" height="16" shapeRendering="crispEdges" aria-hidden="true"><rect x="0" y="6" width="2" height="2" fill="currentColor" /><rect x="3" y="3" width="2" height="5" fill="currentColor" /><rect x="6" y="0" width="2" height="8" fill="currentColor" /><rect x="9" y="4" width="1" height="4" fill="currentColor" /></svg>
+        <span>Call</span>
+      </button>
+      <button role="tab" aria-selected={tab === "house"} className={`dsign ds-house${tab === "house" ? " on" : ""}`} onClick={() => setTab("house")} data-tour="house" title="Fund the pool">
+        <i className="screw l" aria-hidden="true" /><i className="screw r" aria-hidden="true" />
+        <svg viewBox="0 0 10 8" width="20" height="16" shapeRendering="crispEdges" aria-hidden="true"><rect x="1" y="4" width="8" height="4" fill="currentColor" /><rect x="0" y="3" width="10" height="1" fill="currentColor" /><rect x="2" y="0" width="2" height="3" fill="currentColor" /><rect x="6" y="1" width="2" height="2" fill="currentColor" /><rect x="4" y="5" width="2" height="2" fill="var(--ds-bg)" /></svg>
+        <span>House</span>
+      </button>
+    </div>
+  );
 }
 
 export function Ticket(p: Props) {
-  const [tab, setTab] = useState<"trade" | "house">("trade");
+  const tab = p.tab;
   return (
     <section className="panel ticket">
-      {/* Two enamel signs on the door: the side you are on is lit. */}
-      <div className="dsigns" role="tablist" aria-label="Call or house">
-        <button role="tab" aria-selected={tab === "trade"} className={`dsign ds-call${tab === "trade" ? " on" : ""}`} onClick={() => setTab("trade")} title="Pick the close">
-          <i className="screw l" aria-hidden="true" /><i className="screw r" aria-hidden="true" />
-          <svg viewBox="0 0 10 8" width="20" height="16" shapeRendering="crispEdges" aria-hidden="true"><rect x="0" y="6" width="2" height="2" fill="currentColor" /><rect x="3" y="3" width="2" height="5" fill="currentColor" /><rect x="6" y="0" width="2" height="8" fill="currentColor" /><rect x="9" y="4" width="1" height="4" fill="currentColor" /></svg>
-          <span>Call</span>
-        </button>
-        <button role="tab" aria-selected={tab === "house"} className={`dsign ds-house${tab === "house" ? " on" : ""}`} onClick={() => setTab("house")} data-tour="house" title="Fund the pool">
-          <i className="screw l" aria-hidden="true" /><i className="screw r" aria-hidden="true" />
-          <svg viewBox="0 0 10 8" width="20" height="16" shapeRendering="crispEdges" aria-hidden="true"><rect x="1" y="4" width="8" height="4" fill="currentColor" /><rect x="0" y="3" width="10" height="1" fill="currentColor" /><rect x="2" y="0" width="2" height="3" fill="currentColor" /><rect x="6" y="1" width="2" height="2" fill="currentColor" /><rect x="4" y="5" width="2" height="2" fill="var(--ds-bg)" /></svg>
-          <span>House</span>
-        </button>
-      </div>
       {tab === "house" ? <LpPanel refs={p.refs} ladder={p.ladder} quoteSymbol={p.quoteSymbol} now={p.now} transferFee={p.transferFee} usd={p.usd} bare /> : p.final ? <Collect {...p} /> : (
         <>
           {p.positions.length > 0 && <Mine {...p} />}
@@ -147,6 +157,7 @@ function Held(p: Props & { pos: PositionRow }) {
 function Buy(p: Props & { held?: boolean }) {
   const o = p.order;
   const { unit, text, q, pays, limit, rising, short, existing, balance, send, lands, next, feeBps, shares } = o;
+  const connected = !!useWallet().publicKey;
   const l = p.ladder, dec = l.decimals, s = o.shape;
   const odds = useMemo(() => { if (!s) return []; const [a, z] = stook.shapeBins(s); const m = new Map<number, bigint>(); for (let i = a; i <= z; i++) { const lv = stook.level(s, i); if (lv) m.set(lv, (m.get(lv) ?? 0n) + stook.price(l.curve, i)); } return [...m.entries()].sort((x, y) => y[0] - x[0]); }, [s, l.curve]);
   const budget = o.budget;
@@ -170,7 +181,7 @@ function Buy(p: Props & { held?: boolean }) {
           <input value={text} onChange={(e) => o.setText(e.target.value)} inputMode="decimal" aria-label={`Spend in ${unit === "usd" ? "dollars" : p.quoteSymbol}`} />
           {unit === "coin" && <span className="amount-unit">{p.quoteSymbol}</span>}
         </div>
-        <span className="hint">balance {balance.data !== undefined ? <>{coinText(balance.data, dec, p.quoteSymbol)}{p.usd !== null ? ` · ${approxUsd(balance.data, dec, p.usd)}` : ""}</> : `… ${p.quoteSymbol}`}</span>
+        <span className="hint">{!connected ? "Connect a wallet to see your balance" : <>balance {balance.data !== undefined ? <>{coinText(balance.data, dec, p.quoteSymbol)}{p.usd !== null ? ` · ${approxUsd(balance.data, dec, p.usd)}` : ""}</> : `… ${p.quoteSymbol}`}</>}</span>
       </div>
       {budget !== null && pays !== null && pays * 100n < budget * 99n && <Notice tone="warn" title="Round limit">Only {coinText(pays, dec, p.quoteSymbol)} more fits on this call: its odds are near the most this round can price. The order below uses that.</Notice>}
       {s && q && pays !== null && limit !== null && <div className="ticket-paper" role="group" aria-label="Your order" data-tour="paper">

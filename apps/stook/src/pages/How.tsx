@@ -11,6 +11,7 @@ import { Tower, type HeldMark, type Phase, type RoofSign, type TickerItem } from
 import { CallKind } from "../components/TowerDesk";
 import { useDesk } from "../hooks/useDesk";
 import { aboutMultiple, callWords, height, makeGrid, nearAt, toShape, type Grid } from "../lib/call";
+import { Title } from "../components/Title";
 
 const STOPS = ["The tables", "The tower", "Your call", "The bell", "The house", "Your statement"] as const;
 const KEYS = ["tables", "tower", "line", "bell", "house", "statement"];
@@ -35,6 +36,7 @@ export function How() {
   const go = (n: number) => setI(Math.max(0, Math.min(STOPS.length - 1, n)));
   return (
     <div className="page tour-page">
+      <Title text="How it works" />
       <span className="sign">A WALK THROUGH THE EXCHANGE</span>
       <h1>How the street works</h1>
 

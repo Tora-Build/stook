@@ -4,6 +4,7 @@ import { COINS } from "../lib/coins";
 import { Skyline } from "../components/Skyline";
 import { Floor } from "../components/Floor";
 import { fmtUsd, useCoinQuotes } from "../lib/usd";
+import { Title } from "../components/Title";
 
 const STOOK_MINT = COINS.find((c) => c.symbol === "STOOK")?.mint ?? "";
 
@@ -17,6 +18,7 @@ export function Markets() {
   const ticker = () => COINS.map((c) => { const q = quotes.data?.[c.symbol]; return q ? `${c.symbol} ${q.price.toLocaleString("en-US", { maximumFractionDigits: c.anchor.dp })} ${typeof q.change24h !== "number" ? "" : (q.change24h >= 0 ? "+" : "") + q.change24h.toFixed(1) + "%"}` : ""; }).filter(Boolean).join("   ") || "STOOK STREET";
   return (
     <div className="street">
+      <Title text="" />
       <div className="hero-city">
         <Skyline hero ticker={ticker} />
         <div className="hero-copy">

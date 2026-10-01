@@ -2,7 +2,7 @@
 // wallet is in, what it put where, what that is worth now or pays, and one
 // button per finished round to collect all of it. Amounts stay in each
 // round's own coin: $STOOK and $KNOTS do not add up, so they are never summed.
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { PublicKey } from "@solana/web3.js";
 import { useConnection, useWallet } from "@solana/wallet-adapter-react";
@@ -19,8 +19,11 @@ import { fmtCompact, short } from "../lib/format";
 import { Amount, approxUsd, coinText, fmtUsd, toUsd, useUsdRates } from "../lib/usd";
 import { ladderCallName } from "../lib/call";
 import { Book } from "../components/Book";
+import { Faucet } from "../components/Faucet";
+import { FAUCET_AUTHORITY_BYTES } from "../lib/config";
 import { Fold } from "../components/Fold";
 import { nyDate, nyWhen } from "../lib/time";
+import { Title } from "../components/Title";
 
 type Stage = "funded" | "opening" | "void soon" | "trading" | "locked" | "settling" | "settled" | "void";
 
@@ -147,6 +150,7 @@ export function Yours() {
 
   return (
     <div className="page statement">
+      <Title text="Your statement" />
       <header className="stmt-head">
         <div>
           <div className="stmt-firm">STOOK STREET SECURITIES</div>
@@ -160,7 +164,7 @@ export function Yours() {
 
       {!publicKey ? <NoAccount />
         : holdings.isLoading ? <p className="stmt-empty">Reading the books…</p>
-        : rounds.length === 0 ? <p className="stmt-empty">Nothing on the books yet. <Link to="/#floor">Pick a table ›</Link></p>
+        : rounds.length === 0 ? <FirstSteps />
         : <>
           <section className="tote">
             <div className="tote-cell tote-ready"><div className="tote-k">ready to collect</div>{tote((x) => x.ready)}</div>
@@ -386,6 +390,23 @@ function NoAccount() {
         <div className="stmt-sample-row"><b>$GP · Gold</b><span>Between 380.00 and 384.00</span><span className="mono">collect $9.23</span></div>
       </div>
       <p className="stmt-foot">Just looking? <Link to="/#floor">Pick a table ›</Link> or <Link to="/how">take the walk through ›</Link></p>
+    </div>
+  );
+}
+
+/** Connected, nothing on the books yet: the three ways in, in order. */
+function FirstSteps() {
+  const steps = [
+    FAUCET_AUTHORITY_BYTES && { t: "Get test coins", d: "Free on devnet: each table's coin, enough to try a few calls.", act: <Faucet /> },
+    { t: "Make a call", d: "Pick a table, then the floor where you think today's price closes.", act: <Link className="stmt-step-go" to="/#floor">Pick a table ›</Link> },
+    { t: "Or be the house", d: "Fund a day's pool and share 90% of every fee its traders pay.", act: <Link className="stmt-step-go" to="/c/STOOK">Fund a day ›</Link> },
+  ].filter(Boolean) as { t: string; d: string; act: ReactNode }[];
+  return (
+    <div className="stmt-first">
+      <p className="stmt-first-h">Nothing on the books yet. How to start:</p>
+      <ol className="stmt-steps">
+        {steps.map((x, i) => <li key={x.t}><span className="stmt-step-n">{i + 1}</span><div><b>{x.t}</b><p>{x.d}</p><div className="stmt-step-act">{x.act}</div></div></li>)}
+      </ol>
     </div>
   );
 }
