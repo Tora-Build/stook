@@ -16,5 +16,10 @@ export default defineConfig({
     wallet: ["@solana/wallet-adapter-base", "@solana/wallet-adapter-react", "@solana/wallet-adapter-react-ui"],
   } } } },
   // The data routes live in the site's Worker; in dev, read the deployed ones.
-  server: { port: 5180, strictPort: true, proxy: Object.fromEntries(["/prices", "/chart", "/usd", "/coins", "/pyth"].map((p) => [p, { target: "https://stookstreet.xyz", changeOrigin: true }])) },
+  // LEDGER_DEV_URL points /history at a ledger run locally (infra/ledger,
+  // e.g. http://127.0.0.1:8792) instead.
+  server: { port: 5180, strictPort: true, proxy: {
+    ...Object.fromEntries(["/prices", "/chart", "/usd", "/coins", "/pyth"].map((p) => [p, { target: "https://stookstreet.xyz", changeOrigin: true }])),
+    "/history": { target: process.env.LEDGER_DEV_URL || "https://stookstreet.xyz", changeOrigin: true },
+  } },
 });

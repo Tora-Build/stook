@@ -5,5 +5,6 @@ packages:
   - "scripts/backtest"
   - "infra/ladder-crank"
   - "infra/sim"
+  - "infra/ledger"
   - "infra/tape"
   - "infra/x-poster"

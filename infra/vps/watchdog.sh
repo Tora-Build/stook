@@ -6,6 +6,8 @@
 #                        keeper wallet under 0.5 SOL: alert
 #   watchdog.sh tape     no coin updated for 45 minutes: restart, alert
 #   watchdog.sh resolver Soo's resolver not answering /health: alert
+#   watchdog.sh ledger   no successful poll of the chain for 10 minutes (or no
+#                        answer on /health): restart, alert
 up() { local ts; ts=$(systemctl show -p ActiveEnterTimestampMonotonic --value "$1"); echo $(( ($(cut -d. -f1 /proc/uptime) * 1000000 - ts) / 1000000 )); }
 ALERT=/home/zak/stook/infra/vps/alert.sh
 now() { date +%s; }
@@ -58,6 +60,16 @@ case "$1" in
       systemctl restart stook-tape
     elif [ "$AGE" -le 2700 ]; then
       "$ALERT" --ok tape "Price tape is live again."
+    fi ;;
+  ledger)
+    # pollAge: seconds since the ledger last read the chain's newest signatures
+    AGE=$(curl -s -m 5 localhost:8792/health | python3 -c "import sys,json; a=json.load(sys.stdin).get('pollAge'); print(a if a is not None else 999999)" 2>/dev/null || echo 999999)
+    if [ "${AGE:-999999}" -gt 600 ] && [ "$(up stook-ledger)" -gt 600 ]; then
+      echo "$(date -u +%FT%TZ) watchdog: ledger poll ${AGE}s old, restarting" >> /home/zak/ledger.log
+      "$ALERT" ledger "Ledger is stale: no read of the chain for $((AGE / 60)) min (or no answer on /health). Restarting it. History on Yours stops at that point until it is back. Log: ~/ledger.log"
+      systemctl restart stook-ledger
+    elif [ "${AGE:-999999}" -le 600 ]; then
+      "$ALERT" --ok ledger "Ledger is reading the chain again."
     fi ;;
   resolver)
     if ! curl -s -m 10 localhost:8790/health | grep -q '"ok":true'; then

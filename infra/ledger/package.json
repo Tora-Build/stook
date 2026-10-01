@@ -1,0 +1,19 @@
+{
+  "name": "@stook/ledger",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "The ledger: every sooth_core transaction read once into rows per wallet, served as each wallet's history of rounds. Read only.",
+  "engines": {
+    "node": ">=22.5"
+  },
+  "scripts": {
+    "start": "node --experimental-sqlite src/index.mjs",
+    "lint": "for f in src/*.mjs test/*.mjs; do node --check \"$f\" || exit 1; done",
+    "test": "node --experimental-sqlite --test test/*.test.mjs"
+  },
+  "dependencies": {
+    "@solana/web3.js": "^1.98.0",
+    "@sooth/sdk-solana": "workspace:*"
+  }
+}

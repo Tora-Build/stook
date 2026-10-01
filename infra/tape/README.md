@@ -24,4 +24,7 @@ candles, which is what the app reads. It also proxies `/tape/candles` and
 `/tape/stream` (SSE), which the app does not use today.
 
 Endpoints on the box: `/prices`, `/candles?coin=&res=60|300|900&from=`,
-`/stream`, `/health`.
+`/stream`, `/health`. The tunnel also carries the ledger (`infra/ledger`, on
+127.0.0.1:8792, `LEDGER_URL`): `/history?wallet=…` and `/ledger/health` are
+passed through to it, so the Worker reaches both at the one registered
+address.

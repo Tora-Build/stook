@@ -24,6 +24,7 @@ import { FAUCET_AUTHORITY_BYTES } from "../lib/config";
 import { Fold } from "../components/Fold";
 import { nyDate, nyWhen } from "../lib/time";
 import { Title } from "../components/Title";
+import { History } from "../components/History";
 
 type Stage = "funded" | "opening" | "void soon" | "trading" | "locked" | "settling" | "settled" | "void";
 
@@ -77,7 +78,10 @@ export function Yours() {
   const { publicKey: wallet } = useWallet();
   // `?account=` reads any address's statement, read-only: holdings are public
   // on chain, and only the connected wallet gets collect buttons.
-  const [params] = useSearchParams();
+  const [params, setParams] = useSearchParams();
+  // Two tabs: what the wallet holds now, and every round it played (?tab=history).
+  const tab = params.get("tab") === "history" ? "history" : "holdings";
+  const setTab = (t: "holdings" | "history") => { const p = new URLSearchParams(params); if (t === "history") p.set("tab", "history"); else p.delete("tab"); setParams(p, { replace: true }); };
   const viewed = useMemo(() => { try { const a = params.get("account"); return a ? new PublicKey(a) : null; } catch { return null; } }, [params]);
   const publicKey = viewed ?? wallet;
   const own = !!wallet && !!publicKey && wallet.equals(publicKey);
@@ -162,7 +166,13 @@ export function Yours() {
         </dl>
       </header>
 
-      {!publicKey ? <NoAccount />
+      <div className="seg stmt-tabs" role="tablist" aria-label="Statement">
+        <button role="tab" aria-selected={tab === "holdings"} className={tab === "holdings" ? "on" : ""} onClick={() => setTab("holdings")}>Holdings</button>
+        <button role="tab" aria-selected={tab === "history"} className={tab === "history" ? "on" : ""} onClick={() => setTab("history")}>History</button>
+      </div>
+
+      {tab === "history" ? <History wallet={publicKey ?? null} own={own} />
+        : !publicKey ? <NoAccount />
         : holdings.isLoading ? <p className="stmt-empty">Reading the books…</p>
         : rounds.length === 0 ? <FirstSteps />
         : <>

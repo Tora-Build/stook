@@ -87,6 +87,15 @@ importers:
         specifier: workspace:*
         version: link:../../packages/sdk-solana
 
+  infra/ledger:
+    dependencies:
+      '@solana/web3.js':
+        specifier: ^1.98.0
+        version: 1.98.4(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@6.0.6)
+      '@sooth/sdk-solana':
+        specifier: workspace:*
+        version: link:../../packages/sdk-solana
+
   infra/sim:
     dependencies:
       '@solana/spl-token':

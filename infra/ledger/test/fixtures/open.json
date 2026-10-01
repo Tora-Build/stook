@@ -1,0 +1,125 @@
+{
+ "blockTime": 1790625603,
+ "meta": {
+  "computeUnitsConsumed": 123024,
+  "costUnits": 124850,
+  "err": null,
+  "fee": 5200,
+  "innerInstructions": [],
+  "logMessages": [
+   "Program ComputeBudget111111111111111111111111111111 invoke [1]",
+   "Program ComputeBudget111111111111111111111111111111 success",
+   "Program ComputeBudget111111111111111111111111111111 invoke [1]",
+   "Program ComputeBudget111111111111111111111111111111 success",
+   "Program ComputeBudget111111111111111111111111111111 invoke [1]",
+   "Program ComputeBudget111111111111111111111111111111 success",
+   "Program 55kGEMHJyNbD3qcdonCD8UPTqzM85yg2kr6M5UF5P353 invoke [1]",
+   "Program log: Instruction: LadderOpen",
+   "Program data: H+kI7mWOcF8mkzDfQFOHVdJE0nhUd4FZYDYCq+G0LlOukg/132MwZKBCQcECAAAA+P///wpU6N9JbeS5AwEAAAAAAABbAA==",
+   "Program 55kGEMHJyNbD3qcdonCD8UPTqzM85yg2kr6M5UF5P353 consumed 122518 of 199550 compute units",
+   "Program 55kGEMHJyNbD3qcdonCD8UPTqzM85yg2kr6M5UF5P353 success"
+  ],
+  "postBalances": [
+   3906585026,
+   10485120,
+   1275080,
+   833120,
+   1,
+   1330960
+  ],
+  "postTokenBalances": [],
+  "preBalances": [
+   3906590226,
+   10485120,
+   1275080,
+   833120,
+   1,
+   1330960
+  ],
+  "preTokenBalances": [],
+  "rewards": [],
+  "status": {
+   "Ok": null
+  }
+ },
+ "slot": 505272448,
+ "transaction": {
+  "message": {
+   "accountKeys": [
+    {
+     "pubkey": "AWJiY5es1XWzba2QMQxU3jYEabBR5wxP2QKgJfVYB65r",
+     "signer": true,
+     "source": "transaction",
+     "writable": true
+    },
+    {
+     "pubkey": "3bafoBC4qC7MsZvkGqCS2NhDnVjNayE248Dd4ZHSA859",
+     "signer": false,
+     "source": "transaction",
+     "writable": true
+    },
+    {
+     "pubkey": "MthkNBfLXfas2Z4oZQ4xrmJGdt7nbP1TLpKquCmuyxR",
+     "signer": false,
+     "source": "transaction",
+     "writable": true
+    },
+    {
+     "pubkey": "55kGEMHJyNbD3qcdonCD8UPTqzM85yg2kr6M5UF5P353",
+     "signer": false,
+     "source": "transaction",
+     "writable": false
+    },
+    {
+     "pubkey": "ComputeBudget111111111111111111111111111111",
+     "signer": false,
+     "source": "transaction",
+     "writable": false
+    },
+    {
+     "pubkey": "EdYoRawTmXdeM9nEwn3zqJZgr5J4WZyD7rY9L9GYhH6i",
+     "signer": false,
+     "source": "transaction",
+     "writable": false
+    }
+   ],
+   "instructions": [
+    {
+     "accounts": [],
+     "data": "7YXqSw",
+     "programId": "ComputeBudget111111111111111111111111111111",
+     "stackHeight": 1
+    },
+    {
+     "accounts": [],
+     "data": "Fj2Eoy",
+     "programId": "ComputeBudget111111111111111111111111111111",
+     "stackHeight": 1
+    },
+    {
+     "accounts": [],
+     "data": "3tGNFMqHiozw",
+     "programId": "ComputeBudget111111111111111111111111111111",
+     "stackHeight": 1
+    },
+    {
+     "accounts": [
+      "AWJiY5es1XWzba2QMQxU3jYEabBR5wxP2QKgJfVYB65r",
+      "3bafoBC4qC7MsZvkGqCS2NhDnVjNayE248Dd4ZHSA859",
+      "EdYoRawTmXdeM9nEwn3zqJZgr5J4WZyD7rY9L9GYhH6i",
+      "MthkNBfLXfas2Z4oZQ4xrmJGdt7nbP1TLpKquCmuyxR"
+     ],
+     "data": "FodjQRaTbFd",
+     "programId": "55kGEMHJyNbD3qcdonCD8UPTqzM85yg2kr6M5UF5P353",
+     "stackHeight": 1
+    }
+   ],
+   "recentBlockhash": "DiAXbVopxa1Sv8sTD3pJCfShN5qCeU1zucbRFSsYPNi2"
+  },
+  "signatures": [
+   "3a6xeNu8JNYQYVM5oEKUzEXCd9ctBJSKbwV8SQMNDeKgGR5hrCEYXdG5AqCbCV97fUPDJv9uzT7eRTJEPdA5x7Mx"
+  ]
+ },
+ "transactionIndex": 0,
+ "version": "legacy"
+}

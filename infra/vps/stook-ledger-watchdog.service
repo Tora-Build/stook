@@ -1,0 +1,6 @@
+[Unit]
+Description=Restart stook-ledger when it is up but no longer reading the chain
+
+[Service]
+Type=oneshot
+ExecStart=/home/zak/stook/infra/vps/watchdog.sh ledger

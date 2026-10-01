@@ -183,7 +183,7 @@ export default {
     // and a redirected POST would lose its body.
     {
       const u = new URL(request.url);
-      const data = /^\/(prices|chart|usd|coins|supply|chatter|pyth|x)$|^\/(chatter|tape|hermes)\//.test(u.pathname);
+      const data = /^\/(prices|chart|usd|coins|supply|chatter|pyth|x|history)$|^\/(chatter|tape|hermes)\//.test(u.pathname);
       if (u.hostname !== HOME && !data && !u.hostname.endsWith(".workers.dev") && u.hostname !== "localhost") {
         return Response.redirect(`https://${HOME}${u.pathname}${u.search}`, 301);
       }
@@ -278,6 +278,33 @@ export default {
       for (const k of ["res", "from"]) { const v = url.searchParams.get(k); if (v !== null) { if (!/^\d{1,12}$/.test(v)) return new Response(`bad ${k}`, { status: 400 }); q.set(k, v); } }
       const r = await fetch(`${base}/candles?${q}`);
       return new Response(r.body, { status: r.status, headers: { "content-type": "application/json", "x-content-type-options": "nosniff" } });
+    }
+    // /history?wallet=: a wallet's rounds, from the ledger on the box (reached
+    // through the tape's tunnel, which passes /history to it). Every round it
+    // played, what went in and came out, and how each ended. Public data, read
+    // only; 15 seconds at the edge so a page that re-renders asks once.
+    if (url.pathname === "/history") {
+      const p = url.searchParams, q = new URLSearchParams();
+      const B58 = /^[1-9A-HJ-NP-Za-km-z]{32,44}$/;
+      const bad = (why) => new Response(JSON.stringify({ error: why }), { status: 400, headers: { "content-type": "application/json", "access-control-allow-origin": "*" } });
+      const wallet = p.get("wallet") ?? "";
+      if (!B58.test(wallet)) return bad("wallet must be a base58 address");
+      q.set("wallet", wallet);
+      const limit = p.get("limit"); if (limit !== null) { if (!/^\d{1,2}$/.test(limit)) return bad("bad limit"); q.set("limit", limit); }
+      const before = p.get("before"); if (before !== null) { if (!/^\d{1,12}_[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(before)) return bad("bad before"); q.set("before", before); }
+      const coin = p.get("coin"); if (coin !== null) { if (!/^[A-Z]{1,10}$/.test(coin) && !B58.test(coin)) return bad("bad coin"); q.set("coin", coin); }
+      const result = p.get("result"); if (result !== null) { if (!["won", "missed", "refunded", "open", "unclaimed"].includes(result)) return bad("bad result"); q.set("result", result); }
+      const cache = caches.default, key = new Request(`${url.origin}/history?${q}`);
+      const hit = await cache.match(key); if (hit) return hit;
+      const base = await tapeUrl(env);
+      let body = '{"error":"history unavailable"}', status = 503;
+      if (base) {
+        try { const r = await fetch(`${base}/history?${q}`, { signal: AbortSignal.timeout(8000) }); status = r.status; body = await r.text(); if (status === 200) JSON.parse(body); }
+        catch { status = 502; body = '{"error":"history unavailable"}'; }
+      }
+      const res = new Response(body, { status, headers: { "content-type": "application/json", "cache-control": `public, max-age=${status === 200 ? 15 : 5}`, "access-control-allow-origin": "*", "x-content-type-options": "nosniff" } });
+      if (status === 200) ctx.waitUntil(cache.put(key, res.clone()));
+      return res;
     }
     // /supply: $STOOK's circulating supply, for aggregators (Jupiter asks for
     // {"circulatingSupply": number} on the team's domain). Read from chain:

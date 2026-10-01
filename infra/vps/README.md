@@ -15,7 +15,11 @@ The box runs these as systemd services under the `zak` user (no cron on it).
   runs `--once` every 5 minutes. `resolver.sooth.market` reaches it through
   the box's named Cloudflare tunnel (managed by Daniel).
 
-Logs: `~/ladder-crank.log`, `~/stook-tape.log`, `~/resolver.log`, `~/resolver-cron.log`.
+- `stook-ledger`: `infra/ledger`, the history behind the History tab on Yours
+  (see "Ledger" below). `stook-ledger-watchdog.timer` restarts it when it has
+  not read the chain for 10 minutes.
+
+Logs: `~/ladder-crank.log`, `~/stook-tape.log`, `~/ledger.log`, `~/resolver.log`, `~/resolver-cron.log`.
 
 ## Daily X post
 
@@ -135,3 +139,41 @@ health report, `health.sh --print`), `/fleet`, `/activity [n]`, `/issues`,
 `/rounds`, `/wallet <n>`, `/pause` and `/resume` (stop or start `stook-sim`).
 Check every answer without Telegram: `node src/bot.mjs --selftest` from
 `~/stook/infra/sim` with the env files loaded.
+
+## Ledger
+
+`stook-ledger` runs `infra/ledger`: it reads every sooth_core transaction once
+(`getSignaturesForAddress` on the program, then `getTransaction`), turns each
+into rows per wallet (calls, adds, sells, collects, refunds, house deposits and
+payouts, round starts, the starter's fees, keeper sweeps), and serves a
+wallet's rounds on `127.0.0.1:8792`: `/history?wallet=&limit=&before=&coin=&result=`
+and `/health`. Read only: no key, nothing sent.
+
+- First start: a backfill from the newest transaction back to the program's
+  first (about 3,250 on 2026-10-01; about an hour and a half on the public
+  endpoint, whose 429s hold `getTransaction` near 1 a second), then a poll
+  every 15 s for what is newer. Both cursors are saved; a restart resumes.
+- Store: `~/ledger/ledger.db` (node:sqlite; the unit passes
+  `--experimental-sqlite`, which Node 22.5 to 22.12 need and later versions
+  ignore). On a Node without node:sqlite it keeps `~/ledger/ledger.jsonl`
+  instead and rebuilds its index on start. Delete `~/ledger` to rebuild from
+  the chain.
+- RPC: `LEDGER_RPC_URL` (public devnet by default), `LEDGER_RPS` (3), with
+  back-off on 429 and 5xx. Never the keeper's `RPC_URL`. A day costs about
+  5,800 signature polls plus one `getTransaction` per program transaction
+  (about 1,300 a day now); `/health` shows the running rate.
+- Older transactions: the program is upgraded in place, and an instruction or
+  event of an earlier layout (account count or event size not today's) is
+  not read, so rounds from before 2026-09-23 may show without their terms.
+  A few settles and opens are missing from devnet's signature index; such a
+  round still shows as finished once it has paid out, without its floor.
+- Coins: rounds are named by their quote mint, from `DEVNET_MINTS` in
+  `~/sim/sim.env` (only that key is read) or `LEDGER_MINTS`, else by feed.
+- The world reaches it through the tape's tunnel: `stook-tape` passes
+  `/history` and `/ledger/health` to it, and the Worker's `/history` (15 s
+  cache) reads the tape's registered address. No tunnel of its own.
+- Watchdog: no successful poll for 10 minutes (or no answer on `/health`):
+  restart and a Telegram alert (`ledger`), and an all-clear when it is back.
+
+Check it: `curl -s localhost:8792/health`, and from outside
+`curl -s 'https://stookstreet.xyz/history?wallet=<address>'`.

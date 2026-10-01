@@ -1,0 +1,23 @@
+[Unit]
+Description=Stook ledger (every sooth_core transaction into a history per wallet, served on 127.0.0.1:8792)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+User=zak
+WorkingDirectory=/home/zak/stook/infra/ledger
+EnvironmentFile=/home/zak/stook.env
+EnvironmentFile=-/home/zak/stook-alerts.env
+Environment=LEDGER_DIR=/home/zak/ledger
+# node:sqlite: behind this flag on Node 22.5 to 22.12, a no-op after. On a
+# Node without node:sqlite the ledger falls back to its JSONL store.
+ExecStart=/usr/bin/node --experimental-sqlite --disable-warning=ExperimentalWarning /home/zak/stook/infra/ledger/src/index.mjs
+Restart=always
+RestartSec=10
+Nice=10
+MemoryMax=400M
+StandardOutput=append:/home/zak/ledger.log
+StandardError=append:/home/zak/ledger.log
+
+[Install]
+WantedBy=multi-user.target
