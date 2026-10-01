@@ -5,8 +5,8 @@ import { stook } from "@sooth/sdk-solana";
 import { fmtCompact, parseAmount } from "../lib/format";
 import { ataOf, ensureAta } from "../lib/chain";
 import { useBalance, useMint, useSend, useTranches } from "../hooks/useChain";
-import { Amount, approxUsd, coinText, fromUsd } from "../lib/usd";
-import { Book } from "./Book";
+import { approxUsd, coinText, fromUsd } from "../lib/usd";
+import { Rack } from "./Rack";
 import { Notice } from "./Notice";
 
 interface Props { refs: stook.LadderRefs; ladder: stook.LadderAccount; quoteSymbol: string; now: number; transferFee?: stook.TransferFee; bare?: boolean; usd?: number | null }
@@ -21,7 +21,6 @@ export function LpPanel(p: Props) {
   const text = typed ?? (inUsd ? "20" : "100");
   // Amounts lead in dollars when there is a rate, the coin beneath.
   // The coin first, as it stands on chain; dollars as an estimate beneath.
-  const money = (v: bigint) => <Amount units={v} decimals={dec} symbol={p.quoteSymbol} rate={rate} />;
   const big = (v: bigint) => coinText(v, dec, p.quoteSymbol);
   const join = useSend("Liquidity added");
   const claim = useSend("Claimed");
@@ -105,10 +104,12 @@ export function LpPanel(p: Props) {
           tranche (it joined at that moment's odds and earns fees from then),
           so they cannot merge; here they add up, entry by entry inside. */}
       {rows.length > 0 && (
-        <Book kind="house" title="Your stake" count={rows.length} open={final}
-          total={<>{fmtCompact(sum.in, dec)} in{rate !== null && <span className="approx">{approxUsd(sum.in, dec, rate)}</span>}</>}
+        <Rack kind="house" title="Your deposits" label="Your deposits in the house this round"
+          summary={<>{rows.length} deposit{rows.length === 1 ? "" : "s"} · {coinText(sum.in, dec, p.quoteSymbol)} in{rate !== null && <span className="approx">{approxUsd(sum.in, dec, rate)}</span>}</>}
           extra={sum.worth !== null ? <>{fmtCompact(sum.worth, dec)} to claim</> : sum.fees > 0n ? <>+{fmtCompact(sum.fees, dec)} fees</> : undefined}
-          rows={rows.map((r) => ({ key: String(r.t.index), label: `deposit #${r.t.index}`, sub: <>fees {big(r.fees)}{r.worth !== null && <> · worth {big(r.worth)}</>}</>, amount: money(r.t.deposit) }))}
+          slips={rows.map((r) => ({ key: String(r.t.index), title: <>Deposit <span className="mono">{r.t.index + 1}</span></>,
+            lines: [{ k: "put in", v: fmtCompact(r.t.deposit, dec) }, { k: "fees so far", v: `+${fmtCompact(r.fees, dec)}`, tone: "up" as const }, ...(r.worth !== null ? [{ k: "worth", v: fmtCompact(r.worth, dec) }] : [])],
+            mark: final ? (l.status === "void" ? "refund" : "to claim") : l.status === "seeding" ? "waiting" : "earning" }))}
           footer={final && publicKey ? <button className="primary" disabled={claim.isPending} onClick={() => void claimAll()}>{claim.isPending ? "Claiming…" : `Claim ${sum.worth !== null ? big(sum.worth) : ""}`.trim()}</button> : undefined} />
       )}
       {joinable && (

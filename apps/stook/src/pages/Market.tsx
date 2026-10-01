@@ -17,7 +17,7 @@ import { feedByHex, feedHex } from "../lib/feeds";
 import { coinByMint, standInNote } from "../lib/coins";
 import { fmtCompact, fmtPrice, untilText } from "../lib/format";
 import { nyWhen } from "../lib/time";
-import { callName, fromShape, makeGrid, nearAt, sameShape, toShape } from "../lib/call";
+import { callName, callShort, fromShape, makeGrid, nearAt, sameShape, toShape } from "../lib/call";
 import type { MintInfo } from "../lib/chain";
 
 export function Market() {
@@ -150,6 +150,7 @@ function Round({ l, refs, mint }: { l: stook.LadderAccount; refs: stook.LadderRe
   const coachRef = useRef(coach); coachRef.current = coach;
   const onPicked = useCallback(() => { if (coachRef.current === 1) goCoach(2); }, []); // eslint-disable-line react-hooks/exhaustive-deps
   const name = (s: stook.Shape) => (grid ? callName(grid, s) : `${s.lo} to ${s.hi}`);
+  const slipName = (s: stook.Shape) => (grid ? callShort(grid, s) : `${s.lo} to ${s.hi}`);
   const toTicket = () => { const el = document.getElementById("ticket"); el?.scrollIntoView({ block: "start", behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" }); el?.querySelector<HTMLButtonElement>("button.primary")?.focus({ preventScroll: true }); };
   // Settled: where it closed, and what your calls collect there.
   const closeAt = useMemo(() => {
@@ -219,7 +220,7 @@ function Round({ l, refs, mint }: { l: stook.LadderAccount; refs: stook.LadderRe
           </fieldset>}
           <div id="ticket" className="tw-ticketbox">
             <Ticket refs={refs} ladder={shown} shape={shape} selected={sel} onSelect={(r) => pick(r.pubkey.toBase58())} onDeselect={() => { setSelected(null); desk.load(null); }}
-              order={order} name={name} side={side} setSide={setSide} exact={grid && tradeable ? <ExactPrices desk={desk} grid={grid} all={all} setAll={setAll} /> : undefined}
+              order={order} name={name} slipName={slipName} side={side} setSide={setSide} exact={grid && tradeable ? <ExactPrices desk={desk} grid={grid} all={all} setAll={setAll} /> : undefined}
               symbol={feed.symbol} coinSymbol={coin?.symbol} dp={feed.dp} quoteSymbol={quoteSymbol} tradeable={tradeable} final={final} positions={mine} tranches={tranches.data ?? []} transferFee={mint?.report.transferFee} now={now} usd={usd} />
           </div>
         </div>

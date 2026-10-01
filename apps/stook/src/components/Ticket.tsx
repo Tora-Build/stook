@@ -41,6 +41,7 @@ import { useMint, useSend } from "../hooks/useChain";
 import type { CallOrder } from "../hooks/useCallOrder";
 import { LpPanel } from "./LpPanel";
 import { Book } from "./Book";
+import { Rack } from "./Rack";
 import { PaperFold } from "./PaperFold";
 import { Notice } from "./Notice";
 import { Slider } from "./Slider";
@@ -59,6 +60,8 @@ interface Props {
   exact?: ReactNode;
   /** A call by name, in the tower's words. */
   name: (s: stook.Shape) => string;
+  /** The same, short, for a slip in the rack. */
+  slipName?: (s: stook.Shape) => string;
   /** On a held call: Add more or Sell. Kept by the page, so the phone's call bar follows it. */
   side: "buy" | "sell"; setSide: (s: "buy" | "sell") => void;
   symbol: string; dp: number; quoteSymbol: string;
@@ -76,15 +79,17 @@ export function Ticket(p: Props) {
   const [tab, setTab] = useState<"trade" | "house">("trade");
   return (
     <section className="panel ticket">
-      {/* Folder tabs on the ticket: the side you are on joins the page. */}
-      <div className="folder-tabs" role="tablist">
-        <button role="tab" aria-selected={tab === "trade"} className={`ft-call ${tab === "trade" ? "on" : ""}`} onClick={() => setTab("trade")} title="Pick the close">
+      {/* Two enamel signs on the door: the side you are on is lit. */}
+      <div className="dsigns" role="tablist" aria-label="Call or house">
+        <button role="tab" aria-selected={tab === "trade"} className={`dsign ds-call${tab === "trade" ? " on" : ""}`} onClick={() => setTab("trade")} title="Pick the close">
+          <i className="screw l" aria-hidden="true" /><i className="screw r" aria-hidden="true" />
           <svg viewBox="0 0 10 8" width="20" height="16" shapeRendering="crispEdges" aria-hidden="true"><rect x="0" y="6" width="2" height="2" fill="currentColor" /><rect x="3" y="3" width="2" height="5" fill="currentColor" /><rect x="6" y="0" width="2" height="8" fill="currentColor" /><rect x="9" y="4" width="1" height="4" fill="currentColor" /></svg>
-          Call
+          <span>Call</span>
         </button>
-        <button role="tab" aria-selected={tab === "house"} className={`ft-house ${tab === "house" ? "on" : ""}`} onClick={() => setTab("house")} data-tour="house" title="Fund the pool">
-          <svg viewBox="0 0 10 8" width="20" height="16" shapeRendering="crispEdges" aria-hidden="true"><rect x="1" y="4" width="8" height="4" fill="currentColor" /><rect x="0" y="3" width="10" height="1" fill="currentColor" /><rect x="2" y="0" width="2" height="3" fill="currentColor" /><rect x="6" y="1" width="2" height="2" fill="currentColor" /><rect x="4" y="5" width="2" height="2" fill="var(--ft-bg)" /></svg>
-          House
+        <button role="tab" aria-selected={tab === "house"} className={`dsign ds-house${tab === "house" ? " on" : ""}`} onClick={() => setTab("house")} data-tour="house" title="Fund the pool">
+          <i className="screw l" aria-hidden="true" /><i className="screw r" aria-hidden="true" />
+          <svg viewBox="0 0 10 8" width="20" height="16" shapeRendering="crispEdges" aria-hidden="true"><rect x="1" y="4" width="8" height="4" fill="currentColor" /><rect x="0" y="3" width="10" height="1" fill="currentColor" /><rect x="2" y="0" width="2" height="3" fill="currentColor" /><rect x="6" y="1" width="2" height="2" fill="currentColor" /><rect x="4" y="5" width="2" height="2" fill="var(--ds-bg)" /></svg>
+          <span>House</span>
         </button>
       </div>
       {tab === "house" ? <LpPanel refs={p.refs} ladder={p.ladder} quoteSymbol={p.quoteSymbol} now={p.now} transferFee={p.transferFee} usd={p.usd} bare /> : p.final ? <Collect {...p} /> : (
@@ -97,18 +102,31 @@ export function Ticket(p: Props) {
   );
 }
 
-// ── your calls in this round, as a book: pick one to add to it or sell it ────
+// ── your calls in this round, as a rack of slips: pick one to add to it or sell it ──
 function Mine(p: Props) {
   const dec = p.ladder.decimals;
-  const name = p.name;
   const paid = p.positions.reduce((a, r) => a + r.position.netPaid, 0n);
-  const money = (v: bigint) => <Amount units={v} decimals={dec} symbol={p.quoteSymbol} rate={p.usd} />;
+  const n = p.positions.length;
+  // What a call pays at best: its shares on its best floor, as it lands in the wallet.
+  const best = (r: PositionRow) => stook.netOf(r.position.shares * BigInt(r.position.shape.h), p.transferFee);
   return (
-    <Book tour="book" kind="call" title="Your calls" count={p.positions.length} open={!!p.selected} onFold={p.onDeselect}
-      total={<>{coinText(paid, dec, p.quoteSymbol)} in{p.usd !== null && <span className="approx">{approxUsd(paid, dec, p.usd)}</span>}</>}
-      rows={p.positions.map((r) => { const on = !!p.selected?.pubkey.equals(r.pubkey); return {
-        key: r.pubkey.toBase58(), on, label: name(r.position.shape), sub: on ? "open below: add or sell" : undefined,
-        amount: money(r.position.netPaid), onClick: () => (on ? p.onDeselect() : p.onSelect(r)) }; })} />
+    <Rack tour="book" kind="call" title="Your calls" label="Your calls in this round"
+      summary={<>{n} call{n === 1 ? "" : "s"} · {coinText(paid, dec, p.quoteSymbol)} in{p.usd !== null && <span className="approx">{approxUsd(paid, dec, p.usd)}</span>}</>}
+      slips={p.positions.map((r) => { const on = !!p.selected?.pubkey.equals(r.pubkey); return {
+        key: r.pubkey.toBase58(), on, title: (p.slipName ?? p.name)(r.position.shape),
+        lines: [{ k: "paid", v: fmtCompact(r.position.netPaid, dec) }, { k: "pays up to", v: fmtCompact(best(r), dec), tone: "up" as const }],
+        onClick: () => (on ? p.onDeselect() : p.onSelect(r)),
+        actions: <SideStamps side={p.side} setSide={p.setSide} /> }; })} />
+  );
+}
+
+/** Add more or Sell, as two rubber stamps on the picked slip. */
+function SideStamps({ side, setSide }: { side: "buy" | "sell"; setSide: (s: "buy" | "sell") => void }) {
+  return (
+    <div className="held-side rk-stamps" role="group" aria-label="Add more or sell">
+      <button className="rk-stamp st-add" aria-pressed={side === "buy"} onClick={() => setSide("buy")}>Add more</button>
+      <button className="rk-stamp st-sell" aria-pressed={side === "sell"} onClick={() => setSide("sell")}>Sell</button>
+    </div>
   );
 }
 
@@ -119,14 +137,8 @@ const closedLabel = (l: Props["ladder"], now: number) =>
   l.status === "open" ? `Closed · bell at ${hm(l.settlesAt)}` : l.status === "seeding" && now < Number(l.opensAt) ? `Opens ${hm(l.opensAt)} New York` : "Not trading";
 
 function Held(p: Props & { pos: PositionRow }) {
-  const { side, setSide } = p;
-  const s = p.pos.position.shape;
-  return (
-    <>
-      <div className="seg held-side"><button className={side === "buy" ? "on" : ""} onClick={() => setSide("buy")}>Add more</button><button className={side === "sell" ? "on" : ""} onClick={() => setSide("sell")}>Sell</button></div>
-      {side === "buy" ? <Buy {...p} shape={s} held /> : <Sell {...p} pos={p.pos} />}
-    </>
-  );
+  // Add more or Sell is picked on the slip itself, in the rack above.
+  return p.side === "buy" ? <Buy {...p} shape={p.pos.position.shape} held /> : <Sell {...p} pos={p.pos} />;
 }
 
 // ── buy a line: a new one, or (`held`) more of one you already hold ──────────

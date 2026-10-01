@@ -6,36 +6,63 @@ import { aboutMultiple, clamp, fx, MAX_S, nearAt, nudgeCall, SURE, type Grid, ty
 import type { Desk } from "../hooks/useDesk";
 import type { CallOrder } from "../hooks/useCallOrder";
 
-/** Near a price or between two, then how sure: the call's shape, in plain words. */
+/** Gold coins in stacks, the tower's own coins: a pyramid for "near a price"
+ *  (most on the middle floor), a flat row for "between two prices". */
+export function KindIcon({ kind, scale = 2 }: { kind: "near" | "between"; scale?: number }) {
+  const heights = kind === "near" ? [1, 2, 4, 2, 1] : [2, 2, 2, 2, 2];
+  const rects: ReactNode[] = [];
+  heights.forEach((n, i) => {
+    const x = i * 5;
+    for (let k = 0; k < n; k++) {
+      const y = 9 - 2 * (k + 1);
+      rects.push(<rect key={`${i}b${k}`} x={x} y={y} width="4" height="1" fill="#f0a83a" />, <rect key={`${i}e${k}`} x={x} y={y + 1} width="4" height="1" fill="#8a5a12" />);
+    }
+    rects.push(<rect key={`${i}h`} x={x + 1} y={9 - 2 * n - 1} width="2" height="1" fill="#ffe28a" />);
+  });
+  return <svg className="kind-ico" width={24 * scale} height={10 * scale} viewBox="0 0 24 10" shapeRendering="crispEdges" aria-hidden="true">{rects}</svg>;
+}
+
+/** Brass screw heads for a plate's corners. */
+const Screws = () => <>{["tl", "tr", "bl", "br"].map((k) => <i key={k} className={`screw ${k}`} aria-hidden="true" />)}</>;
+
+const sureLabel = (name: string, s: number, mult?: string) => `${name}: pays over ${s} floor${s > 1 ? "s" : ""} each side${mult ? `, about ${mult} your spend` : ""}`;
+
+/** Near a price or between two, then how sure: the call's shape, in plain
+ *  words, on the brass panel of an old elevator. */
 export function CallKind(p: { desk: Desk; grid: Grid; curve: stook.Curve; feeBps: number; at: number; coarse: boolean; onSure: () => void }) {
   const { desk, grid: g } = p;
-  const verb = p.coarse ? "Tap" : "Click";
   const L = desk.call?.kind === "near" ? desk.call.c : p.at;
   const on = desk.call?.kind === "near" ? desk.call.s : desk.lastS;
   return (
     <section className="tw-ctl" aria-label="Kind of call">
-      <div className="tw-seg" role="group" aria-label="Kind of call">
-        <button aria-pressed={desk.kind === "near"} onClick={() => desk.switchKind("near")}>
-          <svg width="22" height="16" viewBox="0 0 22 16" shapeRendering="crispEdges" aria-hidden="true"><rect x="9" y="1" width="4" height="15" fill="currentColor" /><rect x="5" y="6" width="4" height="10" fill="currentColor" opacity=".7" /><rect x="13" y="6" width="4" height="10" fill="currentColor" opacity=".7" /><rect x="1" y="11" width="4" height="5" fill="currentColor" opacity=".45" /><rect x="17" y="11" width="4" height="5" fill="currentColor" opacity=".45" /></svg>
-          <span className="t">Near a price</span>
-        </button>
-        <button aria-pressed={desk.kind === "between"} onClick={() => desk.switchKind("between")}>
-          <svg width="22" height="16" viewBox="0 0 22 16" shapeRendering="crispEdges" aria-hidden="true"><rect x="1" y="5" width="20" height="11" fill="currentColor" /></svg>
-          <span className="t">Between two prices</span>
-        </button>
+      <div className="brass switch-plate" role="group" aria-label="Kind of call">
+        <Screws />
+        {(["near", "between"] as const).map((k) => (
+          <button key={k} className="sw-side" aria-pressed={desk.kind === k} onClick={() => desk.switchKind(k)}>
+            <span className="sw-lamp" aria-hidden="true" />
+            <KindIcon kind={k} />
+            <span className="t">{k === "near" ? "Near a price" : "Between two prices"}</span>
+          </button>
+        ))}
       </div>
-      <div className="tw-sure" data-coach="sure">
-        {desk.kind === "near" ? <>
-          <span className="tw-lbl">HOW SURE?</span>
-          <div className="row" role="group" aria-label="How sure are you">
-            {SURE.map(([name, s]) => (
-              <button key={s} className={`tw-chip${on === s ? " on" : ""}`} aria-pressed={on === s} title={`Pays over ${s} floor${s > 1 ? "s" : ""} each side, about ${fx(aboutMultiple(p.curve, nearAt(g, L, s), p.feeBps))} your spend`}
-                onClick={() => { desk.setSure(s, p.at); p.onSure(); }}>
-                {name}<span className="m">±{s} · ≈{fx(aboutMultiple(p.curve, nearAt(g, L, s), p.feeBps))}</span>
-              </button>
-            ))}
+      <div className="brass floor-plate" data-coach="sure">
+        <Screws />
+        <span className="plate-lbl">HOW SURE?</span>
+        {desk.kind === "near" ? (
+          <div className="floors" role="group" aria-label="How sure are you">
+            {SURE.map(([name, s]) => {
+              const mult = fx(aboutMultiple(p.curve, nearAt(g, L, s), p.feeBps));
+              return (
+                <button key={s} className="floor-btn" aria-pressed={on === s} aria-label={sureLabel(name, s, mult)} title={sureLabel(name, s, mult)}
+                  onClick={() => { desk.setSure(s, p.at); p.onSure(); }}>
+                  <span className="bezel" aria-hidden="true"><span className="lens">±{s}</span></span>
+                  <span className="fl-name">{name}</span>
+                  <span className="fl-mult mono">≈{mult}</span>
+                </button>
+              );
+            })}
           </div>
-        </> : <p className="tw-hint2">{verb} one floor, then another. Everything between pays the same. Fewer floors pays more.</p>}
+        ) : <p className="plate-hint">{p.coarse ? "Tap two floors." : "Click one floor, then another."} <span>Everything between pays the same. Fewer floors pays more.</span></p>}
       </div>
     </section>
   );
@@ -47,13 +74,24 @@ export function CallKindBar(p: { desk: Desk; grid: Grid; at: number; onSure: () 
   const on = desk.call?.kind === "near" ? desk.call.s : desk.lastS;
   return (
     <div className="tw-kbar">
-      <div className="seg" role="group" aria-label="Kind of call">
-        <button aria-pressed={desk.kind === "near"} onClick={() => desk.switchKind("near")}>Near</button>
-        <button aria-pressed={desk.kind === "between"} onClick={() => desk.switchKind("between")}>Between</button>
+      <div className="brass switch-plate sw-mini" role="group" aria-label="Kind of call">
+        {(["near", "between"] as const).map((k) => (
+          <button key={k} className="sw-side" aria-pressed={desk.kind === k} aria-label={k === "near" ? "Near a price" : "Between two prices"} onClick={() => desk.switchKind(k)}>
+            <KindIcon kind={k} scale={1} />
+            <span className="t">{k === "near" ? "Near" : "Between"}</span>
+          </button>
+        ))}
       </div>
       {desk.kind === "near"
-        ? <div className="chips" role="group" aria-label="How sure are you" data-coach="sure-m">{SURE.map(([name, s]) => <button key={s} aria-pressed={on === s} title={`Pays over ${s} floor${s > 1 ? "s" : ""} each side`} onClick={() => { desk.setSure(s, p.at); p.onSure(); }}>{name}</button>)}</div>
-        : <span className="hint">Tap two floors. Everything between pays the same.</span>}
+        ? <div className="brass floor-plate fp-mini" role="group" aria-label="How sure are you" data-coach="sure-m">
+            {SURE.map(([name, s]) => (
+              <button key={s} className="floor-btn" aria-pressed={on === s} aria-label={sureLabel(name, s)} onClick={() => { desk.setSure(s, p.at); p.onSure(); }}>
+                <span className="bezel" aria-hidden="true"><span className="lens">±{s}</span></span>
+                <span className="fl-name">{name}</span>
+              </button>
+            ))}
+          </div>
+        : <p className="brass floor-plate fp-mini plate-hint">Tap two floors. <span>Everything between pays the same.</span></p>}
     </div>
   );
 }

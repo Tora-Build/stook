@@ -107,6 +107,14 @@ export function callName(g: Grid, s: stook.Shape): string {
   return w[0]!.toUpperCase() + w.slice(1);
 }
 
+/** A held call by name, short, for the rack's slips: "Near 65,000 ±3", "Between 64,321 and 65,457", "Above 67,080". */
+export function callShort(g: Grid, s: stook.Shape): string {
+  const c = fromShape(s);
+  if (c.kind !== "near") return callName(g, s);
+  const at = c.c >= LAST ? `above ${g.fmt(g.edge(LAST))}` : c.c <= 0 ? `below ${g.fmt(g.edge(1))}` : g.fmt(g.edge(c.c));
+  return `Near ${at} ±${c.s}`;
+}
+
 /** The crowd's chance for a call: every floor it pays on (between), or its own floor (near). */
 export const callChance = (g: Grid, c: Call) => (c.kind === "between" ? g.probs.slice(c.lo, c.hi + 1).reduce((a, b) => a + b, 0) : g.probs[clamp(c.c, 0, LAST)]!);
 
