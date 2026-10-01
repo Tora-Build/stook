@@ -7,8 +7,9 @@ import { C, MONO, PX, Rise, SANS, Shout, useLay } from "../Ad";
 import { Pixel } from "../pixel";
 
 const NF = 34, START = 3, TARGET = 20;
-const price = (i: number) => 83159 + (i - TARGET) * 403;
-const fmt = (v: number) => Math.round(v).toLocaleString("en-US");
+// S&P 500 floors, as on the tower beat: the called floor 770.43, each floor ~0.5% (src/data/spx.json's level).
+const price = (i: number) => 770.43 * Math.pow(1.005, i - TARGET);
+const fmt = (v: number) => v.toFixed(2);
 const GOLD = ["...aaa...", ".abbbba..", "abcbbbba.", "abcbbbbba", "abbbbbbba", "abbbbbbba", ".abbbbba.", "..aaaaa.."];
 const GOLDPAL = { a: "#8a5a12", b: "#f0a83a", c: "#ffe28a" };
 
