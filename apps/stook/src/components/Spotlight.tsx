@@ -132,7 +132,7 @@ function Spotlight(p: { find: () => Found | null; stepKey: string; label: string
 export type WalletState = "none" | "empty" | "ready";
 export const GUIDE_STEPS = 4;
 
-/** The four steps. 1 and 3 move on when the player does the thing; 2 has Next; 4 follows the wallet. */
+/** The four steps. 1 and 3 also move on when the player does the thing; every step has Next; 4 follows the wallet. */
 export function TowerGuide(p: { step: number; go: (n: number) => void; bell: string; narrow: boolean; floorBin: number | null; wallet: WalletState }) {
   if (!p.step) return null;
   const done = () => p.go(0);
@@ -142,7 +142,7 @@ export function TowerGuide(p: { step: number; go: (n: number) => void; bell: str
   if (p.step === 1) {
     find = () => one(".tw-sc");
     text = `Each floor is where the price could stop at ${p.bell}. Tap one.`;
-    foot = skip;
+    foot = <><button className="sl-go" onClick={() => p.go(2)}>Next</button>{skip}</>;
   } else if (p.step === 2) {
     find = () => {
       const sc = document.querySelector(".tw-sc"); if (!sc) return null;
@@ -160,17 +160,17 @@ export function TowerGuide(p: { step: number; go: (n: number) => void; bell: str
       return one('[data-coach="sure"]');
     };
     text = "Sure pays more, but has to land closer. Try one.";
-    foot = skip;
+    foot = <><button className="sl-go" onClick={() => p.go(4)}>Next</button>{skip}</>;
   } else {
     key = `4${p.wallet}`;
     if (p.wallet === "none") {
       find = () => one(".top .wallet-adapter-button");
       text = "Connect a wallet, then grab free test coins.";
-      foot = <>{skip}{how}</>;
+      foot = <><button className="sl-go" onClick={done}>Got it</button>{how}</>;
     } else if (p.wallet === "empty") {
       find = () => one(".top .faucet-btn");
       text = "Grab free test coins.";
-      foot = <>{skip}{how}</>;
+      foot = <><button className="sl-go" onClick={done}>Got it</button>{how}</>;
     } else {
       find = () => one(p.narrow ? '[data-coach="place-m"]' : '[data-coach="place"]');
       text = `Place your call. The first price at ${p.bell} settles it.`;
