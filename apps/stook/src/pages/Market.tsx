@@ -7,7 +7,9 @@ import { stook } from "@sooth/sdk-solana";
 import { rangeName, SideSigns, Ticket, type SideTab } from "../components/Ticket";
 import { Address } from "../components/Address";
 import { Tower, type Phase } from "../components/Tower";
-import { CallBar, CallKind, CallKindBar, Coach, coachDone, ExactPrices, markCoachDone } from "../components/TowerDesk";
+import { CallBar, CallKind, CallKindBar, ExactPrices } from "../components/TowerDesk";
+import { AfterBell, guideDone, markGuideDone, TowerGuide, type WalletState } from "../components/Spotlight";
+import { FAUCET_AUTHORITY_BYTES } from "../lib/config";
 import { approxUsd, coinText, useUsdPerCoin } from "../lib/usd";
 import { useLadder, useLivePrice, useMint, usePositions, useRefs, useSend, useSeries, useTranches } from "../hooks/useChain";
 import { useNow } from "../hooks/useNow";
@@ -137,12 +139,17 @@ function Round({ l, refs, mint }: { l: stook.LadderAccount; refs: stook.LadderRe
     desk.load(nearAt(grid, grid.binOf(livePrice), 3));
   }, [tradeable, grid, livePrice]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // ── the coach: three steps, once ──
+  // ── the guide: four short steps, once, while trading is open ──
   const [coach, setCoach] = useState(0);
   const coached = useRef(false);
-  useEffect(() => { if (!coached.current && tradeable && grid) { coached.current = true; if (!coachDone()) setCoach(1); } }, [tradeable, !!grid]); // eslint-disable-line react-hooks/exhaustive-deps
-  const goCoach = (n: number) => { setCoach(n); if (!n) markCoachDone(); };
+  useEffect(() => { if (!coached.current && tradeable && grid) { coached.current = true; if (!guideDone()) setCoach(1); } }, [tradeable, !!grid]); // eslint-disable-line react-hooks/exhaustive-deps
+  const goCoach = (n: number) => { setCoach(n); if (!n) markGuideDone(); };
   useEffect(() => { if (order.send.isSuccess && coach) goCoach(0); }, [order.send.isSuccess]); // eslint-disable-line react-hooks/exhaustive-deps
+  // How sure is only for a call near a price: a range has nothing to pick there.
+  useEffect(() => { if (coach === 3 && desk.kind === "between") goCoach(4); }, [coach, desk.kind]); // eslint-disable-line react-hooks/exhaustive-deps
+  const bal = order.balance.data;
+  const walletState: WalletState = !publicKey ? "none" : FAUCET_AUTHORITY_BYTES && bal !== undefined && (bal === 0n || order.short) ? "empty" : "ready";
+  const heldAny = (positions.data ?? []).some((r) => r.position.shares > 0n);
   const narrow = useNarrow();
   // The tower's clock moves in steps; the bell counts down on its own.
   const towerNow = now - (now % 15);
@@ -221,7 +228,7 @@ function Round({ l, refs, mint }: { l: stook.LadderAccount; refs: stook.LadderRe
           <SideSigns tab={tab} setTab={setTab} />
           {!final && grid && tab === "trade" && <fieldset className="tw-ctlset" disabled={!tradeable}>
             <CallKind desk={desk} grid={grid} curve={shown.curve} feeBps={order.feeBps} at={livePrice !== null ? grid.binOf(livePrice) : 32} coarse={coarse || narrow}
-              onSure={() => { if (coach === 2) goCoach(3); if (sel) setSelected(null); }} />
+              onSure={() => { if (coach === 3) goCoach(4); if (sel) setSelected(null); }} />
           </fieldset>}
           <div id="ticket" className="tw-ticketbox">
             <Ticket refs={refs} ladder={shown} shape={shape} selected={sel} onSelect={(r) => pick(r.pubkey.toBase58())} onDeselect={() => { setSelected(null); desk.load(null); }}
@@ -230,11 +237,13 @@ function Round({ l, refs, mint }: { l: stook.LadderAccount; refs: stook.LadderRe
           </div>
         </div>
       </div>
-      <Coach step={coach} kind={desk.kind} narrow={narrow} bell={hm(l.settlesAt)} go={goCoach} />
+      <TowerGuide step={tradeable && grid ? coach : 0} go={goCoach} bell={hm(l.settlesAt)} narrow={narrow} wallet={walletState}
+        floorBin={desk.call?.kind === "near" ? desk.call.c : null} />
+      {l.status === "settled" && publicKey && heldAny && grid && <AfterBell key={refs.ladder.toBase58()} id={refs.ladder.toBase58()} landed={won > 0n} onCollect={toTicket} />}
       {step === "void" && publicKey && <p className="hint"><button className="link" onClick={() => voidIt.mutate([stook.voidLadderIx(refs, publicKey)])} disabled={voidIt.isPending}>This round cannot finish. Void it: deposits come back first, open calls share the rest</button></p>}
       {/* On Sell the ticket's own button is the action; the bar never offers a buy beside it. */}
       {!final && grid && tab === "trade" && !(sel && side === "sell") && <CallBar order={order} symbol={quoteSymbol} money={money} state={tradeable ? "open" : "closed"} closedText={phase === "late" ? "Not opening. Deposits come back." : l.status === "seeding" ? `Opens ${hm(l.opensAt)} New York.` : `Closed. Bell at ${hm(l.settlesAt)}.`} pending={!!desk.pending} hasCall={!!desk.call} held={!!sel}
-        controls={narrow ? <CallKindBar desk={desk} grid={grid} at={livePrice !== null ? grid.binOf(livePrice) : 32} onSure={() => { if (coach === 2) goCoach(3); if (sel) setSelected(null); }} /> : undefined} />}
+        controls={narrow ? <CallKindBar desk={desk} grid={grid} at={livePrice !== null ? grid.binOf(livePrice) : 32} onSure={() => { if (coach === 3) goCoach(4); if (sel) setSelected(null); }} /> : undefined} />}
     </div>
   );
 }

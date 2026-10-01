@@ -338,7 +338,8 @@ function TowerView(p: Props) {
     const picked = () => cur.current.onPicked();
     if (desk.kind === "near") {
       if (R.g) { const roof = R.g === "roof"; desk.set(between(R.a, R.b), { undoable: true, msg: `The ${roof ? "rooftop" : "basement"} is a between call: same pay on every price ${roof ? "above" : "below"} ${g.fmt(g.edge(roof ? R.a : R.b + 1))}.` }); picked(); return; }
-      if (desk.call?.kind === "near" && desk.call.c === R.a && !desk.pending) { desk.setMsg(""); return; }
+      // The floor already called: nothing changes, but it still counts as a pick (the guide waits on one).
+      if (desk.call?.kind === "near" && desk.call.c === R.a && !desk.pending) { desk.setMsg(""); picked(); return; }
       desk.set(nearAt(g, R.a, desk.lastS), { undoable: true }); picked(); return;
     }
     if (desk.pending) { const q = desk.pending; desk.set(between(Math.min(q.a, R.a), Math.max(q.b, R.b)), { msg: q.a === R.a ? "One floor. Tap another floor to widen it." : "" }); picked(); return; }
@@ -613,7 +614,7 @@ function TowerView(p: Props) {
         <div className="tw-txt"><div className="tw-say">{say}</div>{aim && <div className="tw-aim">{aim}</div>}</div>
         {xBtn}
       </div>}
-      <div ref={wrap} className={cls} style={vars} data-coach="tower">
+      <div ref={wrap} className={cls} style={vars}>
         {!p.demo && <div className="tw-roof">
           <div className="tw-deck">
             <Billboard sign={p.sign} />
@@ -702,7 +703,7 @@ function Billboard({ sign }: { sign: RoofSign }) {
           {sign.logo && <span className="logo" aria-hidden="true"><img src={sign.logo} alt="" /></span>}
           <span className="sym">{sign.symbol}</span>
           <span className="nm">{sign.name}</span>
-          {sign.onHelp && <button className="tw-bill-help" onClick={sign.onHelp} aria-label="How it works, show the three steps again" title="How it works">?</button>}
+          {sign.onHelp && <button className="tw-bill-help" onClick={sign.onHelp} aria-label="How it works, show the guide again" title="How it works">?</button>}
         </div>
         <div className="l2">{sign.coin && <img src={sign.coin.logo} alt="" />}{sign.paidIn}</div>
         <div className="l3">{sign.date} · New York</div>

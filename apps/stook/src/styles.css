@@ -1160,17 +1160,28 @@ a.tour-btn { text-decoration: none; }
 .tw-ctlset { border: 0; padding: 0; margin: 0 0 22px; min-width: 0; }
 .tw-ctlset:disabled { opacity: .5; }
 .tw-lbl { display: block; font-family: var(--px); font-size: 9px; color: var(--cream); letter-spacing: .04em; line-height: 1.5; margin-bottom: 10px; }
-.tw-box button:focus-visible, .tw-ctl button:focus-visible, .tw-coach button:focus-visible, .tw-exact button:focus-visible, .tw-exact input:focus-visible, .tw-mbar button:focus-visible, .tw-mbar select:focus-visible { outline: 3px solid var(--taxi); outline-offset: 2px; }
+.tw-box button:focus-visible, .tw-ctl button:focus-visible, .tw-exact button:focus-visible, .tw-exact input:focus-visible, .tw-mbar button:focus-visible, .tw-mbar select:focus-visible { outline: 3px solid var(--taxi); outline-offset: 2px; }
 
-/* the coach: three steps on a first visit */
-.tw-coach { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 14px; background: #f4e9c8; color: #0b1120; padding: 10px 12px; margin-bottom: 14px; box-shadow: 4px 4px 0 var(--taxi-2); }
-.tw-coach-float { position: fixed; z-index: 40; left: 50%; transform: translateX(-50%); bottom: calc(var(--tw-mbar-h, 0px) + 12px); width: min(620px, calc(100vw - 24px)); margin: 0; border: 3px solid #0b1120; }
-.tw-coach .n { font-family: var(--px); font-size: 9px; background: #0b1120; color: var(--taxi-ink, var(--taxi)); padding: 6px 7px; line-height: 1; }
-.tw-coach p { margin: 0; flex: 1 1 220px; font-size: 16px; font-weight: 600; line-height: 1.4; }
-.tw-coach button { min-height: 40px; padding: 0 12px; border: 2px solid #0b1120; background: var(--taxi); font-family: var(--px); font-size: 9px; color: #0b1120; cursor: pointer; }
-.tw-coach button.sk { background: transparent; }
-.tw-hl { outline: 3px dashed var(--taxi) !important; outline-offset: 5px; animation: tw-hl 1.2s steps(2) infinite; }
-@keyframes tw-hl { 50% { outline-color: var(--cream); } }
+/* the guide: the page dimmed around one thing, a short card beside it */
+.sl-dim { position: fixed; z-index: 60; background: rgba(4, 8, 18, .72); }
+.sl-ring { position: fixed; z-index: 61; pointer-events: none; box-shadow: 0 0 0 3px var(--taxi), 0 0 0 6px #0b1120; animation: sl-ring 1.2s steps(2) infinite; }
+@keyframes sl-ring { 50% { box-shadow: 0 0 0 3px #f4e9c8, 0 0 0 6px #0b1120; } }
+.sl-card { position: fixed; z-index: 62; width: min(330px, calc(100vw - 24px)); display: flex; flex-direction: column; align-items: flex-start; gap: 8px; background: #f4e9c8; color: #0b1120; padding: 10px 12px 12px; border: 3px solid #0b1120; box-shadow: 4px 4px 0 var(--taxi-2); }
+.sl-card:focus { outline: none; } /* focus lands on the card so its words are read; its buttons show their own ring */
+.sl-n { font-family: var(--px); font-size: 8px; background: #0b1120; color: var(--taxi); padding: 5px 6px; line-height: 1; }
+.sl-card p { margin: 0; font-size: 16px; font-weight: 600; line-height: 1.4; }
+.sl-row { display: flex; align-items: center; gap: 10px; width: 100%; }
+.sl-card button { min-height: 40px; padding: 0 12px; border: 2px solid #0b1120; background: var(--taxi); font-family: var(--px); font-size: 9px; color: #0b1120; cursor: pointer; }
+.sl-card button.sl-skip { background: transparent; }
+.sl-card button:focus-visible, .sl-how:focus-visible { outline: 3px solid #0b1120; outline-offset: 2px; }
+.sl-how { margin-left: auto; font-size: 14px; font-weight: 600; color: #0b1120; text-decoration: underline; text-underline-offset: 3px; padding: 8px 0; }
+/* after the bell: a small note on the round's notice board */
+.sl-note { z-index: 44; flex-direction: row; align-items: center; width: min(300px, calc(100vw - 24px)); padding: 8px 8px 8px 12px; border-color: #0b1120; box-shadow: 4px 4px 0 #7d2f22; }
+.sl-note.won { box-shadow: 4px 4px 0 #0e7449; }
+.sl-note p { flex: 1; font-size: 15px; }
+.sl-card .sl-inline { min-height: 0; padding: 0; border: 0; background: none; font: inherit; color: #0e5c3a; text-decoration: underline; text-underline-offset: 3px; }
+.sl-card .sl-x { min-height: 32px; min-width: 32px; padding: 0; background: transparent; font-family: var(--sans); font-size: 14px; }
+
 
 /* the readout: one sentence, pinned above the tower */
 .tw-readout { position: sticky; top: 0; z-index: 15; background: var(--sky); padding: 6px 0 12px; display: flex; gap: 10px; align-items: flex-start; }
@@ -1311,7 +1322,7 @@ a.tour-btn { text-decoration: none; }
 .tw-closedline { font-size: 16px; line-height: 1.5; padding: 14px 2px 0; color: var(--cream); margin: 0; }
 .tw-closedline b { font-family: var(--px); font-size: 9px; color: #f4e9c8; background: #a8412f; border: 2px solid #f4e9c8; padding: 3px 6px; margin-right: 8px; display: inline-block; transform: rotate(-2deg); font-weight: 400; }
 @media (prefers-reduced-motion: reduce) {
-  .tw-fl.hov .tw-w.on, .tw-fl.pend .tw-co, .tw-hl, .tw-sign .plate, .tw-shut .tw-bellg { animation: none !important; }
+  .tw-fl.hov .tw-w.on, .tw-fl.pend .tw-co, .sl-ring, .tw-sign .plate, .tw-shut .tw-bellg { animation: none !important; }
   .tw-sign .plate { transform: rotate(-4deg); }
 }
 
@@ -1742,7 +1753,7 @@ button.slip-main:hover .slip-title { text-decoration: underline dotted; text-und
    stay dark by day (header, footer, the floor, the tower, signs, boards) take
    the bright ones back. Text on an amber fill is ink, not day's cream. */
 :root[data-theme="day"] { --taxi-ink: #805310; --teal-ink: #1a6868; --good-ink: #17663f; --bad-ink: #a8352f; }
-:root[data-theme="day"] :is(.top, .foot, .floor, .tw-wrap, .dsign, .board, .sheet-dark, .tw-ctl, .tw-coach, .tw-coach-float) { --taxi-ink: var(--taxi); --teal-ink: var(--teal); --good-ink: var(--good); --bad-ink: var(--bad); }
+:root[data-theme="day"] :is(.top, .foot, .floor, .tw-wrap, .dsign, .board, .sheet-dark, .tw-ctl) { --taxi-ink: var(--taxi); --teal-ink: var(--teal); --good-ink: var(--good); --bad-ink: var(--bad); }
 :root[data-theme="day"] :is(.wallet-adapter-button, .jup-buy, button.primary, .tour-n.on, .stmt-step-n) { color: #101a2e !important; }
 :root[data-theme="day"] .hero-copy h1 { color: #101a2e; text-shadow: 4px 4px 0 var(--taxi); }
 :root[data-theme="day"] .coin-board h1 .sym, :root[data-theme="day"] .coin-board .coin-in { text-shadow: none; }

@@ -1,5 +1,5 @@
 // Around the tower: the kind of call and how sure, the exact-prices
-// steppers, the three-step coach, and the phone's call bar.
+// steppers, and the phone's call bar.
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import type { stook } from "@sooth/sdk-solana";
 import { aboutMultiple, clamp, fx, MAX_S, nearAt, nudgeCall, SURE, type Grid, type Role } from "../lib/call";
@@ -160,36 +160,6 @@ function PriceField(p: { value: string; label: string; onCommit: (t: string) => 
     onBlur={() => { if (text !== null && text !== p.value) p.onCommit(text); setText(null); }} />;
 }
 
-// ── the coach: three steps on a first visit ─────────────────────────────────
-const COACH_KEY = "stook.tower-coach.v1";
-export const coachDone = () => { try { return localStorage.getItem(COACH_KEY) === "done"; } catch { return true; } };
-export const markCoachDone = () => { try { localStorage.setItem(COACH_KEY, "done"); } catch { /* private mode: it offers again next time */ } };
-
-export function Coach(p: { step: number; kind: "near" | "between"; narrow: boolean; bell: string; go: (n: number) => void }) {
-  const texts = [
-    `Pick the floor where the price stops at ${p.bell}.`,
-    p.kind === "near" ? "Choose how sure you are. Sure pays more." : "Drag the ▲ ▼ tabs. Fewer floors pays more.",
-    `Place your call${p.narrow ? " with the gold button at the bottom." : "."}`,
-  ];
-  const target = p.step === 1 ? "tower" : p.step === 2 ? (p.kind === "near" ? (p.narrow ? "sure-m" : "sure") : "tower") : p.narrow ? "place-m" : "place";
-  useEffect(() => {
-    if (!p.step) return;
-    const el = document.querySelector(`[data-coach="${target}"]`);
-    el?.classList.add("tw-hl");
-    return () => el?.classList.remove("tw-hl");
-  }, [p.step, target]);
-  if (!p.step) return null;
-  return (
-    // Floats over the page (above the phone's call bar), so it never pushes the tower down.
-    <div className="tw-coach tw-coach-float" role="region" aria-label="How to play" aria-live="polite">
-      <span className="n">{p.step} OF 3</span>
-      <p>{texts[p.step - 1]}</p>
-      <button onClick={() => p.go(p.step >= 3 ? 0 : p.step + 1)}>{p.step === 3 ? "Got it" : "Next"}</button>
-      <button className="sk" onClick={() => p.go(0)}>Skip</button>
-    </div>
-  );
-}
-
 // ── phones: the call, what it wins and Place, always on screen ──────────────
 export function CallBar(p: { order: CallOrder; symbol: string; money: (u: bigint) => string; state: "open" | "closed"; closedText: string; pending: boolean; hasCall: boolean; held: boolean; controls?: ReactNode }) {
   const o = p.order;
@@ -202,13 +172,6 @@ export function CallBar(p: { order: CallOrder; symbol: string; money: (u: bigint
     const on = () => { const y = window.scrollY, d = y - last; if (Math.abs(d) < 8) return; setFolded(d > 0 && y > 40); last = y; };
     window.addEventListener("scroll", on, { passive: true });
     return () => window.removeEventListener("scroll", on);
-  }, []);
-  // The coach floats just above the bar, whatever its height.
-  useEffect(() => {
-    const el = bar.current; if (!el) return;
-    const set = () => document.documentElement.style.setProperty("--tw-mbar-h", `${el.offsetHeight}px`);
-    const ro = new ResizeObserver(set); ro.observe(el); set();
-    return () => { ro.disconnect(); document.documentElement.style.removeProperty("--tw-mbar-h"); };
   }, []);
   const opts = o.unit === "usd" ? [1, 5, 10, 25, 50, 100] : [10, 50, 100, 250, 500, 1000];
   const typed = Number(o.text.replace(/,/g, ""));
