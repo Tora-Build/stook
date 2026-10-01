@@ -6,6 +6,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { PublicKey } from "@solana/web3.js";
 import { useConnection, useWallet } from "@solana/wallet-adapter-react";
+import { WalletMultiButton } from "@solana/wallet-adapter-react-ui";
 import { useQueryClient } from "@tanstack/react-query";
 import { stook } from "@sooth/sdk-solana";
 import { useHoldings, useMint, useSend } from "../hooks/useChain";
@@ -157,7 +158,7 @@ export function Yours() {
         </dl>
       </header>
 
-      {!publicKey ? <p className="stmt-empty">Connect a wallet to read its statement.</p>
+      {!publicKey ? <NoAccount />
         : holdings.isLoading ? <p className="stmt-empty">Reading the books…</p>
         : rounds.length === 0 ? <p className="stmt-empty">Nothing on the books yet. <Link to="/#floor">Pick a table ›</Link></p>
         : <>
@@ -362,5 +363,29 @@ function RoundBlock({ h, now, own }: { h: Holding; now: number; own: boolean }) 
       </footer>
       </div>}
     </article>
+  );
+}
+
+/** No wallet yet: what this page is, the button to connect, and a faded
+ *  example of the statement it will show, so the page is not a dead end. */
+function NoAccount() {
+  return (
+    <div className="stmt-none">
+      <div className="stmt-none-cta">
+        <p>Your calls, your house deposits and what is ready to collect, one statement for every table.</p>
+        <WalletMultiButton>Connect a wallet</WalletMultiButton>
+      </div>
+      <div className="stmt-sample" aria-hidden="true">
+        <span className="stmt-sample-tag">EXAMPLE</span>
+        <section className="tote">
+          <div className="tote-cell tote-ready"><div className="tote-k">ready to collect</div><div className="tote-usd mono">$18.35</div><div className="tote-v tote-sub">from 2 finished rounds</div></div>
+          <div className="tote-cell"><div className="tote-k">calls at work</div><div className="tote-usd mono">$5.00</div><div className="tote-v tote-sub">1 call on today's bell</div></div>
+          <div className="tote-cell"><div className="tote-k">in the house</div><div className="tote-usd mono">$40.00</div><div className="tote-v tote-sub">earning 90% of the fees</div></div>
+        </section>
+        <div className="stmt-sample-row"><b>$STOOK · S&amp;P 500</b><span>Near 770.80, ±3 floors</span><span className="mono">pays $9.12</span></div>
+        <div className="stmt-sample-row"><b>$GP · Gold</b><span>Between 380.00 and 384.00</span><span className="mono">collect $9.23</span></div>
+      </div>
+      <p className="stmt-foot">Just looking? <Link to="/#floor">Pick a table ›</Link> or <Link to="/how">take the walk through ›</Link></p>
+    </div>
   );
 }

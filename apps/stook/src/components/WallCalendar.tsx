@@ -90,7 +90,8 @@ export function WallCalendar(p: Props) {
           const body = (
             <>
               <div className="wc-top"><span className="wc-num">{d}</span>{state && !stamped && <span className={`wc-state wc-state-${state === "void soon" ? "void" : state}`}>{state === "locked" ? "closed" : state}</span>}</div>
-              {stamped && <span className={`stamp wc-rubber stamp-${stamped}`}>{stamped}</span>}
+              {/* a day that passed with no round says so quietly: a month of red stamps buried the days you can act on */}
+              {stamped === "passed" ? <div className="wc-info wc-sub wc-none">no round</div> : stamped && <span className={`stamp wc-rubber stamp-${stamped}`}>{stamped}</span>}
               {l && landed && <div className="wc-info"><span className="mono">{fmtPrice(landed[0], l.p0Expo, p.dp)}</span><span className="wc-sub">landed</span></div>}
               {l && !landed && <div className="wc-info"><span className="mono">{coinText(l.depositTotal, l.decimals, p.coinSymbol)}</span><span className="wc-sub">{l.curveSeq.toString()} trades</span></div>}
               {!l && !past && !early && !learning && !paused && <div className="wc-info wc-empty">Fund it</div>}
