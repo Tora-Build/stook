@@ -51,7 +51,7 @@ function Clock(p: { size: number; at: number }) {
   );
 }
 
-export function BellScene(p: { ringAt: number; clockAt?: number; confetti?: boolean; stamp?: boolean }) {
+export function BellScene(p: { ringAt: number; clockAt?: number; confetti?: boolean; stamp?: boolean; caption?: boolean }) {
   const f = useCurrentFrame(), { fps } = useVideoConfig(), { W, H, tall } = useLay();
   const ARRIVE = p.ringAt, ring = f - ARRIVE;
   const swing = ring >= 0 ? Math.sin(ring * 0.5) * 34 * Math.exp(-ring / 26) : Math.sin(f * 0.25) * 4;
@@ -91,11 +91,12 @@ export function BellScene(p: { ringAt: number; clockAt?: number; confetti?: bool
         </svg>
       ))}
       {/* the line, on its own plate so it reads over coins and glow */}
-      <div style={{ position: "absolute", left: 0, right: 0, top: tall ? 560 : 300, display: "flex", justifyContent: "center", opacity: interpolate(f, [bellFrom, bellFrom + 4], [0, 1], { extrapolateLeft: "clamp", extrapolateRight: "clamp" }) }}>
+      {p.caption !== false && <div style={{ position: "absolute", left: 0, right: 0, top: tall ? 560 : 300, display: "flex", justifyContent: "center", opacity: interpolate(f, [bellFrom, bellFrom + 4], [0, 1], { extrapolateLeft: "clamp", extrapolateRight: "clamp" }) }}>
         <div style={{ background: "rgba(11,17,32,.88)", border: `5px solid ${C.cream}`, boxShadow: `10px 10px 0 ${C.brick2}`, padding: tall ? "34px 40px" : "24px 30px", textAlign: "center" }}>
           <Shout size={tall ? 54 : 42}>THE CLOSER<br />YOU ARE,<br /><span style={{ color: C.taxi }}>THE MORE<br />IT PAYS.</span></Shout>
         </div>
-      </div>
+      </div>}
+      {p.caption === false && ring >= 0 && <div style={{ position: "absolute", left: 0, right: 0, top: tall ? 640 : 330, textAlign: "center", transform: `scale(${spring({ frame: ring, fps, config: { damping: 9, stiffness: 240 } })})` }}><Shout size={tall ? 84 : 64}>4:00 PM.<br /><span style={{ color: C.taxi }}>THE BELL.</span></Shout></div>}
       {/* the stamp */}
       {p.stamp !== false && ring >= 6 && <div style={{ position: "absolute", left: tall ? W / 2 - 230 : W - 420, top: tall ? 1150 : 604, transform: `scale(${interpolate(stamp, [0, 1], [2.6, 1])}) rotate(-9deg)`, opacity: Math.min(1, stamp * 2), textAlign: "center", background: C.cream, border: `8px double ${C.brick}`, padding: tall ? "18px 40px 14px" : "12px 30px 10px", boxShadow: `8px 8px 0 rgba(0,0,0,.45)` }}>
         <div style={{ fontFamily: PX, fontSize: tall ? 88 : 66, color: C.brick, lineHeight: 1.1, letterSpacing: "0.06em" }}>PAID</div>

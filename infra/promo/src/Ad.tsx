@@ -10,15 +10,16 @@ import { TowerScene } from "./TowerScene";
 import { BellScene } from "./BellScene";
 import { FULL, LONG, SHORT } from "./config";
 import { HouseScene } from "./hero/House";
+import { PayoutScene } from "./hero/Payout";
 import { COPY } from "./copy";
 import { TV } from "./hero/TV";
 import { Flap } from "./hero/Flap";
 import { FloorScene } from "./hero/Floor";
 import { Elevator } from "./hero/Elevator";
 
-export const PX = loadPixel().fontFamily;
-export const SANS = loadSans("normal", { weights: ["500", "600", "700"] }).fontFamily;
-export const MONO = loadMono("normal", { weights: ["500", "600"] }).fontFamily;
+export const PX = loadPixel("normal", { weights: ["400"], subsets: ["latin"] }).fontFamily;
+export const SANS = loadSans("normal", { weights: ["500", "600", "700"], subsets: ["latin"] }).fontFamily;
+export const MONO = loadMono("normal", { weights: ["500", "600", "700"], subsets: ["latin"] }).fontFamily;
 export const C = { ink: "#0b1120", sky: "#101a2e", sky2: "#182642", taxi: "#f0a83a", cream: "#f4e9c8", cream2: "#c9bfa4", brick: "#a8412f", brick2: "#7d2f22", green: "#0e7449", teal: "#35c4c4", good: "#5ec48f" };
 
 export const useLay = () => { const { width, height } = useVideoConfig(); return { W: width, H: height, tall: height > width }; };
@@ -39,10 +40,20 @@ export function Rise(p: { at: number; children: React.ReactNode; style?: React.C
 
 /** The one plain line a first-time, muted viewer needs: under the headline from the first frame. */
 export function Explainer(p: { top: number; size?: number }) {
-  const { tall } = useLay(), size = p.size ?? (tall ? 50 : 40);
+  const f = useCurrentFrame(), { tall } = useLay(), size = p.size ?? (tall ? 26 : 24);
+  // one line a sentence, as the sign's two rows
+  const lines = COPY.explainer.split(/(?<=\.)\s+/);
+  const bulbs = (n: number, vertical: boolean) => Array.from({ length: n }, (_, i) => { const on = (i + Math.floor(f / 4)) % 3 !== 0; return <div key={i} style={{ width: 12, height: 12, borderRadius: "50%", background: on ? "#ffe28a" : "#6b5220", boxShadow: on ? "0 0 8px #ffd166" : "none", margin: vertical ? "6px 0" : "0 6px" }} />; });
   return (
-    <div style={{ position: "absolute", left: 60, right: 60, top: p.top, display: "flex", justifyContent: "center", zIndex: 20 }}>
-      <div style={{ fontFamily: SANS, fontWeight: 700, fontSize: size, lineHeight: 1.22, color: C.cream, textAlign: "center", background: "rgba(11,17,32,.82)", border: `4px solid ${C.cream}`, boxShadow: `8px 8px 0 ${C.brick2}`, padding: tall ? "20px 30px" : "16px 26px", textShadow: `3px 3px 0 ${C.ink}`, maxWidth: tall ? 900 : 940, textWrap: "balance" } as React.CSSProperties}>{COPY.explainer}</div>
+    <div style={{ position: "absolute", left: 50, right: 50, top: p.top, display: "flex", justifyContent: "center", zIndex: 20 }}>
+      {/* a marquee sign: brass frame with chasing bulbs, green enamel face, pixel letters */}
+      <div style={{ position: "relative", background: "linear-gradient(180deg, #d9b45a, #8a6824)", border: "5px solid #2a1a10", boxShadow: `10px 10px 0 rgba(0,0,0,.5)`, padding: 14 }}>
+        <div style={{ position: "absolute", left: 6, right: 6, top: 0, height: 14, display: "flex", justifyContent: "space-between", alignItems: "center" }}>{bulbs(tall ? 30 : 30, false)}</div>
+        <div style={{ position: "absolute", left: 6, right: 6, bottom: 0, height: 14, display: "flex", justifyContent: "space-between", alignItems: "center" }}>{bulbs(tall ? 30 : 30, false)}</div>
+        <div style={{ background: C.green, border: `4px solid ${C.cream}`, padding: tall ? "18px 22px" : "14px 20px", textAlign: "center", boxShadow: "inset 0 0 0 4px #0b4a30" }}>
+          {lines.map((l, i) => <div key={i} style={{ fontFamily: PX, fontSize: size, lineHeight: 1.6, color: i ? C.taxi : C.cream, textShadow: `3px 3px 0 ${C.ink}`, whiteSpace: "nowrap" }}>{l}</div>)}
+        </div>
+      </div>
     </div>
   );
 }
@@ -67,7 +78,7 @@ function Hook(p: { slamAt?: number }) {
           <Shout size={size} shadow={C.brick2}>{tall ? <>WHERE<br />WILL IT<br />LAND?</> : <>WHERE WILL<br />IT LAND?</>}</Shout>
         </div>
       </AbsoluteFill>
-      <Explainer top={tall ? 760 : 410} />
+      <Explainer top={tall ? 760 : 400} />
     </AbsoluteFill>
   );
 }
@@ -188,7 +199,7 @@ function Pulse(p: { beats: number[]; from: number; children: React.ReactNode }) 
 /** The full-length ad, as long as the track: an intro on a 1970s TV, then a
  *  scene a phrase (4 bars), every cut on a bar line. */
 export function Full(p: AdProps) {
-  const [drop, flap, floor, tower, lift, house, bell, end] = FULL.cuts as [number, number, number, number, number, number, number, number];
+  const [drop, flap, floor, tower, lift, house, bell, pay, end] = FULL.cuts as [number, number, number, number, number, number, number, number, number];
   const bars = [1, 2, 3].map((k) => Math.round(drop * k / 4));
   return (
     <AbsoluteFill style={{ background: C.ink }}>
@@ -200,7 +211,8 @@ export function Full(p: AdProps) {
         <Sequence from={tower} durationInFrames={lift - tower}><TowerScene coinsAt={FULL.coins - tower} winAt={FULL.win - tower} /></Sequence>
         <Sequence from={lift} durationInFrames={house - lift}><Elevator stopAt={FULL.stop - lift} coinsAt={FULL.lift - lift} winAt={FULL.liftWin - lift} /></Sequence>
         <Sequence from={house} durationInFrames={bell - house}><HouseScene pages={FULL.pages.map((x) => x - house)} fundedAt={FULL.funded - house} /></Sequence>
-        <Sequence from={bell} durationInFrames={end - bell}><BellScene ringAt={FULL.bell - bell} clockAt={FULL.four - bell} confetti stamp={false} /></Sequence>
+        <Sequence from={bell} durationInFrames={pay - bell}><BellScene ringAt={FULL.bell - bell} clockAt={FULL.four - bell} confetti stamp={false} caption={false} /></Sequence>
+        <Sequence from={pay} durationInFrames={end - pay}><PayoutScene at={FULL.payout.map((x) => x - pay)} /></Sequence>
         <Sequence from={end} durationInFrames={FULL.total - end}><EndCard /></Sequence>
       </Pulse>
       {FULL.cuts.map((a) => <Cut key={a} at={a} />)}

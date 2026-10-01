@@ -78,6 +78,7 @@ export function Elevator(p: { stopAt: number; coinsAt: number; winAt: number }) 
       {/* the win */}
       {f >= p.winAt && <div style={{ position: "absolute", left: 0, right: 0, top: cy + (tall ? 210 : 150), display: "flex", flexDirection: "column", alignItems: "center", gap: 12, transform: `scale(${win})` }}>
         <div style={{ background: C.cream, color: C.ink, border: `6px solid ${C.ink}`, boxShadow: `8px 8px 0 #b47416`, padding: "10px 26px", fontFamily: PX, fontSize: tall ? 64 : 54 }}>WIN 2.3×</div>
+        <div style={{ fontFamily: PX, fontSize: tall ? 22 : 18, color: C.ink, background: C.taxi, padding: "8px 12px" }}>PAID IN $STOOK</div>
       </div>}
       {/* the line */}
       {f < p.stopAt + 6 && <Rise at={6} style={{ position: "absolute", left: 0, right: 0, bottom: tall ? 170 : 60, textAlign: "center" }}>

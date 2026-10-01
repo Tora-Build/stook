@@ -8,7 +8,6 @@
     "render": "sh render.sh",
     "render:silent": "RENDER=silent sh render.sh",
     "music": "node scripts/chiptune.mjs",
-    "record": "node scripts/record.mjs",
     "check": "sh check.sh",
     "typecheck": "tsc -p tsconfig.json"
   },

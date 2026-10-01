@@ -23,7 +23,7 @@ const edit = (e: { start: number; seconds: number; fadeOut: number }) => {
 
 const F = edit(B.full), L = edit(B.long), S = edit(B.short);
 /** The full-length ad, the track's own length: TV open, the drop, board, floor, tower, elevator, house, bell, end. */
-export const FULL = { ...F, cuts: B.full.cuts.map(F.at), drop: F.at(16), flaps: B.full.flaps.map(F.at), pops: B.full.pops.map(F.at), coins: F.at(B.full.coins), win: F.at(B.full.win), stop: F.at(B.full.stop), lift: F.at(B.full.lift), liftWin: F.at(B.full.liftWin), rewards: F.at(B.full.rewards), pages: B.full.pages.map(F.at), funded: F.at(B.full.funded), four: F.at(B.full.four), bell: F.at(B.full.bell) };
+export const FULL = { ...F, cuts: B.full.cuts.map(F.at), drop: F.at(16), flaps: B.full.flaps.map(F.at), pops: B.full.pops.map(F.at), coins: F.at(B.full.coins), win: F.at(B.full.win), stop: F.at(B.full.stop), lift: F.at(B.full.lift), liftWin: F.at(B.full.liftWin), rewards: F.at(B.full.rewards), pages: B.full.pages.map(F.at), funded: F.at(B.full.funded), four: F.at(B.full.four), bell: F.at(B.full.bell), payout: B.full.payout.map(F.at) };
 /** The 15 s cut: TV open, the drop on the hook, board, the call, the bell, end. */
 export const LONG = { ...L, cuts: B.long.cuts.map(L.at), drop: L.at(16), flaps: B.long.flaps.map(L.at), coins: L.at(B.long.coins), win: L.at(B.long.win), bell: L.at(B.long.bell) };
 /** The 6 s cut: the hook on the drop, the fastest pick, end. */

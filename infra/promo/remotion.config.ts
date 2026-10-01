@@ -9,3 +9,4 @@ Config.setOverwriteOutput(true);
 // If Remotion cannot fetch its own headless Chrome, point it at one already on the machine:
 //   REMOTION_CHROME=/path/to/chrome npx remotion render ...
 if (process.env.REMOTION_CHROME) Config.setBrowserExecutable(process.env.REMOTION_CHROME);
+Config.setDelayRenderTimeoutInMilliseconds(120000);

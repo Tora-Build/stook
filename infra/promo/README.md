@@ -13,14 +13,18 @@ Stook Street's ads for X, made with [Remotion](https://www.remotion.dev)
 Every scene change is on a bar line of the track and the picture bumps a little
 on each beat after the drop. The art is the site's own (`city.js` ported to
 `src/city.ts`; tower, taxi, bell, flag from `Tower.tsx`); the numbers
-(WIN 2.3×, PAID) are demo values; the phone plays real footage of the
-live round page. All on-screen lines are big text, so the ads read muted.
+(WIN 2.3×, PAID) are demo values. The tower is the S&P 500 ($STOOK's Stonk):
+floors are ~0.5% bands around the real last price and the line is the real
+last day of SPYx, baked into `src/data/spx.json` from
+`https://stookstreet.xyz/chart?coin=STOOK`. All on-screen lines are big text,
+so the ads read muted. Only the 68 s cut is rendered by default now
+(`sh render.sh Full FullVertical`); the 15 s and 6 s compositions remain.
 
 ```sh
 npm install                  # standalone: not part of the pnpm workspace
 cp <track>.mp3 public/music.mp3   # not committed (gitignored)
 npx remotion studio          # preview all six
-sh render.sh                 # all six → out/   (sh render.sh Full: one)
+sh render.sh Full FullVertical   # the 68 s cut → out/  (no args: all six)
 sh stills.sh 283 900         # PNG stills (COMPS="Full FullVertical" for others)
 sh check.sh                  # codec, size, length, audio; stills of each MP4
 ```
@@ -55,12 +59,6 @@ so cuts land on that track's phrases, and set each ad's `start` and `fadeOut`.
 Without `public/music.mp3` every render is silent; `--props='{"track":"none"}'`
 forces silence. Optional sound effects play with the music when present:
 `public/sfx/{flap,stop,coins,bell}.(mp3|wav)`.
-
-## Footage
-
-`node scripts/record.mjs` records the live round page on a 390×844 touch screen
-(taps a floor, "Not sure", "Sure") to `footage/raw.webm` and trims
-`--from 5.3 --to 8.8` s into `public/footage/round-phone.mp4` (committed, ~120 KB).
 
 ## Notes
 
