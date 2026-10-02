@@ -12,6 +12,7 @@ import { CallKind } from "../components/TowerDesk";
 import { useDesk } from "../hooks/useDesk";
 import { aboutMultiple, callWords, height, makeGrid, nearAt, toShape, type Grid } from "../lib/call";
 import { Title } from "../components/Title";
+import { WatchButton } from "../components/Watch";
 
 const STOPS = ["The tables", "The tower", "Your call", "The bell", "The house", "Your statement"] as const;
 const KEYS = ["tables", "tower", "line", "bell", "house", "statement"];
@@ -39,6 +40,7 @@ export function How() {
       <Title text="How it works" />
       <span className="sign">A WALK THROUGH THE EXCHANGE</span>
       <h1>How the street works</h1>
+      <p className="how-watch">Rather watch? <WatchButton className="watch-inline" /></p>
 
       <div className="tour-stops">
         {STOPS.map((s, n) => <button key={s} className={`tour-stop ${n === i ? "on" : ""} ${n < i ? "done" : ""}`} onClick={() => go(n)}><span className="tour-n">{n + 1}</span><span className="tour-name">{s}</span></button>)}
