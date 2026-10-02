@@ -5,6 +5,7 @@ import { Skyline } from "../components/Skyline";
 import { Floor } from "../components/Floor";
 import { fmtUsd, useCoinQuotes } from "../lib/usd";
 import { Title } from "../components/Title";
+import { WatchButton } from "../components/Watch";
 
 const STOOK_MINT = COINS.find((c) => c.symbol === "STOOK")?.mint ?? "";
 
@@ -58,7 +59,7 @@ export function Markets() {
             <span className="door-go">Fund a day ›</span>
           </Link>
         </div>
-        <p className="center small"><Link to="/how">Or take the walk through the exchange →</Link></p>
+        <p className="center small"><Link to="/how">Or take the walk through the exchange →</Link><span className="or-watch">or <WatchButton className="watch-link" /></span></p>
       </section>
 
       <section id="stook" className="strip page">
