@@ -5,6 +5,13 @@ import FEEDS from "../apps/stook/src/lib/feeds.json";
 // The feeds the app can show; /pyth answers for these only, so the key it
 // holds cannot be spent on anything else.
 const FEED_IDS = new Set(FEEDS.map((f) => f.id.toLowerCase()));
+// The live price's fallback for the devnet stand-in feeds (/pyth), by Pyth feed id.
+const LIVE_FALLBACK = {
+  e62df6c8b4a85fe1a67db44dc12de5db330f7ac66b72dc658afedf0f4a415b43: "BTC-USD",
+  ff61491a931112ddf1bd8147cd1b641375f79f5825126d665480874634fd0ace: "ETH-USD",
+  ef0d8b6fda2ceba41da15d4095d1da392a0d2f8ed0c6c7bc0f4cfac8c280b56d: "SOL-USD",
+  dcef50dd0a4cd2dcc17e45df1676dcb336a11a61c69df7a0299b0150c672d25c: "DOGE-USD",
+};
 
 // stookstreet.xyz: static assets, plus two small data routes the page and the app
 // read. Market data for display comes from public sources (Yahoo, CoinGecko,
@@ -224,16 +231,29 @@ export default {
     if (url.pathname === "/pyth") {
       const id = (url.searchParams.get("id") ?? "").toLowerCase().replace(/^0x/, "");
       if (!FEED_IDS.has(id)) return new Response(JSON.stringify({ error: "unknown feed" }), { status: 404, headers: { "content-type": "application/json" } });
-      if (!env.PYTH_API_KEY) return new Response(JSON.stringify({ error: "not configured" }), { status: 503, headers: { "content-type": "application/json" } });
       const cache = caches.default, key = new Request(`${url.origin}/pyth?id=${id}`);
       const hit = await cache.match(key); if (hit) return hit;
       let body, status = 200;
       try {
+        if (!env.PYTH_API_KEY) throw new Error("no key");
         const r = await fetch(`https://hermes.pyth.network/v2/updates/price/latest?ids%5B%5D=${id}&parsed=true&encoding=hex`, { headers: { authorization: `Bearer ${env.PYTH_API_KEY}` } });
         const p = (await r.json())?.parsed?.[0]?.price;
         if (!p) throw new Error(`hermes ${r.status}`);
         body = { price: p.price, conf: p.conf, expo: p.expo, publishTime: p.publish_time };
-      } catch (e) { body = { error: "unavailable" }; status = 502; }
+      } catch (e) {
+        // Hermes serves paid keys only (since 2026-10-06). For the live price on
+        // a round page, display only, Coinbase's public ticker for the devnet
+        // stand-ins: within a few hundredths of a percent of Pyth. Settlement
+        // never reads this.
+        const product = LIVE_FALLBACK[id];
+        try {
+          if (!product) throw new Error("no fallback");
+          const t = await (await fetch(`https://api.exchange.coinbase.com/products/${product}/ticker`, { headers: { "user-agent": "stookstreet.xyz" } })).json();
+          const px = Number(t.price), half = (Number(t.ask) - Number(t.bid)) / 2;
+          if (!(px > 0)) throw new Error("coinbase");
+          body = { price: String(Math.round(px * 1e8)), conf: String(Math.max(1, Math.round(Math.abs(half) * 1e8))), expo: -8, publishTime: Math.floor(Date.parse(t.time) / 1000) || Math.floor(Date.now() / 1000), source: "coinbase" };
+        } catch { body = { error: "unavailable" }; status = 502; }
+      }
       const res = new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json", "cache-control": `public, max-age=${status === 200 ? 5 : 10}`, "access-control-allow-origin": "*", "x-content-type-options": "nosniff" } });
       if (status === 200) ctx.waitUntil(cache.put(key, res.clone()));
       return res;
