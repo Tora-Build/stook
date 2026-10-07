@@ -77,7 +77,7 @@ export function How() {
             <p>Trading closes a little before the bell: the <b>lock</b>. Your calls ride to 4 PM New York, when the first <b>Pyth price</b> lands on one floor. Calls that pay there win; the rest win nothing. Nobody picks the result.</p>
             <p>Then <b>collect</b>: the round page and Yours show what you won, one button sends it to your wallet.</p>
             <Details>
-              <p>The price must come within 30 seconds of the close. If it came late or unsure the round is <b>void</b>: deposits come back first and open calls share the rest. With no price at all, a round can be voided a week after the close. Nobody can void a round that could settle.</p>
+              <p>On devnet the round takes the first Pyth price posted on chain after the close, which must come within 30 minutes; on mainnet, the price at the close itself, within 30 seconds. If it came late or unsure the round is <b>void</b>: deposits come back first and open calls share the rest. With no price at all, a round can be voided a week after the close. Nobody can void a round that could settle.</p>
             </Details>
             <p className="try">Ring it.</p>
           </>}

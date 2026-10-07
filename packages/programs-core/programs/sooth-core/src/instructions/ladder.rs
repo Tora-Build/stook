@@ -13,7 +13,7 @@ use anchor_spl::token_interface::{
 use crate::error::SoothCoreError;
 use crate::math::ladder::{apply_trade, band_width, bin_for, liquidity_for_deposit, prior, tranche_pnl, Shape};
 use crate::math::{scalar_for, wad_to_amount_ceil, wad_to_amount_floor};
-use crate::oracle::{check_live_price, check_settlement_instant, read_price_update};
+use crate::oracle::{check_live_price, check_settlement_instant, is_push_feed, read_price_update};
 use crate::state::ladder::*;
 use crate::state::{require_not_paused, ProtocolConfig, Series, PROTOCOL_CONFIG_SEED};
 
@@ -466,6 +466,7 @@ pub fn open_handler(ctx: Context<LadderOpen>) -> Result<()> {
     require!(now >= l.opens_at && now < l.opens_at + OPEN_WINDOW_SECS && now < l.locks_at, SoothCoreError::LadderBadTimes);
 
     let price = read_price_update(&ctx.accounts.price_update.to_account_info())?;
+    let push = is_push_feed(ctx.accounts.price_update.key, &l.feed_id);
     if now < l.opens_at + OPEN_ON_TIME_SECS {
         // On time: the grid centres on THE price at `opens_at`, by the
         // settlement rule: the first update at or after it, within 30
@@ -474,7 +475,7 @@ pub fn open_handler(ctx: Context<LadderOpen>) -> Result<()> {
         // same way. (Not the price at creation: a round that sat in Seeding
         // through a 3% move must not open on a centre the first trader can
         // harvest.)
-        check_settlement_instant(&price, &l.feed_id, ORACLE_MIN_SIGNATURES, l.opens_at, SETTLE_MAX_GAP_SECS, OPEN_CONF_STEP_BPS)?;
+        check_settlement_instant(&price, &l.feed_id, ORACLE_MIN_SIGNATURES, l.opens_at, SETTLE_MAX_GAP_SECS, OPEN_CONF_STEP_BPS, push)?;
 
         // A round funded ahead opens at the previous close, and this update
         // is that close's price: teach it to the series, as `series_observe`
@@ -491,7 +492,7 @@ pub fn open_handler(ctx: Context<LadderOpen>) -> Result<()> {
         // the market has moved into at its old odds. On a live price there is
         // nothing to harvest, and which live update the opener brings moves
         // the centre by no more than the market moved in those seconds.
-        check_live_price(&price, &l.feed_id, ORACLE_MIN_SIGNATURES, now, SETTLE_MAX_GAP_SECS, OPEN_CONF_STEP_BPS)?;
+        check_live_price(&price, &l.feed_id, ORACLE_MIN_SIGNATURES, now, SETTLE_MAX_GAP_SECS, OPEN_CONF_STEP_BPS, push)?;
         l.opens_at = now;
     }
     l.p0 = price.price;
@@ -986,6 +987,7 @@ pub fn settle_handler(ctx: Context<LadderSettle>) -> Result<()> {
         l.settles_at,
         SETTLE_MAX_GAP_SECS,
         l.step_bps,
+        is_push_feed(ctx.accounts.price_update.key, &l.feed_id),
     )?;
     // The grid is a ratio to p0, so both must be on the same scale.
     require!(p.exponent == l.p0_expo, SoothCoreError::OracleExponentChanged);
@@ -1086,7 +1088,7 @@ pub fn void_handler(ctx: Context<LadderVoid>) -> Result<()> {
                 require!(p.verification.meets(ORACLE_MIN_SIGNATURES), SoothCoreError::OracleUnderVerified);
                 // THE update for the close: nothing else proves anything.
                 require!(p.prev_publish_time < l.settles_at && l.settles_at <= p.publish_time, SoothCoreError::OracleNotTheSettlementInstant);
-                let settleable = check_settlement_instant(&p, &l.feed_id, ORACLE_MIN_SIGNATURES, l.settles_at, SETTLE_MAX_GAP_SECS, l.step_bps).is_ok()
+                let settleable = check_settlement_instant(&p, &l.feed_id, ORACLE_MIN_SIGNATURES, l.settles_at, SETTLE_MAX_GAP_SECS, l.step_bps, false).is_ok()
                     && p.exponent == l.p0_expo;
                 require!(!settleable, SoothCoreError::LadderStillSettleable);
                 true

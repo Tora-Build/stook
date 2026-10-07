@@ -8,7 +8,7 @@ use anchor_spl::token_interface::Mint;
 use crate::error::SoothCoreError;
 use crate::math::calendar::DAY;
 use crate::instructions::ladder::ORACLE_MIN_SIGNATURES;
-use crate::oracle::{check_settlement_instant, read_price_update};
+use crate::oracle::{check_settlement_instant, is_push_feed, read_price_update, PUSH_MAX_GAP_SECS};
 use crate::state::ladder::SETTLE_MAX_GAP_SECS;
 use crate::state::series::{CLOCK_NEW_YORK, CLOCK_NEW_YORK_WEEKDAYS, CLOCK_UTC};
 use crate::state::{ProtocolConfig, Series, PROTOCOL_CONFIG_SEED, SERIES_SEED};
@@ -155,9 +155,12 @@ pub fn series_observe_handler(ctx: Context<SeriesObserve>, index: u32) -> Result
     require!(at != s.last_at, SoothCoreError::SeriesAlreadyObserved);
     require!(s.may_observe(index, Clock::get()?.unix_timestamp), SoothCoreError::SeriesOutOfOrder);
     let p = read_price_update(&ctx.accounts.price_update.to_account_info())?;
-    // The one update for this close, however late or unsure.
-    check_settlement_instant(&p, &s.feed_id, ORACLE_MIN_SIGNATURES, at, i64::MAX, u16::MAX)?;
-    let good = p.publish_time - at <= SETTLE_MAX_GAP_SECS && (p.conf as u128).saturating_mul(10_000) <= (p.price as u128).saturating_mul(100);
+    // The one update for this close, however late or unsure. From the push
+    // feed (devnet), the first push price at or after it; good within its gap.
+    let push = is_push_feed(ctx.accounts.price_update.key, &s.feed_id);
+    check_settlement_instant(&p, &s.feed_id, ORACLE_MIN_SIGNATURES, at, i64::MAX, u16::MAX, push)?;
+    let gap = if push { PUSH_MAX_GAP_SECS } else { SETTLE_MAX_GAP_SECS };
+    let good = p.publish_time - at <= gap && (p.conf as u128).saturating_mul(10_000) <= (p.price as u128).saturating_mul(100);
     if good {
         s.observe(p.price, p.exponent, at).map_err(|_| error!(SoothCoreError::MathOverflow))?;
     } else {

@@ -18,6 +18,35 @@ use crate::error::SoothCoreError;
 /// The Pyth receiver program. Same address on mainnet and devnet.
 pub const PYTH_RECEIVER: Pubkey = pubkey!("rec5EKMGg6MxZYaMdyBfgwp4d5rB9T1VQH5pJv5LtFJ");
 
+/// Pyth's push oracle: it keeps one `PriceUpdateV2` per feed (shard 0) at a
+/// fixed address and refreshes it on chain, free to read. Same address on
+/// mainnet and devnet.
+pub const PYTH_PUSH_ORACLE: Pubkey = pubkey!("pythWSnswVUd12oZpeFP8e9CVaEqJg25g1Vtc2biRsT");
+
+/// How late after the instant a push-feed price may be and still settle it.
+///
+/// Since 2026-10-06 Hermes, the only source of THE update for an instant,
+/// serves only paid keys. The push feeds on devnet refresh every 30 s (SOL)
+/// to 5 minutes (BTC, ETH), with longer gaps on quiet feeds, so the instant
+/// is "the first push price at or after it", within half an hour.
+pub const PUSH_MAX_GAP_SECS: i64 = 30 * 60;
+
+/// Whether `key` is Pyth's push-feed account for `feed_id`.
+///
+/// Only that one account may stand in for THE update: the push oracle accepts
+/// only newer verified updates into it, and it holds one price at a time, so
+/// the keeper settles with the first one after the instant. Anyone holding a
+/// paid Hermes key could push a later print before the keeper does; devnet
+/// accepts that. Mainnet never takes this path: there it is THE update or
+/// nothing.
+pub fn is_push_feed(key: &Pubkey, feed_id: &[u8; 32]) -> bool {
+    if cfg!(feature = "mainnet") {
+        return false;
+    }
+    let (pda, _) = Pubkey::find_program_address(&[&0u16.to_le_bytes(), feed_id], &PYTH_PUSH_ORACLE);
+    *key == pda
+}
+
 /// `sha256("account:PriceUpdateV2")[..8]`.
 const DISCRIMINATOR: [u8; 8] = [34, 241, 35, 99, 157, 126, 244, 205];
 
@@ -185,6 +214,11 @@ pub fn read_price_update(account: &AccountInfo) -> Result<OraclePrice> {
 ///
 /// The confidence ceiling is half a bin: wider than that and Pyth itself
 /// cannot say which of two bins the price was in.
+///
+/// `push`: `p` was read from Pyth's push-feed account (`is_push_feed`), which
+/// holds one price at a time. Then the instant is the first push price at or
+/// after `t`, at most `PUSH_MAX_GAP_SECS` late, and `prev_publish_time` (the
+/// Pythnet tick before it) says nothing.
 pub fn check_settlement_instant(
     p: &OraclePrice,
     feed_id: &[u8; 32],
@@ -192,13 +226,16 @@ pub fn check_settlement_instant(
     t: i64,
     max_gap_secs: i64,
     step_bps: u16,
+    push: bool,
 ) -> Result<()> {
     require!(&p.feed_id == feed_id, SoothCoreError::OracleWrongFeed);
     require!(p.verification.meets(min_signatures), SoothCoreError::OracleUnderVerified);
-    require!(
-        p.prev_publish_time < t && t <= p.publish_time && p.publish_time - t <= max_gap_secs,
-        SoothCoreError::OracleNotTheSettlementInstant
-    );
+    let instant = if push {
+        t <= p.publish_time && p.publish_time - t <= max_gap_secs.max(PUSH_MAX_GAP_SECS)
+    } else {
+        p.prev_publish_time < t && t <= p.publish_time && p.publish_time - t <= max_gap_secs
+    };
+    require!(instant, SoothCoreError::OracleNotTheSettlementInstant);
     require!(p.price > 0, SoothCoreError::OracleNonPositive);
 
     // conf / price <= (step / 2)  ⇔  conf · 20_000 <= price · step_bps
@@ -212,6 +249,9 @@ pub fn check_settlement_instant(
 /// most `max_age_secs` old by the cluster clock (a few seconds of skew
 /// allowed), positive, and its confidence within half a band, as at the
 /// settlement instant.
+///
+/// `push`: a push-feed price refreshes every few minutes, so it may be up to
+/// `PUSH_MAX_GAP_SECS` old.
 pub fn check_live_price(
     p: &OraclePrice,
     feed_id: &[u8; 32],
@@ -219,9 +259,11 @@ pub fn check_live_price(
     now: i64,
     max_age_secs: i64,
     step_bps: u16,
+    push: bool,
 ) -> Result<()> {
     require!(&p.feed_id == feed_id, SoothCoreError::OracleWrongFeed);
     require!(p.verification.meets(min_signatures), SoothCoreError::OracleUnderVerified);
+    let max_age_secs = if push { max_age_secs.max(PUSH_MAX_GAP_SECS) } else { max_age_secs };
     let age = now.saturating_sub(p.publish_time);
     require!(age >= -CLOCK_SKEW_SECS && age <= max_age_secs, SoothCoreError::OracleStale);
     require!(p.price > 0, SoothCoreError::OracleNonPositive);
@@ -339,7 +381,7 @@ mod tests {
         let feed = feed(NVDA_FEED);
         let t = 1_000_000i64;
         let at = |publish, prev| OraclePrice { publish_time: publish, prev_publish_time: prev, ..base };
-        let ok = |p: &OraclePrice| check_settlement_instant(p, &feed, 5, t, 30, 100).is_ok();
+        let ok = |p: &OraclePrice| check_settlement_instant(p, &feed, 5, t, 30, 100, false).is_ok();
 
         assert!(ok(&at(t, t - 1)), "the first update of second t");
         assert!(!ok(&at(t, t)), "a later update in the same second: its predecessor is not before t");
@@ -355,10 +397,10 @@ mod tests {
         let feed = feed(NVDA_FEED);
         let p = OraclePrice { publish_time: 500, prev_publish_time: 499, ..base };
         // conf 19_000 on 22_019_000 ≈ 8.6 bps. Half of a 25 bps step is 12.5 — fine.
-        check_settlement_instant(&p, &feed, 5, 500, 30, 25).unwrap();
+        check_settlement_instant(&p, &feed, 5, 500, 30, 25, false).unwrap();
         let wide = OraclePrice { conf: 40_000, ..p }; // ≈ 18 bps > 12.5
-        assert!(check_settlement_instant(&wide, &feed, 5, 500, 30, 25).is_err());
-        check_settlement_instant(&wide, &feed, 5, 500, 30, 100).unwrap(); // but fine on a 1% grid
+        assert!(check_settlement_instant(&wide, &feed, 5, 500, 30, 25, false).is_err());
+        check_settlement_instant(&wide, &feed, 5, 500, 30, 100, false).unwrap(); // but fine on a 1% grid
     }
 
     #[test]
@@ -367,7 +409,7 @@ mod tests {
         let feed = feed(NVDA_FEED);
         let now = 2_000_000i64;
         let at = |publish| OraclePrice { publish_time: publish, prev_publish_time: publish - 1, ..base };
-        let ok = |p: &OraclePrice| check_live_price(p, &feed, 5, now, 30, 100).is_ok();
+        let ok = |p: &OraclePrice| check_live_price(p, &feed, 5, now, 30, 100, false).is_ok();
 
         assert!(ok(&at(now)), "this second's update");
         assert!(ok(&at(now - 30)), "half a minute old is still live");
@@ -376,8 +418,8 @@ mod tests {
         assert!(ok(&at(now + 5)), "a few seconds ahead of the cluster clock is skew");
         assert!(!ok(&at(now + 60)), "a minute ahead is a wrong update");
         let wide = OraclePrice { conf: 40_000, ..at(now) };
-        assert!(check_live_price(&wide, &feed, 5, now, 30, 25).is_err(), "too uncertain for a 25 bps grid");
-        assert!(check_live_price(&at(now), &[9u8; 32], 5, now, 30, 100).is_err(), "another feed");
+        assert!(check_live_price(&wide, &feed, 5, now, 30, 25, false).is_err(), "too uncertain for a 25 bps grid");
+        assert!(check_live_price(&at(now), &[9u8; 32], 5, now, 30, 100, false).is_err(), "another feed");
     }
 
     #[test]
@@ -389,5 +431,56 @@ mod tests {
         assert!(parse_price_update(&d).is_err());
         let full = unhex(NVDA_DEVNET);
         assert!(parse_price_update(&full[..60]).is_err()); // truncated mid-feed
+    }
+
+    /// Pyth's push-feed account for Crypto.BTC/USD on devnet,
+    /// `4cSM2e6rvbGQUFiJbqytoVMi5GgghSMr8LwVrT9VPSPo`, read on 2026-10-06:
+    /// receiver-owned, Full verification, the same layout as a posted update.
+    const BTC_PUSH_DEVNET: &str = "22f123639d7ef4cd35a70c11162fbf5a0e7f7d2f96e19f97b02246a15687ee672794897448e658de01e62df6c8b4a85fe1a67db44dc12de5db330f7ac66b72dc658afedf0f4a415b434031e897980700004e568c6a00000000f8ffffffeb7cc66a00000000ea7cc66a0000000020ff9eeb94070000a200a69800000000ac7b4f1e0000000000";
+    const BTC_FEED: &str = "e62df6c8b4a85fe1a67db44dc12de5db330f7ac66b72dc658afedf0f4a415b43";
+
+    #[test]
+    #[cfg(not(feature = "mainnet"))]
+    fn push_feed_account_parses_and_is_recognised() {
+        let p = parse_price_update(&unhex(BTC_PUSH_DEVNET)).unwrap();
+        assert_eq!(p.feed_id, feed(BTC_FEED));
+        assert_eq!(p.verification, Verification::Full);
+        assert_eq!(p.exponent, -8);
+        let pda: Pubkey = pubkey!("4cSM2e6rvbGQUFiJbqytoVMi5GgghSMr8LwVrT9VPSPo");
+        assert!(is_push_feed(&pda, &feed(BTC_FEED)));
+        assert!(!is_push_feed(&pda, &feed(NVDA_FEED)), "another feed's account");
+        assert!(!is_push_feed(&Pubkey::new_unique(), &feed(BTC_FEED)), "any other account");
+    }
+
+    #[test]
+    #[cfg(not(feature = "mainnet"))]
+    fn push_instant_is_the_first_push_price_after_t_within_the_gap() {
+        let base = parse_price_update(&unhex(BTC_PUSH_DEVNET)).unwrap();
+        let f = feed(BTC_FEED);
+        let t = 1_000_000;
+        // A Pythnet tick: prev is one second before publish, whatever t is.
+        let at = |publish: i64| OraclePrice { publish_time: publish, prev_publish_time: publish - 1, ..base };
+        let ok = |p: &OraclePrice| check_settlement_instant(p, &f, 3, t, 30, 100, true).is_ok();
+        assert!(ok(&at(t)), "at the instant");
+        assert!(ok(&at(t + 315)), "five minutes later, a BTC refresh");
+        assert!(ok(&at(t + PUSH_MAX_GAP_SECS)), "at the edge");
+        assert!(!ok(&at(t + PUSH_MAX_GAP_SECS + 1)), "past the gap");
+        assert!(!ok(&at(t - 1)), "from before the instant");
+        // The same prints are not THE update by the exact rule.
+        assert!(check_settlement_instant(&at(t + 315), &f, 3, t, 30, 100, false).is_err());
+        // Series observe takes any lateness from the push feed too.
+        assert!(check_settlement_instant(&at(t + 7_200), &f, 3, t, i64::MAX, u16::MAX, true).is_ok());
+    }
+
+    #[test]
+    #[cfg(not(feature = "mainnet"))]
+    fn push_live_price_may_be_minutes_old() {
+        let base = parse_price_update(&unhex(BTC_PUSH_DEVNET)).unwrap();
+        let f = feed(BTC_FEED);
+        let now = 2_000_000;
+        let at = |publish: i64| OraclePrice { publish_time: publish, prev_publish_time: publish - 1, ..base };
+        assert!(check_live_price(&at(now - 315), &f, 3, now, 30, 100, true).is_ok());
+        assert!(check_live_price(&at(now - 315), &f, 3, now, 30, 100, false).is_err());
+        assert!(check_live_price(&at(now - PUSH_MAX_GAP_SECS - 1), &f, 3, now, 30, 100, true).is_err());
     }
 }

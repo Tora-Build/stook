@@ -20,7 +20,11 @@
 // ENV
 //   RPC_URL              Solana RPC (default: the devnet proxy, infra/rpc-proxy)
 //   KEYPAIR              fee payer, path to a JSON keypair (default ~/.config/solana/id.json)
-//   PYTH_API_KEY         Hermes has required one since 2026-08-26
+//   ORACLE_SOURCE        "push" (default): read Pyth's push-feed account on chain,
+//                        free and keyless; the program takes the first push price
+//                        at or after an instant (devnet build only). "hermes":
+//                        fetch THE update from Hermes and post it (needs a paid key).
+//   PYTH_API_KEY         for ORACLE_SOURCE=hermes; Hermes serves only paid keys
 //   HERMES_URL           default https://hermes.pyth.network
 //   FULL_VERIFICATION=1  post fully verified updates. Required on mainnet, where
 //                        the program accepts nothing less; devnet accepts partial.
@@ -29,7 +33,7 @@ import { appendFileSync, readFileSync, writeFileSync, realpathSync } from "node:
 import { homedir } from "node:os";
 import { createRequire } from "node:module";
 import { pathToFileURL } from "node:url";
-import { Connection, Keypair, Transaction, sendAndConfirmTransaction } from "@solana/web3.js";
+import { Connection, Keypair, PublicKey, Transaction, sendAndConfirmTransaction } from "@solana/web3.js";
 import { createAssociatedTokenAccountIdempotentInstruction, getAssociatedTokenAddressSync } from "@solana/spl-token";
 import { Wallet, utils as anchorUtils } from "@coral-xyz/anchor";
 const bs58 = (b) => anchorUtils.bytes.bs58.encode(Buffer.from(b));
@@ -61,6 +65,41 @@ async function hermes(path, feedId) {
   return { parsed: body.parsed?.[0], vaas: body.binary?.data ?? [] };
 }
 
+const ORACLE_SOURCE = process.env.ORACLE_SOURCE ?? "push";
+const PYTH_PUSH_ORACLE = new PublicKey("pythWSnswVUd12oZpeFP8e9CVaEqJg25g1Vtc2biRsT");
+const PYTH_RECEIVER = "rec5EKMGg6MxZYaMdyBfgwp4d5rB9T1VQH5pJv5LtFJ";
+
+/** Pyth's push-feed account for a feed (shard 0). */
+export const pushFeedAddress = (feedHex) => PublicKey.findProgramAddressSync([Buffer.from([0, 0]), Buffer.from(feedHex, "hex")], PYTH_PUSH_ORACLE)[0];
+
+/** A `PriceUpdateV2` account's price, in Hermes' `parsed` shape (as `oracle::parse_price_update` reads it). */
+export function parsePriceUpdate(data) {
+  let o = 8 + 32;
+  o += data[o] === 0 ? 2 : 1; // Partial { signatures } or Full
+  const id = data.subarray(o, o + 32).toString("hex"); o += 32;
+  const price = data.readBigInt64LE(o); o += 8;
+  const conf = data.readBigUInt64LE(o); o += 8;
+  const expo = data.readInt32LE(o); o += 4;
+  const publish = data.readBigInt64LE(o); o += 8;
+  const prev = data.readBigInt64LE(o);
+  return { id, price: { price: String(price), conf: String(conf), expo, publish_time: Number(publish) }, metadata: { prev_publish_time: Number(prev) } };
+}
+
+/**
+ * The push feed in Hermes' clothes: whatever the instant asked for, the price
+ * Pyth's push oracle holds now, marked `push`. The SDK's checks then ask for
+ * the first push price at or after the instant, and posting is no more than
+ * naming the account (`vaas: { push }`).
+ */
+export function pushPrices(connection) {
+  return async (_path, feedHex) => {
+    const push = pushFeedAddress(feedHex);
+    const a = await connection.getAccountInfo(push);
+    if (!a || a.owner.toBase58() !== PYTH_RECEIVER) return { parsed: undefined, vaas: { push } };
+    return { parsed: { ...parsePriceUpdate(a.data), push: true }, vaas: { push } };
+  };
+}
+
 /** The two ways this keeper writes to the chain, both signed by `payer`. */
 export function chainSenders(connection, payer) {
   return {
@@ -73,6 +112,8 @@ export function chainSenders(connection, payer) {
      * it needs. So the builder only posts; the consume transaction is ours.
      */
     async postAndConsume(vaas, feedHex, makeIxs, units = 200_000) {
+      // The push feed is already on chain: nothing to post or close.
+      if (vaas?.push) return sendAndConfirmTransaction(connection, new Transaction().add(...stook.withHeap(makeIxs(vaas.push), units, PRIORITY)), [payer]);
       const receiver = new PythSolanaReceiver({ connection, wallet: new Wallet(payer) });
       const builder = receiver.newTransactionBuilder({ closeUpdateAccounts: false });
       if (FULL) await builder.addPostPriceUpdates(vaas);
@@ -436,7 +477,13 @@ export function createKeeper({ connection, scanner, payer, sendTx, postAndConsum
           const { parsed, vaas } = await fetchUpdate(`/v2/updates/price/${at}`, feed);
           // Hermes answering without the update, or without its predecessor's
           // time, is a glitch to retry, not a close to give up on.
-          if (!parsed?.metadata?.prev_publish_time || !(BigInt(parsed.metadata.prev_publish_time) < at && at <= BigInt(parsed.price.publish_time))) {
+          // From the push feed, the price it holds must be from at or after
+          // the close (the program takes any lateness; past its gap it only
+          // moves the series on).
+          const usable = parsed?.push
+            ? at <= BigInt(parsed.price.publish_time)
+            : parsed?.metadata?.prev_publish_time && BigInt(parsed.metadata.prev_publish_time) < at && at <= BigInt(parsed.price.publish_time);
+          if (!usable) {
             console.log(tag, "hermes has no usable update yet; retrying later"); failed(key, false); break;
           }
           // An RPC node that has not seen the blockhash yet refuses the
@@ -545,7 +592,8 @@ export async function main(argv = process.argv.slice(2)) {
     try { appendFileSync(events, `${new Date().toISOString()} ${text.split("\n")[0]}\n`); } catch {}
     if (tg && chat) await fetch(`https://api.telegram.org/bot${tg}/sendMessage`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ chat_id: chat, text, disable_web_page_preview: true }), signal: AbortSignal.timeout(10_000) });
   };
-  const keeper = createKeeper({ connection, scanner, payer, plan: mode.plan, notify, ...chainSenders(connection, payer) });
+  const keeper = createKeeper({ connection, scanner, payer, plan: mode.plan, notify, ...chainSenders(connection, payer), ...(ORACLE_SOURCE === "push" ? { hermes: pushPrices(connection) } : {}) });
+  console.log(new Date().toISOString(), "oracle:", ORACLE_SOURCE === "push" ? "Pyth push feeds on chain" : `Hermes at ${HERMES}`);
 
   if (mode.watch) {
     await watch(keeper, { interval: INTERVAL, beat: () => writeFileSync(HEARTBEAT, String(Date.now())), healthy: () => writeFileSync(HEALTH, String(Date.now())) });

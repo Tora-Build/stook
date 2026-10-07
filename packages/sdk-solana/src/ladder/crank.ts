@@ -21,6 +21,8 @@ export const CLOCK_SKEW_SECS = 10n;
 /** After this long past a close, anyone may pay out a round’s positions and deposits, to their owners. */
 export const CLAIM_GRACE_SECS = 30n * 86_400n;
 export const SETTLE_MAX_GAP_SECS = 30n;
+/** How late a push-feed price may be after the instant (`PUSH_MAX_GAP_SECS`, devnet only). */
+export const PUSH_MAX_GAP_SECS = 1_800n;
 /** Confidence bar at open, as a settlement step: under 1% of the price. */
 export const OPEN_CONF_STEP_BPS = 200;
 
@@ -42,11 +44,13 @@ export function nextStep(l: Pick<LadderAccount, "status" | "opensAt" | "locksAt"
   return null;
 }
 
-/** One entry of Hermes' `parsed` array. */
+/** One entry of Hermes' `parsed` array, or Pyth's push-feed account read the same way. */
 export interface HermesPrice {
   id: string;
   price: { price: string; conf: string; expo: number; publish_time: number };
   metadata?: { prev_publish_time?: number };
+  /** Read from Pyth's push-feed account (one price at a time, refreshed every few minutes on devnet): the instant is the first push price at or after it, within `PUSH_MAX_GAP_SECS`. */
+  push?: boolean;
 }
 
 const hex = (b: Uint8Array) => Array.from(b, (v) => v.toString(16).padStart(2, "0")).join("");
@@ -60,11 +64,16 @@ const hex = (b: Uint8Array) => Array.from(b, (v) => v.toString(16).padStart(2, "
  */
 export function settlementProblem(u: HermesPrice, l: Pick<LadderAccount, "feedId" | "settlesAt" | "stepBps" | "p0Expo">): string | null {
   if (u.id.replace(/^0x/, "").toLowerCase() !== hex(l.feedId)) return "wrong feed";
-  const prev = u.metadata?.prev_publish_time;
-  if (prev === undefined) return "update carries no prev_publish_time";
   const t = l.settlesAt, pub = BigInt(u.price.publish_time);
-  if (!(BigInt(prev) < t && t <= pub)) return "not the first update at or after the settlement time";
-  if (pub - t > SETTLE_MAX_GAP_SECS) return `feed was silent for ${pub - t}s across the settlement time`;
+  if (u.push) {
+    if (pub < t) return "no push price at or after the settlement time yet";
+    if (pub - t > PUSH_MAX_GAP_SECS) return `the first push price after the settlement time came ${pub - t}s late`;
+  } else {
+    const prev = u.metadata?.prev_publish_time;
+    if (prev === undefined) return "update carries no prev_publish_time";
+    if (!(BigInt(prev) < t && t <= pub)) return "not the first update at or after the settlement time";
+    if (pub - t > SETTLE_MAX_GAP_SECS) return `feed was silent for ${pub - t}s across the settlement time`;
+  }
   const price = BigInt(u.price.price), conf = BigInt(u.price.conf);
   if (price <= 0n) return "non-positive price";
   if (conf * 20_000n > price * BigInt(l.stepBps)) return "confidence interval wider than half a bin";
@@ -83,7 +92,8 @@ export function openProblem(u: HermesPrice, l: Pick<LadderAccount, "feedId" | "o
   if (now === undefined || !opensLate(l, now)) return settlementProblem(u, { feedId: l.feedId, settlesAt: l.opensAt, stepBps: OPEN_CONF_STEP_BPS, p0Expo: u.price.expo });
   if (u.id.replace(/^0x/, "").toLowerCase() !== hex(l.feedId)) return "wrong feed";
   const age = now - BigInt(u.price.publish_time);
-  if (age > SETTLE_MAX_GAP_SECS) return `update is ${age}s old; a late opening needs one at most ${SETTLE_MAX_GAP_SECS}s old`;
+  const maxAge = u.push ? PUSH_MAX_GAP_SECS : SETTLE_MAX_GAP_SECS;
+  if (age > maxAge) return `update is ${age}s old; a late opening needs one at most ${maxAge}s old`;
   if (age < -CLOCK_SKEW_SECS) return "update is stamped too far ahead of the clock";
   const price = BigInt(u.price.price), conf = BigInt(u.price.conf);
   if (price <= 0n) return "non-positive price";
@@ -99,6 +109,8 @@ export function openProblem(u: HermesPrice, l: Pick<LadderAccount, "feedId" | "o
  * update) proves nothing: retry, or settle.
  */
 export function voidProof(u: HermesPrice, l: Pick<LadderAccount, "feedId" | "settlesAt" | "stepBps" | "p0Expo">): boolean {
+  // A push-feed account holds the latest price only: it proves nothing about the instant.
+  if (u.push) return false;
   if (u.id.replace(/^0x/, "").toLowerCase() !== hex(l.feedId)) return false;
   const prev = u.metadata?.prev_publish_time;
   if (prev === undefined) return false;
