@@ -189,6 +189,47 @@ pub mod sooth_core {
         ladder::close_handler(ctx)
     }
 
+    // ── Houses ───────────────────────────────────────────────────────────────
+
+    /// Start a series' house: a standing pool that funds its rounds one after
+    /// another. Permissionless, one per series.
+    pub fn house_create(ctx: Context<HouseCreate>) -> Result<()> {
+        house::house_create_handler(ctx)
+    }
+
+    /// Buy house shares: now if the house is idle, at the next collect if its
+    /// money is in a round.
+    pub fn house_deposit(ctx: Context<HouseDeposit>, amount: u64) -> Result<()> {
+        house::house_deposit_handler(ctx, amount)
+    }
+
+    /// Sell house shares: paid now if the house is idle, queued for the next
+    /// collect if its money is in a round.
+    pub fn house_withdraw(ctx: Context<HouseLp>, shares: u128) -> Result<()> {
+        house::house_withdraw_handler(ctx, shares)
+    }
+
+    /// Take back a deposit still queued in the round in progress.
+    pub fn house_cancel_deposit(ctx: Context<HouseLp>) -> Result<()> {
+        house::house_cancel_deposit_handler(ctx)
+    }
+
+    /// Collect processed withdrawals.
+    pub fn house_claim(ctx: Context<HouseLp>) -> Result<()> {
+        house::house_claim_handler(ctx)
+    }
+
+    /// Put the whole house into an untraded round of its series. Permissionless.
+    pub fn house_join(ctx: Context<HouseJoin>) -> Result<()> {
+        house::house_join_handler(ctx)
+    }
+
+    /// Bring the house home from a finished round and process its queue.
+    /// Permissionless.
+    pub fn house_collect(ctx: Context<HouseCollect>) -> Result<()> {
+        house::house_collect_handler(ctx)
+    }
+
     // ── Series ───────────────────────────────────────────────────────────────
 
     /// Open a coin's series of rounds. Protocol authority.

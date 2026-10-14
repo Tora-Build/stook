@@ -99,4 +99,20 @@ pub enum SoothCoreError {
     SeriesNotCaughtUp,
     #[msg("This round can still settle: its close has a valid Pyth update")]
     LadderStillSettleable,
+    #[msg("The house's money is in a round; this waits for the round to finish")]
+    HouseBusy,
+    #[msg("The house is not in a round")]
+    HouseIdle,
+    #[msg("The house joins only a round of its own series that nobody has traded yet")]
+    HouseNotJoinable,
+    #[msg("The house holds too little to fund a round: at least one whole token")]
+    HouseTooSmall,
+    #[msg("Houses do not take coins with a transfer fee")]
+    HouseFeeMint,
+    #[msg("Pass the record of the epoch this stake's queued entry belongs to")]
+    HouseEpochMissing,
+    #[msg("More shares than this stake holds")]
+    HouseNotEnoughShares,
+    #[msg("Less arrived than the house sent")]
+    HouseTransferShort,
 }

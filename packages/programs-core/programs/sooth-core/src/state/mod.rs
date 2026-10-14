@@ -1,5 +1,6 @@
 //! Account types owned by `sooth_core`.
 
+pub mod house;
 pub mod ladder;
 pub mod protocol_config;
 pub mod series;

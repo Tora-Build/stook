@@ -254,9 +254,13 @@ export function createKeeper({ connection, scanner, payer, sendTx, postAndConsum
       for (const a of accounts) found.push({ pubkey: a.pubkey, ladder: stook.decodeLadder(a.account.data) });
     }
 
-    for (const { pubkey, ladder } of found) {
-      const step = stook.nextStep(ladder, now);
-      if (!step) continue;
+    // Settles and voids first, then the houses (home from a finished round
+    // and into the next before it opens), then the opens.
+    const steps = found.map((f) => ({ ...f, step: stook.nextStep(f.ladder, now) })).filter((f) => f.step);
+    steps.sort((a, b) => (a.step === "open") - (b.step === "open"));
+    let housesDone = false;
+    for (const { pubkey, ladder, step } of steps) {
+      if (step === "open" && !housesDone) { housesDone = true; failures += await houses(found, now); }
       const tag = `${pubkey.toBase58().slice(0, 8)} ${step}`;
       if (plan) { console.log(tag); continue; }
       const key = `${pubkey.toBase58()}:${step}`;
@@ -324,6 +328,46 @@ export function createKeeper({ connection, scanner, payer, sendTx, postAndConsum
           succeeded(key);
           note("settle", pubkey, ladder, parsed, "", seriesOf);
         }
+      } catch (e) {
+        console.error(tag, "failed:", e?.message ?? e);
+        failed(key);
+        failures++;
+      }
+    }
+    if (!housesDone) failures += await houses(found, now);
+    return failures;
+  }
+
+  // A house rolls from round to round: once its round is settled or void it is
+  // brought home (the queue of deposits and withdrawals processed at the price
+  // the round left), then put whole into the next untraded round of its
+  // series. Both are permissionless; the keeper pays only rent it gets back
+  // (the tranche's) and the epoch record's.
+  async function houses(found, now) {
+    if (plan) return 0;
+    let failures = 0;
+    const all = await scanner.getProgramAccounts(SOOTH_CORE_PROGRAM_ID, { filters: stook.houseFilters() });
+    for (const { pubkey } of all) {
+      const tag = `${pubkey.toBase58().slice(0, 8)} house`;
+      const key = `${pubkey.toBase58()}:house`;
+      if (waiting(key)) { if (failing(key)) failures++; continue; }
+      try {
+        // Twice at most: home from a finished round, then into the next.
+        for (let i = 0; i < 2; i++) {
+          const h = stook.decodeHouse((await connection.getAccountInfo(pubkey)).data);
+          const mint = await connection.getAccountInfo(h.quoteMint);
+          const round = h.round ? await connection.getAccountInfo(h.round).then((a) => a && stook.decodeLadder(a.data)) : null;
+          const step = stook.houseStep(h, round, mint.data[44]);
+          const refs = { house: pubkey, quoteMint: h.quoteMint, tokenProgram: mint.owner };
+          if (step === "collect") {
+            console.log(tag, "collect", await sendPlain(stook.houseCollectIx(refs, payer.publicKey, h), 400_000));
+          } else if (step === "join") {
+            const target = stook.houseJoinTarget(h, found, now);
+            if (!target) break;
+            console.log(tag, "join", target.pubkey.toBase58().slice(0, 8), await sendPlain(stook.houseJoinIx(refs, payer.publicKey, target.pubkey), 200_000));
+          } else break;
+        }
+        succeeded(key);
       } catch (e) {
         console.error(tag, "failed:", e?.message ?? e);
         failed(key);

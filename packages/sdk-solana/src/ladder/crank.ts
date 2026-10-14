@@ -120,7 +120,7 @@ export function voidProof(u: HermesPrice, l: Pick<LadderAccount, "feedId" | "set
 
 const STATUS_BYTE: Record<LadderStatus, number> = { seeding: 0, open: 1, settled: 2, void: 3 };
 const B58 = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz";
-function base58(bytes: Uint8Array): string {
+export function base58(bytes: Uint8Array): string {
   let n = 0n;
   for (const b of bytes) n = (n << 8n) | BigInt(b);
   let out = "";

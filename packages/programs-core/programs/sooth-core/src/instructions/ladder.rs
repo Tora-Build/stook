@@ -141,7 +141,7 @@ pub fn round_times(now: i64, settles_at: i64) -> (i64, i64) {
 
 /// The least a tranche may deposit: one whole quote token. Below that `b`
 /// rounds toward nothing and the deposit buys no depth worth accounting for.
-fn one_token(decimals: u8) -> Result<u64> {
+pub(crate) fn one_token(decimals: u8) -> Result<u64> {
     10u64.checked_pow(decimals as u32).ok_or_else(|| error!(SoothCoreError::MathOverflow))
 }
 
@@ -205,7 +205,7 @@ fn received_at_least(before: u64, after: u64, min_net: u64) -> Result<u64> {
 
 /// Price a deposit against the curve as it stands, and book it: the tranche
 /// records what it joined at, the market gains its cash and its depth.
-fn join(l: &mut Ladder, t: &mut LadderTranche, deposit: u64) -> Result<()> {
+pub(crate) fn join(l: &mut Ladder, t: &mut LadderTranche, deposit: u64) -> Result<()> {
     // Before a round opens its odds are not set yet, so a deposit records only
     // its size; `open` sizes the pool and each early deposit's depth follows
     // from its size (`tranche_terms`). A round funded under the earlier rule
@@ -1350,40 +1350,52 @@ pub struct LadderLpClaimed {
     pub fees: u64,
 }
 
+/// What a finished round owes one tranche, `(principal, fees)`, taken off the
+/// round's books. The tranche is paid and closed by the caller. Shared by
+/// `ladder_claim_lp` and the house's `house_collect`.
+pub fn take_tranche_owed(l: &mut Ladder, t: &LadderTranche) -> Result<(u64, u64)> {
+    let owed = match l.status {
+        STATUS_SETTLED => {
+            let k = l.settled_bin as usize;
+            let (b, join_k, join_sum) = tranche_terms(l, t, k)?;
+            let pnl = math(tranche_pnl(b, join_k, join_sum, l.weight(k), l.sum_wad()))?;
+            // Both are drawn from pots that only shrink, so rounding that
+            // sums a unit high is absorbed here, never by the vault.
+            let principal = tranche_principal(t.deposit, pnl, l.quote_decimals)
+                .ok_or(SoothCoreError::MathOverflow)?
+                .min(l.lp_pool);
+            let fees = tranche_fees(
+                Ladder::b_units(b, l.quote_decimals),
+                l.acc_fee(),
+                t.fee_snap(),
+            )
+            .ok_or(SoothCoreError::MathOverflow)?
+            .min(l.fees_lp);
+            l.lp_pool -= principal;
+            l.fees_lp -= fees;
+            (principal, fees)
+        }
+        // In a void a deposit comes back from the depositors' pot, which
+        // is whole unless the vault itself is short of every deposit.
+        // Fees were folded back into the pot.
+        STATUS_VOID => (void_share(t.deposit, l.void_lp_pot, l.deposit_total), 0),
+        _ => return err!(SoothCoreError::LadderNotFinal),
+    };
+    l.open_tranches = l.open_tranches.saturating_sub(1);
+    Ok(owed)
+}
+
 pub fn claim_lp_handler(ctx: Context<LadderClaimLp>) -> Result<()> {
     let ladder_key = ctx.accounts.ladder.key();
+    // A house's deposit comes home only through `house_collect`, which books
+    // it. Paid in here (by anyone, after the grace period) it would land in
+    // the house's vault behind its books and leave the house waiting forever.
+    require!(ctx.accounts.owner.owner != &crate::ID, SoothCoreError::LadderNotYours);
     may_collect(&ctx.accounts.caller.key(), &ctx.accounts.owner.key(), ctx.accounts.ladder.load()?.settles_at)?;
     let (principal, fees, decimals, authority_bump) = {
         let mut l = ctx.accounts.ladder.load_mut()?;
         let t = ctx.accounts.tranche.load()?;
-        let (principal, fees) = match l.status {
-            STATUS_SETTLED => {
-                let k = l.settled_bin as usize;
-                let (b, join_k, join_sum) = tranche_terms(&l, &t, k)?;
-                let pnl = math(tranche_pnl(b, join_k, join_sum, l.weight(k), l.sum_wad()))?;
-                // Both are drawn from pots that only shrink, so rounding that
-                // sums a unit high is absorbed here, never by the vault.
-                let principal = tranche_principal(t.deposit, pnl, l.quote_decimals)
-                    .ok_or(SoothCoreError::MathOverflow)?
-                    .min(l.lp_pool);
-                let fees = tranche_fees(
-                    Ladder::b_units(b, l.quote_decimals),
-                    l.acc_fee(),
-                    t.fee_snap(),
-                )
-                .ok_or(SoothCoreError::MathOverflow)?
-                .min(l.fees_lp);
-                l.lp_pool -= principal;
-                l.fees_lp -= fees;
-                (principal, fees)
-            }
-            // In a void a deposit comes back from the depositors' pot, which
-            // is whole unless the vault itself is short of every deposit.
-            // Fees were folded back into the pot.
-            STATUS_VOID => (void_share(t.deposit, l.void_lp_pot, l.deposit_total), 0),
-            _ => return err!(SoothCoreError::LadderNotFinal),
-        };
-        l.open_tranches = l.open_tranches.saturating_sub(1);
+        let (principal, fees) = take_tranche_owed(&mut l, &t)?;
         emit!(LadderLpClaimed {
             ladder: ladder_key,
             owner: t.owner,

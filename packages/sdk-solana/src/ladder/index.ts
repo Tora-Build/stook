@@ -5,3 +5,4 @@ export * from "./mint.js";
 export * from "./crank.js";
 export * from "./protocol.js";
 export * from "./series.js";
+export * from "./house.js";
