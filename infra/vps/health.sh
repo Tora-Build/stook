@@ -10,10 +10,7 @@ SINCE=$(date -u -d '24 hours ago' +%FT%T)
 recent() { awk -v s="$SINCE" '$1 >= s' "$H/stook-events.log" 2>/dev/null | grep -c "$1"; }
 OPENS=$(recent 🟢); SETTLES=$(recent 🔔); VOIDS=$(recent ⚪)
 
-SOL=$(cd $H/stook/infra/ladder-crank && set -a && . $H/stook.env && set +a && timeout 30 /usr/bin/node -e '
-  const w = require("@solana/web3.js"), fs = require("fs");
-  const k = w.Keypair.fromSecretKey(Uint8Array.from(JSON.parse(fs.readFileSync(process.env.KEYPAIR, "utf8"))));
-  new w.Connection(process.env.RPC_URL).getBalance(k.publicKey).then((b) => console.log((b / 1e9).toFixed(2)));' 2>/dev/null)
+SOL=$(set -a && . $H/stook.env && set +a && timeout 30 /usr/bin/node $H/stook/infra/vps/sol-balance.mjs 2 2>/dev/null)
 PRICES=$(curl -s -m 5 localhost:8791/prices | python3 -c "
 import sys, json, time
 d = json.load(sys.stdin); n = time.time()
@@ -23,7 +20,7 @@ XLINE=$(grep '"posted"' "$H/stook-x.log" 2>/dev/null | tail -1)
 XWHEN=${XLINE:0:10}; XID=$(echo "$XLINE" | grep -o '"posted":"[0-9]*"' | cut -d'"' -f4)
 
 # The simulated fleet's day, as the bot's /fleet answers it.
-FLEET=$(cd $H/stook/infra/sim && HOME=$H SIM_DIR=$H/sim timeout 60 /usr/bin/node src/bot.mjs --print /fleet 2>/dev/null | grep -v "^Last:")
+FLEET=$(cd $H/stook/infra/sim && HOME=$H SIM_DIR=$H/sim timeout 60 /usr/bin/node src/bot.bundle.mjs --print /fleet 2>/dev/null | grep -v "^Last:")
 
 MSG="📊 Stook daily check, $(TZ=America/New_York date '+%a %b %-d, %-I:%M %p') New York
 

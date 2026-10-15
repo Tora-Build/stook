@@ -41,10 +41,7 @@ case "$1" in
     fi
     # The keeper's wallet pays every open, settle and price post: every 30 minutes.
     if [ $(( $(now) / 60 % 30 )) -eq 0 ]; then
-      SOL=$(cd /home/zak/stook/infra/ladder-crank && set -a && . /home/zak/stook.env && set +a && timeout 30 /usr/bin/node -e '
-        const w = require("@solana/web3.js"), fs = require("fs");
-        const k = w.Keypair.fromSecretKey(Uint8Array.from(JSON.parse(fs.readFileSync(process.env.KEYPAIR, "utf8"))));
-        new w.Connection(process.env.RPC_URL).getBalance(k.publicKey).then((b) => console.log((b / 1e9).toFixed(3)));' 2>/dev/null)
+      SOL=$(set -a && . /home/zak/stook.env && set +a && timeout 30 /usr/bin/node /home/zak/stook/infra/vps/sol-balance.mjs 3 2>/dev/null)
       if [ -n "$SOL" ] && awk "BEGIN{exit !($SOL < 0.5)}"; then
         "$ALERT" keeper-sol "Keeper wallet is low: ${SOL} SOL. Top it up on devnet before it stops opening and settling rounds."
       elif [ -n "$SOL" ]; then

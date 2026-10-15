@@ -8,7 +8,7 @@ User=zak
 WorkingDirectory=/home/zak/stook/infra/tape
 EnvironmentFile=/home/zak/stook.env
 Environment=TAPE_FILE=/home/zak/stook-tape.json
-ExecStart=/usr/bin/node /home/zak/stook/infra/tape/src/index.mjs
+ExecStart=/usr/bin/node /home/zak/stook/infra/tape/src/index.bundle.mjs
 Restart=always
 RestartSec=5
 KillMode=control-group

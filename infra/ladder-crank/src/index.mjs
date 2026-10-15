@@ -31,7 +31,6 @@
 
 import { appendFileSync, readFileSync, writeFileSync, realpathSync } from "node:fs";
 import { homedir } from "node:os";
-import { createRequire } from "node:module";
 import { pathToFileURL } from "node:url";
 import { Connection, Keypair, PublicKey, Transaction, sendAndConfirmTransaction } from "@solana/web3.js";
 import { createAssociatedTokenAccountIdempotentInstruction, getAssociatedTokenAddressSync } from "@solana/spl-token";
@@ -41,7 +40,8 @@ import { stook, SOOTH_CORE_PROGRAM_ID } from "@sooth/sdk-solana";
 
 // The receiver's ESM build imports `jito-ts/dist/sdk/block-engine/types`
 // without an extension, which Node's ESM loader refuses. Its CJS build is fine.
-const { PythSolanaReceiver } = createRequire(import.meta.url)("@pythnetwork/pyth-solana-receiver");
+import pyth from "./pyth.cjs";
+const { PythSolanaReceiver } = pyth;
 
 const RPC_URL = process.env.RPC_URL ?? "https://soo-rpc.zak-a35.workers.dev";
 const HERMES = (process.env.HERMES_URL ?? "https://hermes.pyth.network").replace(/\/$/, "");

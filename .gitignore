@@ -12,3 +12,6 @@ apps/stook/dist
 # wrangler's local dev state and cache
 site/.wrangler
 .wrangler
+
+# service bundles (infra/vps/bundle.sh)
+*.bundle.mjs

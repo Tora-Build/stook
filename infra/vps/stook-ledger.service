@@ -11,7 +11,7 @@ EnvironmentFile=-/home/zak/stook-alerts.env
 Environment=LEDGER_DIR=/home/zak/ledger
 # node:sqlite: behind this flag on Node 22.5 to 22.12, a no-op after. On a
 # Node without node:sqlite the ledger falls back to its JSONL store.
-ExecStart=/usr/bin/node --experimental-sqlite --disable-warning=ExperimentalWarning /home/zak/stook/infra/ledger/src/index.mjs
+ExecStart=/usr/bin/node --experimental-sqlite --disable-warning=ExperimentalWarning /home/zak/stook/infra/ledger/src/index.bundle.mjs
 Restart=always
 RestartSec=10
 Nice=10

@@ -14,7 +14,7 @@ WorkingDirectory=/home/zak/stook/infra/sim
 EnvironmentFile=/home/zak/stook.env
 EnvironmentFile=-/home/zak/stook-alerts.env
 EnvironmentFile=-/home/zak/sim/sim.env
-ExecStart=/usr/bin/node /home/zak/stook/infra/sim/src/index.mjs --watch
+ExecStart=/usr/bin/node /home/zak/stook/infra/sim/src/index.bundle.mjs --watch
 Restart=on-failure
 RestartSec=30
 # On SIGTERM a send in flight gets up to a minute to confirm and be journaled.
