@@ -6,6 +6,7 @@ import { useMemo } from "react";
 import { useParams } from "react-router-dom";
 import { useState } from "react";
 import { StartRound } from "../components/StartRound";
+import { HousePanel } from "../components/HousePanel";
 import { WallCalendar } from "../components/WallCalendar";
 import { TodayDesk } from "../components/TodayDesk";
 import { Address } from "../components/Address";
@@ -71,6 +72,8 @@ export function Coin() {
 
       {series.data && seriesKey && <TodayDesk seriesKey={seriesKey} series={series.data} now={now} minLeadSecs={MIN_LEAD_SECS} dp={anchor.dp} coinSymbol={coin.symbol} anchorName={coin.anchor.name} canStart={!!mint && series.data.active} onStart={setStarting}
         side={<div className="desk-side"><div className="desk-next-h">{coin.anchor.symbol}, the last 24 hours, New York time</div><Chart24 points={chart.data?.points ?? []} dp={coin.anchor.dp} /></div>} />}
+
+      {seriesKey && mint && <HousePanel series={seriesKey} mint={mint} symbol={coin.symbol} />}
 
       <section className="slots">
         <div className="plan-head"><h3>Plan ahead</h3><span className="hint">Fund any day up to 31 days out and be its house. Its floors are set the moment it opens.</span></div>
