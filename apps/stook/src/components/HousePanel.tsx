@@ -49,13 +49,17 @@ export function HousePanel(p: Props) {
   const worth = mine ? (busy ? (capital * mine.shares) / (h.totalShares || 1n) : mine.value) : 0n;
   const free = mine ? mine.shares - mine.queuedShares : 0n;
   const amount = parseAmount(text, dec);
-  const short = balance.data !== undefined && amount !== null && balance.data < amount;
+  // On a coin with a transfer fee the house is credited the amount and the
+  // wallet sends the fee on top.
+  const fee = info.report.transferFee;
+  const gross = amount ? stook.grossFor(amount, fee) : null;
+  const short = balance.data !== undefined && gross !== null && balance.data < gross;
   const ata = publicKey ? ataOf(p.mint, publicKey, info.tokenProgram) : null;
 
   return (
     <section className="panel">
       <h3>The {p.symbol} house</h3>
-      <p className="hint">One pool that funds every {p.symbol} round, one after another. Deposit once and stay in; 90% of every fee goes to the house.</p>
+      <p className="hint">One pool that funds every {p.symbol} round, one after another, from one vault: rolling to the next round moves no coins. Deposit once and stay in; 90% of every trading fee goes to the house.</p>
       <div className="tp-row"><span>{busy ? "In today's round" : "Waiting for the next round"}</span><i /><b className="mono">{coin(capital)}</b></div>
       {h.pendingDeposits > 0n && <div className="tp-row tp-small"><span>joining at the bell</span><i /><b className="mono">{coin(h.pendingDeposits)}</b></div>}
 
@@ -89,10 +93,11 @@ export function HousePanel(p: Props) {
         </div>
         <span className="hint">{!publicKey ? "Connect a wallet to see your balance" : <>balance {balance.data !== undefined ? coin(balance.data) : "…"}</>}</span>
       </div>
+      {fee && gross !== null && amount !== null && gross > amount && <span className="hint">You send {coin(gross)}: the coin's {(fee.bps / 100).toFixed(0)}% transfer fee comes on top, once.</span>}
       {busy && <Notice tone="info" title="The house is in today's round">Your deposit waits for the bell and joins at the price the round leaves. You can take it back until then.</Notice>}
       {short && <Notice tone="stop" title={`Not enough ${p.symbol}`}>On devnet, get <b>test coins</b> in the header.</Notice>}
       <button className="primary" disabled={!publicKey || !amount || short || deposit.isPending}
-        onClick={() => publicKey && ata && amount && deposit.mutate([ensureAta(p.mint, publicKey, info.tokenProgram), stook.houseDepositIx(refs, publicKey, ata, amount, epoch)])}>
+        onClick={() => publicKey && ata && amount && deposit.mutate([ensureAta(p.mint, publicKey, info.tokenProgram), stook.houseDepositIx(refs, publicKey, ata, amount, epoch, stook.maxGrossFor(amount, [fee]))])}>
         {!publicKey ? "Connect a wallet" : deposit.isPending ? "Sending…" : `Deposit ${amount ? coin(amount) : `0 ${p.symbol}`}`}
       </button>
     </section>

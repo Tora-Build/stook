@@ -77,11 +77,11 @@ export function createReader({ conn, coins, siteUrl, fetchImpl = globalThis.fetc
     }
     const days = known.map((c) => (series.has(c.symbol) ? todayAndTomorrow(series.get(c.symbol), t) : null));
     const ladderKeys = known.map((c, n) => (days[n] ? [stook.deriveLadderPda({ series: c.seriesKey, index: days[n].today }), stook.deriveLadderPda({ series: c.seriesKey, index: days[n].tomorrow })] : [c.seriesKey, c.seriesKey]));
-    const keys = known.flatMap((c, n) => [c.seriesKey, c.mintKey, c.pythKey, ...ladderKeys[n]]);
+    const keys = known.flatMap((c, n) => [c.seriesKey, c.mintKey, c.pythKey, ...ladderKeys[n], stook.deriveHouse(c.seriesKey)]);
     const [infos, ep] = await Promise.all([readAccounts(conn, keys), currentEpoch()]);
     const out = [];
     known.forEach((c, n) => {
-      const [sA, mA, pA, tA, nA] = infos.slice(n * 5, n * 5 + 5);
+      const [sA, mA, pA, tA, nA, hA] = infos.slice(n * 6, n * 6 + 6);
       if (sA) series.set(c.symbol, stook.decodeSeries(sA.data));
       const s = series.get(c.symbol) ?? null;
       const round = (a, key, index) => (days[n] && a && a.data.length === stook.LADDER_SIZE ? { key, index, l: stook.decodeLadder(a.data) } : null);
@@ -94,6 +94,9 @@ export function createReader({ conn, coins, siteUrl, fetchImpl = globalThis.fetc
         tokenProgram: mA?.owner ?? TOKEN_2022_PROGRAM_ID,
         report,
         transferFee: report?.transferFee,
+        // A coin with a house: the house starts its rounds, so the fleet never
+        // starts one (it would take the house's day); it still trades and joins.
+        house: hA ? stook.decodeHouse(hA.data) : null,
         today: days[n] ? { index: days[n].today, key: ladderKeys[n][0], round: round(tA, ladderKeys[n][0], days[n].today) } : null,
         tomorrow: days[n] ? { index: days[n].tomorrow, key: ladderKeys[n][1], round: round(nA, ladderKeys[n][1], days[n].tomorrow) } : null,
       });

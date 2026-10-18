@@ -103,16 +103,10 @@ pub enum SoothCoreError {
     HouseBusy,
     #[msg("The house is not in a round")]
     HouseIdle,
-    #[msg("The house joins only a round of its own series that nobody has traded yet")]
-    HouseNotJoinable,
     #[msg("The house holds too little to fund a round: at least one whole token")]
     HouseTooSmall,
-    #[msg("Houses do not take coins with a transfer fee")]
-    HouseFeeMint,
     #[msg("Pass the record of the epoch this stake's queued entry belongs to")]
     HouseEpochMissing,
     #[msg("More shares than this stake holds")]
     HouseNotEnoughShares,
-    #[msg("Less arrived than the house sent")]
-    HouseTransferShort,
 }

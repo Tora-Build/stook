@@ -21,7 +21,7 @@ export interface CollectTx { ixs: TransactionInstruction[]; computeUnits: number
  *  deposits claimed, the first one also making the wallet's token account. */
 export function collectTxs(h: Holding, owner: PublicKey, tokenProgram: PublicKey): CollectTx[] {
   const l = h.ladder;
-  const refs = { ladder: h.pubkey, quoteMint: l.quoteMint, tokenProgram };
+  const refs = stook.ladderRefs(h.pubkey, l, tokenProgram);
   const ata = ataOf(l.quoteMint, owner, tokenProgram);
   const chunks = stook.packByCompute([
     ...h.positions.map((r) => ({ ix: stook.redeemLadderIx(refs, owner, ata, r.position.shape), units: stook.REDEEM_COMPUTE_UNITS })),

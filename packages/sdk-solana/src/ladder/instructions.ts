@@ -97,8 +97,23 @@ export interface LadderRefs {
   quoteMint: PublicKey;
   /** `TOKEN_PROGRAM_ID` or `TOKEN_2022_PROGRAM_ID` — whichever owns the mint. */
   tokenProgram: PublicKey;
+  /** The round's vault and its owner. Derived from the round's address when
+   *  absent, which is right for every round with its own vault; a house round
+   *  keeps its money in the house's vault, so pass `ladderRefs(...)`'s. */
+  vault?: PublicKey;
+  authority?: PublicKey;
   programId?: PublicKey;
 }
+
+/** Refs for a round as the chain holds it: its own vault or its coin's shared one. */
+export function ladderRefs(ladder: PublicKey, l: { quoteMint: PublicKey; vault: PublicKey; series: PublicKey; sharedVault?: boolean; authorityBump?: number }, tokenProgram: PublicKey, programId = SOOTH_CORE_PROGRAM_ID): LadderRefs {
+  const authority = l.sharedVault
+    ? PublicKey.createProgramAddressSync([enc.encode("house"), l.series.toBytes(), Uint8Array.of(l.authorityBump!)], programId)
+    : deriveLadderAuthority(ladder, programId);
+  return { ladder, quoteMint: l.quoteMint, tokenProgram, vault: l.vault, authority, programId };
+}
+const vaultOf = (r: LadderRefs, programId: PublicKey): PublicKey => r.vault ?? deriveLadderVault(r.ladder, programId);
+const authorityOf = (r: LadderRefs, programId: PublicKey): PublicKey => r.authority ?? deriveLadderAuthority(r.ladder, programId);
 
 const pid = (r: { programId?: PublicKey }) => r.programId ?? SOOTH_CORE_PROGRAM_ID;
 const ix = (r: { programId?: PublicKey }, data: Buffer, keys: AccountMeta[]) =>
@@ -240,8 +255,8 @@ export function tradeLadderIx(r: LadderRefs, a: TradeLadderArgs): TransactionIns
     r,
     pack(DISC.trade, i16(a.shape.lo), i16(a.shape.hi), u8(a.shape.h), i64(a.shares), u64(a.limit)),
     [
-      signer(a.user), ro(deriveConfig(programId)), rw(r.ladder), ro(deriveLadderAuthority(r.ladder, programId)),
-      ro(r.quoteMint), rw(deriveLadderVault(r.ladder, programId)), rw(a.userToken),
+      signer(a.user), ro(deriveConfig(programId)), rw(r.ladder), ro(authorityOf(r, programId)),
+      ro(r.quoteMint), rw(vaultOf(r, programId)), rw(a.userToken),
       rw(deriveLadderPosition(r.ladder, a.user, a.shape, programId)), ro(r.tokenProgram), ro(SystemProgram.programId),
     ],
   );
@@ -267,7 +282,7 @@ export function joinLadderIx(r: LadderRefs, a: JoinLadderArgs): TransactionInstr
     pack(DISC.lpJoin, u8(a.index), u64(a.deposit), u64(a.expectedSeq), u64(a.maxGross)),
     [
       signer(a.lp), ro(deriveConfig(programId)), rw(r.ladder), ro(r.quoteMint),
-      rw(deriveLadderVault(r.ladder, programId)), rw(a.lpToken),
+      rw(vaultOf(r, programId)), rw(a.lpToken),
       rw(deriveLadderTranche(r.ladder, a.lp, a.index, programId)), ro(r.tokenProgram), ro(SystemProgram.programId),
     ],
   );
@@ -280,8 +295,8 @@ export function joinLadderIx(r: LadderRefs, a: JoinLadderArgs): TransactionInstr
 export function settleLadderIx(r: LadderRefs, series: PublicKey, cranker: PublicKey, priceUpdate: PublicKey, crankerToken: PublicKey): TransactionInstruction {
   const programId = pid(r);
   return ix(r, pack(DISC.settle), [
-    signer(cranker, false), rw(r.ladder), ro(priceUpdate), rw(series), ro(deriveLadderAuthority(r.ladder, programId)),
-    ro(r.quoteMint), rw(deriveLadderVault(r.ladder, programId)), rw(crankerToken), ro(r.tokenProgram),
+    signer(cranker, false), rw(r.ladder), ro(priceUpdate), rw(series), ro(authorityOf(r, programId)),
+    ro(r.quoteMint), rw(vaultOf(r, programId)), rw(crankerToken), ro(r.tokenProgram),
   ]);
 }
 
@@ -299,8 +314,8 @@ export const voidLadderIx = (r: LadderRefs, cranker: PublicKey, priceUpdate?: Pu
 export function redeemLadderIx(r: LadderRefs, owner: PublicKey, ownerToken: PublicKey, shape: Shape, caller: PublicKey = owner): TransactionInstruction {
   const programId = pid(r);
   return ix(r, pack(DISC.redeem), [
-    signer(caller), rw(owner), rw(r.ladder), ro(deriveLadderAuthority(r.ladder, programId)), ro(r.quoteMint),
-    rw(deriveLadderVault(r.ladder, programId)), rw(ownerToken),
+    signer(caller), rw(owner), rw(r.ladder), ro(authorityOf(r, programId)), ro(r.quoteMint),
+    rw(vaultOf(r, programId)), rw(ownerToken),
     rw(deriveLadderPosition(r.ladder, owner, shape, programId)), ro(r.tokenProgram),
   ]);
 }
@@ -309,8 +324,8 @@ export function redeemLadderIx(r: LadderRefs, owner: PublicKey, ownerToken: Publ
 export function claimLpIx(r: LadderRefs, owner: PublicKey, ownerToken: PublicKey, index = 0, caller: PublicKey = owner): TransactionInstruction {
   const programId = pid(r);
   return ix(r, pack(DISC.claimLp), [
-    signer(caller), rw(owner), rw(r.ladder), ro(deriveLadderAuthority(r.ladder, programId)), ro(r.quoteMint),
-    rw(deriveLadderVault(r.ladder, programId)), rw(ownerToken),
+    signer(caller), rw(owner), rw(r.ladder), ro(authorityOf(r, programId)), ro(r.quoteMint),
+    rw(vaultOf(r, programId)), rw(ownerToken),
     rw(deriveLadderTranche(r.ladder, owner, index, programId)), ro(r.tokenProgram),
   ]);
 }
@@ -318,8 +333,8 @@ export function claimLpIx(r: LadderRefs, owner: PublicKey, ownerToken: PublicKey
 export function collectLadderFeesIx(r: LadderRefs, cranker: PublicKey, creatorToken: PublicKey, treasuryToken: PublicKey): TransactionInstruction {
   const programId = pid(r);
   return ix(r, pack(DISC.collectFees), [
-    signer(cranker, false), ro(deriveConfig(programId)), rw(r.ladder), ro(deriveLadderAuthority(r.ladder, programId)),
-    ro(r.quoteMint), rw(deriveLadderVault(r.ladder, programId)), rw(creatorToken), rw(treasuryToken), ro(r.tokenProgram),
+    signer(cranker, false), ro(deriveConfig(programId)), rw(r.ladder), ro(authorityOf(r, programId)),
+    ro(r.quoteMint), rw(vaultOf(r, programId)), rw(creatorToken), rw(treasuryToken), ro(r.tokenProgram),
   ]);
 }
 
@@ -337,7 +352,7 @@ export const sweepPositionIx = (r: LadderRefs, cranker: PublicKey, position: Pub
 export function closeLadderIx(r: LadderRefs, cranker: PublicKey, creator: PublicKey, treasuryToken: PublicKey): TransactionInstruction {
   const programId = pid(r);
   return ix(r, pack(DISC.close), [
-    signer(cranker, false), ro(deriveConfig(programId)), rw(r.ladder), rw(creator), ro(deriveLadderAuthority(r.ladder, programId)),
-    rw(r.quoteMint), rw(deriveLadderVault(r.ladder, programId)), rw(treasuryToken), ro(r.tokenProgram),
+    signer(cranker, false), ro(deriveConfig(programId)), rw(r.ladder), rw(creator), ro(authorityOf(r, programId)),
+    rw(r.quoteMint), rw(vaultOf(r, programId)), rw(treasuryToken), ro(r.tokenProgram),
   ]);
 }

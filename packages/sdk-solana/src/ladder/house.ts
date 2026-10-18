@@ -5,8 +5,9 @@
 import { PublicKey, SystemProgram, TransactionInstruction, type AccountMeta, type GetProgramAccountsFilter } from "@solana/web3.js";
 import { SOOTH_CORE_PROGRAM_ID } from "../program.js";
 import type { LadderAccount } from "./accounts.js";
+import { closeOf, hasRound, indexAtOrBefore, type SeriesAccount } from "./series.js";
 import { base58 } from "./crank.js";
-import { deriveLadderAuthority, deriveLadderTranche, deriveLadderVault, deriveMintApproval } from "./instructions.js";
+import { deriveLadderPda, deriveLadderTranche, deriveMintApproval } from "./instructions.js";
 
 const enc = new TextEncoder();
 const find = (seeds: Uint8Array[], programId: PublicKey) => PublicKey.findProgramAddressSync(seeds, programId)[0];
@@ -20,7 +21,7 @@ const DISC = {
   house_withdraw: [91, 80, 134, 212, 232, 189, 132, 39],
   house_cancel_deposit: [244, 10, 239, 16, 115, 71, 53, 172],
   house_claim: [198, 167, 235, 176, 215, 100, 49, 163],
-  house_join: [94, 71, 219, 56, 111, 177, 127, 72],
+  house_start: [56, 166, 149, 86, 33, 147, 38, 66],
   house_collect: [221, 204, 176, 83, 187, 233, 34, 250],
 } as const;
 const ACCOUNT_DISC = {
@@ -144,9 +145,11 @@ export function createHouseIx(a: { payer: PublicKey; series: PublicKey; quoteMin
   ]);
 }
 
-export function houseDepositIx(r: HouseRefs, lp: PublicKey, lpToken: PublicKey, amount: bigint, epoch?: PublicKey) {
+/** `amount` is what the house is credited; `maxGross` (default `amount`)
+ *  the most that may leave the wallet, a coin's transfer fee included. */
+export function houseDepositIx(r: HouseRefs, lp: PublicKey, lpToken: PublicKey, amount: bigint, epoch?: PublicKey, maxGross = amount) {
   const programId = pid(r);
-  return ix(r, data("house_deposit", u64(amount)), [
+  return ix(r, data("house_deposit", u64(amount), u64(maxGross)), [
     signer(lp), ro(config(programId)), rw(r.house), ro(r.quoteMint), rw(deriveHouseVault(r.house, programId)), rw(lpToken),
     rw(deriveHouseStake(r.house, lp, programId)), opt(r, epoch), ro(r.tokenProgram), ro(SystemProgram.programId),
   ]);
@@ -166,24 +169,24 @@ export const houseCancelDepositIx = (r: HouseRefs, lp: PublicKey, lpToken: Publi
 export const houseClaimIx = (r: HouseRefs, lp: PublicKey, lpToken: PublicKey, epoch?: PublicKey) =>
   ix(r, data("house_claim"), lpKeys(r, lp, lpToken, epoch));
 
-/** Put the whole house into an untraded round of its series. Anyone. */
-export function houseJoinIx(r: HouseRefs, cranker: PublicKey, ladder: PublicKey) {
+/** Start round `index` of the house's series with everything the house
+ *  holds, its money kept in the house's vault. Anyone. */
+export function houseStartIx(r: HouseRefs & { series: PublicKey }, cranker: PublicKey, index: number) {
   const programId = pid(r);
-  return ix(r, data("house_join"), [
-    signer(cranker), ro(config(programId)), rw(r.house), rw(ladder), ro(r.quoteMint), rw(deriveLadderVault(ladder, programId)),
-    rw(deriveHouseVault(r.house, programId)), rw(deriveLadderTranche(ladder, r.house, 0, programId)), ro(r.tokenProgram), ro(SystemProgram.programId),
+  const ladder = deriveLadderPda({ series: r.series, index }, programId);
+  return ix(r, data("house_start", u32(index)), [
+    signer(cranker), ro(config(programId)), rw(r.house), ro(r.series), rw(ladder), ro(r.quoteMint),
+    rw(deriveLadderTranche(ladder, r.house, 0, programId)), ro(SystemProgram.programId),
   ]);
 }
 
-/** Bring the house home from its finished round and process the queue. Anyone. */
+/** Book the house home from its finished round and process the queue. Anyone. */
 export function houseCollectIx(r: HouseRefs, cranker: PublicKey, h: Pick<HouseAccount, "round" | "rentPayer" | "epoch">) {
   const programId = pid(r);
   if (!h.round) throw new Error("the house is not in a round");
   return ix(r, data("house_collect"), [
-    signer(cranker), rw(r.house), rw(h.round), ro(deriveLadderAuthority(h.round, programId)), ro(r.quoteMint),
-    rw(deriveLadderVault(h.round, programId)), rw(deriveHouseVault(r.house, programId)),
-    rw(deriveLadderTranche(h.round, r.house, 0, programId)), rw(h.rentPayer), rw(deriveHouseEpoch(r.house, h.epoch, programId)),
-    ro(r.tokenProgram), ro(SystemProgram.programId),
+    signer(cranker), rw(r.house), rw(h.round), rw(deriveLadderTranche(h.round, r.house, 0, programId)), rw(h.rentPayer),
+    rw(deriveHouseEpoch(r.house, h.epoch, programId)), ro(SystemProgram.programId),
   ]);
 }
 
@@ -192,19 +195,17 @@ export function houseCollectIx(r: HouseRefs, cranker: PublicKey, h: Pick<HouseAc
 /** `getProgramAccounts` filters for every house. */
 export const houseFilters = (): GetProgramAccountsFilter[] => [{ memcmp: { offset: 0, bytes: base58(Uint8Array.from(ACCOUNT_DISC.House)) } }];
 
-/** What a house needs next: bring it home from a finished round, put it into
- *  the next one, or nothing. `round` is its round's state, when it is in one. */
-export function houseStep(h: HouseAccount, round: Pick<LadderAccount, "status"> | null, decimals: number): "collect" | "join" | null {
+/** What a house needs next: book it home from a finished round, start the
+ *  next one, or nothing. `round` is its round's state, when it is in one. */
+export function houseStep(h: HouseAccount, round: Pick<LadderAccount, "status"> | null, decimals: number): "collect" | "start" | null {
   if (h.round) return round && (round.status === "settled" || round.status === "void") ? "collect" : null;
-  return h.assets >= 10n ** BigInt(decimals) ? "join" : null;
+  return h.assets >= 10n ** BigInt(decimals) ? "start" : null;
 }
 
-/** The round an idle house joins: of its series, untraded (still seeding, or
- *  open with no trade yet), not locked; the soonest to close. */
-export function houseJoinTarget<T extends { pubkey: PublicKey; ladder: Pick<LadderAccount, "series" | "status" | "curveSeq" | "locksAt" | "settlesAt"> }>(
-  h: Pick<HouseAccount, "series">, rounds: T[], now: bigint,
-): T | undefined {
-  return rounds
-    .filter(({ ladder: l }) => l.series.equals(h.series) && now < l.locksAt && (l.status === "seeding" || (l.status === "open" && l.curveSeq === 0n)))
-    .sort((a, b) => (a.ladder.settlesAt < b.ladder.settlesAt ? -1 : a.ladder.settlesAt > b.ladder.settlesAt ? 1 : 0))[0];
+/** The round an idle house starts: the first of its series that closes at
+ *  least `leadSecs` from now (the program's fifteen minutes, plus room). */
+export function houseStartIndex(s: Pick<SeriesAccount, "periodSecs" | "closeSecs" | "clock">, now: bigint, leadSecs = 15n * 60n + 90n): number {
+  let i = indexAtOrBefore(s, now) + 1;
+  for (let n = 0; n < 14 && (!hasRound(s, i) || closeOf(s, i) < now + leadSecs); n++) i++;
+  return i;
 }

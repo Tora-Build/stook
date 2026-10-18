@@ -68,6 +68,23 @@ pub const STATUS_OPEN: u8 = 1;
 pub const STATUS_SETTLED: u8 = 2;
 pub const STATUS_VOID: u8 = 3;
 
+/// Where a round keeps its money. Its own vault, owned by the round's
+/// authority (every round started by `ladder_create`); or its coin's shared
+/// vault, owned by the coin's house (rounds the house starts, `house_start`):
+/// all of a house's rounds share one token account, so rolling the house from
+/// one round into the next is bookkeeping and never a transfer. Each round's
+/// books (`cash`, fees, pots) stay its own, and every payout out of a shared
+/// vault is bounded by the paying round's own books.
+pub const VAULT_OWN: u8 = 0;
+pub const VAULT_SHARED: u8 = 1;
+
+/// Who signs for a round's vault: seed, key, bump.
+pub struct VaultSigner {
+    pub seed: &'static [u8],
+    pub key: Pubkey,
+    pub bump: u8,
+}
+
 /// No bin has settled yet.
 pub const NO_BIN: u8 = u8::MAX;
 
@@ -166,9 +183,12 @@ pub struct Ladder {
 
     pub status: u8,
     pub settled_bin: u8,
-    pub _pad1: u8,
+    /// `VAULT_OWN` or `VAULT_SHARED`. Zero on every round from before shared
+    /// vaults (the byte was padding), which is their own vault.
+    pub vault_mode: u8,
     pub quote_decimals: u8,
     pub bump: u8,
+    /// Bump of the vault's owner: the round's authority, or (shared) the house.
     pub authority_bump: u8,
     pub vault_bump: u8,
     pub _pad: u8,
@@ -186,6 +206,25 @@ impl Ladder {
     /// The opening bell's width, bands² (WAD), exactly as the curve was built.
     pub fn var_bands(&self) -> i128 {
         self.var_bands_e9 as i128 * 1_000_000_000
+    }
+
+    pub fn shared_vault(&self) -> bool {
+        self.vault_mode == VAULT_SHARED
+    }
+
+    /// The seeds that sign for this round's vault.
+    pub fn signer(&self, ladder: &Pubkey) -> VaultSigner {
+        if self.shared_vault() {
+            VaultSigner { seed: crate::state::house::HOUSE_SEED, key: self.series, bump: self.authority_bump }
+        } else {
+            VaultSigner { seed: LADDER_AUTHORITY_SEED, key: *ladder, bump: self.authority_bump }
+        }
+    }
+
+    /// The address that owns this round's vault.
+    pub fn vault_authority(&self, ladder: &Pubkey) -> Pubkey {
+        let v = self.signer(ladder);
+        Pubkey::create_program_address(&[v.seed, v.key.as_ref(), &[v.bump]], &crate::ID).unwrap_or_default()
     }
 
     pub fn b_wad(&self) -> i128 {

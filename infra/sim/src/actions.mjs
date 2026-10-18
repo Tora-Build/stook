@@ -36,7 +36,7 @@ export const fromUsd = (usd, decimals, rate) => (rate > 0 && usd > 0 ? BigInt(Ma
 
 const whole = (dec) => 10n ** BigInt(dec);
 const min = (a, b) => (a < b ? a : b);
-const refsOf = (key, l, c) => ({ ladder: key, quoteMint: l.quoteMint, tokenProgram: c.tokenProgram });
+const refsOf = (key, l, c) => stook.ladderRefs(key, l, c.tokenProgram);
 
 /** Open for trading at `t` (seconds), with a minute to spare before the lock. */
 export const tradeable = (l, t) => !!l && l.status === "open" && BigInt(t) >= l.opensAt && BigInt(t) < l.locksAt - 60n;
@@ -167,7 +167,7 @@ function startChoice(ctx, coins) {
   const { t, profile, starters, cfg } = ctx;
   const ny = nyClock(t * 1000);
   for (const c of coins) {
-    if (!c.series?.active || !stook.warmedUp(c.series)) continue;
+    if (!c.series?.active || !stook.warmedUp(c.series) || c.house) continue;
     for (const day of [c.tomorrow, c.today]) {
       if (!day || day.round) continue;
       const settlesAt = Number(stook.closeOf(c.series, day.index));
@@ -565,6 +565,7 @@ function startAction(ctx, c, day) {
     lamports: START_LAMPORTS,
     params: { usd: +usd.toFixed(2), index: day.index },
     build: async () => {
+      if (c.house) throw new Skip("the coin's house starts its rounds", "LadderBadTimes");
       const rate = ctx.rates?.[c.symbol];
       const bal = ctx.bal.coins[c.symbol] ?? 0n;
       let seed = rate ? fromUsd(usd, c.decimals, rate) : BigInt(Math.round(usd * 20)) * whole(c.decimals);

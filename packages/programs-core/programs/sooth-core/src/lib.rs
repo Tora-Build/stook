@@ -199,8 +199,8 @@ pub mod sooth_core {
 
     /// Buy house shares: now if the house is idle, at the next collect if its
     /// money is in a round.
-    pub fn house_deposit(ctx: Context<HouseDeposit>, amount: u64) -> Result<()> {
-        house::house_deposit_handler(ctx, amount)
+    pub fn house_deposit(ctx: Context<HouseDeposit>, amount: u64, max_gross: u64) -> Result<()> {
+        house::house_deposit_handler(ctx, amount, max_gross)
     }
 
     /// Sell house shares: paid now if the house is idle, queued for the next
@@ -219,12 +219,13 @@ pub mod sooth_core {
         house::house_claim_handler(ctx)
     }
 
-    /// Put the whole house into an untraded round of its series. Permissionless.
-    pub fn house_join(ctx: Context<HouseJoin>) -> Result<()> {
-        house::house_join_handler(ctx)
+    /// Start a round of the house's series with everything the house holds,
+    /// its money kept in the house's vault. Permissionless.
+    pub fn house_start(ctx: Context<HouseStart>, index: u32) -> Result<()> {
+        house::house_start_handler(ctx, index)
     }
 
-    /// Bring the house home from a finished round and process its queue.
+    /// Book the house home from a finished round and process its queue.
     /// Permissionless.
     pub fn house_collect(ctx: Context<HouseCollect>) -> Result<()> {
         house::house_collect_handler(ctx)

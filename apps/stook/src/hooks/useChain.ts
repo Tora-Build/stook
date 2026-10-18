@@ -112,4 +112,4 @@ export function useSend(label: string) {
 }
 
 export const useRefs = (ladderKey: PublicKey | null, l: stook.LadderAccount | null | undefined, tokenProgram?: PublicKey): stook.LadderRefs | null =>
-  useMemo(() => (ladderKey && l && tokenProgram ? { ladder: ladderKey, quoteMint: l.quoteMint, tokenProgram } : null), [ladderKey, l, tokenProgram]);
+  useMemo(() => (ladderKey && l && tokenProgram ? stook.ladderRefs(ladderKey, l, tokenProgram) : null), [ladderKey, l, tokenProgram]);

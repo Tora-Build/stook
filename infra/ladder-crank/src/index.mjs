@@ -278,7 +278,7 @@ export function createKeeper({ connection, scanner, payer, sendTx, postAndConsum
         // Whichever token program owns the mint — classic SPL or Token-2022.
         const mint = await connection.getAccountInfo(ladder.quoteMint);
         if (!mint) { console.log(tag, "quote mint not found"); continue; }
-        const refs = { ladder: pubkey, quoteMint: ladder.quoteMint, tokenProgram: mint.owner };
+        const refs = stook.ladderRefs(pubkey, ladder, mint.owner);
         if (step === "void") {
           console.log(tag, await sendPlain(stook.voidLadderIx(refs, payer.publicKey)));
           succeeded(key);
@@ -339,11 +339,12 @@ export function createKeeper({ connection, scanner, payer, sendTx, postAndConsum
   }
 
   // A house rolls from round to round: once its round is settled or void it is
-  // brought home (the queue of deposits and withdrawals processed at the price
-  // the round left), then put whole into the next untraded round of its
-  // series. Both are permissionless; the keeper pays only rent it gets back
-  // (the tranche's) and the epoch record's.
-  async function houses(found, now) {
+  // booked home (the queue of deposits and withdrawals processed at the price
+  // the round left), then it starts the next round of its series with all it
+  // holds. Its rounds keep their money in the house's vault, so neither step
+  // moves a token. Both are permissionless; the keeper pays rent it gets back
+  // (the round's and the tranche's) and the epoch record's.
+  async function houses(_found, now) {
     if (plan) return 0;
     let failures = 0;
     const all = await scanner.getProgramAccounts(SOOTH_CORE_PROGRAM_ID, { filters: stook.houseFilters() });
@@ -358,13 +359,17 @@ export function createKeeper({ connection, scanner, payer, sendTx, postAndConsum
           const mint = await connection.getAccountInfo(h.quoteMint);
           const round = h.round ? await connection.getAccountInfo(h.round).then((a) => a && stook.decodeLadder(a.data)) : null;
           const step = stook.houseStep(h, round, mint.data[44]);
-          const refs = { house: pubkey, quoteMint: h.quoteMint, tokenProgram: mint.owner };
+          const refs = { house: pubkey, quoteMint: h.quoteMint, tokenProgram: mint.owner, series: h.series };
           if (step === "collect") {
             console.log(tag, "collect", await sendPlain(stook.houseCollectIx(refs, payer.publicKey, h), 400_000));
-          } else if (step === "join") {
-            const target = stook.houseJoinTarget(h, found, now);
-            if (!target) break;
-            console.log(tag, "join", target.pubkey.toBase58().slice(0, 8), await sendPlain(stook.houseJoinIx(refs, payer.publicKey, target.pubkey), 200_000));
+          } else if (step === "start") {
+            const series = stook.decodeSeries((await connection.getAccountInfo(h.series)).data);
+            if (!series.active) break;
+            const index = stook.houseStartIndex(series, now);
+            // Someone started that day already (a round of its own): the house
+            // waits for the day after.
+            if (await connection.getAccountInfo(stook.deriveLadderPda({ series: h.series, index }))) { console.log(tag, "day", index, "taken; waiting"); break; }
+            console.log(tag, "start", index, await sendPlain(stook.houseStartIx(refs, payer.publicKey, index), 200_000));
           } else break;
         }
         succeeded(key);
@@ -400,7 +405,7 @@ export function createKeeper({ connection, scanner, payer, sendTx, postAndConsum
         if (waiting(key)) { if (failing(key)) failures++; continue; }
         try {
           const mint = await connection.getAccountInfo(l.quoteMint);
-          const refs = { ladder: pubkey, quoteMint: l.quoteMint, tokenProgram: mint.owner };
+          const refs = stook.ladderRefs(pubkey, l, mint.owner);
           // 30 days after the close, anything still uncollected is paid out to
           // its owner's token account, if they have one. The keeper does not
           // open token accounts for others: the owner could close it and keep

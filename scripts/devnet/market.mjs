@@ -61,7 +61,7 @@ if (cmd === "create") {
     const publishTime = Number(d.readBigInt64LE(at + 52)), age = now - publishTime;
     if (now < Number(l.opensAt)) { console.log(`opens in ${Number(l.opensAt) - now}s`); await new Promise((r) => setTimeout(r, 5000)); continue; }
     if (age > 55) { console.log(`push oracle ${age}s old, waiting for a fresh one`); await new Promise((r) => setTimeout(r, 10_000)); continue; }
-    const refs = { ladder: ladderKey, quoteMint: l.quoteMint, tokenProgram: (await c.getAccountInfo(l.quoteMint)).owner };
+    const refs = stook.ladderRefs(ladderKey, l, (await c.getAccountInfo(l.quoteMint)).owner);
     try {
       console.log("opened", await send([stook.openLadderIx(refs, payer.publicKey, pda, l.series)]));
       break;

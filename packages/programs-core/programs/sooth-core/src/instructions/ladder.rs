@@ -154,7 +154,7 @@ pub(crate) fn one_token(decimals: u8) -> Result<u64> {
 /// what leaves the payer's wallet, fee included: a buy's limit, a deposit's
 /// signed cap. A fee raised after the quote can make a transfer fail, never
 /// take more than the wallet agreed to.
-fn pull<'info>(
+pub(crate) fn pull<'info>(
     net: u64,
     max_gross: u64,
     from: &AccountInfo<'info>,
@@ -238,6 +238,53 @@ pub(crate) fn join(l: &mut Ladder, t: &mut LadderTranche, deposit: u64) -> Resul
 }
 
 // ── create ───────────────────────────────────────────────────────────────────
+
+/// A round's window from its series' close, if it may be started now:
+/// `(opens_at, locks_at, settles_at)`.
+pub(crate) fn round_window(series: &Series, index: u32, now: i64) -> Result<(i64, i64, i64)> {
+    require!(series.has_round(index), SoothCoreError::LadderBadTimes);
+    let settles_at = series.close_of(index);
+    // Not so soon that nobody can trade it. Far ahead is fine: the band width
+    // is read from the volatility when the round opens, not now.
+    require!(
+        now + MIN_ROUND_SECS <= settles_at && settles_at <= now + MAX_LEAD_SECS,
+        SoothCoreError::LadderBadTimes
+    );
+    let (opens_at, locks_at) = round_times(now, settles_at);
+    Ok((opens_at, locks_at, settles_at))
+}
+
+/// Everything about a new round that does not depend on who starts it.
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn init_round(
+    l: &mut Ladder,
+    series: &Account<Series>,
+    index: u32,
+    (opens_at, locks_at, settles_at): (i64, i64, i64),
+    quote_mint: Pubkey,
+    decimals: u8,
+    vault: Pubkey,
+    creator: Pubkey,
+    sponsor: Pubkey,
+) {
+    l.opens_at = opens_at;
+    l.locks_at = locks_at;
+    l.settles_at = settles_at;
+    l.index = index;
+    l.series = series.key();
+    l.fee_bps = LADDER_FEE_BPS;
+    l.feed_id = series.feed_id;
+    l.quote_mint = quote_mint;
+    l.vault = vault;
+    l.creator = creator;
+    l.sponsor = sponsor;
+    // A placeholder until open sets the real odds; nothing trades before.
+    let (w, sum) = crate::math::ladder::fresh();
+    l.store_curve(&w, sum);
+    l.status = STATUS_SEEDING;
+    l.settled_bin = NO_BIN;
+    l.quote_decimals = decimals;
+}
 
 #[derive(AnchorSerialize, AnchorDeserialize, Clone, Debug)]
 pub struct LadderCreateArgs {
@@ -366,15 +413,7 @@ pub fn create_handler(ctx: Context<LadderCreate>, args: LadderCreateArgs) -> Res
     )?;
 
     let now = Clock::get()?.unix_timestamp;
-    require!(ctx.accounts.series.has_round(args.index), SoothCoreError::LadderBadTimes);
-    let settles_at = ctx.accounts.series.close_of(args.index);
-    // Not so soon that nobody can trade it. Far ahead is fine: the band width
-    // is read from the volatility when the round opens, not now.
-    require!(
-        now + MIN_ROUND_SECS <= settles_at && settles_at <= now + MAX_LEAD_SECS,
-        SoothCoreError::LadderBadTimes
-    );
-    let (opens_at, locks_at) = round_times(now, settles_at);
+    let (opens_at, locks_at, settles_at) = round_window(&ctx.accounts.series, args.index, now)?;
 
     // At least one whole quote token. Below that `b` rounds to nothing and a
     // single small trade moves a bin from 2% to 80%.
@@ -392,27 +431,19 @@ pub fn create_handler(ctx: Context<LadderCreate>, args: LadderCreateArgs) -> Res
     )?;
 
     let mut l = ctx.accounts.ladder.load_init()?;
-    l.opens_at = opens_at;
-    l.locks_at = locks_at;
-    l.settles_at = settles_at;
-    l.index = args.index;
-    l.series = ctx.accounts.series.key();
-    l.fee_bps = LADDER_FEE_BPS;
-    l.feed_id = ctx.accounts.series.feed_id;
-    l.quote_mint = ctx.accounts.quote_mint.key();
-    l.vault = ctx.accounts.vault.key();
-    l.creator = ctx.accounts.creator.key();
-    l.sponsor = if args.sponsor == Pubkey::default() {
-        ctx.accounts.creator.key()
-    } else {
-        args.sponsor
-    };
-    // A placeholder until open sets the real odds; nothing trades before.
-    let (w, sum) = crate::math::ladder::fresh();
-    l.store_curve(&w, sum);
-    l.status = STATUS_SEEDING;
-    l.settled_bin = NO_BIN;
-    l.quote_decimals = decimals;
+    let sponsor = if args.sponsor == Pubkey::default() { ctx.accounts.creator.key() } else { args.sponsor };
+    init_round(
+        &mut l,
+        &ctx.accounts.series,
+        args.index,
+        (opens_at, locks_at, settles_at),
+        ctx.accounts.quote_mint.key(),
+        decimals,
+        ctx.accounts.vault.key(),
+        ctx.accounts.creator.key(),
+        sponsor,
+    );
+    l.vault_mode = VAULT_OWN;
     l.bump = ctx.bumps.ladder;
     l.authority_bump = ctx.bumps.authority;
     l.vault_bump = ctx.bumps.vault;
@@ -571,10 +602,7 @@ pub struct LadderTrade<'info> {
     pub ladder: AccountLoader<'info, Ladder>,
 
     /// CHECK: PDA vault authority, re-derived from the ladder key.
-    #[account(
-        seeds = [LADDER_AUTHORITY_SEED, ladder.key().as_ref()],
-        bump = ladder.load()?.authority_bump,
-    )]
+    #[account(address = ladder.load()?.vault_authority(&ladder.key()) @ SoothCoreError::LadderWrongAccount)]
     pub authority: UncheckedAccount<'info>,
 
     #[account(address = ladder.load()?.quote_mint)]
@@ -654,7 +682,7 @@ pub fn trade_handler(ctx: Context<LadderTrade>, args: LadderTradeArgs) -> Result
     }
 
     // ── price it, and update the pool's books ────────────────────────────────
-    let (amount, fee, decimals, authority_bump) = {
+    let (amount, fee, decimals, vault_signer) = {
         let mut l = ctx.accounts.ladder.load_mut()?;
         require!(l.tradeable(now), SoothCoreError::LadderNotOpen);
 
@@ -713,7 +741,7 @@ pub fn trade_handler(ctx: Context<LadderTrade>, args: LadderTradeArgs) -> Result
         // trade instead of stranding a winner.
         require!(l.cash >= l.max_payout(), SoothCoreError::LadderInsolvent);
 
-        (amount, fee, decimals, l.authority_bump)
+        (amount, fee, decimals, l.signer(&ladder_key))
     };
 
     // ── move the money and the position ──────────────────────────────────────
@@ -754,7 +782,7 @@ pub fn trade_handler(ctx: Context<LadderTrade>, args: LadderTradeArgs) -> Result
         let before = ctx.accounts.user_token.amount;
         if out > 0 {
             let seeds: &[&[&[u8]]] =
-                &[&[LADDER_AUTHORITY_SEED, ladder_key.as_ref(), &[authority_bump]]];
+                &[&[vault_signer.seed, vault_signer.key.as_ref(), &[vault_signer.bump]]];
             token_interface::transfer_checked(
                 CpiContext::new_with_signer(
                     ctx.accounts.token_program.to_account_info(),
@@ -937,7 +965,7 @@ pub struct LadderSettle<'info> {
     pub series: Box<Account<'info, Series>>,
 
     /// CHECK: PDA vault authority.
-    #[account(seeds = [LADDER_AUTHORITY_SEED, ladder.key().as_ref()], bump = ladder.load()?.authority_bump)]
+    #[account(address = ladder.load()?.vault_authority(&ladder.key()) @ SoothCoreError::LadderWrongAccount)]
     pub authority: UncheckedAccount<'info>,
 
     #[account(address = ladder.load()?.quote_mint)]
@@ -972,7 +1000,7 @@ pub struct LadderSettled {
 pub fn settle_handler(ctx: Context<LadderSettle>) -> Result<()> {
     let now = Clock::get()?.unix_timestamp;
     let ladder_key = ctx.accounts.ladder.key();
-    let (bounty, decimals, authority_bump) = {
+    let (bounty, decimals, vault_signer) = {
     let mut l = ctx.accounts.ladder.load_mut()?;
     require!(
         l.status == STATUS_OPEN && now >= l.settles_at,
@@ -1031,11 +1059,11 @@ pub fn settle_handler(ctx: Context<LadderSettle>) -> Result<()> {
         lp_pool: l.lp_pool,
         bounty,
     });
-    (bounty, l.quote_decimals, l.authority_bump)
+    (bounty, l.quote_decimals, l.signer(&ladder_key))
     };
 
     if bounty > 0 {
-        let seeds: &[&[&[u8]]] = &[&[LADDER_AUTHORITY_SEED, ladder_key.as_ref(), &[authority_bump]]];
+        let seeds: &[&[&[u8]]] = &[&[vault_signer.seed, vault_signer.key.as_ref(), &[vault_signer.bump]]];
         token_interface::transfer_checked(
             CpiContext::new_with_signer(
                 ctx.accounts.token_program.to_account_info(),
@@ -1173,10 +1201,7 @@ pub struct LadderRedeem<'info> {
     pub ladder: AccountLoader<'info, Ladder>,
 
     /// CHECK: PDA vault authority.
-    #[account(
-        seeds = [LADDER_AUTHORITY_SEED, ladder.key().as_ref()],
-        bump = ladder.load()?.authority_bump,
-    )]
+    #[account(address = ladder.load()?.vault_authority(&ladder.key()) @ SoothCoreError::LadderWrongAccount)]
     pub authority: UncheckedAccount<'info>,
 
     #[account(address = ladder.load()?.quote_mint)]
@@ -1226,7 +1251,7 @@ pub fn redeem_handler(ctx: Context<LadderRedeem>) -> Result<()> {
     let pos = &ctx.accounts.position;
     let shape = Shape { lo: pos.lo, hi: pos.hi, h: pos.h };
 
-    let (owed, decimals, authority_bump) = {
+    let (owed, decimals, vault_signer) = {
         let mut l = ctx.accounts.ladder.load_mut()?;
         let owed = redemption(
             l.status, l.settled_bin, shape, pos.shares, pos.net_paid, l.void_trader_pot, l.basis_total,
@@ -1239,11 +1264,11 @@ pub fn redeem_handler(ctx: Context<LadderRedeem>) -> Result<()> {
             l.cash = l.cash.checked_sub(owed).ok_or(SoothCoreError::MathOverflow)?;
         }
         l.open_positions = l.open_positions.saturating_sub(1);
-        (owed, l.quote_decimals, l.authority_bump)
+        (owed, l.quote_decimals, l.signer(&ladder_key))
     };
 
     if owed > 0 {
-        let seeds: &[&[&[u8]]] = &[&[LADDER_AUTHORITY_SEED, ladder_key.as_ref(), &[authority_bump]]];
+        let seeds: &[&[&[u8]]] = &[&[vault_signer.seed, vault_signer.key.as_ref(), &[vault_signer.bump]]];
         token_interface::transfer_checked(
             CpiContext::new_with_signer(
                 ctx.accounts.token_program.to_account_info(),
@@ -1309,10 +1334,7 @@ pub struct LadderClaimLp<'info> {
     pub ladder: AccountLoader<'info, Ladder>,
 
     /// CHECK: PDA vault authority.
-    #[account(
-        seeds = [LADDER_AUTHORITY_SEED, ladder.key().as_ref()],
-        bump = ladder.load()?.authority_bump,
-    )]
+    #[account(address = ladder.load()?.vault_authority(&ladder.key()) @ SoothCoreError::LadderWrongAccount)]
     pub authority: UncheckedAccount<'info>,
 
     #[account(address = ladder.load()?.quote_mint)]
@@ -1392,7 +1414,7 @@ pub fn claim_lp_handler(ctx: Context<LadderClaimLp>) -> Result<()> {
     // the house's vault behind its books and leave the house waiting forever.
     require!(ctx.accounts.owner.owner != &crate::ID, SoothCoreError::LadderNotYours);
     may_collect(&ctx.accounts.caller.key(), &ctx.accounts.owner.key(), ctx.accounts.ladder.load()?.settles_at)?;
-    let (principal, fees, decimals, authority_bump) = {
+    let (principal, fees, decimals, vault_signer) = {
         let mut l = ctx.accounts.ladder.load_mut()?;
         let t = ctx.accounts.tranche.load()?;
         let (principal, fees) = take_tranche_owed(&mut l, &t)?;
@@ -1404,12 +1426,12 @@ pub fn claim_lp_handler(ctx: Context<LadderClaimLp>) -> Result<()> {
             principal,
             fees,
         });
-        (principal, fees, l.quote_decimals, l.authority_bump)
+        (principal, fees, l.quote_decimals, l.signer(&ladder_key))
     };
     let owed = principal.checked_add(fees).ok_or(SoothCoreError::MathOverflow)?;
 
     if owed > 0 {
-        let seeds: &[&[&[u8]]] = &[&[LADDER_AUTHORITY_SEED, ladder_key.as_ref(), &[authority_bump]]];
+        let seeds: &[&[&[u8]]] = &[&[vault_signer.seed, vault_signer.key.as_ref(), &[vault_signer.bump]]];
         token_interface::transfer_checked(
             CpiContext::new_with_signer(
                 ctx.accounts.token_program.to_account_info(),
@@ -1489,7 +1511,7 @@ pub struct LadderClose<'info> {
     pub creator: UncheckedAccount<'info>,
 
     /// CHECK: PDA vault authority.
-    #[account(seeds = [LADDER_AUTHORITY_SEED, ladder.key().as_ref()], bump = ladder.load()?.authority_bump)]
+    #[account(address = ladder.load()?.vault_authority(&ladder.key()) @ SoothCoreError::LadderWrongAccount)]
     pub authority: UncheckedAccount<'info>,
 
     #[account(mut, address = ladder.load()?.quote_mint)]
@@ -1522,7 +1544,7 @@ pub struct LadderClosed {
 /// vault's rent go back to whoever funded the round.
 pub fn close_handler(ctx: Context<LadderClose>) -> Result<()> {
     let ladder_key = ctx.accounts.ladder.key();
-    let authority_bump = {
+    let (vault_signer, shared) = {
         let l = ctx.accounts.ladder.load()?;
         require!(l.status == STATUS_SETTLED || l.status == STATUS_VOID, SoothCoreError::LadderNotFinal);
         // Not before the day's close: a round voided early must keep its
@@ -1533,9 +1555,15 @@ pub fn close_handler(ctx: Context<LadderClose>) -> Result<()> {
             l.open_positions == 0 && l.open_tranches == 0 && l.fees_creator == 0 && l.fees_protocol == 0,
             SoothCoreError::LadderNotClosable
         );
-        l.authority_bump
+        (l.signer(&ladder_key), l.shared_vault())
     };
-    let seeds: &[&[&[u8]]] = &[&[LADDER_AUTHORITY_SEED, ladder_key.as_ref(), &[authority_bump]]];
+    // A shared vault is the coin's, not the round's: it stays open, and the
+    // round's few units of rounding dust stay in it, owed to nobody.
+    if shared {
+        emit!(LadderClosed { ladder: ladder_key, dust: 0 });
+        return Ok(());
+    }
+    let seeds: &[&[&[u8]]] = &[&[vault_signer.seed, vault_signer.key.as_ref(), &[vault_signer.bump]]];
     let dust = ctx.accounts.vault.amount;
     if dust > 0 {
         token_interface::transfer_checked(
@@ -1599,10 +1627,7 @@ pub struct LadderCollectFees<'info> {
     pub ladder: AccountLoader<'info, Ladder>,
 
     /// CHECK: PDA vault authority.
-    #[account(
-        seeds = [LADDER_AUTHORITY_SEED, ladder.key().as_ref()],
-        bump = ladder.load()?.authority_bump,
-    )]
+    #[account(address = ladder.load()?.vault_authority(&ladder.key()) @ SoothCoreError::LadderWrongAccount)]
     pub authority: UncheckedAccount<'info>,
 
     #[account(address = ladder.load()?.quote_mint)]
@@ -1637,15 +1662,15 @@ pub struct LadderCollectFees<'info> {
 /// so an early sweep would either starve the ending or short the refunds.
 pub fn collect_fees_handler(ctx: Context<LadderCollectFees>) -> Result<()> {
     let ladder_key = ctx.accounts.ladder.key();
-    let (to_creator, to_protocol, decimals, authority_bump) = {
+    let (to_creator, to_protocol, decimals, vault_signer) = {
         let mut l = ctx.accounts.ladder.load_mut()?;
         require!(l.status == STATUS_SETTLED, SoothCoreError::LadderNotFinal);
-        let out = (l.fees_creator, l.fees_protocol, l.quote_decimals, l.authority_bump);
+        let out = (l.fees_creator, l.fees_protocol, l.quote_decimals, l.signer(&ladder_key));
         l.fees_creator = 0;
         l.fees_protocol = 0;
         out
     };
-    let seeds: &[&[&[u8]]] = &[&[LADDER_AUTHORITY_SEED, ladder_key.as_ref(), &[authority_bump]]];
+    let seeds: &[&[&[u8]]] = &[&[vault_signer.seed, vault_signer.key.as_ref(), &[vault_signer.bump]]];
     for (amount, to) in [
         (to_creator, ctx.accounts.creator_token.to_account_info()),
         (to_protocol, ctx.accounts.treasury_token.to_account_info()),

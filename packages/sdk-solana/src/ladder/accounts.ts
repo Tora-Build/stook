@@ -62,6 +62,10 @@ export interface LadderAccount {
   /** The opening bell's width, 1e-9 bands², fixed at open. 0 before open (and
    *  on rounds whose bands were set when funded). */
   varBandsE9: bigint;
+  /** The round keeps its money in its coin's shared vault (a house round), not its own. */
+  sharedVault: boolean;
+  /** Bump of the vault's owner (the round's authority, or the house). */
+  authorityBump: number;
 }
 
 class Reader {
@@ -101,8 +105,8 @@ export function decodeLadder(data: Uint8Array): LadderAccount {
   const quoteMint = r.key(), vault = r.key(), creator = r.key(), sponsor = r.key(), series = r.key();
   const b = r.i128(), accFee = r.u128(), sum = r.i128();
   const w = Array.from({ length: BINS }, () => r.i128());
-  const status = r.u8(), settledBin = r.u8(); r.u8(); const decimals = r.u8();
-  r.u8(); r.u8(); r.u8(); r.u8(); // bump, authority bump, vault bump, pad
+  const status = r.u8(), settledBin = r.u8(), vaultMode = r.u8(), decimals = r.u8();
+  r.u8(); const authorityBump = r.u8(); r.u8(); r.u8(); // bump, authority bump, vault bump, pad
   const varBandsE9 = r.u64();
   return {
     opensAt, locksAt, settlesAt, p0, p0Expo, cash, depositTotal, curveSeq,
@@ -111,7 +115,7 @@ export function decodeLadder(data: Uint8Array): LadderAccount {
     b, accFee, curve: { w, sum },
     status: STATUS[status] ?? "void",
     settledBin: settledBin === NO_BIN ? null : settledBin,
-    decimals, varBandsE9,
+    decimals, varBandsE9, sharedVault: vaultMode === 1, authorityBump,
   };
 }
 

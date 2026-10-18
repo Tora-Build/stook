@@ -3,16 +3,22 @@
 //! depositor's own deposit, withdrawal, cancel and claim.
 //!
 //! A day of a house: the keeper settles yesterday's round, `house_collect`
-//! brings the house's tranche home and processes the queue at the price the
-//! round left, `house_join` puts everything into today's round before anyone
-//! trades it, and the round opens. Deposits and withdrawals asked for during
-//! the day wait for the next collect.
+//! books the house's tranche home and processes the queue at the price the
+//! round left, `house_start` starts today's round with everything the house
+//! holds, and the round opens. Deposits and withdrawals asked for during the
+//! day wait for the next collect.
+//!
+//! Every round a house starts keeps its money in the house's own vault (a
+//! shared vault, `VAULT_SHARED`), so rolling from one round to the next moves
+//! no tokens at all: a coin that takes a fee on every transfer loses nothing
+//! between rounds. Tokens move only when someone deposits, withdraws, trades
+//! or collects, exactly as on any round.
 
 use anchor_lang::prelude::*;
 use anchor_spl::token_interface::{self, Mint, TokenAccount, TokenInterface, TransferChecked};
 
 use crate::error::SoothCoreError;
-use crate::instructions::ladder::{join, one_token, take_tranche_owed};
+use crate::instructions::ladder::{init_round, join, one_token, pull, round_window, take_tranche_owed};
 use crate::state::house::*;
 use crate::state::ladder::*;
 use crate::state::{require_not_paused, ProtocolConfig, Series, PROTOCOL_CONFIG_SEED};
@@ -95,10 +101,6 @@ pub struct HouseCreate<'info> {
 pub fn house_create_handler(ctx: Context<HouseCreate>) -> Result<()> {
     require_not_paused(&ctx.accounts.config)?;
     crate::token_guard::assert_mint_allowed(&ctx.accounts.quote_mint.to_account_info(), ctx.accounts.mint_approval.is_some())?;
-    // A fee on every move in and out of a round would bleed the house a
-    // little each day, and its books assume what it sends is what arrives.
-    let fee = crate::token_guard::transfer_fee(&ctx.accounts.quote_mint.to_account_info().try_borrow_data()?, Clock::get()?.epoch);
-    require!(fee.is_none(), SoothCoreError::HouseFeeMint);
 
     let h = &mut ctx.accounts.house;
     h.series = ctx.accounts.series.key();
@@ -158,27 +160,21 @@ pub struct HouseDeposited {
 }
 
 /// Idle house: mint shares now, at the price of the moment. House in a
-/// round: queue the deposit for the price after the round.
-pub fn house_deposit_handler(ctx: Context<HouseDeposit>, amount: u64) -> Result<()> {
+/// round: queue the deposit for the price after the round. `amount` is what
+/// the house is credited; on a coin with a transfer fee the wallet sends a
+/// little more, at most `max_gross`.
+pub fn house_deposit_handler(ctx: Context<HouseDeposit>, amount: u64, max_gross: u64) -> Result<()> {
     require_not_paused(&ctx.accounts.config)?;
     require!(amount >= one_token(ctx.accounts.quote_mint.decimals)?, SoothCoreError::LadderSeedTooSmall);
-
-    let before = ctx.accounts.vault.amount;
-    token_interface::transfer_checked(
-        CpiContext::new(
-            ctx.accounts.token_program.to_account_info(),
-            TransferChecked {
-                from: ctx.accounts.lp_token.to_account_info(),
-                mint: ctx.accounts.quote_mint.to_account_info(),
-                to: ctx.accounts.vault.to_account_info(),
-                authority: ctx.accounts.lp.to_account_info(),
-            },
-        ),
+    pull(
         amount,
-        ctx.accounts.quote_mint.decimals,
+        max_gross,
+        &ctx.accounts.lp_token.to_account_info(),
+        &ctx.accounts.lp.to_account_info(),
+        &ctx.accounts.quote_mint,
+        &mut ctx.accounts.vault,
+        &ctx.accounts.token_program,
     )?;
-    ctx.accounts.vault.reload()?;
-    require!(ctx.accounts.vault.amount.checked_sub(before) == Some(amount), SoothCoreError::HouseTransferShort);
 
     let house_key = ctx.accounts.house.key();
     let h = &mut ctx.accounts.house;
@@ -311,31 +307,39 @@ pub fn house_claim_handler(ctx: Context<HouseLp>) -> Result<()> {
     ctx.accounts.pay(owed)
 }
 
-// ── join a round ────────────────────────────────────────────────────────────
+// ── start a round ───────────────────────────────────────────────────────────
 
 #[derive(Accounts)]
-pub struct HouseJoin<'info> {
-    /// Anyone. Pays the tranche's rent and gets it back at collect.
+#[instruction(index: u32)]
+pub struct HouseStart<'info> {
+    /// Anyone. Pays the round's and the tranche's rent; gets the tranche's
+    /// back at collect and the round's when it is closed.
     #[account(mut)]
     pub cranker: Signer<'info>,
 
     #[account(seeds = [PROTOCOL_CONFIG_SEED], bump = config.bump)]
     pub config: Box<Account<'info, ProtocolConfig>>,
 
-    #[account(mut)]
+    #[account(mut, seeds = [HOUSE_SEED, series.key().as_ref()], bump = house.bump)]
     pub house: Box<Account<'info, House>>,
 
-    #[account(mut)]
+    #[account(constraint = series.active @ SoothCoreError::SeriesInactive)]
+    pub series: Box<Account<'info, Series>>,
+
+    /// The day's one round, the same address `ladder_create` would use: a day
+    /// the house starts is a day nobody else can start, and the other way
+    /// round.
+    #[account(
+        init,
+        payer = cranker,
+        space = Ladder::SPACE,
+        seeds = [LADDER_SEED, series.key().as_ref(), &index.to_le_bytes()],
+        bump,
+    )]
     pub ladder: AccountLoader<'info, Ladder>,
 
     #[account(address = house.quote_mint)]
     pub quote_mint: Box<InterfaceAccount<'info, Mint>>,
-
-    #[account(mut, address = ladder.load()?.vault @ SoothCoreError::LadderWrongAccount)]
-    pub ladder_vault: Box<InterfaceAccount<'info, TokenAccount>>,
-
-    #[account(mut, address = house.vault)]
-    pub house_vault: Box<InterfaceAccount<'info, TokenAccount>>,
 
     #[account(
         init,
@@ -346,61 +350,57 @@ pub struct HouseJoin<'info> {
     )]
     pub tranche: AccountLoader<'info, LadderTranche>,
 
-    pub token_program: Interface<'info, TokenInterface>,
     pub system_program: Program<'info, System>,
 }
 
 #[event]
-pub struct HouseJoined {
+pub struct HouseStarted {
     pub house: Pubkey,
     pub ladder: Pubkey,
     pub index: u32,
     pub amount: u64,
 }
 
-/// Put everything the house holds into a round of its series that nobody
-/// has traded yet: one still seeding, or one just opened with no trade on
-/// it. Its odds are then the opening prior, the same for whoever calls this
-/// and whenever, so there is nothing to sandwich.
-pub fn house_join_handler(ctx: Context<HouseJoin>) -> Result<()> {
+/// Start a round of the house's series with everything the house holds, its
+/// money kept in the house's vault. Nobody has traded it, nobody can have:
+/// it is created here. The house is its first and, until others join, only
+/// depositor.
+pub fn house_start_handler(ctx: Context<HouseStart>, index: u32) -> Result<()> {
     require_not_paused(&ctx.accounts.config)?;
     let now = Clock::get()?.unix_timestamp;
     let h = &ctx.accounts.house;
     require!(h.idle(), SoothCoreError::HouseBusy);
     let amount = h.assets;
-    require!(amount >= one_token(ctx.accounts.quote_mint.decimals)?, SoothCoreError::HouseTooSmall);
-    let index = {
-        let l = ctx.accounts.ladder.load()?;
-        require!(l.series == h.series && l.quote_mint == h.quote_mint, SoothCoreError::LadderWrongAccount);
-        let untraded = l.status == STATUS_SEEDING || (l.status == STATUS_OPEN && l.curve_seq == 0);
-        require!(untraded && now < l.locks_at, SoothCoreError::HouseNotJoinable);
-        l.index
-    };
-
-    let series = h.series;
-    let seeds: &[&[&[u8]]] = &[&[HOUSE_SEED, series.as_ref(), &[h.bump]]];
-    let before = ctx.accounts.ladder_vault.amount;
-    send(
-        amount,
-        &ctx.accounts.house_vault,
-        &ctx.accounts.ladder_vault.to_account_info(),
-        &ctx.accounts.house.to_account_info(),
-        seeds,
-        &ctx.accounts.quote_mint,
-        &ctx.accounts.token_program,
-    )?;
-    ctx.accounts.ladder_vault.reload()?;
-    require!(ctx.accounts.ladder_vault.amount.checked_sub(before) == Some(amount), SoothCoreError::HouseTransferShort);
+    let decimals = ctx.accounts.quote_mint.decimals;
+    require!(amount >= one_token(decimals)?, SoothCoreError::HouseTooSmall);
+    let window = round_window(&ctx.accounts.series, index, now)?;
 
     {
-        let mut l = ctx.accounts.ladder.load_mut()?;
+        let mut l = ctx.accounts.ladder.load_init()?;
+        init_round(
+            &mut l,
+            &ctx.accounts.series,
+            index,
+            window,
+            h.quote_mint,
+            decimals,
+            h.vault,
+            ctx.accounts.cranker.key(),
+            h.key(),
+        );
+        l.vault_mode = VAULT_SHARED;
+        l.authority_bump = h.bump;
+        l.vault_bump = h.vault_bump;
+        l.bump = ctx.bumps.ladder;
+
         let mut t = ctx.accounts.tranche.load_init()?;
         t.ladder = ctx.accounts.ladder.key();
-        t.owner = ctx.accounts.house.key();
+        t.owner = h.key();
         t.index = 0;
         t.bump = ctx.bumps.tranche;
+        // Bookkeeping only: the money is already in the vault the round uses.
         join(&mut l, &mut t, amount)?;
-        l.open_tranches = l.open_tranches.checked_add(1).ok_or(SoothCoreError::MathOverflow)?;
+        l.open_tranches = 1;
     }
 
     let h = &mut ctx.accounts.house;
@@ -409,7 +409,7 @@ pub fn house_join_handler(ctx: Context<HouseJoin>) -> Result<()> {
     h.in_round = amount;
     h.assets = 0;
     h.last_index = index;
-    emit!(HouseJoined { house: h.key(), ladder: h.round, index, amount });
+    emit!(HouseStarted { house: h.key(), ladder: h.round, index, amount });
     Ok(())
 }
 
@@ -424,21 +424,12 @@ pub struct HouseCollect<'info> {
     #[account(mut)]
     pub house: Box<Account<'info, House>>,
 
-    #[account(mut, address = house.round @ SoothCoreError::HouseIdle)]
+    #[account(
+        mut,
+        address = house.round @ SoothCoreError::HouseIdle,
+        constraint = ladder.load()?.shared_vault() && ladder.load()?.vault == house.vault @ SoothCoreError::LadderWrongAccount,
+    )]
     pub ladder: AccountLoader<'info, Ladder>,
-
-    /// CHECK: PDA vault authority of the round.
-    #[account(seeds = [LADDER_AUTHORITY_SEED, ladder.key().as_ref()], bump = ladder.load()?.authority_bump)]
-    pub authority: UncheckedAccount<'info>,
-
-    #[account(address = house.quote_mint)]
-    pub quote_mint: Box<InterfaceAccount<'info, Mint>>,
-
-    #[account(mut, address = ladder.load()?.vault @ SoothCoreError::LadderWrongAccount)]
-    pub ladder_vault: Box<InterfaceAccount<'info, TokenAccount>>,
-
-    #[account(mut, address = house.vault)]
-    pub house_vault: Box<InterfaceAccount<'info, TokenAccount>>,
 
     #[account(
         mut,
@@ -448,7 +439,7 @@ pub struct HouseCollect<'info> {
     )]
     pub tranche: AccountLoader<'info, LadderTranche>,
 
-    /// CHECK: paid the tranche's rent at join; bound to the house.
+    /// CHECK: paid the tranche's rent at start; bound to the house.
     #[account(mut, address = house.rent_payer @ SoothCoreError::LadderWrongAccount)]
     pub rent_payer: UncheckedAccount<'info>,
 
@@ -461,7 +452,6 @@ pub struct HouseCollect<'info> {
     )]
     pub epoch: Box<Account<'info, HouseEpoch>>,
 
-    pub token_program: Interface<'info, TokenInterface>,
     pub system_program: Program<'info, System>,
 }
 
@@ -477,32 +467,18 @@ pub struct HouseCollected {
     pub wiped: bool,
 }
 
-/// Bring the house's tranche home from a finished round, by the round's own
-/// rules, and process the queue at the price it left.
+/// Book the house's tranche home from a finished round, by the round's own
+/// rules, and process the queue at the price it left. The round and the
+/// house share one vault, so nothing moves: what the round owes the house
+/// leaves the round's books and joins the house's.
 pub fn house_collect_handler(ctx: Context<HouseCollect>) -> Result<()> {
     let ladder_key = ctx.accounts.ladder.key();
-    let (owed, authority_bump) = {
+    let returned = {
         let mut l = ctx.accounts.ladder.load_mut()?;
         let t = ctx.accounts.tranche.load()?;
         let (principal, fees) = take_tranche_owed(&mut l, &t)?;
-        (principal.checked_add(fees).ok_or(SoothCoreError::MathOverflow)?, l.authority_bump)
+        principal.checked_add(fees).ok_or(SoothCoreError::MathOverflow)?
     };
-
-    let before = ctx.accounts.house_vault.amount;
-    let seeds: &[&[&[u8]]] = &[&[LADDER_AUTHORITY_SEED, ladder_key.as_ref(), &[authority_bump]]];
-    send(
-        owed,
-        &ctx.accounts.ladder_vault,
-        &ctx.accounts.house_vault.to_account_info(),
-        &ctx.accounts.authority.to_account_info(),
-        seeds,
-        &ctx.accounts.quote_mint,
-        &ctx.accounts.token_program,
-    )?;
-    ctx.accounts.house_vault.reload()?;
-    // Credit what arrived: should the coin start taking a fee, the house
-    // wears it as a loss instead of believing in money it does not hold.
-    let returned = ctx.accounts.house_vault.amount.checked_sub(before).ok_or(SoothCoreError::MathOverflow)?;
 
     let house_key = ctx.accounts.house.key();
     let h = &mut ctx.accounts.house;
@@ -515,15 +491,12 @@ pub fn house_collect_handler(ctx: Context<HouseCollect>) -> Result<()> {
     e.house = house_key;
     e.epoch = h.epoch;
     e.bump = ctx.bumps.epoch;
-    let (paid, minted, wiped) = {
-        // The price the queue is processed at, as `process_queue` reads it.
-        let wipes = h.assets == 0 && h.total_shares > 0;
-        e.assets = h.assets;
-        e.shares = if wipes { 0 } else { h.total_shares };
-        let deposits = h.pending_deposits;
-        let (paid, _minted, wiped) = process_queue(h).ok_or(SoothCoreError::MathOverflow)?;
-        (paid, deposits, wiped)
-    };
+    // The price the queue is processed at, as `process_queue` reads it.
+    let wipes = h.assets == 0 && h.total_shares > 0;
+    e.assets = h.assets;
+    e.shares = if wipes { 0 } else { h.total_shares };
+    let deposits = h.pending_deposits;
+    let (paid, _, wiped) = process_queue(h).ok_or(SoothCoreError::MathOverflow)?;
     e.wiped = wiped;
     e.generation = h.generation;
     h.epoch = h.epoch.checked_add(1).ok_or(SoothCoreError::MathOverflow)?;
@@ -535,7 +508,7 @@ pub fn house_collect_handler(ctx: Context<HouseCollect>) -> Result<()> {
         sent,
         returned,
         withdrawals_paid: paid,
-        deposits_minted: minted,
+        deposits_minted: deposits,
         wiped,
     });
     Ok(())
