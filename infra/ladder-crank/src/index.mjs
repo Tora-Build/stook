@@ -365,10 +365,11 @@ export function createKeeper({ connection, scanner, payer, sendTx, postAndConsum
           } else if (step === "start") {
             const series = stook.decodeSeries((await connection.getAccountInfo(h.series)).data);
             if (!series.active) break;
-            const index = stook.houseStartIndex(series, now);
-            // Someone started that day already (a round of its own): the house
-            // waits for the day after.
-            if (await connection.getAccountInfo(stook.deriveLadderPda({ series: h.series, index }))) { console.log(tag, "day", index, "taken; waiting"); break; }
+            // The first day nobody has started yet (a round of its own takes the
+            // day), within the week ahead.
+            let index = stook.houseStartIndex(series, now);
+            for (let n = 0; n < 7 && (!stook.hasRound(series, index) || (await connection.getAccountInfo(stook.deriveLadderPda({ series: h.series, index })))); n++) index++;
+            if (await connection.getAccountInfo(stook.deriveLadderPda({ series: h.series, index }))) { console.log(tag, "no free day this week; waiting"); break; }
             console.log(tag, "start", index, await sendPlain(stook.houseStartIx(refs, payer.publicKey, index), 200_000));
           } else break;
         }
