@@ -17,14 +17,18 @@ const sdk = { ...stook, decodeLadder: (d) => d, decodeSeries: (d) => d, decodePr
 const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
 
 /** A world of mocks; `calls` records every write and every Hermes request. */
-function world({ ladders = {}, series = [], tranches = {}, accounts = new Map(), primaryFails = false, hermes, sendTx, postAndConsume } = {}) {
+function world({ ladders = {}, series = [], tranches = {}, positions = {}, owed, accounts = new Map(), primaryFails = false, hermes, sendTx, postAndConsume } = {}) {
   const calls = { sendTx: 0, postAndConsume: 0, hermes: 0 };
+  const scans = { positions: 0 };
   const scanner = {
     async getProgramAccounts(_program, { filters }) {
       for (const status of ["seeding", "open", "settled", "void"]) {
         if (same(filters, stook.ladderFilters(status))) return (ladders[status] ?? []).map((l) => ({ pubkey: l.pubkey, account: { data: l } }));
       }
       if (filters[0]?.dataSize === stook.SERIES_SIZE) return series.map((s) => ({ pubkey: s.pubkey, account: { data: s } }));
+      for (const [ladder, list] of Object.entries(positions)) {
+        if (same(filters, stook.positionFilters(new PublicKey(ladder)))) { scans.positions++; return list.map((p) => ({ pubkey: key(), account: { data: p } })); }
+      }
       for (const [ladder, list] of Object.entries(tranches)) {
         if (same(filters, stook.trancheFilters(new PublicKey(ladder)))) return list.map((t) => ({ pubkey: key(), account: { data: t } }));
       }
@@ -38,12 +42,12 @@ function world({ ladders = {}, series = [], tranches = {}, accounts = new Map(),
     },
   };
   const keeper = (plan = false) => createKeeper({
-    connection, scanner, payer: Keypair.generate(), plan, sdk,
+    connection, scanner, payer: Keypair.generate(), plan, sdk: owed === undefined ? sdk : { ...sdk, owedTo: () => owed },
     hermes: async (...a) => { calls.hermes++; return hermes ? hermes(...a) : { parsed: undefined, vaas: [] }; },
     sendTx: async (tx) => { calls.sendTx++; return sendTx ? sendTx(tx) : "sig"; },
     postAndConsume: async (...a) => { calls.postAndConsume++; return postAndConsume ? postAndConsume(...a) : "sig"; },
   });
-  return { calls, keeper, accounts };
+  return { calls, scans, keeper, accounts };
 }
 
 const ladder = (over) => ({
@@ -337,6 +341,22 @@ test("clear-up: a frozen owner is skipped, a failing round backs off, and neithe
   await silenced(() => watch(k2, { interval: 0, beat: () => beats++, healthy: () => healths++, passes: 2, sleep: async () => {} }));
   assert.equal(beats, 2);
   assert.equal(healths, 2);
+});
+
+test("clear-up: a round left with winners to collect is not scanned again until one collects", async () => {
+  const config = stook.deriveProtocolConfig();
+  const done = ladder({ status: "settled", settlesAt: now() - DAY, openPositions: 1 });
+  const accounts = new Map([[config.toBase58(), { data: { treasury: key() } }], [done.quoteMint.toBase58(), { owner: TOKEN_PROGRAM_ID }]]);
+  const w = world({ ladders: { settled: [done] }, positions: { [done.pubkey.toBase58()]: [{ owner: key(), shape: 0 }] }, owed: 5n, accounts });
+  const k = w.keeper();
+  assert.equal(await silenced(() => k.clearUp()), 0);
+  assert.equal(await silenced(() => k.clearUp()), 0);
+  assert.equal(w.scans.positions, 1, "the second run does not scan");
+  assert.equal(w.calls.sendTx, 0);
+  // A second winner's line goes: the count moves and the round is scanned again.
+  done.openPositions = 2;
+  await silenced(() => k.clearUp());
+  assert.equal(w.scans.positions, 2);
 });
 
 test("a pass that cannot read the chain writes neither signal", async () => {

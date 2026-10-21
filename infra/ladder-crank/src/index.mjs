@@ -389,6 +389,13 @@ export function createKeeper({ connection, scanner, payer, sendTx, postAndConsum
   // sold to zero) are swept, rent to their owners; the fee shares are sent to
   // their fixed homes; then the round closes, dust to the treasury, rent to
   // whoever funded it. Every step is permissionless and pays nobody here.
+  //
+  // A settled round takes no new positions, so once a scan finds only winners
+  // still to collect, the next scan finds the same until one of them collects
+  // or the grace ends. `waitingOn` keeps the count from that scan; the round is
+  // not scanned again while its count stands. Each scan is a getProgramAccounts
+  // on the public endpoint, which limits that call hard.
+  const waitingOn = new Map();
   async function clearUp() {
     if (plan) refuse("clear-up");
     let failures = 0;
@@ -420,6 +427,7 @@ export function createKeeper({ connection, scanner, payer, sendTx, postAndConsum
             return a && !frozen(a) ? ata : null;
           };
           let open = l.openPositions, tranches = l.openTranches;
+          if (open > 0 && !graceOver && waitingOn.get(key) === open) continue;
           if (open > 0) {
             const positions = await scanner.getProgramAccounts(SOOTH_CORE_PROGRAM_ID, { filters: stook.positionFilters(pubkey) });
             for (const p of positions) {
@@ -438,6 +446,7 @@ export function createKeeper({ connection, scanner, payer, sendTx, postAndConsum
               } else continue;
               open--;
             }
+            if (!graceOver && sends > 0) waitingOn.set(key, open);
           }
           if (tranches > 0 && graceOver) {
             const ts = await scanner.getProgramAccounts(SOOTH_CORE_PROGRAM_ID, { filters: stook.trancheFilters(pubkey) });
