@@ -326,6 +326,27 @@ export default {
       if (status === 200) ctx.waitUntil(cache.put(key, res.clone()));
       return res;
     }
+    // /leaderboard?coin=&days=: the street's callers in one coin, best net
+    // first, from the ledger (as /history). The ledger rescores every five
+    // minutes, so a minute at the edge loses nothing.
+    if (url.pathname === "/leaderboard") {
+      const p = url.searchParams, q = new URLSearchParams();
+      const bad = (why) => new Response(JSON.stringify({ error: why }), { status: 400, headers: { "content-type": "application/json", "access-control-allow-origin": "*" } });
+      const coin = p.get("coin") ?? ""; if (!/^[A-Z]{1,10}$/.test(coin)) return bad("coin must be a symbol"); q.set("coin", coin);
+      const days = p.get("days") ?? "0"; if (!["0", "7", "30"].includes(days)) return bad("days must be 0, 7 or 30"); q.set("days", days);
+      const limit = p.get("limit"); if (limit !== null) { if (!/^\d{1,3}$/.test(limit)) return bad("bad limit"); q.set("limit", limit); }
+      const cache = caches.default, key = new Request(`${url.origin}/leaderboard?${q}`);
+      const hit = await cache.match(key); if (hit) return hit;
+      const base = await tapeUrl(env);
+      let body = '{"error":"leaderboard unavailable"}', status = 503;
+      if (base) {
+        try { const r = await fetch(`${base}/leaderboard?${q}`, { signal: AbortSignal.timeout(8000) }); status = r.status; body = await r.text(); if (status === 200) JSON.parse(body); }
+        catch { status = 502; body = '{"error":"leaderboard unavailable"}'; }
+      }
+      const res = new Response(body, { status, headers: { "content-type": "application/json", "cache-control": `public, max-age=${status === 200 ? 60 : 5}`, "access-control-allow-origin": "*", "x-content-type-options": "nosniff" } });
+      if (status === 200) ctx.waitUntil(cache.put(key, res.clone()));
+      return res;
+    }
     // /supply: $STOOK's circulating supply, for aggregators (Jupiter asks for
     // {"circulatingSupply": number} on the team's domain). Read from chain:
     // the mint's supply, less the token accounts listed in the STOOK_EXCLUDE

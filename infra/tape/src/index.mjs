@@ -119,7 +119,7 @@ function bs58(bytes) { const A = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmn
 function change24h(coin) { const book = candles[coin]; if (!book) return null; const at = latest[coin]?.at ?? 0; let first = null; for (const [k, c] of book) { if (k >= at - 86_400) { first = c; break; } } return first && latest[coin] ? (latest[coin].price / first[1] - 1) * 100 : null; }
 function series(coin, res, from) { const book = Object.hasOwn(candles, coin) ? candles[coin] : null; if (!book || !(res >= 60)) return []; const out = []; for (const [k, c] of book) { if (k < from) continue; const b = Math.floor(k / res) * res, last = out[out.length - 1]; if (last && last[0] === b) { last[2] = Math.max(last[2], c[2]); last[3] = Math.min(last[3], c[3]); last[4] = c[4]; last[5] += c[5]; } else out.push([b, c[1], c[2], c[3], c[4], c[5]]); } return out; }
 http.createServer((req, res) => { try { handle(req, res); } catch (e) { console.error("tape: http", e.message); if (!res.headersSent) res.writeHead(500); res.end("{}"); } }).listen(PORT, () => console.log(`tape: http on ${PORT}`));
-/** The ledger's /history and /health, passed through as they are; 502 when it is down. */
+/** The ledger's /history, /leaderboard and /health, passed through as they are; 502 when it is down. */
 function toLedger(path, res) {
   const r = http.get(LEDGER_URL + path, { timeout: 8000 }, (up) => { res.writeHead(up.statusCode ?? 502, { "content-type": "application/json", "cache-control": "no-store" }); up.pipe(res); });
   r.on("timeout", () => r.destroy(new Error("timeout")));
@@ -128,6 +128,7 @@ function toLedger(path, res) {
 function handle(req, res) {
   const u = new URL(req.url, "http://x"); const cors = { "access-control-allow-origin": "*", "content-type": "application/json" };
   if (u.pathname === "/history") return toLedger(`/history${u.search}`, res);
+  if (u.pathname === "/leaderboard") return toLedger(`/leaderboard${u.search}`, res);
   if (u.pathname === "/ledger/health") return toLedger("/health", res);
   if (u.pathname === "/prices") { const out = {}; for (const [coin, l] of Object.entries(latest)) out[coin] = { ...l, change24h: change24h(coin), dp: POOLS[coin].dp, anchor: POOLS[coin].name }; res.writeHead(200, cors); return res.end(JSON.stringify(out)); }
   if (u.pathname === "/candles") { const coin = u.searchParams.get("coin"); if (!coin || !Object.hasOwn(POOLS, coin)) { res.writeHead(404, cors); return res.end("{}"); } const r = Number(u.searchParams.get("res") ?? 60), from = Number(u.searchParams.get("from") ?? Math.floor(Date.now() / 1000) - 86_400); res.writeHead(200, cors); return res.end(JSON.stringify({ coin, res: r, candles: series(coin, r, from) })); }

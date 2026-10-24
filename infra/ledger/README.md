@@ -78,6 +78,22 @@ paying call, a refund or a house deposit is still to collect), `refunded`,
 `won` (a call paid; a house-only round: got back more than it put in),
 `missed`.
 
+`GET /leaderboard?coin=<SYMBOL>&days=<0|7|30>&limit=50` (`src/board.mjs`)
+
+    { coin, decimals, days, since, players, people, scoredAt,
+      board:       [{ rank, wallet, bot, rounds, won, missed, hit, paid, back, net, best, last }],
+      peopleBoard: [ the same, the sim's wallets left out, ranked among themselves ],
+      indexed }
+
+A wallet's record is the settled rounds of that coin where it made a call:
+won when a call paid (collected or still to collect), missed when none did.
+`back` is what came back plus what is still owed; `net` = back − paid; `best`
+the best single round. Voids, house deposits and rounds whose floor is
+unknown count for nothing. Best net first, then hit rate, then rounds.
+`bot` is the persona for a wallet on the sim's list (`LEDGER_BOTS`, else
+`SIM_DIR/wallets.txt`), else null. The rounds are scored every five minutes;
+each answer ranks from the last scoring (`scoredAt`).
+
 `GET /health`: the poll's age, the backfill's progress, row counts, RPC calls.
 
 ## Storage
@@ -91,7 +107,7 @@ reading a transaction twice changes nothing.
 
 `LEDGER_RPC_URL` (https://api.devnet.solana.com), `LEDGER_RPS` (3),
 `LEDGER_DIR`, `LEDGER_PORT` (8792), `LEDGER_HOST` (127.0.0.1),
-`LEDGER_POLL_MS` (15000), `LEDGER_STORE` (auto, sqlite, jsonl),
+`LEDGER_POLL_MS` (15000), `LEDGER_BOTS` (the sim's wallets.txt), `LEDGER_STORE` (auto, sqlite, jsonl),
 `LEDGER_BACKFILL_MAX` (stop the backfill after that many signatures; for a
 local sample), `LEDGER_MINTS` or `DEVNET_MINTS` ({symbol: mint}; else the
 `DEVNET_MINTS` line of `~/sim/sim.env`).

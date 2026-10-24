@@ -18,6 +18,7 @@ const Market = lazy(() => import("./pages/Market").then((m) => ({ default: m.Mar
 const How = lazy(() => import("./pages/How").then((m) => ({ default: m.How })));
 const Coin = lazy(() => import("./pages/Coin").then((m) => ({ default: m.Coin })));
 const Yours = lazy(() => import("./pages/Yours").then((m) => ({ default: m.Yours })));
+const BoardPage = lazy(() => import("./pages/Board").then((m) => ({ default: m.BoardPage })));
 const Page = ({ children }: { children: ReactNode }) => <Suspense fallback={<p className="page muted page-loading">Opening…</p>}>{children}</Suspense>;
 
 const qc = new QueryClient({ defaultOptions: { queries: { retry: 1, refetchOnWindowFocus: false } } });
@@ -41,6 +42,7 @@ function App() {
                     <Route path="/how" element={<Page><How /></Page>} />
                     <Route path="/c/:symbol" element={<Page><Coin /></Page>} />
                     <Route path="/yours" element={<Page><Yours /></Page>} />
+                    <Route path="/board" element={<Page><BoardPage /></Page>} />
                   </Route>
                 </Routes>
               </BrowserRouter>

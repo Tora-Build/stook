@@ -49,6 +49,7 @@ function sqliteStore(db) {
     byWallet: db.prepare("SELECT json FROM rows WHERE wallet = ? ORDER BY slot, ix, sub"),
     seen: db.prepare("INSERT OR IGNORE INTO seen (sig) VALUES (?)"),
     allRounds: db.prepare("SELECT ladder, json FROM rounds"),
+    allRows: db.prepare("SELECT wallet, json FROM rows ORDER BY wallet, slot, ix, sub"),
     counts: db.prepare("SELECT (SELECT count(*) FROM rows) AS rows, (SELECT count(*) FROM rounds) AS rounds, (SELECT count(*) FROM seen) AS txs, (SELECT count(DISTINCT wallet) FROM rows) AS wallets"),
   };
   const get = (stmt, k) => { const r = stmt.get(k); return r ? JSON.parse(r.json) : null; };
@@ -65,6 +66,11 @@ function sqliteStore(db) {
       } catch (e) { db.exec("ROLLBACK"); throw e; }
     },
     rowsFor: (wallet) => q.byWallet.all(wallet).map((r) => JSON.parse(r.json)),
+    walletRows: () => {
+      const out = new Map();
+      for (const r of q.allRows.all()) { const l = out.get(r.wallet) ?? []; l.push(JSON.parse(r.json)); out.set(r.wallet, l); }
+      return out;
+    },
     round: (k) => get(q.getRound, k),
     series: (k) => get(q.getSeries, k),
     rounds: () => q.allRounds.all().map((r) => [r.ladder, JSON.parse(r.json)]),
@@ -100,6 +106,7 @@ function jsonlStore(dir) {
       ingest(slim);
     },
     rowsFor: (wallet) => [...(byWallet.get(wallet)?.values() ?? [])].sort((a, b) => a.slot - b.slot || a.ix - b.ix || a.sub - b.sub),
+    walletRows: () => new Map([...byWallet.keys()].map((w) => [w, [...byWallet.get(w).values()].sort((a, b) => a.slot - b.slot || a.ix - b.ix || a.sub - b.sub)])),
     round: (k) => rounds.get(k) ?? null,
     series: (k) => series.get(k) ?? null,
     rounds: () => [...rounds.entries()],

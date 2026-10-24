@@ -22,6 +22,7 @@ import { PROGRAM_ID, parseTransaction } from "./decode.mjs";
 import { makeRpc } from "./rpc.mjs";
 import { openStore } from "./store.mjs";
 import { buildHistory, RESULTS } from "./history.mjs";
+import { loadBots, rankBoard, scoreAll } from "./board.mjs";
 import { coinBook, loadMints } from "./coins.mjs";
 import { isPubkey } from "./b58.mjs";
 import { hydrate } from "./hydrate.mjs";
@@ -154,7 +155,30 @@ export function handle(req, res) {
     const head = store.getKv("head"), bf = store.getKv("backfill");
     return json(res, 200, { ...h, indexed: { through: head?.time ?? null, complete: !!bf?.done } });
   }
+  if (u.pathname === "/leaderboard") {
+    const coin = u.searchParams.get("coin") ?? "";
+    if (!/^[A-Z]{1,10}$/.test(coin)) return json(res, 400, { error: "coin must be a symbol" });
+    const days = Number(u.searchParams.get("days") ?? 0);
+    if (![0, 7, 30].includes(days)) return json(res, 400, { error: "days must be 0, 7 or 30" });
+    const limit = Math.max(1, Math.min(100, Number(u.searchParams.get("limit")) || 50));
+    return json(res, 200, board(coin, days, limit));
+  }
   json(res, 404, { error: "not found" });
+}
+
+// The board reads every row, so the rounds are scored every five minutes, in the
+// background, and each answer ranks from the last scoring.
+let scored = null, scoredAt = 0;
+function rescore() {
+  const t = Date.now();
+  scored = scoreAll({ walletRows: store.walletRows(), round: store.round, series: store.series, coins });
+  scoredAt = Math.floor(Date.now() / 1000);
+  if (Date.now() - t > 5_000) log(`ledger: scoring the board took ${Date.now() - t} ms`);
+}
+function board(coin, days, limit) {
+  if (!scored) rescore();
+  const head = store.getKv("head"), bf = store.getKv("backfill");
+  return { ...rankBoard(scored, { bots: loadBots(), coin, since: days ? scoredAt - days * 86_400 : 0, limit }), days, scoredAt, indexed: { through: head?.time ?? null, complete: !!bf?.done } };
 }
 
 const server = http.createServer((req, res) => {
@@ -179,3 +203,4 @@ async function fill() {
 void loop("backfill", backfill, 0);
 void loop("fill", fill, 10 * 60_000);
 void loop("poll", poll, cfg.pollMs);
+void loop("board", async () => rescore(), 5 * 60_000);
