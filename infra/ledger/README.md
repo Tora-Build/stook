@@ -94,6 +94,10 @@ unknown count for nothing. Best net first, then hit rate, then rounds.
 `SIM_DIR/wallets.txt`), else null. The rounds are scored every five minutes;
 each answer ranks from the last scoring (`scoredAt`).
 
+`GET /days?coin=<SYMBOL>&from=<index>&to=<index>` (at most 62 days): the coin's
+finished days, closed rounds included, for the coin page's calendar:
+`{ coin, days: [{ index, ladder, status, bin, p0, expo, stepBps, closed }] }`.
+
 `GET /health`: the poll's age, the backfill's progress, row counts, RPC calls.
 
 ## Storage

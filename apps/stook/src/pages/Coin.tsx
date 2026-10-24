@@ -14,6 +14,7 @@ import { useQuery } from "@tanstack/react-query";
 import { stook } from "@sooth/sdk-solana";
 import { COINS, anchorOf, mintOf, seriesOf } from "../lib/coins";
 import { useSeries } from "../hooks/useChain";
+import { useHouse } from "../hooks/useHouse";
 import { useNow } from "../hooks/useNow";
 import { firstOpenableDay, nyWhen } from "../lib/time";
 import { fmtUsd, useCoinQuotes } from "../lib/usd";
@@ -32,6 +33,9 @@ export function Coin() {
   const [starting, setStarting] = useState<number | null>(null);
   const seriesKey = useMemo(() => (coin ? seriesOf(coin) : null), [coin]);
   const series = useSeries(seriesKey);
+  // With a house, the house opens every day's round; without one, anyone can fund a day.
+  const house = useHouse(seriesKey).data ?? null;
+  const byHand = !house;
   const chart = useQuery({ queryKey: ["chart", coin?.symbol], queryFn: async () => (await fetch(`${DATA}/chart?coin=${coin!.symbol}`)).json() as Promise<{ points: [number, number][] }>, enabled: !!coin, refetchInterval: 300_000 });
   const quote = useQuery({ queryKey: ["quote", coin?.symbol], queryFn: async () => (await fetch(`${DATA}/prices`)).json(), enabled: !!coin, refetchInterval: 60_000 });
 
@@ -70,20 +74,22 @@ export function Coin() {
       </header>
 
 
-      {series.data && seriesKey && <TodayDesk seriesKey={seriesKey} series={series.data} now={now} minLeadSecs={MIN_LEAD_SECS} dp={anchor.dp} coinSymbol={coin.symbol} anchorName={coin.anchor.name} canStart={!!mint && series.data.active} onStart={setStarting}
+      {series.data && seriesKey && <TodayDesk seriesKey={seriesKey} series={series.data} now={now} minLeadSecs={MIN_LEAD_SECS} dp={anchor.dp} coinSymbol={coin.symbol} anchorName={coin.anchor.name} canStart={byHand && !!mint && series.data.active} onStart={setStarting} house={!!house}
         side={<div className="desk-side"><div className="desk-next-h">{coin.anchor.symbol}, the last 24 hours, New York time</div><Chart24 points={chart.data?.points ?? []} dp={coin.anchor.dp} /></div>} />}
 
-      {seriesKey && mint && <HousePanel series={seriesKey} mint={mint} symbol={coin.symbol} />}
+      {seriesKey && mint && <div id="house"><HousePanel series={seriesKey} mint={mint} symbol={coin.symbol} /></div>}
 
       <section className="slots">
-        <div className="plan-head"><h3>Plan ahead</h3><span className="hint">Fund any day up to 31 days out and be its house. Its floors are set the moment it opens.</span></div>
+        {house
+          ? <div className="plan-head"><h3>The calendar</h3><span className="hint">One round a day, closing 4 PM New York. The house opens each one after the bell before it; past days keep where they landed.</span></div>
+          : <div className="plan-head"><h3>Plan ahead</h3><span className="hint">Fund any day up to 31 days out and be its house. Its floors are set the moment it opens.</span></div>}
         {/* A new coin learns from 20 daily closes before its first round, once.
             Say so only while that holds back the next round anyone could fund. */}
         {series.data && firstOpen !== null && firstOpen > stook.indexAtOrBefore(series.data, BigInt(now)) + 1 && <Notice tone="info" title="New on the street">{coin.anchor.name}'s rounds start {nyWhen(stook.closeOf(series.data, firstOpen), { weekday: "short", month: "short", day: "numeric" })}, once it has seen 20 daily closes ({series.data.observations} so far). After that it learns every day on its own.</Notice>}
-        {series.data && seriesKey ? <WallCalendar seriesKey={seriesKey} series={series.data} now={now} minLeadSecs={MIN_LEAD_SECS} dp={anchor.dp} coinSymbol={coin.symbol} canStart={!!mint && series.data.active} onStart={setStarting} />
+        {series.data && seriesKey ? <WallCalendar seriesKey={seriesKey} series={series.data} now={now} minLeadSecs={MIN_LEAD_SECS} dp={anchor.dp} coinSymbol={coin.symbol} canStart={byHand && !!mint && series.data.active} onStart={setStarting} house={!!house} />
           : <p className="muted">{series.isLoading ? "Reading the calendar…" : "This coin's rounds have not been opened on this network yet."}</p>}
       </section>
-      {starting !== null && series.data && seriesKey && <StartRound coin={coin} seriesKey={seriesKey} series={series.data} index={starting} onClose={() => setStarting(null)} />}
+      {starting !== null && byHand && series.data && seriesKey && <StartRound coin={coin} seriesKey={seriesKey} series={series.data} index={starting} onClose={() => setStarting(null)} />}
     </div>
   );
 }

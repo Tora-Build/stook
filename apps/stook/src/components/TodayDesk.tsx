@@ -22,6 +22,8 @@ interface Props {
   anchorName: string;
   canStart: boolean;
   onStart: (index: number) => void;
+  /** The coin has a house: it opens every round, nobody funds one by hand. */
+  house?: boolean;
   /** What sits beside today's card; the days ahead are on the calendar below. */
   side?: ReactNode;
 }
@@ -61,10 +63,14 @@ export function TodayDesk(p: Props) {
   } else if (l && l.status === "settled") {
     const b = l.settledBin !== null ? stook.binBounds(l.settledBin, l.p0, l.stepBps) : null;
     kicker = "The bell has rung"; title = b ? `Landed at ${fmtPrice(b[0], l.p0Expo, p.dp)}` : "Settled";
-    line = next[0] !== undefined ? `Next round closes ${when(next[0])}.` : "";
+    line = next[0] !== undefined ? (p.house ? `The house rolls into the next round, closing ${when(next[0])}.` : `Next round closes ${when(next[0])}.`) : "";
     cta = { label: "Collect or look back", to: `/m/${r!.pubkey.toBase58()}` };
   } else if (l) {
     kicker = "Void"; title = "No round today"; line = "It could not finish; deposits come back first."; cta = { label: "Collect a refund", to: `/m/${r!.pubkey.toBase58()}` };
+  } else if (p.house) {
+    kicker = "Today"; title = "The house opens the next round";
+    line = "Each round opens right after the bell before it, funded by the house. Back the house to fund every round from here on.";
+    cta = { label: "Back the house", to: "#house" };
   } else if (fundable(today)) {
     kicker = "Nobody's opened today"; title = "Be the house";
     line = `Fund today's round and it opens a minute later. The house keeps 90% of every fee.`;
@@ -93,7 +99,7 @@ export function TodayDesk(p: Props) {
           <div><span className="desk-k">trades</span><span className="mono">{l.curveSeq.toString()}</span></div>
         </div>}
         {line && <p className="desk-line">{line}</p>}
-        {cta && (cta.to ? <Link className="desk-cta" to={cta.to}>{cta.label} ›</Link> : <button className="desk-cta" onClick={() => p.onStart(cta!.start!)}>{cta.label} ›</button>)}
+        {cta && (cta.to?.startsWith("#") ? <a className="desk-cta" href={cta.to}>{cta.label} ›</a> : cta.to ? <Link className="desk-cta" to={cta.to}>{cta.label} ›</Link> : <button className="desk-cta" onClick={() => p.onStart(cta!.start!)}>{cta.label} ›</button>)}
         </div>
       </div>
 
@@ -104,7 +110,7 @@ export function TodayDesk(p: Props) {
             const nr = rounds.data?.get(i), nl = nr?.ladder;
             const body = <>
               <span className="dn-day">{when(i)}</span>
-              {nl ? <span className="dn-state"><span className="mono">{coinText(nl.depositTotal, nl.decimals, p.coinSymbol)}</span> in the house</span> : fundable(i) ? <span className="dn-state dn-open">open to fund</span> : <span className="dn-state muted">funding opens later</span>}
+              {nl ? <span className="dn-state"><span className="mono">{coinText(nl.depositTotal, nl.decimals, p.coinSymbol)}</span> in the house</span> : p.house ? <span className="dn-state muted">the house opens it</span> : fundable(i) ? <span className="dn-state dn-open">open to fund</span> : <span className="dn-state muted">funding opens later</span>}
             </>;
             return <li key={i}>{nr ? <Link to={`/m/${nr.pubkey.toBase58()}`}>{body}<span className="dn-go">›</span></Link> : fundable(i) ? <button onClick={() => p.onStart(i)}>{body}<span className="dn-go">+</span></button> : <div>{body}</div>}</li>;
           })}

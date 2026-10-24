@@ -326,6 +326,25 @@ export default {
       if (status === 200) ctx.waitUntil(cache.put(key, res.clone()));
       return res;
     }
+    // /days?coin=&from=&to=: a coin's finished days from the ledger, closed
+    // rounds included, for the calendar. Five minutes at the edge.
+    if (url.pathname === "/days") {
+      const p = url.searchParams;
+      const coin = p.get("coin") ?? "", from = p.get("from") ?? "", to = p.get("to") ?? "";
+      if (!/^[A-Z]{1,10}$/.test(coin) || !/^\d{1,7}$/.test(from) || !/^\d{1,7}$/.test(to)) return new Response(JSON.stringify({ error: "coin, from and to" }), { status: 400, headers: { "content-type": "application/json" } });
+      const q = new URLSearchParams({ coin, from, to });
+      const cache = caches.default, key = new Request(`${url.origin}/days?${q}`);
+      const hit = await cache.match(key); if (hit) return hit;
+      const base = await tapeUrl(env);
+      let body = '{"error":"days unavailable"}', status = 503;
+      if (base) {
+        try { const r = await fetch(`${base}/days?${q}`, { signal: AbortSignal.timeout(8000) }); status = r.status; body = await r.text(); if (status === 200) JSON.parse(body); }
+        catch { status = 502; body = '{"error":"days unavailable"}'; }
+      }
+      const res = new Response(body, { status, headers: { "content-type": "application/json", "cache-control": `public, max-age=${status === 200 ? 300 : 5}`, "x-content-type-options": "nosniff" } });
+      if (status === 200) ctx.waitUntil(cache.put(key, res.clone()));
+      return res;
+    }
     // /leaderboard?coin=&days=: the street's callers in one coin, best net
     // first, from the ledger (as /history). The ledger rescores every five
     // minutes, so a minute at the edge loses nothing.

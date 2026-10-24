@@ -155,6 +155,13 @@ export function handle(req, res) {
     const head = store.getKv("head"), bf = store.getKv("backfill");
     return json(res, 200, { ...h, indexed: { through: head?.time ?? null, complete: !!bf?.done } });
   }
+  if (u.pathname === "/days") {
+    const coin = u.searchParams.get("coin") ?? "";
+    if (!/^[A-Z]{1,10}$/.test(coin)) return json(res, 400, { error: "coin must be a symbol" });
+    const from = Number(u.searchParams.get("from")), to = Number(u.searchParams.get("to"));
+    if (!Number.isInteger(from) || !Number.isInteger(to) || from < 0 || to < from || to - from > 62) return json(res, 400, { error: "from and to must be day indices at most 62 apart" });
+    return json(res, 200, { coin, days: daysOf(coin, from, to) });
+  }
   if (u.pathname === "/leaderboard") {
     const coin = u.searchParams.get("coin") ?? "";
     if (!/^[A-Z]{1,10}$/.test(coin)) return json(res, 400, { error: "coin must be a symbol" });
@@ -164,6 +171,19 @@ export function handle(req, res) {
     return json(res, 200, board(coin, days, limit));
   }
   json(res, 404, { error: "not found" });
+}
+
+/** A coin's finished days from `from` to `to`, closed rounds included: the
+ *  calendar reads a day's account while it exists and this once it is gone. */
+function daysOf(coin, from, to) {
+  const out = [];
+  for (const [ladder, r] of store.rounds()) {
+    if (r.index == null || r.index < from || r.index > to || !(r.settled || r.voided)) continue;
+    const feedId = r.series ? store.series(r.series)?.feedId : null;
+    if (coins.coin(r.quoteMint, feedId) !== coin) continue;
+    out.push({ index: r.index, ladder, status: r.voided ? "void" : "settled", bin: r.settled?.bin ?? null, p0: r.p0 ?? null, expo: r.expo ?? null, stepBps: r.stepBps ?? null, closed: !!r.closed });
+  }
+  return out.sort((a, b) => a.index - b.index);
 }
 
 // The board reads every row, so the rounds are scored every five minutes, in the

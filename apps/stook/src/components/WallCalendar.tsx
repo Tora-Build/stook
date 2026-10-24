@@ -3,16 +3,20 @@
 // a page that turns. Each day is one round of the coin's series; its address
 // is derived from the series and the day, so the calendar reads exactly the
 // month's rounds instead of scanning for them. A day can be funded up to 31
-// days before its close; past days keep what landed.
+// days before its close, unless the coin has a house, which opens every day
+// itself; past days keep what landed.
 import { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import type { PublicKey } from "@solana/web3.js";
 import { stook } from "@sooth/sdk-solana";
 import { useWallet } from "@solana/wallet-adapter-react";
+import { useQuery } from "@tanstack/react-query";
 import { useHoldings, useSeriesRounds } from "../hooks/useChain";
 import { coinText } from "../lib/usd";
 import { fmtPrice, untilText } from "../lib/format";
 import { firstOpenableDay, nyDate, nyWhen } from "../lib/time";
+
+interface LedgerDay { index: number; ladder: string; status: "settled" | "void"; bin: number | null; p0: string | null; expo: number | null; stepBps: number | null; closed: boolean }
 
 interface Props {
   seriesKey: PublicKey;
@@ -23,6 +27,8 @@ interface Props {
   coinSymbol: string;
   canStart: boolean;
   onStart: (index: number) => void;
+  /** The coin has a house: it opens every day, so no day is funded by hand. */
+  house?: boolean;
 }
 
 export function WallCalendar(p: Props) {
@@ -48,6 +54,13 @@ export function WallCalendar(p: Props) {
   const first = stook.daysFromCivil(year, month, 1);
   const indices = useMemo(() => Array.from({ length: daysIn }, (_, i) => first + i), [first, daysIn]);
   const rounds = useSeriesRounds(p.seriesKey, indices);
+  // A finished round is closed once nothing in it is owed, and its account is
+  // gone; the ledger still has where it landed (infra/ledger, /days).
+  const ledger = useQuery({
+    queryKey: ["days", p.coinSymbol, first, first + daysIn - 1],
+    queryFn: async () => { const r = await fetch(`/days?${new URLSearchParams({ coin: p.coinSymbol, from: String(first), to: String(first + daysIn - 1) })}`); if (!r.ok) throw new Error(`days ${r.status}`); return new Map(((await r.json()).days as LedgerDay[]).map((d) => [d.index, d])); },
+    staleTime: 5 * 60_000,
+  });
   const today = stook.daysFromCivil(ty, tm, td);
   const cells: (number | null)[] = Array((first + 4) % 7).fill(null);
   for (let d = 1; d <= daysIn; d++) cells.push(d);
@@ -55,6 +68,8 @@ export function WallCalendar(p: Props) {
   const now = BigInt(p.now);
   // A series part way through learning cannot open a day that locks before it has learned enough.
   const firstOpen = firstOpenableDay(p.series);
+  // With a house, the next day it will open says so; the days after it wait their turn.
+  const houseNext = p.house ? indices.find((i) => !rounds.data?.get(i) && stook.hasRound(p.series, i) && Number(stook.closeOf(p.series, i)) - p.now >= p.minLeadSecs) : undefined;
 
   return (
     <div className={`wallcal ${turning ? `turn-${turning.phase}-${turning.dir > 0 ? "fwd" : "back"}` : ""}`}>
@@ -80,32 +95,35 @@ export function WallCalendar(p: Props) {
           const paused = !r && !past && !learning && !p.series.active;
           const early = !r && !past && !learning && !paused && !terms.fundable;
           const l = r?.ladder;
+          const gone = !r ? ledger.data?.get(index) : undefined;
           const state = !l ? "" : l.status === "open" ? (p.now < Number(l.locksAt) ? "trading" : "locked") : l.status === "seeding" ? (p.now < Number(l.opensAt) ? "funded" : p.now < Number(l.opensAt) + Number(stook.OPEN_WINDOW_SECS) && p.now < Number(l.locksAt) ? "opening" : "void soon") : l.status;
           const closesIn = offset === 0 && at > p.now && (!l || l.status === "open" || l.status === "seeding") && !early && !learning && !paused ? untilText(BigInt(at), p.now) : null;
           // Finished days are stamped, as a clerk would: settled, void, or
           // passed with no round; closed for a market holiday. Today and the
           // days ahead carry their facts instead.
-          const stamped = l ? (l.status === "settled" ? "settled" : l.status === "void" ? "void" : null) : past ? (noRound ? "closed" : "passed") : null;
+          const stamped = l ? (l.status === "settled" ? "settled" : l.status === "void" ? "void" : null) : gone ? gone.status : past ? (noRound ? "closed" : "passed") : null;
           const landed = l && l.status === "settled" && l.settledBin !== null ? stook.binBounds(l.settledBin, l.p0, l.stepBps) : null;
+          const goneLanded = gone && gone.status === "settled" && gone.bin !== null && gone.p0 && gone.stepBps ? stook.binBounds(gone.bin, BigInt(gone.p0), gone.stepBps) : null;
           const body = (
             <>
               <div className="wc-top"><span className="wc-num">{d}</span>{state && !stamped && <span className={`wc-state wc-state-${state === "void soon" ? "void" : state}`}>{state === "locked" ? "closed" : state}</span>}</div>
               {/* a day that passed with no round says so quietly: a month of red stamps buried the days you can act on */}
               {stamped === "passed" ? <div className="wc-info wc-sub wc-none">no round</div> : stamped && <span className={`stamp wc-rubber stamp-${stamped}`}>{stamped}</span>}
+              {goneLanded && <div className="wc-info"><span className="mono">{fmtPrice(goneLanded[0], gone!.expo ?? -8, p.dp)}</span><span className="wc-sub">landed</span></div>}
               {l && landed && <div className="wc-info"><span className="mono">{fmtPrice(landed[0], l.p0Expo, p.dp)}</span><span className="wc-sub">landed</span></div>}
               {l && !landed && <div className="wc-info"><span className="mono">{coinText(l.depositTotal, l.decimals, p.coinSymbol)}</span><span className="wc-sub">{l.curveSeq.toString()} trades</span></div>}
-              {!l && !past && !early && !learning && !paused && <div className="wc-info wc-empty">Fund it</div>}
-              {early && <div className="wc-info wc-sub" title="A day can be funded up to 31 days ahead.">funding opens {nyWhen(terms.fundableFrom, { weekday: "short", month: "short", day: "numeric" })}</div>}
+              {!l && !past && !early && !learning && !paused && (p.house ? index === houseNext && <div className="wc-info wc-sub">the house opens it next</div> : <div className="wc-info wc-empty">Fund it</div>)}
+              {early && !p.house && <div className="wc-info wc-sub" title="A day can be funded up to 31 days ahead.">funding opens {nyWhen(terms.fundableFrom, { weekday: "short", month: "short", day: "numeric" })}</div>}
               {learning && <div className="wc-info wc-sub" title="The coin is still learning how its price moves. This day locks before it has learned enough, so its round could not open.">too soon to open</div>}
               {paused && <div className="wc-info wc-sub">paused</div>}
               {closesIn && <div className="wc-left">closes in {closesIn.replace(/ (d|h|min)\b/g, "$1")}</div>}
               {r && mine.get(r.pubkey.toBase58()) && (() => { const m = mine.get(r.pubkey.toBase58())!; const what = [m.calls && `${m.calls} ${m.calls === 1 ? "call" : "calls"}`, m.house && `${m.house} ${m.house === 1 ? "deposit" : "deposits"}`].filter(Boolean).join(" · "); return <span className="wc-mine" title={`You hold ${what} in this round`}>you: {what}</span>; })()}
             </>
           );
-          const cls = `wc-cell ${isToday ? "wc-today" : ""} ${l ? `wc-${l.status}` : past || early || learning || paused ? "wc-past" : "wc-open-slot"}`;
+          const cls = `wc-cell ${isToday ? "wc-today" : ""} ${l ? `wc-${l.status}` : gone ? `wc-${gone.status}` : past || early || learning || paused || p.house ? "wc-past" : "wc-open-slot"}`;
           const key = `${year}-${month}-${d}`;
           if (r) return <Link key={key} to={`/m/${r.pubkey.toBase58()}`} className={cls}>{body}</Link>;
-          if (past || early || learning || paused) return <div key={key} className={cls}>{body}</div>;
+          if (past || early || learning || paused || p.house) return <div key={key} className={cls}>{body}</div>;
           return <button key={key} className={cls} onClick={() => p.onStart(index)} disabled={!p.canStart}>{body}</button>;
         })}
       </div>

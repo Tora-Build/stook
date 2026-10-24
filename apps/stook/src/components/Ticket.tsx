@@ -40,6 +40,7 @@ import { ataOf, ensureAta, type PositionRow, type TrancheRow } from "../lib/chai
 import { useMint, useSend } from "../hooks/useChain";
 import type { CallOrder } from "../hooks/useCallOrder";
 import { LpPanel } from "./LpPanel";
+import { HousePanel } from "./HousePanel";
 import { Book } from "./Book";
 import { Rack } from "./Rack";
 import { PaperFold } from "./PaperFold";
@@ -102,7 +103,12 @@ export function Ticket(p: Props) {
   const tab = p.tab;
   return (
     <section className="panel ticket">
-      {tab === "house" ? <LpPanel refs={p.refs} ladder={p.ladder} quoteSymbol={p.quoteSymbol} now={p.now} transferFee={p.transferFee} usd={p.usd} bare /> : p.final ? <Collect {...p} /> : (
+      {tab === "house" ? (p.ladder.sharedVault
+        // A round the coin's house opened is funded from the house: deposits
+        // go there and stay in from round to round. A deposit someone put in
+        // this round alone still shows beneath.
+        ? <><HousePanel series={p.ladder.series} mint={p.ladder.quoteMint} symbol={p.quoteSymbol} bare />{p.tranches.length > 0 && <LpPanel refs={p.refs} ladder={p.ladder} quoteSymbol={p.quoteSymbol} now={p.now} transferFee={p.transferFee} usd={p.usd} bare />}</>
+        : <LpPanel refs={p.refs} ladder={p.ladder} quoteSymbol={p.quoteSymbol} now={p.now} transferFee={p.transferFee} usd={p.usd} bare />) : p.final ? <Collect {...p} /> : (
         <>
           {p.positions.length > 0 && <Mine {...p} />}
           {p.selected ? <Held {...p} pos={p.selected} /> : <Buy {...p} />}

@@ -12,7 +12,7 @@ import { ataOf, ensureAta } from "../lib/chain";
 import { useBalance, useMint, useSend } from "../hooks/useChain";
 import { Notice } from "./Notice";
 
-interface Props { series: PublicKey; mint: PublicKey; symbol: string }
+interface Props { series: PublicKey; mint: PublicKey; symbol: string; /** Inside another panel (the round's ticket): no frame of its own. */ bare?: boolean }
 
 export function HousePanel(p: Props) {
   const { connection } = useConnection();
@@ -57,11 +57,14 @@ export function HousePanel(p: Props) {
   const ata = publicKey ? ataOf(p.mint, publicKey, info.tokenProgram) : null;
 
   return (
-    <section className="panel">
+    <section className={p.bare ? "" : "panel"}>
       <h3>The {p.symbol} house</h3>
       <p className="hint">One pool that funds every {p.symbol} round, one after another, from one vault: rolling to the next round moves no coins. Deposit once and stay in; 90% of every trading fee goes to the house.</p>
-      <div className="tp-row"><span>{busy ? "In today's round" : "Waiting for the next round"}</span><i /><b className="mono">{coin(capital)}</b></div>
-      {h.pendingDeposits > 0n && <div className="tp-row tp-small"><span>joining at the bell</span><i /><b className="mono">{coin(h.pendingDeposits)}</b></div>}
+      <div className="ticket-paper" role="group" aria-label="The house">
+        <div className="tp-row"><span>{busy ? "In today's round" : "Waiting for the next round"}</span><i /><b className="mono">{coin(capital)}</b></div>
+        {h.pendingDeposits > 0n && <div className="tp-row tp-small"><span>joining at the bell</span><i /><b className="mono">{coin(h.pendingDeposits)}</b></div>}
+        <div className="tp-row tp-small"><span>rounds rolled</span><i /><b className="mono">{h.epoch}</b></div>
+      </div>
 
       {mine && (mine.shares > 0n || mine.queuedDeposit > 0n || mine.claimable > 0n) && (
         <div className="ticket-paper" role="group" aria-label="Your stake">

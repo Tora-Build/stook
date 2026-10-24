@@ -409,7 +409,7 @@ function FirstSteps() {
   const steps = [
     FAUCET_AUTHORITY_BYTES && { t: "Get test coins", d: "Free on devnet: each table's coin, enough to try a few calls.", act: <Faucet /> },
     { t: "Make a call", d: "Pick a table, then the floor where you think today's price closes.", act: <Link className="stmt-step-go" to="/#floor">Pick a table ›</Link> },
-    { t: "Or be the house", d: "Fund a day's pool and share 90% of every fee its traders pay.", act: <Link className="stmt-step-go" to="/c/STOOK">Fund a day ›</Link> },
+    { t: "Or back the house", d: "Each coin's house funds every one of its rounds, day after day, and keeps 90% of every fee.", act: <Link className="stmt-step-go" to="/c/STOOK#house">Back the house ›</Link> },
   ].filter(Boolean) as { t: string; d: string; act: ReactNode }[];
   return (
     <div className="stmt-first">
