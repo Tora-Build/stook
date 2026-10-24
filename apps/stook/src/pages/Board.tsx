@@ -17,10 +17,12 @@ import { Title } from "../components/Title";
 interface Player { rank: number; wallet: string; bot: string | null; rounds: number; won: number; missed: number; hit: number; paid: string; back: string; net: string; best: string; last: number }
 interface Board { coin: string; decimals: number | null; days: number; players: number; people: number; board: Player[]; peopleBoard: Player[]; scoredAt: number; indexed?: { through: number | null; complete: boolean } }
 
+// The table style right-aligns every column after the first; names read from the left.
+const LEFT = { textAlign: "left" } as const;
 const PERIODS: [number, string][] = [[7, "This week"], [30, "30 days"], [0, "All time"]];
 
 async function fetchBoard(coin: string, days: number): Promise<Board> {
-  const r = await fetch(`/leaderboard?${new URLSearchParams({ coin, days: String(days) })}`);
+  const r = await fetch(`/leaderboard?${new URLSearchParams({ coin, days: String(days), limit: "25" })}`);
   if (!r.ok) throw new Error(`leaderboard ${r.status}`);
   return r.json();
 }
@@ -63,29 +65,28 @@ export function BoardPage() {
           : q.isError || !b ? <p className="stmt-empty">The board is out of reach right now. It will be back shortly. <button className="link" onClick={() => void q.refetch()}>Try again</button></p>
           : list.length === 0 ? <p className="stmt-empty">{people && b.players > 0 ? "Only the sim's bots have called here in this period." : "No settled calls here in this period yet."} <Link to={`/c/${coin.symbol}`}>Make the first call ›</Link></p>
           : <table className="ladder-table">
-            <thead><tr><th>#</th><th>Caller</th><th>Rounds</th><th>Hit rate</th><th>Net</th><th>Best round</th></tr></thead>
+            <thead><tr><th>#</th><th style={LEFT}>Caller</th><th>Rounds</th><th>Hit</th><th>Net, ${coin.symbol}</th></tr></thead>
             <tbody>
               {list.map((p) => {
                 const net = BigInt(p.net), best = BigInt(p.best);
                 return (
                   <tr key={p.wallet} className={p.wallet === me ? "on" : ""}>
                     <td className="mono">{p.rank}</td>
-                    <td>
+                    <td style={LEFT}>
                       <Link to={`/yours?account=${p.wallet}&tab=history`} className="mono" title={p.wallet}>{short(new PublicKey(p.wallet))}</Link>
                       {p.wallet === me && <b> you</b>}
-                      {p.bot && <span className="hr-tag" title="A wallet the devnet sim runs">bot · {p.bot}</span>}
+                      {p.bot && <div className="small muted" title="A wallet the devnet sim runs">bot · {p.bot}</div>}
                     </td>
                     <td className="mono">{p.rounds}</td>
                     <td className="mono" title={`${p.won} won, ${p.missed} missed`}>{Math.round(p.hit * 100)}%</td>
-                    <td className={`mono ${net > 0n ? "up" : net < 0n ? "down" : ""}`}>{money(net, true)}{rate !== null && <div className="small muted">≈ {signed(net)}{fmtUsd(toUsd(abs(net), dec, rate))}</div>}</td>
-                    <td className="mono">{money(best, true)}</td>
+                    <td className={`mono ${net > 0n ? "up" : net < 0n ? "down" : ""}`} title={`Best round ${money(best, true)}`}>{signed(net)}{fmtCompact(abs(net), dec)}{rate !== null && <div className="small muted">≈ {signed(net)}{fmtUsd(toUsd(abs(net), dec, rate))}</div>}</td>
                   </tr>
                 );
               })}
             </tbody>
           </table>}
         {b && <p className="stmt-foot">
-          {b.players} {b.players === 1 ? "caller" : "callers"} in this period, {b.people} of them people, the rest the devnet sim's bots. Net counts what came back and what is still to collect, less what went in, in ${coin.symbol}; voided rounds and house deposits do not count.
+          {b.players} {b.players === 1 ? "caller" : "callers"} in this period, {b.people} of them people, the rest the devnet sim's bots. Net counts what came back and what is still to collect, less what went in; voided rounds and house deposits do not count. Tap a caller to see their rounds.
           {b.scoredAt ? ` Scored ${nyWhen(b.scoredAt, { hour: "numeric", minute: "2-digit" })} New York.` : ""}
         </p>}
       </section>
