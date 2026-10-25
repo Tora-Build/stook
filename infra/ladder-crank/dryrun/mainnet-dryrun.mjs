@@ -125,9 +125,10 @@ async function roundPart(mint, token) {
         bought = true;
         log("round open at", l.p0.toString(), `(expo ${l.p0Expo}); bought a call on floors 30 to 34`);
       }
-      if (round && !h.round && h.epoch > 0) {
-        const after = l ?? null;
-        log("PASS", `house collected the round: epoch ${h.epoch}, holds ${stook.houseCapital(h)}, fees per round ${h.feeEma}`, after ? `round ${after.status}` : "round closed");
+      // Collected: the house's epoch moves on (and the keeper may already
+      // have started the next round, sized to the fees it just earned).
+      if (round && h.epoch > 0) {
+        log("PASS", `house collected the round: epoch ${h.epoch}, holds ${stook.houseCapital(h)}, fees per round ${h.feeEma}`, h.round ? `next round sized ${h.inRound} of ${stook.houseCapital(h)}` : "idle");
         return true;
       }
       if (l && (l.status === "settled" || l.status === "void")) log("round", l.status, l.status === "settled" ? `on floor ${l.settledBin}` : "");
