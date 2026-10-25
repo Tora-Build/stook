@@ -394,3 +394,14 @@ test("learn: a run of unpostable closes longer than the scan does not hide the c
   assert.equal(posts[0], first + lost, "the first close after the run is the first posted");
   assert.ok(fails.every((f) => f === 0), "passing over unpostable closes is not a failure");
 });
+
+test("learn: a new hourly series anchored at its restart target, a week back, walks forward from it", async () => {
+  const { learnCandidates } = await import("../src/index.mjs");
+  const now = 1_792_950_000n;
+  const s = { feedId: new Uint8Array(32), quoteMint: PublicKey.default, periodSecs: 3600, closeSecs: 0, clock: stook.CLOCK_UTC, active: true, bump: 0, varWad: 0n, lastPrice: 0n, lastExpo: 0, lastAt: 0n, observations: 0 };
+  const target = stook.restartTarget(s, now);
+  const anchored = { ...s, lastAt: stook.closeOf(s, target), lastPrice: 1n };
+  const next = learnCandidates(stook, anchored, now).find((i) => stook.mayObserve(anchored, i, now));
+  assert.equal(next, target + 1, "the next close in order");
+  assert.ok(stook.closeOf(s, target) < now - 6n * 86_400n, "the target is about a week back");
+});

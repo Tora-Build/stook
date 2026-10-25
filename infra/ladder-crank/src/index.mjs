@@ -171,9 +171,12 @@ export function learnCandidates(sdk, s, now, skippedTo = -1) {
   const from = s.lastAt > 0n && skippedTo >= 0 && sdk.closeOf(s, skippedTo) > s.lastAt ? { ...s, lastAt: sdk.closeOf(s, skippedTo) } : s;
   const head = sdk.pendingObservations(from, now, LEARN_SCAN);
   if (s.lastAt <= 0n || sdk.warmedUp(s)) return head;
-  const target = sdk.restartTarget(s, now);
-  if (head.includes(target)) return head;
-  return [...head.filter((i) => i < target), target, ...head.filter((i) => i > target)];
+  // Warming up: first the closes in order from where it stands (a series
+  // anchored before the backfill head, at its restart target, walks forward
+  // from there: an hourly series lands a week back), then the head, then the
+  // restart target, for a series held behind closes that cannot be posted.
+  const walk = sdk.pendingObservations({ ...from, observations: Math.max(1, from.observations) }, now, LEARN_SCAN);
+  return [...new Set([...walk, ...head, sdk.restartTarget(s, now)])];
 }
 
 /** `--plan` alone, or any of the modes that send; never both. */
