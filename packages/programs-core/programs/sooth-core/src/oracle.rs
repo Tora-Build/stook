@@ -26,23 +26,28 @@ pub const PYTH_PUSH_ORACLE: Pubkey = pubkey!("pythWSnswVUd12oZpeFP8e9CVaEqJg25g1
 /// How late after the instant a push-feed price may be and still settle it.
 ///
 /// Since 2026-10-06 Hermes, the only source of THE update for an instant,
-/// serves only paid keys. The push feeds on devnet refresh every 30 s (SOL)
-/// to 5 minutes (BTC, ETH), with longer gaps on quiet feeds, so the instant
-/// is "the first push price at or after it", within half an hour.
+/// serves only paid keys (and since 2026-10-25 answers 401 without one, as
+/// does Pyth's history service). The push feeds refresh on their own, free to
+/// read: on devnet every 30 s (SOL) to 5 minutes (BTC, ETH), on mainnet every
+/// 15 s to a minute for the feeds Pyth keeps (SOL, BTC, ETH, ZEC). So the
+/// instant is "the first push price at or after it", within half an hour.
 pub const PUSH_MAX_GAP_SECS: i64 = 30 * 60;
+
+/// How late a past update may be and still teach a series its close
+/// (`observe_fit`). Past closes are learned from updates the push feeds took
+/// on chain, rebuilt from their transactions and posted again; the first one
+/// after a close is seconds to a minute late on the mainnet feeds.
+pub const LATE_LEARN_SECS: i64 = 5 * 60;
 
 /// Whether `key` is Pyth's push-feed account for `feed_id`.
 ///
 /// Only that one account may stand in for THE update: the push oracle accepts
 /// only newer verified updates into it, and it holds one price at a time, so
 /// the keeper settles with the first one after the instant. Anyone holding a
-/// paid Hermes key could push a later print before the keeper does; devnet
-/// accepts that. Mainnet never takes this path: there it is THE update or
-/// nothing.
+/// paid Hermes key could push a later print first, within the minute before
+/// Pyth's own next push; the program accepts that. On mainnet the account is
+/// fully verified like any posted update.
 pub fn is_push_feed(key: &Pubkey, feed_id: &[u8; 32]) -> bool {
-    if cfg!(feature = "mainnet") {
-        return false;
-    }
     let (pda, _) = Pubkey::find_program_address(&[&0u16.to_le_bytes(), feed_id], &PYTH_PUSH_ORACLE);
     *key == pda
 }
@@ -273,6 +278,35 @@ pub fn check_live_price(
     Ok(())
 }
 
+/// What an update teaches a series about the close at `t` (`series_observe`):
+/// `Ok(true)` to learn the move since the last close, `Ok(false)` only to move
+/// on to this close (`Series::rebase`), an error to refuse it.
+///
+/// - THE update for `t` (`check_settlement_instant`), however late: it
+///   teaches if it is within `SETTLE_MAX_GAP_SECS` of `t`, or within the push
+///   gap when it is the push feed itself.
+/// - Any other update for this feed at or after `t`: it teaches within
+///   `LATE_LEARN_SECS` (the push gap for the push feed), and later only moves
+///   the series on, as a quiet feed's first price after the close must. This
+///   is how past closes are learned without Hermes: the push feed's first
+///   update after the close, rebuilt from its transaction and posted again.
+///   A submitter could pick a later print, which changes one daily return
+///   among some forty the variance remembers, or drops it; it decides no
+///   round, and every close is still taken in order.
+///
+/// Either way the confidence must be under 1% of the price to teach.
+pub fn observe_fit(p: &OraclePrice, feed_id: &[u8; 32], min_signatures: u8, t: i64, settle_gap: i64, push: bool) -> Result<bool> {
+    require!(&p.feed_id == feed_id, SoothCoreError::OracleWrongFeed);
+    require!(p.verification.meets(min_signatures), SoothCoreError::OracleUnderVerified);
+    require!(p.price > 0, SoothCoreError::OracleNonPositive);
+    let late = p.publish_time - t;
+    let the_update = p.prev_publish_time < t && t <= p.publish_time;
+    let teach_within = if push { PUSH_MAX_GAP_SECS } else if the_update { settle_gap } else { LATE_LEARN_SECS };
+    require!(t <= p.publish_time, SoothCoreError::OracleNotTheSettlementInstant);
+    let sure = (p.conf as u128).saturating_mul(10_000) <= (p.price as u128).saturating_mul(100);
+    Ok(late <= teach_within && sure)
+}
+
 /// The policy checks, split out so they are testable without an `AccountInfo`.
 /// How far ahead of the cluster clock an update may be stamped and still count as now.
 pub const CLOCK_SKEW_SECS: i64 = 10;
@@ -423,6 +457,39 @@ mod tests {
     }
 
     #[test]
+    fn a_past_close_is_learned_from_the_first_update_after_it() {
+        let base = parse_price_update(&unhex(NVDA_DEVNET)).unwrap();
+        let f = feed(NVDA_FEED);
+        let t = 1_000_000;
+        // A rebuilt push update: a Pythnet tick, its predecessor a second before.
+        let at = |publish: i64| OraclePrice { publish_time: publish, prev_publish_time: publish - 1, ..base };
+        let fit = |p: &OraclePrice, push: bool| observe_fit(p, &f, 5, t, 30, push);
+
+        assert_eq!(fit(&at(t + 6), false).unwrap(), true, "six seconds late, as on mainnet ZEC");
+        assert_eq!(fit(&at(t + LATE_LEARN_SECS), false).unwrap(), true, "at the learning edge");
+        assert_eq!(fit(&at(t + LATE_LEARN_SECS + 1), false).unwrap(), false, "later: only moves on");
+        assert_eq!(fit(&at(t + 5_400), false).unwrap(), false, "a feed quiet for 90 minutes: moves on");
+        assert!(fit(&at(t - 1), false).is_err(), "from before the close");
+
+        // THE update keeps its own rule: teaches within the settle gap, moves on at any lateness.
+        let the = |publish: i64| OraclePrice { publish_time: publish, prev_publish_time: t - 1, ..base };
+        assert_eq!(fit(&the(t + 30), false).unwrap(), true);
+        assert_eq!(fit(&the(t + 31), false).unwrap(), false, "THE update half a minute late only moves on");
+        assert_eq!(fit(&the(t + 86_400), false).unwrap(), false, "a feed silent all day still moves the series on");
+
+        // The push feed teaches within its own gap.
+        assert_eq!(fit(&at(t + 315), true).unwrap(), true);
+        assert_eq!(fit(&at(t + PUSH_MAX_GAP_SECS), true).unwrap(), true);
+        assert_eq!(fit(&at(t + PUSH_MAX_GAP_SECS + 1), true).unwrap(), false, "a quiet DOGE push: moves on");
+
+        let unsure = OraclePrice { conf: base.price as u64 / 50, ..at(t + 6) };
+        assert_eq!(fit(&unsure, false).unwrap(), false, "2% confidence moves on, teaches nothing");
+        assert!(observe_fit(&at(t + 6), &[9u8; 32], 5, t, 30, false).is_err(), "another feed");
+        let partial = OraclePrice { verification: Verification::Partial { signatures: 3 }, ..at(t + 6) };
+        assert!(observe_fit(&partial, &f, 255, t, 30, false).is_err(), "mainnet's floor wants Full");
+    }
+
+    #[test]
     fn garbage_is_malformed_not_a_panic() {
         assert!(parse_price_update(&[]).is_err());
         assert!(parse_price_update(&[0u8; 134]).is_err()); // wrong discriminator
@@ -440,7 +507,6 @@ mod tests {
     const BTC_FEED: &str = "e62df6c8b4a85fe1a67db44dc12de5db330f7ac66b72dc658afedf0f4a415b43";
 
     #[test]
-    #[cfg(not(feature = "mainnet"))]
     fn push_feed_account_parses_and_is_recognised() {
         let p = parse_price_update(&unhex(BTC_PUSH_DEVNET)).unwrap();
         assert_eq!(p.feed_id, feed(BTC_FEED));
@@ -453,7 +519,6 @@ mod tests {
     }
 
     #[test]
-    #[cfg(not(feature = "mainnet"))]
     fn push_instant_is_the_first_push_price_after_t_within_the_gap() {
         let base = parse_price_update(&unhex(BTC_PUSH_DEVNET)).unwrap();
         let f = feed(BTC_FEED);
@@ -473,7 +538,6 @@ mod tests {
     }
 
     #[test]
-    #[cfg(not(feature = "mainnet"))]
     fn push_live_price_may_be_minutes_old() {
         let base = parse_price_update(&unhex(BTC_PUSH_DEVNET)).unwrap();
         let f = feed(BTC_FEED);

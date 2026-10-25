@@ -8,7 +8,7 @@ use anchor_spl::token_interface::Mint;
 use crate::error::SoothCoreError;
 use crate::math::calendar::DAY;
 use crate::instructions::ladder::ORACLE_MIN_SIGNATURES;
-use crate::oracle::{check_settlement_instant, is_push_feed, read_price_update, PUSH_MAX_GAP_SECS};
+use crate::oracle::{is_push_feed, observe_fit, read_price_update};
 use crate::state::ladder::SETTLE_MAX_GAP_SECS;
 use crate::state::series::{CLOCK_NEW_YORK, CLOCK_NEW_YORK_WEEKDAYS, CLOCK_UTC};
 use crate::state::{ProtocolConfig, Series, PROTOCOL_CONFIG_SEED, SERIES_SEED};
@@ -141,12 +141,13 @@ pub struct SeriesObserved {
 
 /// Teach a series one day's close, whether or not anyone funded a round that
 /// day. Anyone may submit it, from Pyth's history, so the series never
-/// depends on a keeper or on rounds to learn. The update must be THE one for
-/// the close, the first published at or after it (`prev_publish_time < at <=
-/// publish_time`), so there is nothing to choose. If it is also a good price
-/// for the instant (within 30 seconds, confidence under 1%), the series learns
-/// the move since the last close; if not, it only moves on to this close
-/// (`Series::rebase`). Either way every day is taken, in order
+/// depends on a keeper or on rounds to learn. The update is THE one for the
+/// close (the first published at or after it, `prev_publish_time < at <=
+/// publish_time`), or, for a past close, the first one the push feed took
+/// after it, rebuilt from chain history (`oracle::observe_fit`). If it is a
+/// good price for the instant (close enough to it, confidence under 1%), the
+/// series learns the move since the last close; if not, it only moves on to
+/// this close (`Series::rebase`). Either way every day is taken, in order
 /// (`Series::may_observe`), so nobody chooses which days a series learns from.
 pub fn series_observe_handler(ctx: Context<SeriesObserve>, index: u32) -> Result<()> {
     let s = &mut ctx.accounts.series;
@@ -155,13 +156,8 @@ pub fn series_observe_handler(ctx: Context<SeriesObserve>, index: u32) -> Result
     require!(at != s.last_at, SoothCoreError::SeriesAlreadyObserved);
     require!(s.may_observe(index, Clock::get()?.unix_timestamp), SoothCoreError::SeriesOutOfOrder);
     let p = read_price_update(&ctx.accounts.price_update.to_account_info())?;
-    // The one update for this close, however late or unsure. From the push
-    // feed (devnet), the first push price at or after it; good within its gap.
     let push = is_push_feed(ctx.accounts.price_update.key, &s.feed_id);
-    check_settlement_instant(&p, &s.feed_id, ORACLE_MIN_SIGNATURES, at, i64::MAX, u16::MAX, push)?;
-    let gap = if push { PUSH_MAX_GAP_SECS } else { SETTLE_MAX_GAP_SECS };
-    let good = p.publish_time - at <= gap && (p.conf as u128).saturating_mul(10_000) <= (p.price as u128).saturating_mul(100);
-    if good {
+    if observe_fit(&p, &s.feed_id, ORACLE_MIN_SIGNATURES, at, SETTLE_MAX_GAP_SECS, push)? {
         s.observe(p.price, p.exponent, at).map_err(|_| error!(SoothCoreError::MathOverflow))?;
     } else {
         s.rebase(p.price, p.exponent, at);

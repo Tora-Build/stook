@@ -28,6 +28,14 @@
 //   HERMES_URL           default https://hermes.pyth.network
 //   FULL_VERIFICATION=1  post fully verified updates. Required on mainnet, where
 //                        the program accepts nothing less; devnet accepts partial.
+//   LEARN_SOURCE         where past closes come from: "history" (default with
+//                        ORACLE_SOURCE=push) rebuilds the push feed's first update
+//                        after each close from chain history (src/history.mjs), so
+//                        a new series learns its last 45 days at once, free;
+//                        otherwise the oracle source.
+//   HISTORY_RPC_URL      RPC for that history (getSignaturesForAddress,
+//                        getTransaction); default LEDGER_RPC_URL, then RPC_URL
+//   SCAN_RPC_URL, WS_URL default to devnet's public endpoints: set both on mainnet
 
 import { appendFileSync, readFileSync, writeFileSync, realpathSync } from "node:fs";
 import { homedir } from "node:os";
@@ -41,6 +49,7 @@ import { stook, SOOTH_CORE_PROGRAM_ID } from "@sooth/sdk-solana";
 // The receiver's ESM build imports `jito-ts/dist/sdk/block-engine/types`
 // without an extension, which Node's ESM loader refuses. Its CJS build is fine.
 import pyth from "./pyth.cjs";
+import { historyPrices } from "./history.mjs";
 const { PythSolanaReceiver } = pyth;
 
 const RPC_URL = process.env.RPC_URL ?? "https://soo-rpc.zak-a35.workers.dev";
@@ -116,7 +125,10 @@ export function chainSenders(connection, payer) {
       if (vaas?.push) return sendAndConfirmTransaction(connection, new Transaction().add(...stook.withHeap(makeIxs(vaas.push), units, PRIORITY)), [payer]);
       const receiver = new PythSolanaReceiver({ connection, wallet: new Wallet(payer) });
       const builder = receiver.newTransactionBuilder({ closeUpdateAccounts: false });
-      if (FULL) await builder.addPostPriceUpdates(vaas);
+      // A rebuilt past update carries the few signatures the push feed was
+      // given, all of which fit a full verification.
+      if (vaas?.rebuilt) await builder.addPostPriceUpdates(vaas.rebuilt);
+      else if (FULL) await builder.addPostPriceUpdates(vaas);
       else await builder.addPostPartiallyVerifiedPriceUpdates(vaas);
       const priceUpdate = builder.getPriceUpdateAccount(`0x${feedHex}`);
       const posted = await builder.buildVersionedTransactions({ computeUnitPriceMicroLamports: PRIORITY });
@@ -215,7 +227,7 @@ export function roundNote(step, pubkey, ladder, parsed, extra = "", periodSecs =
   return `⚪ ${coin} round voided${extra}. Everyone can take their money back.\n${link}`;
 }
 
-export function createKeeper({ connection, scanner, payer, sendTx, postAndConsume, hermes: fetchUpdate = hermes, plan = false, sdk = stook, notify = () => {} }) {
+export function createKeeper({ connection, scanner, payer, sendTx, postAndConsume, hermes: fetchUpdate = hermes, history: fetchPast = fetchUpdate, plan = false, sdk = stook, notify = () => {} }) {
   const stook = sdk;
   const refuse = (what) => { throw new Error(`plan mode sends nothing (${what})`); };
   const send = (tx) => (plan ? refuse("transaction") : sendTx(tx));
@@ -340,8 +352,8 @@ export function createKeeper({ connection, scanner, payer, sendTx, postAndConsum
 
   // A house rolls from round to round: once its round is settled or void it is
   // booked home (the queue of deposits and withdrawals processed at the price
-  // the round left), then it starts the next round of its series with all it
-  // holds. Its rounds keep their money in the house's vault, so neither step
+  // the round left), then it starts the next round of its series with as much
+  // as its trading can carry. Its rounds keep their money in the house's vault, so neither step
   // moves a token. Both are permissionless; the keeper pays rent it gets back
   // (the round's and the tranche's) and the epoch record's.
   async function houses(_found, now) {
@@ -353,6 +365,11 @@ export function createKeeper({ connection, scanner, payer, sendTx, postAndConsum
       const key = `${pubkey.toBase58()}:house`;
       if (waiting(key)) { if (failing(key)) failures++; continue; }
       try {
+        // A listed coin goes live once its day has passed (anyone may).
+        const first = stook.decodeHouse((await connection.getAccountInfo(pubkey)).data);
+        if (first.opensAfter > 0n && first.opensAfter !== stook.HOUSE_REJECTED && now >= first.opensAfter) {
+          console.log(tag, "listing goes live", await sendPlain(stook.coinActivateIx(first.series), 60_000));
+        }
         // Twice at most: home from a finished round, then into the next.
         for (let i = 0; i < 2; i++) {
           const h = stook.decodeHouse((await connection.getAccountInfo(pubkey)).data);
@@ -533,13 +550,13 @@ export function createKeeper({ connection, scanner, payer, sendTx, postAndConsum
         const at = stook.closeOf(s, index);
         const tag = `${name.slice(0, 8)} observe ${new Date(Number(at) * 1000).toISOString()}`;
         try {
-          const { parsed, vaas } = await fetchUpdate(`/v2/updates/price/${at}`, feed);
+          const { parsed, vaas } = await fetchPast(`/v2/updates/price/${at}`, feed);
           // Hermes answering without the update, or without its predecessor's
           // time, is a glitch to retry, not a close to give up on.
-          // From the push feed, the price it holds must be from at or after
-          // the close (the program takes any lateness; past its gap it only
-          // moves the series on).
-          const usable = parsed?.push
+          // From the push feed, live or rebuilt from history, the price must
+          // be from at or after the close (the program takes any lateness;
+          // past its window it only moves the series on).
+          const usable = parsed?.push || parsed?.rebuilt
             ? at <= BigInt(parsed.price.publish_time)
             : parsed?.metadata?.prev_publish_time && BigInt(parsed.metadata.prev_publish_time) < at && at <= BigInt(parsed.price.publish_time);
           if (!usable) {
@@ -651,8 +668,12 @@ export async function main(argv = process.argv.slice(2)) {
     try { appendFileSync(events, `${new Date().toISOString()} ${text.split("\n")[0]}\n`); } catch {}
     if (tg && chat) await fetch(`https://api.telegram.org/bot${tg}/sendMessage`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ chat_id: chat, text, disable_web_page_preview: true }), signal: AbortSignal.timeout(10_000) });
   };
-  const keeper = createKeeper({ connection, scanner, payer, plan: mode.plan, notify, ...chainSenders(connection, payer), ...(ORACLE_SOURCE === "push" ? { hermes: pushPrices(connection) } : {}) });
-  console.log(new Date().toISOString(), "oracle:", ORACLE_SOURCE === "push" ? "Pyth push feeds on chain" : `Hermes at ${HERMES}`);
+  const fromHistory = (process.env.LEARN_SOURCE ?? (ORACLE_SOURCE === "push" ? "history" : ORACLE_SOURCE)) === "history";
+  // History wants getSignaturesForAddress and getTransaction, which the
+  // ledger's RPC already serves on the box.
+  const past = fromHistory ? { history: historyPrices(new Connection(process.env.HISTORY_RPC_URL ?? process.env.LEDGER_RPC_URL ?? RPC_URL, "confirmed")) } : {};
+  const keeper = createKeeper({ connection, scanner, payer, plan: mode.plan, notify, ...chainSenders(connection, payer), ...(ORACLE_SOURCE === "push" ? { hermes: pushPrices(connection) } : {}), ...past });
+  console.log(new Date().toISOString(), "oracle:", ORACLE_SOURCE === "push" ? "Pyth push feeds on chain" : `Hermes at ${HERMES}`, "· past closes:", fromHistory ? "chain history" : "the same");
 
   if (mode.watch) {
     await watch(keeper, { interval: INTERVAL, beat: () => writeFileSync(HEARTBEAT, String(Date.now())), healthy: () => writeFileSync(HEALTH, String(Date.now())) });
