@@ -41,12 +41,14 @@ export function HousePanel(p: Props) {
   const epoch = stook.epochFor(house, h, s);
   const coin = (v: bigint) => `${fmtCompact(v, dec)} ${p.symbol}`;
   const busy = h.round !== null;
-  const capital = busy ? h.inRound : h.assets;
+  // In a round, part of the house may wait in the vault: the round is sized
+  // to the fees the house earns (the program's commit_for).
+  const capital = stook.houseCapital(h);
   const mine = s ? stook.stakeValue(h, s) : null;
   // While the house is in a round its price is not known until the bell, so
   // a stake is shown as its share, valued at what went in.
   const share = mine && h.totalShares > 0n ? Number((mine.shares * 10_000n) / h.totalShares) / 100 : 0;
-  const worth = mine ? (busy ? (capital * mine.shares) / (h.totalShares || 1n) : mine.value) : 0n;
+  const worth = mine ? mine.value : 0n;
   const free = mine ? mine.shares - mine.queuedShares : 0n;
   const amount = parseAmount(text, dec);
   // On a coin with a transfer fee the house is credited the amount and the
@@ -59,9 +61,11 @@ export function HousePanel(p: Props) {
   return (
     <section className={p.bare ? "" : "panel"}>
       <h3>The {p.symbol} house</h3>
-      <p className="hint">One pool that funds every {p.symbol} round, one after another, from one vault: rolling to the next round moves no coins. Deposit once and stay in; 90% of every trading fee goes to the house.</p>
+      <p className="hint">One pool that funds every {p.symbol} round, one after another, from one vault: rolling to the next round moves no coins. Each round gets as much as its trading can carry, and the rest waits. Deposit once and stay in; 90% of every trading fee goes to the house.</p>
       <div className="ticket-paper" role="group" aria-label="The house">
-        <div className="tp-row"><span>{busy ? "In today's round" : "Waiting for the next round"}</span><i /><b className="mono">{coin(capital)}</b></div>
+        <div className="tp-row"><span>The house holds</span><i /><b className="mono">{coin(capital)}</b></div>
+        {busy && <div className="tp-row tp-small"><span>in today's round</span><i /><b className="mono">{coin(h.inRound)}</b></div>}
+        {busy && h.assets > 0n && <div className="tp-row tp-small" title="Each round gets what the house's fee income can carry; the rest waits for a busier day."><span>waiting in the vault</span><i /><b className="mono">{coin(h.assets)}</b></div>}
         {h.pendingDeposits > 0n && <div className="tp-row tp-small"><span>joining at the bell</span><i /><b className="mono">{coin(h.pendingDeposits)}</b></div>}
         <div className="tp-row tp-small"><span>rounds rolled</span><i /><b className="mono">{h.epoch}</b></div>
       </div>

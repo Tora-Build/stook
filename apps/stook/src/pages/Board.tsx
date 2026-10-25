@@ -119,7 +119,7 @@ function Houses({ rates }: { rates: Record<string, number> }) {
         <thead><tr><th>House</th><th>Holds</th><th>Rounds rolled</th><th>A share since it opened</th></tr></thead>
         <tbody>
           {rows.map(({ c, h, decimals }) => {
-            const capital = h!.round ? h!.inRound : h!.assets;
+            const capital = stook.houseCapital(h!);
             // A share's worth, (capital + 1) / (shares + V), against the 1 / V a share started at.
             const change = (Number(capital + 1n) * Number(stook.VIRTUAL_SHARES)) / Number(h!.totalShares + stook.VIRTUAL_SHARES) - 1;
             const rate = rates[c.symbol];

@@ -900,6 +900,9 @@ pub fn lp_join_handler(ctx: Context<LadderLpJoin>, args: LadderLpJoinArgs) -> Re
             (l.status == STATUS_SEEDING || l.status == STATUS_OPEN) && now < l.locks_at,
             SoothCoreError::LadderNotJoinable
         );
+        // A round the house opened is funded through the house, which sizes
+        // it to the trading it gets; a deposit here would deepen it past that.
+        require!(!l.shared_vault(), SoothCoreError::HouseRoundJoin);
         require!(l.curve_seq == args.expected_seq, SoothCoreError::LadderCurveMoved);
         require!(args.deposit >= one_token(l.quote_decimals)?, SoothCoreError::LadderSeedTooSmall);
 

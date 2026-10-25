@@ -149,9 +149,9 @@ describe.each([["a classic SPL coin", false], ["a coin with a 1% transfer fee", 
     // The day is the house's: nobody can start it again, by either door.
     await refused(e, L.createLadderIx({ series: ser.series, index: ser.index, quoteMint: e.mint, creator: e.trader.kp.publicKey, creatorToken: e.trader.token, tokenProgram: e.tokenProgram, seed: UNIT, maxGross: gross(UNIT), programId: PROGRAM }), e.trader.kp, "already in use");
     await refused(e, L.houseStartIx(H, e.keeper.kp.publicKey, ser.index + 1), e.keeper.kp, "HouseBusy");
-    // An outside LP joins the house's round the usual way; the money lands in the shared vault.
-    await ok(e, L.joinLadderIx(A.refs(), { lp: e.carol.kp.publicKey, lpToken: e.carol.token, index: 0, deposit: 500n * UNIT, expectedSeq: 0n, maxGross: gross(500n * UNIT) }), e.carol.kp);
-    expect(balance(e, hv) - v0).toBe(500n * UNIT);
+    // Nobody deposits in the house's round directly: the house sizes it, and
+    // money for it goes through the house.
+    await refused(e, L.joinLadderIx(A.refs(), { lp: e.carol.kp.publicKey, lpToken: e.carol.token, index: 0, deposit: 500n * UNIT, expectedSeq: 0n, maxGross: gross(500n * UNIT) }), e.carol.kp, "HouseRoundJoin");
     solvent(A.state());
 
     // Queued: Dave's deposit, Bob's deposit taken back, half of Alice's shares out.
@@ -180,7 +180,6 @@ describe.each([["a classic SPL coin", false], ["a coin with a 1% transfer fee", 
     await ok(e, L.redeemLadderIx(A.refs(), e.trader.kp.publicKey, e.trader.token, win), e.trader.kp);
     expect(balance(e, e.trader.token) > t0).toBe(true);                         // the winner is paid out of the shared vault
     await ok(e, L.redeemLadderIx(A.refs(), e.trader.kp.publicKey, e.trader.token, miss), e.trader.kp);
-    await ok(e, L.claimLpIx(A.refs(), e.carol.kp.publicKey, e.carol.token), e.carol.kp);
     await ok(e, L.collectLadderFeesIx(A.refs(), e.trader.kp.publicKey, e.keeper.token, e.treasuryToken), e.trader.kp);
     // Nobody can claim the house's deposit for it, not even after the grace period.
     warpClockTo(e.ctx, settlesA + 31n * 86_400n);
@@ -192,7 +191,8 @@ describe.each([["a classic SPL coin", false], ["a coin with a 1% transfer fee", 
     const before = hs(), vBefore = balance(e, hv);
     const fin = A.state(), t = L.decodeLadderTranche(raw(e, L.deriveLadderTranche(A.ladder, house, 0, PROGRAM))), k = fin.settledBin!;
     const terms = L.trancheTerms(fin, t);
-    const owed = L.tranchePrincipal(t.deposit, L.tranchePnl(terms.b, terms.join.w[k]!, terms.join.sum, fin.curve.w[k]!, fin.curve.sum), 6) + L.trancheFees(terms.b, 6, fin.accFee, t.feeSnap);
+    const fees = L.trancheFees(terms.b, 6, fin.accFee, t.feeSnap);
+    const owed = L.tranchePrincipal(t.deposit, L.tranchePnl(terms.b, terms.join.w[k]!, terms.join.sum, fin.curve.w[k]!, fin.curve.sum), 6) + fees;
     await ok(e, L.houseCollectIx(H, e.keeper.kp.publicKey, hs()), e.keeper.kp);
     expect(balance(e, hv)).toBe(vBefore);
     const ep = L.decodeHouseEpoch(raw(e, L.deriveHouseEpoch(house, 0, PROGRAM)));
@@ -203,6 +203,8 @@ describe.each([["a classic SPL coin", false], ["a coin with a 1% transfer fee", 
     expect(after.round).toBeNull();
     expect(after.claimable).toBe(paid);
     expect(after.assets).toBe(owed - paid + 400n * UNIT);
+    expect(fees > 0n).toBe(true);
+    expect(after.feeEma).toBe(fees);                                            // the first settled round sets the fee average
     solvent();
     // The finished round closes; the shared vault stays.
     await ok(e, L.closeLadderIx(A.refs(), e.trader.kp.publicKey, e.keeper.kp.publicKey, e.treasuryToken), e.trader.kp);
@@ -221,17 +223,26 @@ describe.each([["a classic SPL coin", false], ["a coin with a 1% transfer fee", 
     expect(400n * UNIT - dave.value).toBeLessThanOrEqual(1n);
     solvent();
 
-    // ── Round B: the house rolls on with all it holds; it voids; whole ──────
+    // ── Round B: sized to the fees; the rest waits in the vault; it voids ───
     const iB = ser.index + 20;
     const B = roundAt(iB);
-    const inB = hs().assets, vB = balance(e, hv);
+    const held = hs().assets, inB = L.commitFor(held, hs().feeEma), vB = balance(e, hv);
+    expect(inB).toBe(held / 10n > fees * 15n ? held / 10n : fees * 15n < held ? fees * 15n : held);
+    expect(inB < held).toBe(true);                                              // a small round's fees do not carry all of it
     await ok(e, L.houseStartIx(H, e.keeper.kp.publicKey, iB), e.keeper.kp);
     expect(hs().inRound).toBe(inB);
+    expect(hs().assets).toBe(held - inB);
+    expect(B.state().depositTotal).toBe(inB);
     expect(balance(e, hv)).toBe(vB);
+    solvent(B.state());
+    // Staked value counts the vault and the round together.
+    expect(L.houseCapital(hs())).toBe(held);
     warpClockTo(e.ctx, B.state().locksAt);
     await ok(e, L.voidLadderIx(B.refs(), e.trader.kp.publicKey), e.trader.kp);
+    const emaB = hs().feeEma;
     await ok(e, L.houseCollectIx(H, e.keeper.kp.publicKey, hs()), e.keeper.kp);
-    expect(hs().assets).toBe(inB);                                              // a void returns the house first, whole
+    expect(hs().assets).toBe(held);                                             // a void returns the house first, whole
+    expect(hs().feeEma).toBe(emaB);                                             // and says nothing about its fees
     expect(balance(e, hv)).toBe(vB);
     solvent();
 
@@ -239,6 +250,15 @@ describe.each([["a classic SPL coin", false], ["a coin with a 1% transfer fee", 
     const bob = L.stakeValue(hs(), stake(e.bob));
     await ok(e, L.houseWithdrawIx(H, e.bob.kp.publicKey, e.bob.token, bob.shares), e.bob.kp);
     solvent();
+  });
+});
+
+describe("house round sizing", () => {
+  it("matches the program: everything with no history, else 15x the fee average inside [a tenth, all]", () => {
+    expect(L.commitFor(1_000n, 0n)).toBe(1_000n);
+    expect(L.commitFor(1_000n, 20n)).toBe(300n);
+    expect(L.commitFor(1_000n, 1n)).toBe(100n);
+    expect(L.commitFor(1_000n, 500n)).toBe(1_000n);
   });
 });
 

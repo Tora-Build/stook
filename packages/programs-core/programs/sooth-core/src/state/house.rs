@@ -20,8 +20,21 @@
 //! entry is booked lazily, on their next call, from that epoch's record.
 //!
 //! The house never chooses anything: it joins only a round nobody has traded
-//! yet (its odds are the opening prior), takes everything it holds into it,
-//! and is collected from by anyone once the round is final.
+//! yet (its odds are the opening prior) and is collected from by anyone once
+//! the round is final.
+//!
+//! # How much goes into a round
+//!
+//! A market maker that quotes all day loses to traders who know where the
+//! price is going, and fees make that back only when ordinary trading is large
+//! next to the depth (`scripts/backtest/`: with the 2%-to-5% fee the house
+//! breaks even at about three times its depth in daily volume). More capital
+//! buys more depth, not more trading, so the house takes into each round only
+//! `commit_for`: `HOUSE_FEE_MULTIPLE` times its recent fee income per round,
+//! which at the average fee is about a third of the volume, never less than a
+//! tenth of what it holds and never more than all of it. The rest waits in the
+//! vault and still belongs to the shares. A house with no fee history yet
+//! takes everything, as there is nothing to size by.
 
 use anchor_lang::prelude::*;
 
@@ -35,6 +48,15 @@ pub const HOUSE_EPOCH_SEED: &[u8] = b"house_epoch";
 /// `(assets + 1) / (shares + VIRTUAL_SHARES)`, so a donation straight to the
 /// vault cannot make one share worth more than a deposit can buy.
 pub const VIRTUAL_SHARES: u128 = 1_000_000;
+
+/// A round gets at most this many times the house's average fee income per
+/// round: about a third of the day's volume at the average LP fee (2.2%).
+pub const HOUSE_FEE_MULTIPLE: u64 = 15;
+/// A round gets at least this fraction of what the house holds (1/10), so a
+/// quiet house still makes a market worth trading.
+pub const HOUSE_MIN_COMMIT_DIV: u64 = 10;
+/// The fee average weighs the last round 1/7: about a week of daily rounds.
+pub const HOUSE_FEE_EMA_DIV: u64 = 7;
 
 #[account]
 #[derive(Debug)]
@@ -74,11 +96,14 @@ pub struct House {
 
     pub bump: u8,
     pub vault_bump: u8,
-    pub _reserved: [u8; 32],
+    /// The house's fee income per settled round, averaged (`next_fee_ema`);
+    /// 0 until its first round with fees. Sizes each round (`commit_for`).
+    pub fee_ema: u64,
+    pub _reserved: [u8; 24],
 }
 
 impl House {
-    pub const SPACE: usize = 8 + 32 * 5 + 8 * 4 + 16 * 2 + 4 * 3 + 1 + 1 + 32;
+    pub const SPACE: usize = 8 + 32 * 5 + 8 * 4 + 16 * 2 + 4 * 3 + 1 + 1 + 8 + 24;
 
     pub fn idle(&self) -> bool {
         self.round == Pubkey::default()
@@ -150,6 +175,23 @@ pub fn assets_for(n: u128, assets: u64, shares: u128) -> Option<u64> {
     u64::try_from(v).ok().map(|v| v.min(assets))
 }
 
+/// What the house takes into its next round out of `assets`, given its
+/// average fee income per round.
+pub fn commit_for(assets: u64, fee_ema: u64) -> u64 {
+    if fee_ema == 0 {
+        return assets;
+    }
+    fee_ema.saturating_mul(HOUSE_FEE_MULTIPLE).max(assets / HOUSE_MIN_COMMIT_DIV).min(assets)
+}
+
+/// The fee average after a settled round that paid the house `fees`.
+pub fn next_fee_ema(ema: u64, fees: u64) -> u64 {
+    if ema == 0 {
+        return fees;
+    }
+    ema - ema / HOUSE_FEE_EMA_DIV + fees / HOUSE_FEE_EMA_DIV
+}
+
 /// What processing one epoch's whole queue does to the house: the price, then
 /// withdrawals out, then deposits in. Returns `(paid, minted, wiped)`.
 pub fn process_queue(h: &mut House) -> Option<(u64, u128, bool)> {
@@ -198,6 +240,21 @@ pub fn book_from_epoch(s: &mut HouseStake, e: &HouseEpoch) -> Option<()> {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn a_round_is_sized_to_the_fees() {
+        use super::{commit_for, next_fee_ema};
+        // no history: everything
+        assert_eq!(commit_for(1_000, 0), 1_000);
+        // 15x the fee average, inside [a tenth, all]
+        assert_eq!(commit_for(1_000, 20), 300);
+        assert_eq!(commit_for(1_000, 1), 100);
+        assert_eq!(commit_for(1_000, 500), 1_000);
+        // the first round sets the average; later ones move it a seventh
+        assert_eq!(next_fee_ema(0, 70), 70);
+        assert_eq!(next_fee_ema(70, 0), 60);
+        assert_eq!(next_fee_ema(70, 140), 80);
+    }
+
     use super::*;
 
     fn house() -> House {
@@ -218,7 +275,8 @@ mod tests {
             last_index: 0,
             bump: 0,
             vault_bump: 0,
-            _reserved: [0; 32],
+            fee_ema: 0,
+            _reserved: [0; 24],
         }
     }
 

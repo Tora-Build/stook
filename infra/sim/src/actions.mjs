@@ -187,7 +187,8 @@ function houseChoice(ctx, order) {
     // Before trading opens no trade moves the curve, so a deposit cannot miss its sequence.
     for (const day of [c.tomorrow, c.today]) {
       const l = day?.round?.l;
-      if (!joinable(l, t)) continue;
+      // A round the coin's house opened takes no deposits of its own (HouseRoundJoin).
+      if (!joinable(l, t) || l.sharedVault) continue;
       const mine = j.tranches.filter((x) => x.ladder === day.key.toBase58()).length;
       if (mine < 1) return { coin: c, day };
     }

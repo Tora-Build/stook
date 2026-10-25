@@ -67,6 +67,8 @@ export interface HouseAccount {
   assets: bigint; inRound: bigint; pendingDeposits: bigint; claimable: bigint;
   totalShares: bigint; pendingWithdrawShares: bigint;
   epoch: number; generation: number; lastIndex: number;
+  /** The house's fee income per settled round, averaged; 0 before its first. Sizes each round (`commitFor`). */
+  feeEma: bigint;
 }
 export interface HouseStakeAccount {
   house: PublicKey; owner: PublicKey;
@@ -87,6 +89,7 @@ class Reader {
   u128() { const v = this.u64(); return v + (this.u64() << 64n); }
   u32() { const v = this.view().getUint32(this.o, true); this.o += 4; return v; }
   bool() { return this.d[this.o++] !== 0; }
+  skip(n: number) { this.o += n; }
 }
 
 export function decodeHouse(d: Uint8Array): HouseAccount {
@@ -97,6 +100,7 @@ export function decodeHouse(d: Uint8Array): HouseAccount {
     assets: r.u64(), inRound: r.u64(), pendingDeposits: r.u64(), claimable: r.u64(),
     totalShares: r.u128(), pendingWithdrawShares: r.u128(),
     epoch: r.u32(), generation: r.u32(), lastIndex: r.u32(),
+    feeEma: (r.skip(2), r.u64()),
   };
 }
 export function decodeHouseStake(d: Uint8Array): HouseStakeAccount {
@@ -111,11 +115,28 @@ export function decodeHouseEpoch(d: Uint8Array): HouseEpochAccount {
   return { house: r.key(), epoch: r.u32(), assets: r.u64(), shares: r.u128(), wiped: r.bool(), generation: r.u32() };
 }
 
-/** What a stake is worth now, booked as the program would book it. The
- *  queued part is valued at the share price of the moment, not yet final. */
+/** Constants of the program's round sizing (state/house.rs). */
+export const HOUSE_FEE_MULTIPLE = 15n;
+export const HOUSE_MIN_COMMIT_DIV = 10n;
+
+/** What the house takes into its next round out of `assets` (the program's `commit_for`). */
+export function commitFor(assets: bigint, feeEma: bigint): bigint {
+  if (feeEma === 0n) return assets;
+  const floor = assets / HOUSE_MIN_COMMIT_DIV;
+  let c = feeEma * HOUSE_FEE_MULTIPLE;
+  if (c < floor) c = floor;
+  return c > assets ? assets : c;
+}
+
+/** Everything behind the shares: in the vault and in the round, at what went in. */
+export const houseCapital = (h: Pick<HouseAccount, "assets" | "inRound">) => h.assets + h.inRound;
+
+/** What a stake is worth now, booked as the program would book it. While the
+ *  house is in a round, the part in it counts at what went in; the queued part
+ *  is valued at the share price of the moment, not yet final. */
 export function stakeValue(h: HouseAccount, s: HouseStakeAccount) {
   const shares = s.generation === h.generation ? s.shares : 0n;
-  return { shares, value: assetsFor(shares, h.assets, h.totalShares), queuedDeposit: s.pendingDeposit, queuedShares: s.pendingWithdraw, claimable: s.claimable };
+  return { shares, value: assetsFor(shares, houseCapital(h), h.totalShares), queuedDeposit: s.pendingDeposit, queuedShares: s.pendingWithdraw, claimable: s.claimable };
 }
 
 /** The epoch record a stake's next call must bring, or `undefined`. */

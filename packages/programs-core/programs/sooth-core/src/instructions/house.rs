@@ -370,7 +370,8 @@ pub fn house_start_handler(ctx: Context<HouseStart>, index: u32) -> Result<()> {
     let now = Clock::get()?.unix_timestamp;
     let h = &ctx.accounts.house;
     require!(h.idle(), SoothCoreError::HouseBusy);
-    let amount = h.assets;
+    // Sized to the fees the house has been earning; the rest waits in the vault.
+    let amount = commit_for(h.assets, h.fee_ema);
     let decimals = ctx.accounts.quote_mint.decimals;
     require!(amount >= one_token(decimals)?, SoothCoreError::HouseTooSmall);
     let window = round_window(&ctx.accounts.series, index, now)?;
@@ -407,7 +408,7 @@ pub fn house_start_handler(ctx: Context<HouseStart>, index: u32) -> Result<()> {
     h.round = ctx.accounts.ladder.key();
     h.rent_payer = ctx.accounts.cranker.key();
     h.in_round = amount;
-    h.assets = 0;
+    h.assets -= amount;
     h.last_index = index;
     emit!(HouseStarted { house: h.key(), ladder: h.round, index, amount });
     Ok(())
@@ -473,11 +474,11 @@ pub struct HouseCollected {
 /// leaves the round's books and joins the house's.
 pub fn house_collect_handler(ctx: Context<HouseCollect>) -> Result<()> {
     let ladder_key = ctx.accounts.ladder.key();
-    let returned = {
+    let (returned, fees, settled) = {
         let mut l = ctx.accounts.ladder.load_mut()?;
         let t = ctx.accounts.tranche.load()?;
         let (principal, fees) = take_tranche_owed(&mut l, &t)?;
-        principal.checked_add(fees).ok_or(SoothCoreError::MathOverflow)?
+        (principal.checked_add(fees).ok_or(SoothCoreError::MathOverflow)?, fees, l.status == STATUS_SETTLED)
     };
 
     let house_key = ctx.accounts.house.key();
@@ -486,6 +487,10 @@ pub fn house_collect_handler(ctx: Context<HouseCollect>) -> Result<()> {
     h.assets = h.assets.checked_add(returned).ok_or(SoothCoreError::MathOverflow)?;
     h.in_round = 0;
     h.round = Pubkey::default();
+    // A void refunds its fees, so it says nothing about what the house earns.
+    if settled {
+        h.fee_ema = next_fee_ema(h.fee_ema, fees);
+    }
 
     let e = &mut ctx.accounts.epoch;
     e.house = house_key;

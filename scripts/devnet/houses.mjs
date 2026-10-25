@@ -45,7 +45,8 @@ const fmt = (v, d) => (Number(v) / 10 ** d).toLocaleString("en-US", { maximumFra
 if (cmd === "list" || !cmd) {
   for (const k of await coins()) {
     if (!k.h) { console.log(k.symbol, "no house"); continue; }
-    console.log(k.symbol, k.house.toBase58(), k.h.round ? `in round ${k.h.round.toBase58().slice(0, 8)} with ${fmt(k.h.inRound, k.decimals)}` : `idle with ${fmt(k.h.assets, k.decimals)}`,
+    console.log(k.symbol, k.house.toBase58(), k.h.round ? `in round ${k.h.round.toBase58().slice(0, 8)} with ${fmt(k.h.inRound, k.decimals)}, ${fmt(k.h.assets, k.decimals)} waiting` : `idle with ${fmt(k.h.assets, k.decimals)}`,
+      `· fees per round ${fmt(k.h.feeEma, k.decimals)}`,
       `· epoch ${k.h.epoch} · queued in ${fmt(k.h.pendingDeposits, k.decimals)} · to claim ${fmt(k.h.claimable, k.decimals)}`);
   }
 } else if (cmd === "create") {

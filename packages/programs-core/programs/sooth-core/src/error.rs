@@ -109,4 +109,6 @@ pub enum SoothCoreError {
     HouseEpochMissing,
     #[msg("More shares than this stake holds")]
     HouseNotEnoughShares,
+    #[msg("This round is the house's: deposit in the house instead")]
+    HouseRoundJoin,
 }
