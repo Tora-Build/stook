@@ -219,8 +219,8 @@ pub mod sooth_core {
         house::house_claim_handler(ctx)
     }
 
-    /// Start a round of the house's series with everything the house holds,
-    /// its money kept in the house's vault. Permissionless.
+    /// Start a round of the house's series with as much as its trading can
+    /// carry, its money kept in the house's vault. Permissionless.
     pub fn house_start(ctx: Context<HouseStart>, index: u32) -> Result<()> {
         house::house_start_handler(ctx, index)
     }
@@ -229,6 +229,36 @@ pub mod sooth_core {
     /// Permissionless.
     pub fn house_collect(ctx: Context<HouseCollect>) -> Result<()> {
         house::house_collect_handler(ctx)
+    }
+
+    // ── Listing a coin ───────────────────────────────────────────────────────
+
+    /// Put an anchor on the list a coin may be listed on, or take it off.
+    /// Protocol authority.
+    pub fn list_anchor_set(ctx: Context<ListAnchorSet>, args: ListAnchorArgs) -> Result<()> {
+        listing::list_anchor_set_handler(ctx, args)
+    }
+
+    /// Set what listing a coin costs, in lamports. Protocol authority.
+    pub fn list_fee_set(ctx: Context<ListFeeSet>, lamports: u64) -> Result<()> {
+        listing::list_fee_set_handler(ctx, lamports)
+    }
+
+    /// List a coin on an anchor: its series, its house, and the lister's
+    /// seed locked in the house for a week. Live a day later. Anyone.
+    pub fn coin_list(ctx: Context<CoinList>, seed: u64, max_gross: u64) -> Result<()> {
+        listing::coin_list_handler(ctx, seed, max_gross)
+    }
+
+    /// Put a listed coin's series live once its day has passed. Anyone.
+    pub fn coin_activate(ctx: Context<CoinActivate>) -> Result<()> {
+        listing::coin_activate_handler(ctx)
+    }
+
+    /// Turn a listing down before it goes live; its seed is freed.
+    /// Protocol authority.
+    pub fn coin_reject(ctx: Context<CoinReject>) -> Result<()> {
+        listing::coin_reject_handler(ctx)
     }
 
     // ── Series ───────────────────────────────────────────────────────────────

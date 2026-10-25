@@ -69,11 +69,15 @@ export interface HouseAccount {
   epoch: number; generation: number; lastIndex: number;
   /** The house's fee income per settled round, averaged; 0 before its first. Sizes each round (`commitFor`). */
   feeEma: bigint;
+  /** A listed coin's house: when it may go live (unix seconds); `HOUSE_REJECTED` if turned down; 0 otherwise. */
+  opensAfter: bigint;
 }
 export interface HouseStakeAccount {
   house: PublicKey; owner: PublicKey;
   shares: bigint; pendingWithdraw: bigint; pendingDeposit: bigint; claimable: bigint;
   pendingEpoch: number; generation: number;
+  /** No withdrawal before this (unix seconds): a listed coin's seed. 0 otherwise. */
+  lockedUntil: bigint;
 }
 export interface HouseEpochAccount { house: PublicKey; epoch: number; assets: bigint; shares: bigint; wiped: boolean; generation: number }
 
@@ -86,6 +90,7 @@ class Reader {
   private view = () => new DataView(this.d.buffer, this.d.byteOffset, this.d.byteLength);
   key() { const k = new PublicKey(this.d.subarray(this.o, this.o + 32)); this.o += 32; return k; }
   u64() { const v = this.view().getBigUint64(this.o, true); this.o += 8; return v; }
+  i64() { const v = this.view().getBigInt64(this.o, true); this.o += 8; return v; }
   u128() { const v = this.u64(); return v + (this.u64() << 64n); }
   u32() { const v = this.view().getUint32(this.o, true); this.o += 4; return v; }
   bool() { return this.d[this.o++] !== 0; }
@@ -101,6 +106,7 @@ export function decodeHouse(d: Uint8Array): HouseAccount {
     totalShares: r.u128(), pendingWithdrawShares: r.u128(),
     epoch: r.u32(), generation: r.u32(), lastIndex: r.u32(),
     feeEma: (r.skip(2), r.u64()),
+    opensAfter: r.i64(),
   };
 }
 export function decodeHouseStake(d: Uint8Array): HouseStakeAccount {
@@ -108,6 +114,7 @@ export function decodeHouseStake(d: Uint8Array): HouseStakeAccount {
   return {
     house: r.key(), owner: r.key(), shares: r.u128(), pendingWithdraw: r.u128(), pendingDeposit: r.u64(), claimable: r.u64(),
     pendingEpoch: r.u32(), generation: r.u32(),
+    lockedUntil: (r.skip(1), r.i64()),
   };
 }
 export function decodeHouseEpoch(d: Uint8Array): HouseEpochAccount {
@@ -190,8 +197,8 @@ export const houseCancelDepositIx = (r: HouseRefs, lp: PublicKey, lpToken: Publi
 export const houseClaimIx = (r: HouseRefs, lp: PublicKey, lpToken: PublicKey, epoch?: PublicKey) =>
   ix(r, data("house_claim"), lpKeys(r, lp, lpToken, epoch));
 
-/** Start round `index` of the house's series with everything the house
- *  holds, its money kept in the house's vault. Anyone. */
+/** Start round `index` of the house's series with as much as its trading
+ *  can carry (`commitFor`), its money kept in the house's vault. Anyone. */
 export function houseStartIx(r: HouseRefs & { series: PublicKey }, cranker: PublicKey, index: number) {
   const programId = pid(r);
   const ladder = deriveLadderPda({ series: r.series, index }, programId);

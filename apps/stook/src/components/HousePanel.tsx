@@ -11,6 +11,7 @@ import { fmtCompact, parseAmount } from "../lib/format";
 import { ataOf, ensureAta } from "../lib/chain";
 import { useBalance, useMint, useSend } from "../hooks/useChain";
 import { Notice } from "./Notice";
+import { nyWhen } from "../lib/time";
 
 interface Props { series: PublicKey; mint: PublicKey; symbol: string; /** Inside another panel (the round's ticket): no frame of its own. */ bare?: boolean }
 
@@ -74,6 +75,7 @@ export function HousePanel(p: Props) {
         <div className="ticket-paper" role="group" aria-label="Your stake">
           <div className="tp-head"><span>Your stake</span><b className="mono">{share > 0 && share < 0.1 ? "under 0.1%" : `${share.toFixed(1)}%`} of the house</b></div>
           <div className="tp-row"><span>{busy ? "worth, at what went in" : "worth now"}</span><i /><b className="mono">{coin(worth)}</b></div>
+          {s && s.lockedUntil * 1000n > BigInt(Date.now()) && h.opensAfter !== stook.HOUSE_REJECTED && <div className="tp-row tp-small" title="A listing's seed stays in the house a week."><span>locked until</span><i /><b className="mono">{nyWhen(Number(s.lockedUntil), { weekday: "short", month: "short", day: "numeric", hour: "numeric" })}</b></div>}
           {mine.queuedDeposit > 0n && <div className="tp-row tp-small"><span>deposit joining at the bell</span><i /><b className="mono">{coin(mine.queuedDeposit)}</b></div>}
           {mine.queuedShares > 0n && <div className="tp-row tp-small"><span>leaving at the bell</span><i /><b className="mono">{((Number(mine.queuedShares) / Number(mine.shares || 1n)) * 100).toFixed(0)}% of your stake</b></div>}
           {mine.queuedDeposit > 0n && busy && publicKey && ata && (
@@ -84,7 +86,7 @@ export function HousePanel(p: Props) {
               {claim.isPending ? "Claiming…" : `Claim ${mine.claimable > 0n ? coin(mine.claimable) : "your withdrawal"}`}
             </button>
           )}
-          {free > 0n && publicKey && ata && (
+          {free > 0n && publicKey && ata && !(s && s.lockedUntil * 1000n > BigInt(Date.now()) && h.opensAfter !== stook.HOUSE_REJECTED) && (
             <button disabled={withdraw.isPending} onClick={() => withdraw.mutate([ensureAta(p.mint, publicKey, info.tokenProgram), stook.houseWithdrawIx(refs, publicKey, ata, free, epoch)])}>
               {withdraw.isPending ? "Sending…" : busy ? "Withdraw it all at the bell" : `Withdraw ${coin(worth)}`}
             </button>

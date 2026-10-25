@@ -15,7 +15,11 @@ export const CONFIG_DISCRIMINATOR = Uint8Array.from([207, 91, 250, 28, 152, 179,
 export const deriveProtocolConfig = (programId = SOOTH_CORE_PROGRAM_ID) =>
   PublicKey.findProgramAddressSync([new TextEncoder().encode("protocol_config")], programId)[0];
 
-export interface ProtocolConfigAccount { authority: PublicKey; pendingAuthority: PublicKey; treasury: PublicKey; paused: boolean }
+export interface ProtocolConfigAccount {
+  authority: PublicKey; pendingAuthority: PublicKey; treasury: PublicKey; paused: boolean;
+  /** What listing a coin costs, in lamports (`coin_list`). */
+  listFeeLamports: bigint;
+}
 
 export function decodeProtocolConfig(data: Uint8Array): ProtocolConfigAccount {
   for (let i = 0; i < 8; i++) if (data[i] !== CONFIG_DISCRIMINATOR[i]) throw new Error("not a ProtocolConfig account");
@@ -24,6 +28,7 @@ export function decodeProtocolConfig(data: Uint8Array): ProtocolConfigAccount {
     pendingAuthority: new PublicKey(data.slice(40, 72)),
     treasury: new PublicKey(data.slice(72, 104)),
     paused: data[104] === 1,
+    listFeeLamports: new DataView(data.buffer, data.byteOffset, data.byteLength).getBigUint64(106, true),
   };
 }
 

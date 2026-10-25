@@ -99,11 +99,15 @@ pub struct House {
     /// The house's fee income per settled round, averaged (`next_fee_ema`);
     /// 0 until its first round with fees. Sizes each round (`commit_for`).
     pub fee_ema: u64,
-    pub _reserved: [u8; 24],
+    /// A listed coin's house (`coin_list`): when its series may go live
+    /// (`coin_activate`); `HOUSE_REJECTED` if the protocol turned it down;
+    /// 0 for every other house, and once live.
+    pub opens_after: i64,
+    pub _reserved: [u8; 16],
 }
 
 impl House {
-    pub const SPACE: usize = 8 + 32 * 5 + 8 * 4 + 16 * 2 + 4 * 3 + 1 + 1 + 8 + 24;
+    pub const SPACE: usize = 8 + 32 * 5 + 8 * 4 + 16 * 2 + 4 * 3 + 1 + 1 + 8 + 8 + 16;
 
     pub fn idle(&self) -> bool {
         self.round == Pubkey::default()
@@ -127,11 +131,14 @@ pub struct HouseStake {
     /// The house generation `shares` belong to.
     pub generation: u32,
     pub bump: u8,
-    pub _reserved: [u8; 16],
+    /// No withdrawal before this time: a listed coin's seed (`coin_list`).
+    /// 0 for every other stake.
+    pub locked_until: i64,
+    pub _reserved: [u8; 8],
 }
 
 impl HouseStake {
-    pub const SPACE: usize = 8 + 32 * 2 + 16 * 2 + 8 * 2 + 4 * 2 + 1 + 16;
+    pub const SPACE: usize = 8 + 32 * 2 + 16 * 2 + 8 * 2 + 4 * 2 + 1 + 8 + 8;
 
     pub fn has_pending(&self) -> bool {
         self.pending_deposit > 0 || self.pending_withdraw > 0
@@ -276,7 +283,8 @@ mod tests {
             bump: 0,
             vault_bump: 0,
             fee_ema: 0,
-            _reserved: [0; 24],
+            opens_after: 0,
+            _reserved: [0; 16],
         }
     }
 
@@ -331,7 +339,7 @@ mod tests {
         let e_shares = h.total_shares;
         let (paid, _, _) = process_queue(&mut h).unwrap();
         let e = HouseEpoch { house: Pubkey::default(), epoch: 0, assets: e_assets, shares: e_shares, wiped: false, generation: 0, bump: 0 };
-        let mut sa = HouseStake { house: Pubkey::default(), owner: Pubkey::default(), shares: a, pending_withdraw: a, pending_deposit: 0, claimable: 0, pending_epoch: 0, generation: 0, bump: 0, _reserved: [0; 16] };
+        let mut sa = HouseStake { house: Pubkey::default(), owner: Pubkey::default(), shares: a, pending_withdraw: a, pending_deposit: 0, claimable: 0, pending_epoch: 0, generation: 0, bump: 0, locked_until: 0, _reserved: [0; 8] };
         let mut sb = HouseStake { shares: b, pending_withdraw: b, ..sa.clone() };
         book_from_epoch(&mut sa, &e).unwrap();
         book_from_epoch(&mut sb, &e).unwrap();

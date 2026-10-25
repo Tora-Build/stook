@@ -111,4 +111,18 @@ pub enum SoothCoreError {
     HouseNotEnoughShares,
     #[msg("This round is the house's: deposit in the house instead")]
     HouseRoundJoin,
+    #[msg("This anchor is not on the list a coin may be listed on")]
+    ListAnchorInactive,
+    #[msg("The seed must be at least 0.5% of the coin's supply, and one whole coin")]
+    ListSeedTooSmall,
+    #[msg("The seed may be at most 5% of the coin's supply")]
+    ListSeedTooLarge,
+    #[msg("This house is not a listing waiting to go live")]
+    ListNotPending,
+    #[msg("This listing was turned down")]
+    ListRejected,
+    #[msg("A listing goes live a day after it is made")]
+    ListNotYet,
+    #[msg("A listed coin's seed stays in its house for a week")]
+    HouseStakeLocked,
 }

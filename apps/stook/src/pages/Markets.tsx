@@ -6,12 +6,17 @@ import { Floor } from "../components/Floor";
 import { fmtUsd, useCoinQuotes } from "../lib/usd";
 import { Title } from "../components/Title";
 import { WatchButton } from "../components/Watch";
+import { useConnection } from "@solana/wallet-adapter-react";
+import { useListed } from "../lib/listed";
+import { nyWhen } from "../lib/time";
 
 const STOOK_MINT = COINS.find((c) => c.symbol === "STOOK")?.mint ?? "";
 
 
 export function Markets() {
   const [params] = useSearchParams();
+  const { connection } = useConnection();
+  const listed = useListed(connection).coins.filter((c) => c.listing.state !== "rejected");
   const stookQ = useCoinQuotes().data?.STOOK;
   const wanted = params.get("coin");
   const quotes = useQuery({ queryKey: ["quotes"], queryFn: async () => (await fetch("/prices")).json() as Promise<Record<string, { price: number; change24h: number | null }>>, refetchInterval: 60_000 });
@@ -30,6 +35,20 @@ export function Markets() {
       </div>
       <div id="floor"><Floor /></div>
 
+      <section className="page listed">
+        <h2 className="px-h2 center">Listed by their communities</h2>
+        {listed.length ? (
+          <div className="pb-coins listed-row">
+            {listed.map((c) => (
+              <Link key={c.mint} to={`/c/${c.symbol}`} className="pb-chip" title={c.mint}>
+                <img src={c.logo} alt="" />${c.symbol} <span className="muted small">on {c.anchor.symbol}{c.listing.state === "pending" ? ` · live ${nyWhen(Number(c.listing.opensAfter), { weekday: "short", hour: "numeric" })}` : ""}</span>
+              </Link>
+            ))}
+          </div>
+        ) : <p className="center muted small">No coins listed yet.</p>}
+        <p className="center small">Anyone can list a coin: lock some of it as the seed of its house. <Link to="/list">List your coin ›</Link></p>
+      </section>
+
       <section className="doors page">
         <h2 className="px-h2 center">Two ways in</h2>
         <div className="door-row">
@@ -45,7 +64,7 @@ export function Markets() {
             <p>Click where the price will close today. The closer you are, the more you're paid.</p>
             <span className="door-go">Pick a table ›</span>
           </Link>
-          <Link to="/c/STOOK" className="door">
+          <Link to="/c/STOOK#house" className="door">
             <div className="door-frame">
               <svg viewBox="0 0 24 16" shapeRendering="crispEdges" aria-hidden="true">
                 <g fill="#0f7a4d"><rect x="2" y="8" width="20" height="7"/></g><rect x="2" y="7" width="20" height="1" fill="#f4e9c8"/>
@@ -55,8 +74,8 @@ export function Markets() {
               </svg>
             </div>
             <div className="door-sign">THE HOUSE</div>
-            <p>Fund a day's pool and share 90% of everything traders pay in fees.</p>
-            <span className="door-go">Fund a day ›</span>
+            <p>Back a coin's house, which funds every round, and share 90% of everything traders pay in fees.</p>
+            <span className="door-go">Back the house ›</span>
           </Link>
         </div>
         <p className="center small"><Link to="/how">Or take the walk through the exchange →</Link><span className="or-watch">or <WatchButton className="watch-link" /></span></p>

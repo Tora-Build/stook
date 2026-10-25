@@ -12,7 +12,9 @@ import { TodayDesk } from "../components/TodayDesk";
 import { Address } from "../components/Address";
 import { useQuery } from "@tanstack/react-query";
 import { stook } from "@sooth/sdk-solana";
-import { COINS, anchorOf, mintOf, seriesOf } from "../lib/coins";
+import { anchorOf, coinBySymbol, mintOf, seriesOf } from "../lib/coins";
+import { quoteKeyOf, useListed, type ListedCoin } from "../lib/listed";
+import { useConnection } from "@solana/wallet-adapter-react";
 import { useSeries } from "../hooks/useChain";
 import { useHouse } from "../hooks/useHouse";
 import { useNow } from "../hooks/useNow";
@@ -28,7 +30,11 @@ const MIN_LEAD_SECS = 15 * 60 + 90;
 
 export function Coin() {
   const { symbol } = useParams();
-  const coin = COINS.find((c) => c.symbol === symbol?.toUpperCase());
+  const { connection } = useConnection();
+  const listedReady = useListed(connection).ready;
+  const coin = coinBySymbol(symbol?.toUpperCase() ?? "");
+  const listing = coin && "listing" in coin ? (coin as ListedCoin).listing : null;
+  const qk = coin ? quoteKeyOf(coin) : "";
   const now = useNow();
   const [starting, setStarting] = useState<number | null>(null);
   const seriesKey = useMemo(() => (coin ? seriesOf(coin) : null), [coin]);
@@ -36,14 +42,14 @@ export function Coin() {
   // With a house, the house opens every day's round; without one, anyone can fund a day.
   const house = useHouse(seriesKey).data ?? null;
   const byHand = !house;
-  const chart = useQuery({ queryKey: ["chart", coin?.symbol], queryFn: async () => (await fetch(`${DATA}/chart?coin=${coin!.symbol}`)).json() as Promise<{ points: [number, number][] }>, enabled: !!coin, refetchInterval: 300_000 });
+  const chart = useQuery({ queryKey: ["chart", qk], queryFn: async () => (await fetch(`${DATA}/chart?coin=${qk}`)).json() as Promise<{ points: [number, number][] }>, enabled: !!coin && (!listing || qk !== coin.symbol), refetchInterval: 300_000 });
   const quote = useQuery({ queryKey: ["quote", coin?.symbol], queryFn: async () => (await fetch(`${DATA}/prices`)).json(), enabled: !!coin, refetchInterval: 60_000 });
 
   const anchor = coin ? anchorOf(coin) : null;
   const cq = useCoinQuotes().data?.[coin?.symbol ?? ""];
 
-  if (!coin || !anchor) return <p className="page muted">No such coin on the street.</p>;
-  const q = quote.data?.[coin.symbol] as { price: number; change24h: number | null } | undefined;
+  if (!coin || !anchor) return <p className="page muted">{listedReady ? "No such coin on the street." : "Opening…"}</p>;
+  const q = quote.data?.[qk] as { price: number; change24h: number | null } | undefined;
   const mint = mintOf(coin);
   const firstOpen = series.data ? firstOpenableDay(series.data) : null;
 
@@ -72,6 +78,11 @@ export function Coin() {
           <div className="tape-cell" title={coin.feeBps > 0 ? `$${coin.symbol} takes ${coin.feeBps / 100}% on every transfer; the app shows it in every quote.` : undefined}><span className="strip-k">transfer fee</span><b className="mono">{coin.feeBps > 0 ? `${coin.feeBps / 100}%` : "none"}</b><em>{coin.feeBps > 0 ? "on every move of the coin" : "the coin moves whole"}</em></div>
         </div>
       </header>
+      {listing && <Notice tone={listing.state === "rejected" ? "stop" : listing.state === "pending" ? "warn" : "info"} title={listing.state === "pending" ? "Listed, live in a day" : listing.state === "rejected" ? "Turned down" : "Listed by its community"}>
+        {listing.state === "pending" ? <>Listed by its community, not by the street. Rounds start {nyWhen(Number(listing.opensAfter), { weekday: "short", hour: "numeric", minute: "2-digit" })} New York, once its day has passed. Check the mint above before you trade: anyone can list any coin.</>
+          : listing.state === "rejected" ? <>The street turned this listing down. It will not run rounds; whoever listed it can take their coins back.</>
+          : <>Listed by its community, not by the street. Check the mint above before you trade: anyone can list any coin.</>}
+      </Notice>}
 
 
       {series.data && seriesKey && <TodayDesk seriesKey={seriesKey} series={series.data} now={now} minLeadSecs={MIN_LEAD_SECS} dp={anchor.dp} coinSymbol={coin.symbol} anchorName={coin.anchor.name} canStart={byHand && !!mint && series.data.active} onStart={setStarting} house={!!house}

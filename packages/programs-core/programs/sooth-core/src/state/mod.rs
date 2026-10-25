@@ -2,6 +2,7 @@
 
 pub mod house;
 pub mod ladder;
+pub mod listing;
 pub mod protocol_config;
 pub mod series;
 

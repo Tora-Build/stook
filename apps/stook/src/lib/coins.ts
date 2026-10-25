@@ -8,6 +8,7 @@
 // its feed's hours or it voids.
 import { PublicKey } from "@solana/web3.js";
 import { stook } from "@sooth/sdk-solana";
+import { listedByMint, listedBySymbol } from "./listed";
 
 export interface Anchor {
   symbol: string;
@@ -89,8 +90,11 @@ export const standInNote = (c: Coin): string | null => (isDevnet && DEVNET_FEEDS
 export const seriesOf = (c: Coin): PublicKey | null => { const m = mintOf(c); return m ? stook.deriveSeries(feedHexToBytes(anchorOf(c).feedId), m, 0) : null; };
 
 export const mintOf = (c: Coin): PublicKey | null => { const k = devnetMints[c.symbol] ?? c.mint; return k ? new PublicKey(k) : null; };
+/** A coin by its mint: the street's own, or one listed on chain (lib/listed). */
 export const coinByMint = (mint: PublicKey): Coin | undefined => {
   const k = mint.toBase58();
-  return COINS.find((c) => (c.mint && c.mint === k) || devnetMints[c.symbol] === k);
+  return COINS.find((c) => (c.mint && c.mint === k) || devnetMints[c.symbol] === k) ?? listedByMint(k);
 };
+/** A coin by its symbol, the street's own or listed. */
+export const coinBySymbol = (symbol: string): Coin | undefined => COINS.find((c) => c.symbol === symbol) ?? listedBySymbol(symbol);
 export const feedHexToBytes = (h: string) => Uint8Array.from(h.match(/.{2}/g)!.map((b) => parseInt(b, 16)));

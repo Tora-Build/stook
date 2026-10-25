@@ -22,6 +22,7 @@ export function Layout() {
           <NavLink to="/#floor" className={({ isActive }) => (isActive && location.hash === "#floor" ? "active" : "")}>Markets</NavLink>
           <NavLink to="/yours">Yours</NavLink>
           <NavLink to="/board">Board</NavLink>
+          <NavLink to="/list">List a coin</NavLink>
           <NavLink to="/how">How it works</NavLink>
         </nav>
         <div className="top-right">

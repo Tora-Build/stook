@@ -4,8 +4,8 @@
 //!
 //! A day of a house: the keeper settles yesterday's round, `house_collect`
 //! books the house's tranche home and processes the queue at the price the
-//! round left, `house_start` starts today's round with everything the house
-//! holds, and the round opens. Deposits and withdrawals asked for during the
+//! round left, `house_start` starts today's round with as much as its
+//! trading can carry (`commit_for`), and the round opens. Deposits and withdrawals asked for during the
 //! day wait for the next collect.
 //!
 //! Every round a house starts keeps its money in the house's own vault (a
@@ -252,13 +252,16 @@ pub struct HouseWithdrawn {
 
 /// Idle house: burn and pay now. House in a round: queue the shares; they
 /// bear the round's result and are paid at the price after it. Never paused:
-/// a pause must not hold anyone's money.
+/// a pause must not hold anyone's money. Only a listed coin's seed waits out
+/// its lock, which its lister agreed to (`coin_list`).
 pub fn house_withdraw_handler(ctx: Context<HouseLp>, shares: u128) -> Result<()> {
     let house_key = ctx.accounts.house.key();
     let paid = {
         let h = &mut ctx.accounts.house;
         let s = &mut ctx.accounts.stake;
         book(s, h, ctx.accounts.epoch.as_deref().map(|a| &**a))?;
+        // A listed coin's seed stays its week, unless the listing was turned down.
+        require!(s.locked_until <= Clock::get()?.unix_timestamp || h.opens_after == crate::state::listing::HOUSE_REJECTED, SoothCoreError::HouseStakeLocked);
         let free = s.shares.checked_sub(s.pending_withdraw).ok_or(SoothCoreError::MathOverflow)?;
         require!(shares > 0 && shares <= free, SoothCoreError::HouseNotEnoughShares);
         if h.idle() {

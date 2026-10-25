@@ -25,11 +25,13 @@ pub struct ProtocolConfig {
     pub treasury: Pubkey,
     pub paused: bool,
     pub bump: u8,
-    pub _reserved: [u8; 30],
+    /// What listing a coin costs (`coin_list`), in lamports, to the treasury.
+    pub list_fee_lamports: u64,
+    pub _reserved: [u8; 22],
 }
 
 impl ProtocolConfig {
-    pub const SPACE: usize = 8 + 32 + 32 + 32 + 1 + 1 + 30;
+    pub const SPACE: usize = 8 + 32 + 32 + 32 + 1 + 1 + 8 + 22;
 }
 
 pub fn require_not_paused(config: &ProtocolConfig) -> Result<()> {
