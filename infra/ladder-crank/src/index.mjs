@@ -49,7 +49,7 @@ import { stook, SOOTH_CORE_PROGRAM_ID } from "@sooth/sdk-solana";
 // The receiver's ESM build imports `jito-ts/dist/sdk/block-engine/types`
 // without an extension, which Node's ESM loader refuses. Its CJS build is fine.
 import pyth from "./pyth.cjs";
-import { historyPrices } from "./history.mjs";
+import { historyConnection, historyPrices } from "./history.mjs";
 const { PythSolanaReceiver } = pyth;
 
 const RPC_URL = process.env.RPC_URL ?? "https://soo-rpc.zak-a35.workers.dev";
@@ -671,7 +671,7 @@ export async function main(argv = process.argv.slice(2)) {
   const fromHistory = (process.env.LEARN_SOURCE ?? (ORACLE_SOURCE === "push" ? "history" : ORACLE_SOURCE)) === "history";
   // History wants getSignaturesForAddress and getTransaction, which the
   // ledger's RPC already serves on the box.
-  const past = fromHistory ? { history: historyPrices(new Connection(process.env.HISTORY_RPC_URL ?? process.env.LEDGER_RPC_URL ?? RPC_URL, "confirmed")) } : {};
+  const past = fromHistory ? { history: historyPrices(historyConnection(process.env.HISTORY_RPC_URL ?? process.env.LEDGER_RPC_URL ?? RPC_URL)) } : {};
   const keeper = createKeeper({ connection, scanner, payer, plan: mode.plan, notify, ...chainSenders(connection, payer), ...(ORACLE_SOURCE === "push" ? { hermes: pushPrices(connection) } : {}), ...past });
   console.log(new Date().toISOString(), "oracle:", ORACLE_SOURCE === "push" ? "Pyth push feeds on chain" : `Hermes at ${HERMES}`, "· past closes:", fromHistory ? "chain history" : "the same");
 

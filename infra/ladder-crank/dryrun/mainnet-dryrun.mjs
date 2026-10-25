@@ -3,7 +3,7 @@
 // source is mainnet's chain history.
 //
 //   learn  a daily ZEC series learns its past closes from mainnet history, at once
-//   round  a five-minute ZEC series warms up, a house funds a round, the keeper
+//   round  an hourly ZEC series (PERIOD_SECS) warms up, a house funds a round, the keeper
 //          opens it, a call is bought, the keeper settles it and the house
 //          collects it; the push feed is kept live by replaying mainnet's
 //          updates into it
@@ -17,12 +17,12 @@ import { Wallet } from "@coral-xyz/anchor";
 import { stook } from "@sooth/sdk-solana";
 import pyth from "../src/pyth.cjs";
 import { createKeeper, chainSenders, pushPrices } from "../src/index.mjs";
-import { historyPrices } from "../src/history.mjs";
+import { historyConnection, historyPrices } from "../src/history.mjs";
 
 const ZEC = "be9b59d178f0d6a97ab4c343bff2aa69caa1eaae3e9048a65788c529b125bb24";
 const feedBytes = Uint8Array.from(Buffer.from(ZEC, "hex"));
 const local = new Connection("http://127.0.0.1:8899", { commitment: "confirmed", wsEndpoint: "ws://127.0.0.1:8900" });
-const mainnet = new Connection(process.env.HISTORY_RPC_URL ?? "https://api.mainnet-beta.solana.com", "confirmed");
+const mainnet = historyConnection(process.env.HISTORY_RPC_URL ?? "https://api.mainnet-beta.solana.com");
 const payer = Keypair.fromSecretKey(Uint8Array.from(JSON.parse(readFileSync(process.env.KEYPAIR ?? `${homedir()}/.config/solana/id.json`, "utf8"))));
 const history = historyPrices(mainnet);
 const keeper = createKeeper({ connection: local, scanner: local, payer, ...chainSenders(local, payer), hermes: pushPrices(local), history });
@@ -94,12 +94,13 @@ function replayPushFeed() {
 }
 
 async function roundPart(mint, token) {
-  const PERIOD = 300;
+  // A new series learns from a week back: 168 closes for hourly rounds.
+  const PERIOD = Number(process.env.PERIOD_SECS ?? 3600);
   const series = stook.deriveSeries(feedBytes, mint, PERIOD);
   await send(stook.createSeriesIx({ authority: payer.publicKey, feedId: feedBytes, quoteMint: mint, periodSecs: PERIOD, closeSecs: 0, clock: stook.CLOCK_UTC }));
-  log("five-minute ZEC series created, learning from mainnet history");
-  const warm = await learnAll(series, "5-min");
-  if (!stook.warmedUp(warm)) { log("FAIL", "the five-minute series did not warm up"); return false; }
+  log(`${PERIOD / 60}-minute ZEC series created, learning from mainnet history`);
+  const warm = await learnAll(series, `${PERIOD / 60}-min`, 90);
+  if (!stook.warmedUp(warm)) { log("FAIL", "the series did not warm up"); return false; }
 
   const house = stook.deriveHouse(series);
   await send(stook.createHouseIx({ payer: payer.publicKey, series, quoteMint: mint, tokenProgram: TOKEN_PROGRAM_ID }));
@@ -109,7 +110,7 @@ async function roundPart(mint, token) {
 
   const replay = replayPushFeed();
   let bought = false, round = null;
-  const deadline = Date.now() + 50 * 60_000;
+  const deadline = Date.now() + (3 * PERIOD + 30 * 60) * 1000;
   try {
     while (Date.now() < deadline) {
       await keeper.learn();
@@ -132,7 +133,7 @@ async function roundPart(mint, token) {
       if (l && (l.status === "settled" || l.status === "void")) log("round", l.status, l.status === "settled" ? `on floor ${l.settledBin}` : "");
       await sleep(10_000);
     }
-    log("FAIL", "no settled, collected round within 50 minutes");
+    log("FAIL", "no settled, collected round in time");
     return false;
   } finally {
     replay.stop();

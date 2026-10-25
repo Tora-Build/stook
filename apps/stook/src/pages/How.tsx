@@ -88,6 +88,7 @@ export function How() {
               <p>Right after each bell the house collects the round that ended and opens the next day's round. It puts in as much as the trading it gets can carry, about fifteen times what it earns in fees a round, and the rest waits in the vault for busier days. Nothing moves between rounds: one vault per coin funds them all. Each round trades for the 24 hours before its close and stops an hour before it.</p>
               <p>Deposit or withdraw from the coin's page at any time. While the house is in a round, your deposit or withdrawal waits for the bell and goes through at the price the round leaves; until then you can take a waiting deposit back.</p>
               <p>Trades pay 2%, rising to 5% over the last six hours: 90% to the house, 5% to whoever rings the bell, 5% to the protocol. A close far from the open can cost the house a large part of that round; an ordinary one costs it little. A round that cannot open in time is void and the house gets its money back.</p>
+              <p>Any coin can get its own house. Whoever lists it locks 0.5% to 5% of its supply as the house's first money, for a week, and picks the price it follows. Its rounds start a day later. A listed coin's page always shows its mint, because anyone can list any coin.</p>
             </Details>
             <p className="try">Move the deposit.</p>
           </>}

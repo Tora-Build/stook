@@ -14,7 +14,7 @@
 // was published at or after `t` (`oracle::observe_fit` in the program).
 
 import { createHash } from "node:crypto";
-import { PublicKey } from "@solana/web3.js";
+import { Connection, PublicKey } from "@solana/web3.js";
 import { utils as anchorUtils } from "@coral-xyz/anchor";
 
 const PUSH_ORACLE = "pythWSnswVUd12oZpeFP8e9CVaEqJg25g1Vtc2biRsT";
@@ -32,7 +32,15 @@ const KEEP_SECS = 46 * 86_400;
  * (devnet BTC is read every few seconds and pushed every five minutes).
  */
 const LOOK_AHEAD = 120;
+const debug = process.env.HISTORY_DEBUG ? (...a) => console.log("history:", ...a) : () => {};
 const BATCH = 4;
+
+/**
+ * A connection for history reads: every request gives up after `ms`, so a
+ * free RPC that stops answering a socket costs a retry, not the keeper.
+ */
+export const historyConnection = (url, ms = 30_000) =>
+  new Connection(url, { commitment: "confirmed", fetch: (u, o) => fetch(u, { ...o, signal: AbortSignal.timeout(ms) }) });
 
 export const pushFeedAddress = (feedHex) => PublicKey.findProgramAddressSync([Buffer.from([0, 0]), Buffer.from(feedHex, "hex")], new PublicKey(PUSH_ORACLE))[0];
 
@@ -137,7 +145,7 @@ export function historyPrices(connection, { now = () => Math.floor(Date.now() / 
 
   async function signaturesSince(feedHex, t) {
     const address = pushFeedAddress(feedHex);
-    const book = books.get(feedHex) ?? { sigs: [], done: false };
+    const book = books.get(feedHex) ?? { sigs: [], done: false, cursor: undefined };
     books.set(feedHex, book);
     // Newer ones first, down to what the book already holds.
     const fresh = [];
@@ -149,13 +157,19 @@ export function historyPrices(connection, { now = () => Math.floor(Date.now() / 
     }
     book.sigs.unshift(...fresh);
     // Then older ones, until the book reaches back before `t`.
+    // `before` is the page's last signature, failed ones included, so a run
+    // of failed updates cannot hold the walk in place.
+    let cursor = book.cursor;
     while (!book.done && (book.sigs.at(-1)?.blockTime ?? Infinity) >= t) {
-      const page = await connection.getSignaturesForAddress(address, { before: book.sigs.at(-1)?.signature, limit: 1000 });
+      const page = await connection.getSignaturesForAddress(address, { before: cursor, limit: 1000 });
       book.sigs.push(...page.filter((s) => !s.err && s.blockTime));
+      cursor = page.at(-1)?.signature ?? cursor;
+      debug(feedHex.slice(0, 8), "page back to", page.at(-1) && new Date(page.at(-1).blockTime * 1000).toISOString(), "kept", book.sigs.length);
       if (page.length < 1000) book.done = true;
     }
+    book.cursor = cursor;
     const cut = now() - KEEP_SECS;
-    while (book.sigs.length && book.sigs.at(-1).blockTime < cut) { book.sigs.pop(); book.done = false; }
+    while (book.sigs.length && book.sigs.at(-1).blockTime < cut) { book.sigs.pop(); book.done = false; book.cursor = book.sigs.at(-1)?.signature; }
     // The update for `t` landed at or after it (a few seconds of clock skew allowed).
     return book.sigs.filter((s) => s.blockTime >= t - 10).reverse();
   }
@@ -164,6 +178,7 @@ export function historyPrices(connection, { now = () => Math.floor(Date.now() / 
     const t = Number(path.match(/\/(\d+)$/)?.[1]);
     if (!Number.isFinite(t)) throw new Error(`history: no time in ${path}`);
     const after = await signaturesSince(feedHex, t);
+    debug(feedHex.slice(0, 8), "close", new Date(t * 1000).toISOString(), after.length, "candidates");
     let best = null;
     for (let i = 0; i < Math.min(after.length, LOOK_AHEAD) && !best; i += BATCH) {
       const txs = await Promise.all(after.slice(i, i + BATCH).map((x) => readTx(connection, x.signature)));
