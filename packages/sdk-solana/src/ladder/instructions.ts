@@ -148,8 +148,12 @@ export function tradeComputeUnits(shape: Shape): number {
   return Math.min(1_400_000, 90_000 + bins * 5_000 + (shape.h > 1 ? 10_000 : 0));
 }
 
-/** Compute for one `ladder_redeem`: a token transfer and a little arithmetic. */
-export const REDEEM_COMPUTE_UNITS = 25_000;
+/**
+ * Compute for one `ladder_redeem`: a token transfer and a little arithmetic.
+ * A Token-2022 transfer with a fee takes a few thousand more (a claim at
+ * 25K failed by 56 units).
+ */
+export const REDEEM_COMPUTE_UNITS = 40_000;
 
 /**
  * Compute for one `ladder_claim_lp`. A tranche deposited before its round
