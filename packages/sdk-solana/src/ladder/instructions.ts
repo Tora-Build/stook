@@ -158,10 +158,11 @@ export const REDEEM_COMPUTE_UNITS = 40_000;
 /**
  * Compute for one `ladder_claim_lp`. A tranche deposited before its round
  * opened has its depth and join odds rebuilt from the opening bell at claim
- * (`tranche_terms`), about 114K measured; any other is as cheap as a redeem.
+ * (`tranche_terms`), about 111K measured (141K in the size-optimized mainnet
+ * build); any other is as cheap as a redeem.
  */
 export function claimComputeUnits(l: { varBandsE9: bigint }, t: { b: bigint }): number {
-  return t.b === 0n && l.varBandsE9 !== 0n ? 130_000 : REDEEM_COMPUTE_UNITS;
+  return t.b === 0n && l.varBandsE9 !== 0n ? 180_000 : REDEEM_COMPUTE_UNITS;
 }
 
 /**

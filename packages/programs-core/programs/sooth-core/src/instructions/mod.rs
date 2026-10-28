@@ -5,6 +5,10 @@
 
 pub mod house;
 pub mod ladder;
+#[cfg(not(feature = "no-listing"))]
+pub mod listing;
+#[cfg(feature = "no-listing")]
+#[path = "listing_off.rs"]
 pub mod listing;
 pub mod protocol;
 pub mod series;

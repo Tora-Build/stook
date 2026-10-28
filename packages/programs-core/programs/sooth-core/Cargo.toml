@@ -19,6 +19,8 @@ cpi = ["no-entrypoint"]
 custom-heap = []
 default = ["custom-heap"]
 mainnet = []
+# Leaves coin listing out (a smaller program: rent is per byte).
+no-listing = []
 idl-build = ["anchor-lang/idl-build", "anchor-spl/idl-build"]
 
 [dependencies]
