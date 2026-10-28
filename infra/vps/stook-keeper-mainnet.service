@@ -1,0 +1,31 @@
+[Unit]
+Description=Stook keeper on mainnet ($SSt.'s rounds on Polymarket's pool)
+After=network-online.target
+Wants=network-online.target
+
+# Beside the devnet keeper, with its own settings and files. Not installed
+# by install.sh: enable it once the program is deployed and
+# /home/zak/stook-mainnet.env is written (on the box, by hand):
+#   RPC_URL=<a mainnet RPC with your key>      SCAN_RPC_URL=<one that serves getProgramAccounts>
+#   WS_URL=wss://api.mainnet-beta.solana.com/  KEYPAIR=/home/zak/.config/solana/stook-mainnet-keeper.json
+# The keeper key pays round rent (about 0.0105 SOL a round, back when the
+# round is closed) and fees; it holds no authority.
+[Service]
+User=zak
+WorkingDirectory=/home/zak/stook/infra/ladder-crank
+EnvironmentFile=/home/zak/stook-mainnet.env
+EnvironmentFile=-/home/zak/stook-alerts.env
+Environment=ORACLE_SOURCE=push
+Environment=LEARN_SOURCE=hermes
+Environment=HEARTBEAT_FILE=/home/zak/ladder-crank-mainnet.beat
+Environment=HEALTH_FILE=/home/zak/ladder-crank-mainnet.health
+Environment=EVENTS_FILE=/home/zak/stook-events-mainnet.log
+Environment=CRANK_INTERVAL_SECS=20
+ExecStart=/usr/bin/node /home/zak/stook/infra/ladder-crank/src/index.bundle.mjs --watch
+Restart=always
+RestartSec=5
+StandardOutput=append:/home/zak/ladder-crank-mainnet.log
+StandardError=append:/home/zak/ladder-crank-mainnet.log
+
+[Install]
+WantedBy=multi-user.target
