@@ -4,7 +4,7 @@
 import { useEffect, useRef } from "react";
 import { Link } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
-import { COINS, type Coin } from "../lib/coins";
+import { bySymbol, COINS, coinPath, type Coin } from "../lib/coins";
 import { useNow } from "../hooks/useNow";
 import { untilText } from "../lib/format";
 import { nyAt, nyDate } from "../lib/time";
@@ -14,7 +14,7 @@ import { LedRing } from "./LedRing";
 const DATA = "";
 
 export function Floor() {
-  const quotes = useQuery({ queryKey: ["quotes"], queryFn: async () => (await fetch(`${DATA}/prices`)).json() as Promise<Record<string, { price: number; change24h: number | null }>>, refetchInterval: 60_000 });
+  const quotes = useQuery({ queryKey: ["quotes"], queryFn: async () => bySymbol((await (await fetch(`${DATA}/prices`)).json()) as Record<string, { price: number; change24h: number | null }>), refetchInterval: 60_000 });
   const now = useNow();
   // The next 4 PM in New York.
   const [y, mo, d] = nyDate(now).split("-").map(Number) as [number, number, number];
@@ -54,7 +54,7 @@ function Table({ coin, q }: { coin: Coin; q?: { price: number; change24h: number
   const a = coin.anchor;
   const cq = useCoinQuotes().data?.[coin.symbol];
   return (
-    <Link to={`/c/${coin.symbol}`} className="post" title={`${coin.name} · rounds on ${coin.anchor.name}`}>
+    <Link to={coinPath(coin)} className="post" title={`${coin.name} · rounds on ${coin.anchor.name}`}>
       <div className="table">
         <div className="screen" data-coin={coin.symbol}>
           <div className="logos logos-anchor-first"><img src={a.logo} alt="" className="logo-coin" /><img src={coin.logo} alt="" className="logo-anchor" /></div>

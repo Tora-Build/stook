@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import type { PublicKey } from "@solana/web3.js";
-import { coinByMint } from "./coins";
+import { bySymbol, coinByMint } from "./coins";
 import { fmtCompact } from "./format";
 
 // Dollars beside coin amounts. Every amount on chain is in the coin; the
@@ -21,7 +21,7 @@ export function useUsdRates() {
 export function useCoinQuotes() {
   return useQuery({
     queryKey: ["coins"],
-    queryFn: async () => (await fetch("/coins")).json() as Promise<Record<string, { usd: number; change24h: number | null }>>,
+    queryFn: async () => bySymbol((await (await fetch("/coins")).json()) as Record<string, { usd: number; change24h: number | null }>),
     refetchInterval: 60_000,
     staleTime: 60_000,
   });

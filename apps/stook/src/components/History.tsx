@@ -8,7 +8,7 @@ import { Link } from "react-router-dom";
 import { PublicKey } from "@solana/web3.js";
 import { useInfiniteQuery } from "@tanstack/react-query";
 import { ConnectWallet } from "./ConnectWallet";
-import { COINS, coinByMint, type Coin } from "../lib/coins";
+import { COINS, coinByMint, keyOf, type Coin } from "../lib/coins";
 import { EXPLORER } from "../lib/config";
 import { fmtCompact } from "../lib/format";
 import { coinText, fmtUsd, toUsd, useUsdRates } from "../lib/usd";
@@ -49,7 +49,7 @@ async function fetchHistory(wallet: string, before: string | null, coin: string,
 
 const coinOf = (mint: string | null, sym: string | null): Coin | undefined => {
   if (mint) { try { const c = coinByMint(new PublicKey(mint)); if (c) return c; } catch { /* not an address */ } }
-  return sym ? COINS.find((c) => c.symbol === sym) : undefined;
+  return sym ? COINS.find((c) => c.symbol === sym || keyOf(c) === sym) : undefined;
 };
 const abs = (v: bigint) => (v < 0n ? -v : v);
 const signed = (v: bigint) => (v > 0n ? "+" : v < 0n ? "−" : "");

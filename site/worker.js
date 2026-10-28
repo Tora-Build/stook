@@ -120,6 +120,8 @@ async function series(src, record = false) {
 
 // What the floor talks about: each coin's anchor (name, price, move) and the
 // coin's own dollar price and move, and the time to the bell.
+// A coin's ticker, where it differs from its key here: $SSt. was $STOOK.
+const TICKER = { STOOK: "SSt." };
 const ANCHORS = { STOOK: ["Polymarket", 2], ZCAT: ["Zcash", 2], KNOTS: ["STONK", 4], GP: ["gold", 2] };
 
 /** A coin page's link preview: crawlers read the HTML and run no script, so the
@@ -128,8 +130,9 @@ const ANCHORS = { STOOK: ["Polymarket", 2], ZCAT: ["Zcash", 2], KNOTS: ["STONK",
 function coinPreview(url, res) {
   const m = url.pathname.match(/^\/c\/([A-Za-z]+)\/?$/), sym = m && m[1].toUpperCase();
   if (!sym || !ANCHORS[sym] || !(res.headers.get("content-type") || "").includes("text/html")) return res;
-  const title = `$${sym} · where will ${ANCHORS[sym][0]} close? · Stook Street`;
-  const desc = `Call where ${ANCHORS[sym][0]} closes at 4 PM New York, paid in $${sym}. The closer you are, the more it pays.`;
+  const tk = TICKER[sym] ?? sym;
+  const title = `$${tk} · where will ${ANCHORS[sym][0]} close? · Stook Street`;
+  const desc = `Call where ${ANCHORS[sym][0]} closes at 4 PM New York, paid in $${tk}. The closer you are, the more it pays.`;
   const set = (v) => ({ element(e) { e.setAttribute("content", v); } });
   return new HTMLRewriter()
     .on("title", { element(e) { e.setInnerContent(title); } })
@@ -149,7 +152,7 @@ async function floorData(env) {
       try { const pts = await series({ ...COINS[k], kv: env.SERIES, key: k }); const l = pts[pts.length - 1], f = pts[0]; if (l) { p = l[1]; chg = pts.length > 1 ? (l[1] / f[1] - 1) * 100 : null; } } catch {}
     }
     const [anchor, dp] = ANCHORS[k] ?? [k, 2];
-    return { coin: k, anchor, dp, price: p, chg, usd: coins[k]?.usd ?? null, usdChg: coins[k]?.change24h ?? null, bell };
+    return { coin: k, ticker: TICKER[k] ?? k, anchor, dp, price: p, chg, usd: coins[k]?.usd ?? null, usdChg: coins[k]?.change24h ?? null, bell };
   }));
   return { coins: out };
 }
@@ -376,7 +379,7 @@ export default {
       if (status === 200) ctx.waitUntil(cache.put(key, res.clone()));
       return res;
     }
-    // /supply: $STOOK's circulating supply, for aggregators (Jupiter asks for
+    // /supply: $SSt.'s circulating supply, for aggregators (Jupiter asks for
     // {"circulatingSupply": number} on the team's domain). Read from chain:
     // the mint's supply, less the token accounts listed in the STOOK_EXCLUDE
     // setting (comma-separated, e.g. locked or team tokens).

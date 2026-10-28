@@ -7,7 +7,7 @@
 import { useSyncExternalStore } from "react";
 import { Connection, PublicKey } from "@solana/web3.js";
 import { stook, SOOTH_CORE_PROGRAM_ID } from "@sooth/sdk-solana";
-import { COINS, anchorOf, mintOf, type Anchor, type Coin } from "./coins";
+import { COINS, anchorOf, keyOf, mintOf, type Anchor, type Coin } from "./coins";
 import { SCAN_RPC_URL } from "./config";
 
 /** A letter badge for a coin or anchor with no logo of its own. */
@@ -79,7 +79,7 @@ export async function loadListed(connection: Connection): Promise<ListedCoin[]> 
   const [series, mints, metas] = await Promise.all([
     many(houses.map((x) => x.h.series)), many(houses.map((x) => x.h.quoteMint)), many(houses.map((x) => metadataPda(x.h.quoteMint))),
   ]);
-  const taken = new Set(COINS.map((c) => c.symbol));
+  const taken = new Set(COINS.flatMap((c) => [c.symbol.toUpperCase(), keyOf(c)]));
   const out: ListedCoin[] = [];
   for (let n = 0; n < houses.length; n++) {
     const { key, h } = houses[n]!;
@@ -121,7 +121,7 @@ export function reloadListed(connection: Connection): Promise<void> { loading = 
 
 export const listedCoins = () => listed;
 export const listedByMint = (mint: string) => listed.find((c) => c.mint === mint);
-export const listedBySymbol = (symbol: string) => listed.find((c) => c.symbol === symbol);
+export const listedBySymbol = (symbol: string) => listed.find((c) => c.symbol.toUpperCase() === symbol.toUpperCase());
 
 export function useListed(connection: Connection): { coins: ListedCoin[]; ready: boolean } {
   void ensureListed(connection);
@@ -130,4 +130,5 @@ export function useListed(connection: Connection): { coins: ListedCoin[]; ready:
 }
 
 /** A curated coin on the same feed: its quotes and chart serve a listed coin's anchor. */
-export const quoteKeyOf = (c: Coin) => ("listing" in c ? COINS.find((x) => anchorOf(x).feedId === c.anchor.feedId)?.symbol ?? c.symbol : c.symbol);
+/** The name its anchor's quotes and chart go by in the site's data routes (`keyOf`). */
+export const quoteKeyOf = (c: Coin) => { const own = "listing" in c ? COINS.find((x) => anchorOf(x).feedId === c.anchor.feedId) : c; return own ? keyOf(own) : c.symbol; };

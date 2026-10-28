@@ -12,7 +12,7 @@ import { TodayDesk } from "../components/TodayDesk";
 import { Address } from "../components/Address";
 import { useQuery } from "@tanstack/react-query";
 import { stook } from "@sooth/sdk-solana";
-import { anchorOf, coinBySymbol, mintOf, seriesOf } from "../lib/coins";
+import { anchorOf, coinBySymbol, keyOf, mintOf, seriesOf } from "../lib/coins";
 import { quoteKeyOf, useListed, type ListedCoin } from "../lib/listed";
 import { useConnection } from "@solana/wallet-adapter-react";
 import { useSeries } from "../hooks/useChain";
@@ -32,7 +32,7 @@ export function Coin() {
   const { symbol } = useParams();
   const { connection } = useConnection();
   const listedReady = useListed(connection).ready;
-  const coin = coinBySymbol(symbol?.toUpperCase() ?? "");
+  const coin = coinBySymbol(symbol ?? "");
   const listing = coin && "listing" in coin ? (coin as ListedCoin).listing : null;
   const qk = coin ? quoteKeyOf(coin) : "";
   const now = useNow();
@@ -42,8 +42,8 @@ export function Coin() {
   // With a house, the house opens every day's round; without one, anyone can fund a day.
   const house = useHouse(seriesKey).data ?? null;
   const byHand = !house;
-  const chart = useQuery({ queryKey: ["chart", qk], queryFn: async () => (await fetch(`${DATA}/chart?coin=${qk}`)).json() as Promise<{ points: [number, number][] }>, enabled: !!coin && (!listing || qk !== coin.symbol), refetchInterval: 300_000 });
-  const quote = useQuery({ queryKey: ["quote", coin?.symbol], queryFn: async () => (await fetch(`${DATA}/prices`)).json(), enabled: !!coin, refetchInterval: 60_000 });
+  const chart = useQuery({ queryKey: ["chart", qk], queryFn: async () => (await fetch(`${DATA}/chart?coin=${qk}`)).json() as Promise<{ points: [number, number][] }>, enabled: !!coin && (!listing || qk !== keyOf(coin)), refetchInterval: 300_000 });
+  const quote = useQuery({ queryKey: ["quote", coin?.symbol], queryFn: async () => (await fetch(`${DATA}/prices`)).json() as Promise<Record<string, unknown>>, enabled: !!coin, refetchInterval: 60_000 });
 
   const anchor = coin ? anchorOf(coin) : null;
   const cq = useCoinQuotes().data?.[coin?.symbol ?? ""];

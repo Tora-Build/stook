@@ -1,6 +1,6 @@
 import { Link, Navigate, useSearchParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
-import { COINS } from "../lib/coins";
+import { bySymbol, COINS, coinBySymbol, coinPath, keyOf } from "../lib/coins";
 import { Skyline } from "../components/Skyline";
 import { Floor } from "../components/Floor";
 import { fmtUsd, useCoinQuotes } from "../lib/usd";
@@ -10,17 +10,19 @@ import { useConnection } from "@solana/wallet-adapter-react";
 import { useListed } from "../lib/listed";
 import { nyWhen } from "../lib/time";
 
-const STOOK_MINT = COINS.find((c) => c.symbol === "STOOK")?.mint ?? "";
+const STOOK = COINS.find((c) => keyOf(c) === "STOOK")!;
+const STOOK_MINT = STOOK.mint;
 
 
 export function Markets() {
   const [params] = useSearchParams();
   const { connection } = useConnection();
   const listed = useListed(connection).coins.filter((c) => c.listing.state !== "rejected");
-  const stookQ = useCoinQuotes().data?.STOOK;
+  const stookQ = useCoinQuotes().data?.[STOOK.symbol];
   const wanted = params.get("coin");
-  const quotes = useQuery({ queryKey: ["quotes"], queryFn: async () => (await fetch("/prices")).json() as Promise<Record<string, { price: number; change24h: number | null }>>, refetchInterval: 60_000 });
-  if (wanted && COINS.some((c) => c.symbol === wanted.toUpperCase())) return <Navigate to={`/c/${wanted.toUpperCase()}`} replace />;
+  const quotes = useQuery({ queryKey: ["quotes"], queryFn: async () => bySymbol((await (await fetch("/prices")).json()) as Record<string, { price: number; change24h: number | null }>), refetchInterval: 60_000 });
+  const wantedCoin = wanted ? coinBySymbol(wanted) : undefined;
+  if (wantedCoin) return <Navigate to={coinPath(wantedCoin)} replace />;
   const ticker = () => COINS.map((c) => { const q = quotes.data?.[c.symbol]; return q ? `${c.symbol} ${q.price.toLocaleString("en-US", { maximumFractionDigits: c.anchor.dp })} ${typeof q.change24h !== "number" ? "" : (q.change24h >= 0 ? "+" : "") + q.change24h.toFixed(1) + "%"}` : ""; }).filter(Boolean).join("   ") || "STOOK STREET";
   return (
     <div className="street">
@@ -83,12 +85,12 @@ export function Markets() {
 
       <section id="stook" className="strip page">
         <div className="in">
-          <div className="logos logos-big"><img src="/logos/stook.png" alt="$STOOK" className="logo-coin" /><img src="/logos/polymarket.png" alt="Polymarket" className="logo-anchor" /></div>
+          <div className="logos logos-big"><img src="/logos/stook.png" alt="$SSt." className="logo-coin" /><img src="/logos/polymarket.png" alt="Polymarket" className="logo-anchor" /></div>
           <dl>
-            <div><dt>coin</dt><dd>$STOOK · Stook Street · the street's own</dd></div>
+            <div><dt>coin</dt><dd>$SSt. · STOOK St. · the street's own</dd></div>
             <div><dt>follows</dt><dd>Polymarket · PreStocks · <span className="mono">Pre8AREmFPtoJFT8mQSXQLh56cwJmM7CFDRuoGBZiUP</span></dd></div>
             {/* the mint comes from the build's environment, not the repo */}
-            {STOOK_MINT && <div><dt>mint</dt><dd className="mono"><a href={`https://jup.ag/swap?buy=${STOOK_MINT}&sell=So11111111111111111111111111111111111111112`} target="_blank" rel="noopener noreferrer" title="Swap for $STOOK on Jupiter">{STOOK_MINT} ↗</a> <a className="jup-buy" href={`https://jup.ag/swap?buy=${STOOK_MINT}&sell=So11111111111111111111111111111111111111112`} target="_blank" rel="noopener noreferrer">Buy on Jupiter</a></dd></div>}
+            {STOOK_MINT && <div><dt>mint</dt><dd className="mono"><a href={`https://jup.ag/swap?buy=${STOOK_MINT}&sell=So11111111111111111111111111111111111111112`} target="_blank" rel="noopener noreferrer" title="Swap for $SSt. on Jupiter">{STOOK_MINT} ↗</a> <a className="jup-buy" href={`https://jup.ag/swap?buy=${STOOK_MINT}&sell=So11111111111111111111111111111111111111112`} target="_blank" rel="noopener noreferrer">Buy on Jupiter</a></dd></div>}
             {stookQ?.usd ? <div><dt>price</dt><dd className="mono">{fmtUsd(stookQ.usd)}{typeof stookQ.change24h === "number" && <span className={stookQ.change24h >= 0 ? "up" : "down"}> {stookQ.change24h >= 0 ? "+" : ""}{stookQ.change24h.toFixed(1)}% 24h</span>}</dd></div> : null}
             <div><dt>on</dt><dd>StonkFun, Solana</dd></div>
           </dl>

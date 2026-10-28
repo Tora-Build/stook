@@ -13,6 +13,7 @@ import { useWallet } from "@solana/wallet-adapter-react";
 import { useQuery } from "@tanstack/react-query";
 import { useHoldings, useSeriesRounds } from "../hooks/useChain";
 import { coinText } from "../lib/usd";
+import { coinBySymbol, keyOf } from "../lib/coins";
 import { fmtPrice, untilText } from "../lib/format";
 import { firstOpenableDay, nyDate, nyWhen } from "../lib/time";
 
@@ -58,7 +59,7 @@ export function WallCalendar(p: Props) {
   // gone; the ledger still has where it landed (infra/ledger, /days).
   const ledger = useQuery({
     queryKey: ["days", p.coinSymbol, first, first + daysIn - 1],
-    queryFn: async () => { const r = await fetch(`/days?${new URLSearchParams({ coin: p.coinSymbol, from: String(first), to: String(first + daysIn - 1) })}`); if (!r.ok) throw new Error(`days ${r.status}`); return new Map(((await r.json()).days as LedgerDay[]).map((d) => [d.index, d])); },
+    queryFn: async () => { const r = await fetch(`/days?${new URLSearchParams({ coin: keyOf(coinBySymbol(p.coinSymbol) ?? { symbol: p.coinSymbol }), from: String(first), to: String(first + daysIn - 1) })}`); if (!r.ok) throw new Error(`days ${r.status}`); return new Map(((await r.json()).days as LedgerDay[]).map((d) => [d.index, d])); },
     staleTime: 5 * 60_000,
   });
   const today = stook.daysFromCivil(ty, tm, td);

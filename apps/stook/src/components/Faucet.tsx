@@ -52,7 +52,7 @@ export function Faucet() {
   };
   // A little pixel tap: devnet coins on demand.
   return (
-    <button className="faucet-btn" onClick={mint} disabled={busy} title="Devnet faucet: about $1,000 each of $STOOK, $ZCAT, $KNOTS, $GP, and test USDC">
+    <button className="faucet-btn" onClick={mint} disabled={busy} title="Devnet faucet: about $1,000 each of $SSt., $ZCAT, $KNOTS, $GP, and test USDC">
       {/* A stack of gold coins with a plus: free coins, here. */}
       <svg viewBox="0 0 12 12" shapeRendering="crispEdges" aria-hidden="true">
         <g fill="#b47416"><rect x="1" y="10" width="7" height="1"/><rect x="1" y="7" width="7" height="1"/><rect x="1" y="4" width="7" height="1"/></g>

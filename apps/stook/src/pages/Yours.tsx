@@ -1,7 +1,7 @@
 // Yours: a brokerage statement from the house on the street. Every round the
 // wallet is in, what it put where, what that is worth now or pays, and one
 // button per finished round to collect all of it. Amounts stay in each
-// round's own coin: $STOOK and $KNOTS do not add up, so they are never summed.
+// round's own coin: $SSt. and $KNOTS do not add up, so they are never summed.
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { PublicKey } from "@solana/web3.js";
@@ -396,7 +396,7 @@ function NoAccount() {
           <div className="tote-cell"><div className="tote-k">calls at work</div><div className="tote-usd mono">$5.00</div><div className="tote-v tote-sub">1 call on today's bell</div></div>
           <div className="tote-cell"><div className="tote-k">in the house</div><div className="tote-usd mono">$40.00</div><div className="tote-v tote-sub">earning 90% of the fees</div></div>
         </section>
-        <div className="stmt-sample-row"><b>$STOOK · S&amp;P 500</b><span>Near 770.80, ±3 floors</span><span className="mono">pays $9.12</span></div>
+        <div className="stmt-sample-row"><b>$SSt. · Polymarket</b><span>Near 142.30, ±3 floors</span><span className="mono">pays $9.12</span></div>
         <div className="stmt-sample-row"><b>$GP · Gold</b><span>Between 380.00 and 384.00</span><span className="mono">collect $9.23</span></div>
       </div>
       <p className="stmt-foot">Just looking? <Link to="/#floor">Pick a table ›</Link> or <Link to="/how">take the walk through ›</Link></p>

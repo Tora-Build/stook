@@ -8,7 +8,7 @@ import { PublicKey } from "@solana/web3.js";
 import { useConnection, useWallet } from "@solana/wallet-adapter-react";
 import { useQuery } from "@tanstack/react-query";
 import { stook } from "@sooth/sdk-solana";
-import { COINS, mintOf, seriesOf, type Coin } from "../lib/coins";
+import { COINS, coinPath, mintOf, seriesOf, type Coin } from "../lib/coins";
 import { fmtCompact, short } from "../lib/format";
 import { fmtUsd, toUsd, useUsdRates } from "../lib/usd";
 import { nyWhen } from "../lib/time";
@@ -63,7 +63,7 @@ export function BoardPage() {
       <section className="panel" aria-label={`Callers in $${coin.symbol}`}>
         {q.isLoading ? <p className="stmt-empty">Reading the ledger…</p>
           : q.isError || !b ? <p className="stmt-empty">The board is out of reach right now. It will be back shortly. <button className="link" onClick={() => void q.refetch()}>Try again</button></p>
-          : list.length === 0 ? <p className="stmt-empty">{people && b.players > 0 ? "Only the sim's bots have called here in this period." : "No settled calls here in this period yet."} <Link to={`/c/${coin.symbol}`}>Make the first call ›</Link></p>
+          : list.length === 0 ? <p className="stmt-empty">{people && b.players > 0 ? "Only the sim's bots have called here in this period." : "No settled calls here in this period yet."} <Link to={coinPath(coin)}>Make the first call ›</Link></p>
           : <table className="ladder-table">
             <thead><tr><th>#</th><th style={LEFT}>Caller</th><th>Rounds</th><th>Hit</th><th>Net, ${coin.symbol}</th></tr></thead>
             <tbody>
@@ -125,7 +125,7 @@ function Houses({ rates }: { rates: Record<string, number> }) {
             const rate = rates[c.symbol];
             return (
               <tr key={c.symbol}>
-                <td><Link to={`/c/${c.symbol}`} className="pb-chip"><img src={c.logo} alt="" />${c.symbol}</Link></td>
+                <td><Link to={coinPath(c)} className="pb-chip"><img src={c.logo} alt="" />${c.symbol}</Link></td>
                 <td className="mono">{fmtCompact(capital, decimals)} ${c.symbol}{rate !== undefined && <div className="small muted">≈ {fmtUsd(toUsd(capital, decimals, rate))}</div>}</td>
                 <td className="mono">{h!.epoch}</td>
                 <td className={`mono ${change > 0.0005 ? "up" : change < -0.0005 ? "down" : ""}`}>{change > 0 ? "+" : change < 0 ? "−" : ""}{Math.abs(change * 100).toFixed(1)}%</td>

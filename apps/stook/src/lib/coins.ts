@@ -23,7 +23,12 @@ export interface Anchor {
 }
 
 export interface Coin {
+  /** The ticker shown everywhere: the mint's own symbol. */
   symbol: string;
+  /** The name the site's data routes (/prices, /coins, /chart, /days), the
+   *  devnet maps and the page's address use, where it differs from the
+   *  symbol: $SSt. was $STOOK (`keyOf`). */
+  key?: string;
   name: string;
   logo: string;
   /** Mainnet mint, on StonkFun. $STOOK's comes from the build's environment
@@ -37,7 +42,7 @@ export interface Coin {
 
 export const COINS: Coin[] = [
   {
-    symbol: "STOOK", name: "Stook Street", logo: "/logos/stook.png", mint: import.meta.env.VITE_STOOK_MINT ?? "", decimals: 6, feeBps: 0,
+    symbol: "SSt.", key: "STOOK", name: "STOOK St.", logo: "/logos/stook.png", mint: import.meta.env.VITE_STOOK_MINT ?? "", decimals: 6, feeBps: 0,
     // Polymarket PreStocks (prestocks.com). Pyth has no feed for it yet, so
     // there is no feed id: mainnet rounds wait for one (devnet's stand-in runs).
     anchor: { symbol: "POLYMARKET", name: "Polymarket", mint: "Pre8AREmFPtoJFT8mQSXQLh56cwJmM7CFDRuoGBZiUP", logo: "/logos/polymarket.png", feedId: "", hours: "24/7", dp: 2 },
@@ -83,20 +88,29 @@ const DEVNET_FEEDS: Record<string, { symbol: string; name: string; feedId: strin
 export const isDevnet = Object.keys(devnetMints).length > 0;
 /** The feed a coin's rounds settle on, here: the anchor on mainnet, a stand-in on devnet. */
 export const anchorOf = (c: Coin): Anchor => {
-  const d = isDevnet ? DEVNET_FEEDS[c.symbol] : undefined;
+  const d = isDevnet ? DEVNET_FEEDS[keyOf(c)] : undefined;
   return d ? { ...c.anchor, symbol: d.symbol, name: d.name, feedId: d.feedId, dp: d.dp } : c.anchor;
 };
-export const standInNote = (c: Coin): string | null => (isDevnet && DEVNET_FEEDS[c.symbol] ? `Rounds here settle on ${DEVNET_FEEDS[c.symbol]!.name} (${DEVNET_FEEDS[c.symbol]!.symbol}) in place of ${c.anchor.symbol}, whose Pyth feed devnet can't read yet.` : null);
+export const standInNote = (c: Coin): string | null => (isDevnet && DEVNET_FEEDS[keyOf(c)] ? `Rounds here settle on ${DEVNET_FEEDS[keyOf(c)]!.name} (${DEVNET_FEEDS[keyOf(c)]!.symbol}) in place of ${c.anchor.symbol}, whose Pyth feed devnet can't read yet.` : null);
 
 /** A coin's daily series: its rounds, one per day, closing 4 PM New York. */
 export const seriesOf = (c: Coin): PublicKey | null => { const m = mintOf(c), f = anchorOf(c).feedId; return m && f ? stook.deriveSeries(feedHexToBytes(f), m, 0) : null; };
 
-export const mintOf = (c: Coin): PublicKey | null => { const k = devnetMints[c.symbol] ?? c.mint; return k ? new PublicKey(k) : null; };
+export const mintOf = (c: Coin): PublicKey | null => { const k = devnetMints[keyOf(c)] ?? c.mint; return k ? new PublicKey(k) : null; };
 /** A coin by its mint: the street's own, or one listed on chain (lib/listed). */
 export const coinByMint = (mint: PublicKey): Coin | undefined => {
   const k = mint.toBase58();
-  return COINS.find((c) => (c.mint && c.mint === k) || devnetMints[c.symbol] === k) ?? listedByMint(k);
+  return COINS.find((c) => (c.mint && c.mint === k) || devnetMints[keyOf(c)] === k) ?? listedByMint(k);
 };
 /** A coin by its symbol, the street's own or listed. */
-export const coinBySymbol = (symbol: string): Coin | undefined => COINS.find((c) => c.symbol === symbol) ?? listedBySymbol(symbol);
+export const coinBySymbol = (symbol: string): Coin | undefined => {
+  const s = symbol.toUpperCase();
+  return COINS.find((c) => c.symbol.toUpperCase() === s || keyOf(c) === s) ?? listedBySymbol(s);
+};
+/** A coin's name in the site's data routes and its page's address (`Coin.key`). */
+export const keyOf = (c: Pick<Coin, "symbol" | "key">): string => c.key ?? c.symbol;
+/** A coin's page. */
+export const coinPath = (c: Pick<Coin, "symbol" | "key">) => `/c/${keyOf(c)}`;
+/** A map from the site's data routes, keyed by `keyOf`, keyed by symbol instead. */
+export const bySymbol = <T,>(m: Record<string, T>): Record<string, T> => Object.fromEntries(Object.entries(m).map(([k, v]) => [COINS.find((c) => keyOf(c) === k)?.symbol ?? k, v]));
 export const feedHexToBytes = (h: string) => Uint8Array.from(h.match(/.{2}/g)!.map((b) => parseInt(b, 16)));

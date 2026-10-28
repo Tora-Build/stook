@@ -47,6 +47,7 @@ import { PaperFold } from "./PaperFold";
 import { Notice } from "./Notice";
 import { Slider } from "./Slider";
 import { Amount, approxUsd, coinText } from "../lib/usd";
+import { coinBySymbol, coinPath } from "../lib/coins";
 
 interface Props {
   refs: stook.LadderRefs;
@@ -325,7 +326,7 @@ function Collect(p: Props) {
           ]}
           footer={<button className="primary" disabled={!publicKey || !!progress} onClick={() => void submit()}>{progress ? (progress[1] > 1 ? `Collecting ${progress[0]} of ${progress[1]}…` : "Sending…") : `Collect ${big(total)}`}</button>} />
       )}
-      <p className="hint" style={{ marginTop: ".6rem" }}><Link to={p.coinSymbol ? `/c/${p.coinSymbol}` : "/"}>{p.coinSymbol ? "Back to the calendar" : "Back to the street"}</Link></p>
+      <p className="hint" style={{ marginTop: ".6rem" }}><Link to={p.coinSymbol ? coinPath(coinBySymbol(p.coinSymbol) ?? { symbol: p.coinSymbol }) : "/"}>{p.coinSymbol ? "Back to the calendar" : "Back to the street"}</Link></p>
     </>
   );
 }

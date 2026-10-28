@@ -117,7 +117,7 @@ function fill(tpl, c, r, pick) {
   // one level per conversation, so "{near}" means the same price on every line
   c._near ??= lvl(-0.008, 0.008); c._level ??= lvl(-0.015, 0.015); c._far ??= lvl(0.04, 0.09);
   return tpl
-    .replace(/\{coin\}/g, "$" + c.coin).replace(/\{anchor\}/g, c.anchor)
+    .replace(/\{coin\}/g, "$" + (c.ticker ?? c.coin)).replace(/\{anchor\}/g, c.anchor)
     .replace(/\{price\}/g, price(c.price, c.dp)).replace(/\{chg\}/g, pct(c.chg))
     .replace(/\{usd\}/g, usd(c.usd)).replace(/\{cchg\}/g, pct(c.usdChg)).replace(/\{bell\}/g, c.bell)
     .replace(/\{level\}/g, c._level).replace(/\{near\}/g, c._near).replace(/\{far\}/g, c._far)
@@ -152,7 +152,7 @@ export function grammarChatter(data, n, seed) {
 // Non-reasoning models: reasoning ones spend the budget thinking and return
 // nothing. Llama 3.3 70B writes the best floor talk within the allowance.
 const MODELS = ["@cf/meta/llama-3.3-70b-instruct-fp8-fast", "@cf/mistralai/mistral-small-3.1-24b-instruct"];
-const BANNED = /\b(nigg|fag|retard|kike|spic|chink|rape|kill yourself|kys)\w*|\$?(STOOK|ZCAT|KNOTS|GP)\b[^.!?]{0,12}\b(is|are)\s+(trash|garbage|dead|a scam|shit|shitcoin|a rug)\b/i;
+const BANNED = /\b(nigg|fag|retard|kike|spic|chink|rape|kill yourself|kys)\w*|\$?(STOOK|SSt|ZCAT|KNOTS|GP)\b[^.!?]{0,12}\b(is|are)\s+(trash|garbage|dead|a scam|shit|shitcoin|a rug)\b/i;
 // Degen talk is fine ("moon", "ape", "send it"); telling people to buy a coin is not.
 const ADVICE = /\b(buy|ape into|load up on|accumulate|grab)\s+(some |more )?\$[A-Za-z]+|\bguaranteed\b|financial advice/i;
 
@@ -169,7 +169,7 @@ const norm = (s) => s.toLowerCase().replace(/[^a-z0-9 ]/g, "").replace(/\s+/g, "
 /** Ask the model for conversations, then keep only the ones that pass. */
 export async function aiChatter(env, data, seen, why = {}) {
   if (!env.AI) { why.error = "no AI binding"; return []; }
-  const facts = data.coins.map((c) => `$${c.coin} (a memecoin) plays ${c.anchor}: ${c.anchor} is at ${price(c.price, c.dp)}, ${pct(c.chg)} today; $${c.coin} trades at ${usd(c.usd)}, ${pct(c.usdChg)} today`).join("\n");
+  const facts = data.coins.map((c) => `$${c.ticker ?? c.coin} (a memecoin) plays ${c.anchor}: ${c.anchor} is at ${price(c.price, c.dp)}, ${pct(c.chg)} today; $${c.ticker ?? c.coin} trades at ${usd(c.usd)}, ${pct(c.usdChg)} today`).join("\n");
   const sys = `You write overheard chatter between degen traders on Stook Street, a pixel-art trading floor. Each coin (a memecoin) has one round a day: players "call" where the coin's anchor closes at 4 PM New York (the bell) by picking a price band, and get paid in the coin; a "target" pays most on its band and less on the bands around it, a "range" pays flat; "the house" funds the pool and keeps 90% of fees.
 
 Voice: crypto degens on a trading floor. Swear freely (fuck, shit, goddamn) and use degen slang (anon, ser, fren, rekt, cooked, ngmi, wagmi, cope, send it, jeet, paper hands, bags). Funny, cocky, specific.
