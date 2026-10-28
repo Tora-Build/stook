@@ -9,6 +9,7 @@
 import type { GetProgramAccountsFilter, PublicKey } from "@solana/web3.js";
 import { LADDER_DISCRIMINATOR, LADDER_SIZE, POSITION_DISCRIMINATOR, TRANCHE_DISCRIMINATOR, type LadderAccount, type LadderStatus } from "./accounts.js";
 import { level, type Shape } from "./math.js";
+import { POOL_LIVE_MAX_AGE_SECS } from "./pool.js";
 
 /** An opened round with no proof it cannot settle voids only this long after its close (`VOID_FALLBACK_SECS`). */
 export const VOID_FALLBACK_SECS = 7n * 86_400n;
@@ -51,6 +52,8 @@ export interface HermesPrice {
   metadata?: { prev_publish_time?: number };
   /** Read from Pyth's push-feed account (one price at a time, refreshed every few minutes on devnet): the instant is the first push price at or after it, within `PUSH_MAX_GAP_SECS`. */
   push?: boolean;
+  /** A pool-fed anchor's average to the instant (`pool.ts`): exact for its instant; a late open takes the latest entry, up to `POOL_LIVE_MAX_AGE_SECS` old. */
+  pool?: boolean;
 }
 
 const hex = (b: Uint8Array) => Array.from(b, (v) => v.toString(16).padStart(2, "0")).join("");
@@ -92,7 +95,7 @@ export function openProblem(u: HermesPrice, l: Pick<LadderAccount, "feedId" | "o
   if (now === undefined || !opensLate(l, now)) return settlementProblem(u, { feedId: l.feedId, settlesAt: l.opensAt, stepBps: OPEN_CONF_STEP_BPS, p0Expo: u.price.expo });
   if (u.id.replace(/^0x/, "").toLowerCase() !== hex(l.feedId)) return "wrong feed";
   const age = now - BigInt(u.price.publish_time);
-  const maxAge = u.push ? PUSH_MAX_GAP_SECS : SETTLE_MAX_GAP_SECS;
+  const maxAge = u.pool ? POOL_LIVE_MAX_AGE_SECS : u.push ? PUSH_MAX_GAP_SECS : SETTLE_MAX_GAP_SECS;
   if (age > maxAge) return `update is ${age}s old; a late opening needs one at most ${maxAge}s old`;
   if (age < -CLOCK_SKEW_SECS) return "update is stamped too far ahead of the clock";
   const price = BigInt(u.price.price), conf = BigInt(u.price.conf);
@@ -109,8 +112,9 @@ export function openProblem(u: HermesPrice, l: Pick<LadderAccount, "feedId" | "o
  * update) proves nothing: retry, or settle.
  */
 export function voidProof(u: HermesPrice, l: Pick<LadderAccount, "feedId" | "settlesAt" | "stepBps" | "p0Expo">): boolean {
-  // A push-feed account holds the latest price only: it proves nothing about the instant.
-  if (u.push) return false;
+  // A push-feed account holds the latest price only: it proves nothing about
+  // the instant. A pool's price for an instant is exact: nothing to prove.
+  if (u.push || u.pool) return false;
   if (u.id.replace(/^0x/, "").toLowerCase() !== hex(l.feedId)) return false;
   const prev = u.metadata?.prev_publish_time;
   if (prev === undefined) return false;

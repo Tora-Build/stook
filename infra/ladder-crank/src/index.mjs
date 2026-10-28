@@ -50,6 +50,7 @@ import { stook, SOOTH_CORE_PROGRAM_ID } from "@sooth/sdk-solana";
 // without an extension, which Node's ESM loader refuses. Its CJS build is fine.
 import pyth from "./pyth.cjs";
 import { historyConnection, historyPrices } from "./history.mjs";
+import { poolPrices, routed } from "./pools.mjs";
 const { PythSolanaReceiver } = pyth;
 
 const RPC_URL = process.env.RPC_URL ?? "https://soo-rpc.zak-a35.workers.dev";
@@ -121,6 +122,9 @@ export function chainSenders(connection, payer) {
      * it needs. So the builder only posts; the consume transaction is ours.
      */
     async postAndConsume(vaas, feedHex, makeIxs, units = 200_000) {
+      // A pool is on chain too: its observation account rides after it
+      // (`pools.mjs`), and reading a hundred entries costs more.
+      if (vaas?.pool) return sendAndConfirmTransaction(connection, new Transaction().add(...stook.withHeap(makeIxs(vaas.pool).map((ix) => stook.withObservation(ix, vaas.observation)), Math.max(units, 300_000), PRIORITY)), [payer]);
       // The push feed is already on chain: nothing to post or close.
       if (vaas?.push) return sendAndConfirmTransaction(connection, new Transaction().add(...stook.withHeap(makeIxs(vaas.push), units, PRIORITY)), [payer]);
       const receiver = new PythSolanaReceiver({ connection, wallet: new Wallet(payer) });
@@ -307,7 +311,7 @@ export function createKeeper({ connection, scanner, payer, sendTx, postAndConsum
         // from a few seconds ago, and the round starts when it lands.
         const late = step === "open" && stook.opensLate(ladder, now);
         const at = step === "open" ? (late ? BigInt(Math.floor(Date.now() / 1000)) - 3n : ladder.opensAt) : ladder.settlesAt;
-        const { parsed, vaas } = await fetchUpdate(`/v2/updates/price/${at}`, feed);
+        const { parsed, vaas } = await fetchUpdate(`/v2/updates/price/${at}`, feed, { live: late });
         if (!parsed) { console.log(tag, "hermes returned no update yet"); continue; }
 
         const problem = step === "open" ? stook.openProblem(parsed, ladder, late ? BigInt(Math.floor(Date.now() / 1000)) : undefined) : stook.settlementProblem(parsed, ladder);
@@ -675,7 +679,10 @@ export async function main(argv = process.argv.slice(2)) {
   // History wants getSignaturesForAddress and getTransaction, which the
   // ledger's RPC already serves on the box.
   const past = fromHistory ? { history: historyPrices(historyConnection(process.env.HISTORY_RPC_URL ?? process.env.LEDGER_RPC_URL ?? RPC_URL)) } : {};
-  const keeper = createKeeper({ connection, scanner, payer, plan: mode.plan, notify, ...chainSenders(connection, payer), ...(ORACLE_SOURCE === "push" ? { hermes: pushPrices(connection) } : {}), ...past });
+  // Pool-fed anchors answer from their pool, whatever the Pyth source.
+  const pools = poolPrices(connection);
+  const prices = ORACLE_SOURCE === "push" ? pushPrices(connection) : hermes;
+  const keeper = createKeeper({ connection, scanner, payer, plan: mode.plan, notify, ...chainSenders(connection, payer), hermes: routed(pools, prices), history: routed(pools, past.history ?? prices) });
   console.log(new Date().toISOString(), "oracle:", ORACLE_SOURCE === "push" ? "Pyth push feeds on chain" : `Hermes at ${HERMES}`, "· past closes:", fromHistory ? "chain history" : "the same");
 
   if (mode.watch) {

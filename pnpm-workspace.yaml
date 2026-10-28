@@ -2,6 +2,7 @@ packages:
   - "packages/*"
   - "apps/*"
   - "scripts/devnet"
+  - "scripts/mainnet"
   - "scripts/backtest"
   - "infra/ladder-crank"
   - "infra/sim"
