@@ -128,7 +128,7 @@ const ANCHORS = { STOOK: ["Polymarket", 2], ZCAT: ["Zcash", 2], KNOTS: ["STONK",
 function coinPreview(url, res) {
   const m = url.pathname.match(/^\/c\/([A-Za-z]+)\/?$/), sym = m && m[1].toUpperCase();
   if (!sym || !ANCHORS[sym] || !(res.headers.get("content-type") || "").includes("text/html")) return res;
-  const title = `$${sym} · where will ${ANCHORS[sym][0]} close? — Stook Street`;
+  const title = `$${sym} · where will ${ANCHORS[sym][0]} close? · Stook Street`;
   const desc = `Call where ${ANCHORS[sym][0]} closes at 4 PM New York, paid in $${sym}. The closer you are, the more it pays.`;
   const set = (v) => ({ element(e) { e.setAttribute("content", v); } });
   return new HTMLRewriter()
