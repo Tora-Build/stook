@@ -11,8 +11,8 @@
 # Out: target/mainnet/sooth_core.so (about 654 KB, about 4.55 SOL of rent).
 set -e
 cd "$(dirname "$0")/../.."
-CARGO_PROFILE_RELEASE_OPT_LEVEL=z CARGO_TARGET_DIR=target/mainnet-build \
+CARGO_PROFILE_RELEASE_OPT_LEVEL=z CARGO_TARGET_DIR="$PWD/target/mainnet-build" \
   cargo build-sbf --manifest-path packages/programs-core/programs/sooth-core/Cargo.toml \
-  --features "mainnet no-listing no-idl no-log-ix-name" --sbf-out-dir target/mainnet
+  --features "mainnet no-listing no-idl no-log-ix-name" --sbf-out-dir "$PWD/target/mainnet"
 ls -l target/mainnet/sooth_core.so | awk '{printf "%s bytes, about %.2f SOL of rent\n", $5, ($5 + 45 + 128) * 6960 / 1e9}'
 shasum -a 256 target/mainnet/sooth_core.so
