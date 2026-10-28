@@ -219,7 +219,7 @@ function House() {
 function Statement() {
   const [open, setOpen] = useState<number | null>(0);
   const days = [
-    { name: "S&P 500 in $STOOK · Thu", total: 42.1, lines: [["call: Near 5,512.40, ±3 floors · paid $10", 31.6], ["house deposit · put in $20", 10.5]] as [string, number][] },
+    { name: "Polymarket in $STOOK · Thu", total: 42.1, lines: [["call: Near 140.25, ±3 floors · paid $10", 31.6], ["house deposit · put in $20", 10.5]] as [string, number][] },
     { name: "Gold in $GP · Thu", total: 0, lines: [["call: Between 3,310.00 and 3,395.00 · paid $5", 0]] as [string, number][] },
   ];
   return (

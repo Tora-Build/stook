@@ -7,7 +7,8 @@ is never used to settle anything.
 
 | coin | pool | price |
 |---|---|---|
-| STOOK | SPYx/USDC, Raydium CLMM `6truu3r…` | USDC per SPYx |
+| STOOK | POLYMARKET/USDC (PreStocks), Raydium CLMM `5fdWxxk…` | USDC per POLYMARKET |
+| SPYX | SPYx/USDC, Raydium CLMM `6truu3r…` | USDC per SPYx (STONK's quote) |
 | GP | GLDx/USDC, Raydium CLMM `78ReVNM…` | USDC per GLDx |
 | ZCAT | ZEC/USDC, Orca Whirlpool `GTHKH8s…` | USDC per ZEC |
 | KNOTS | STONK/SPYx, Raydium CLMM `7a8xxAJ…` | SPYx per STONK × the SPYx price |

@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // The tape. Subscribes to four pool accounts on Solana mainnet and turns every
-// state change (every swap) into a price: SPYx/USDC, GLDx/USDC, ZEC/USDC, and
-// STONK through STONK/SPYx. Keeps one-minute candles for a week on disk and
+// state change (every swap) into a price: POLYMARKET/USDC, GLDx/USDC, ZEC/USDC,
+// SPYx/USDC, and STONK through STONK/SPYx. Keeps one-minute candles for a week on disk and
 // serves them, plus a live stream, on HTTP. This is the number on the tables
 // and in the charts. It is NOT the number a round settles on — that is Pyth,
 // read by the program on chain — and it never should be: a price this box
@@ -28,10 +28,12 @@ const LEDGER_URL = process.env.LEDGER_URL ?? "http://127.0.0.1:8792";
 // Pools are identified by account, never by ticker. `quote` names the pool a
 // price is expressed through; USDC is the dollar, SPYx resolves through its own pool.
 const POOLS = {
-  STOOK: { name: "S&P 500 (SPYx)", kind: "clmm", pool: "6truu3rZuiB9rKQg4VYC3Dt3QwV7DgwGqXrYUcrvnDDE", quote: "USDC", dp: 2 },
+  STOOK: { name: "Polymarket (PreStocks)", kind: "clmm", pool: "5fdWxxkv63NdU7t2CspjyCQrvmMvfe3mQwSgYpHam1Gs", quote: "USDC", dp: 2 },
+  // No coin's anchor now; STONK is priced through it.
+  SPYX: { name: "S&P 500 (SPYx)", kind: "clmm", pool: "6truu3rZuiB9rKQg4VYC3Dt3QwV7DgwGqXrYUcrvnDDE", quote: "USDC", dp: 2 },
   GP: { name: "Gold (GLDx)", kind: "clmm", pool: "78ReVNMLGRWmjtf2HmBoHUe2pRcsctXTTbxJnbhchyze", quote: "USDC", dp: 2 },
   ZCAT: { name: "Zcash", kind: "whirlpool", pool: "GTHKH8s82ZR8GTSFZ1dUu6wfdxhy59wpMShxzG5zjiPm", quote: "USDC", dp: 2 },
-  KNOTS: { name: "STONK", kind: "clmm", pool: "7a8xxAJBELDo6P9dikSYctdw6ce8F4mWr3ahcAD8Ao49", quote: "STOOK", invert: true, dp: 4 },
+  KNOTS: { name: "STONK", kind: "clmm", pool: "7a8xxAJBELDo6P9dikSYctdw6ce8F4mWr3ahcAD8Ao49", quote: "SPYX", invert: true, dp: 4 },
 };
 
 // ── price from pool state ─────────────────────────────────────────────────────
@@ -68,8 +70,19 @@ function record(coin, raw, slot) {
 }
 const lastRaw = {};
 
-function load() { if (!existsSync(FILE)) return; try { const j = JSON.parse(readFileSync(FILE, "utf8")); for (const [coin, rows] of Object.entries(j.candles ?? {})) candles[coin] = new Map(rows.map((r) => [r[0], r])); Object.assign(latest, j.latest ?? {}); } catch {} }
-function save() { writeFileSync(FILE, JSON.stringify({ latest, candles: Object.fromEntries(Object.entries(candles).map(([k, m]) => [k, [...m.values()]])) })); }
+// A coin whose pool changed starts its candles afresh: a week of the old
+// anchor's prices is not this one's. (Files from before names were kept had
+// STOOK on SPYx.)
+function load() {
+  if (!existsSync(FILE)) return;
+  try {
+    const j = JSON.parse(readFileSync(FILE, "utf8")), names = j.names ?? { STOOK: "S&P 500 (SPYx)" };
+    const same = (coin) => POOLS[coin] && (names[coin] ?? POOLS[coin].name) === POOLS[coin].name;
+    for (const [coin, rows] of Object.entries(j.candles ?? {})) if (same(coin)) candles[coin] = new Map(rows.map((r) => [r[0], r]));
+    for (const [coin, l] of Object.entries(j.latest ?? {})) if (same(coin)) latest[coin] = l;
+  } catch {}
+}
+function save() { writeFileSync(FILE, JSON.stringify({ names: Object.fromEntries(Object.entries(POOLS).map(([k, p]) => [k, p.name])), latest, candles: Object.fromEntries(Object.entries(candles).map(([k, m]) => [k, [...m.values()]])) })); }
 load(); setInterval(save, 60_000);
 
 // ── subscriptions ─────────────────────────────────────────────────────────────
@@ -95,7 +108,7 @@ async function prime() {
     }
     const raw = poolPrice(p.kind, d) * (whirlDecimals[p.pool] ?? 1); lastRaw[coin] = raw;
   }
-  for (const coin of ["STOOK", "GP", "ZCAT", "KNOTS"]) record(coin, lastRaw[coin], 0);   // quotes first, then STONK through SPYx
+  for (const coin of ["STOOK", "GP", "ZCAT", "SPYX", "KNOTS"]) record(coin, lastRaw[coin], 0);   // quotes first, then STONK through SPYx
 }
 function subscribe() {
   const ws = new WebSocket(WS_URL); const byId = {}; let id = 0;

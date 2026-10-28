@@ -17,7 +17,7 @@ export interface Feed {
 import { COINS } from "./coins";
 
 export const FEEDS: Feed[] = catalogue as Feed[];
-const ANCHORS: Feed[] = COINS.map((c) => ({ id: c.anchor.feedId, symbol: c.anchor.symbol, name: c.anchor.name, kind: "stock", dp: c.anchor.dp }));
+const ANCHORS: Feed[] = COINS.filter((c) => c.anchor.feedId).map((c) => ({ id: c.anchor.feedId, symbol: c.anchor.symbol, name: c.anchor.name, kind: "stock", dp: c.anchor.dp }));
 export const feedByHex = (hex: string): Feed =>
   ANCHORS.find((f) => f.id === hex) ?? FEEDS.find((f) => f.id === hex) ?? { id: hex, symbol: hex.slice(0, 6) + "…", name: "Custom feed", kind: "crypto", dp: 2 };
 export const feedHex = (id: Uint8Array) => Array.from(id, (b) => b.toString(16).padStart(2, "0")).join("");

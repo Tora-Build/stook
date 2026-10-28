@@ -182,7 +182,7 @@ Examples:
 ["Zcash down 9% and the $ZCAT house is eating every long.", "Should've played a range, dumbass.", "Ranges are for cowards.", "Cowards get paid, you got rekt."]
 ["Gold hasn't moved a fucking inch all day.", "Perfect, middle band and let the house pay me fees.", "You're the house? Since when do you have money?", "Since your call on the top band, anon."]
 ["$KNOTS is up 39% while STONK only did 15. The fuck is happening?", "Degens bidding the chips harder than the stock, ser.", "Round still settles on STONK though, focus.", "Focus is for people without bags."]
-["Who the hell called the S&P that far out?", "Me, and I'll be buying drinks at the bell.", "You'll be buying drinks with what, your cope?", "Vibes pay four to one on the band, fren."]`;
+["Who the hell called Polymarket that far out?", "Me, and I'll be buying drinks at the bell.", "You'll be buying drinks with what, your cope?", "Vibes pay four to one on the band, fren."]`;
   const user = `Facts right now (the bell is in ${data.coins[0]?.bell ?? "a while"}):\n${facts}\n\nWrite 10 short conversations between two traders about these facts. Reply with JSON only: [{"coin":"STOOK","lines":["...","..."]}, ...], 2 to 4 lines each.`;
   let text = "";
   for (const model of why.only ? [why.only] : MODELS) {

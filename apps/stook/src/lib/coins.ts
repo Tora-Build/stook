@@ -38,7 +38,9 @@ export interface Coin {
 export const COINS: Coin[] = [
   {
     symbol: "STOOK", name: "Stook Street", logo: "/logos/stook.png", mint: import.meta.env.VITE_STOOK_MINT ?? "", decimals: 6, feeBps: 0,
-    anchor: { symbol: "SPYx", name: "S&P 500", mint: "XsoCS1TfEyfFhfvj8EtZ528L3CaKBDBRqRapnBbDF2W", logo: "/logos/spyx.png", feedId: "2817b78438c769357182c04346fddaad1178c82f4048828fe0997c3c64624e14", hours: "24/7", dp: 2 },
+    // Polymarket PreStocks (prestocks.com). Pyth has no feed for it yet, so
+    // there is no feed id: mainnet rounds wait for one (devnet's stand-in runs).
+    anchor: { symbol: "POLYMARKET", name: "Polymarket", mint: "Pre8AREmFPtoJFT8mQSXQLh56cwJmM7CFDRuoGBZiUP", logo: "/logos/polymarket.png", feedId: "", hours: "24/7", dp: 2 },
   },
   {
     symbol: "ZCAT", name: "Anonymous Cat", logo: "/logos/zcat.jpg", mint: "HcRLc9VDgjLeK154xDawfb1dmVJ98DoSqcwTHGqiDeJR", decimals: 9, feeBps: 300,
@@ -87,7 +89,7 @@ export const anchorOf = (c: Coin): Anchor => {
 export const standInNote = (c: Coin): string | null => (isDevnet && DEVNET_FEEDS[c.symbol] ? `Rounds here settle on ${DEVNET_FEEDS[c.symbol]!.name} (${DEVNET_FEEDS[c.symbol]!.symbol}) in place of ${c.anchor.symbol}, whose Pyth feed devnet can't read yet.` : null);
 
 /** A coin's daily series: its rounds, one per day, closing 4 PM New York. */
-export const seriesOf = (c: Coin): PublicKey | null => { const m = mintOf(c); return m ? stook.deriveSeries(feedHexToBytes(anchorOf(c).feedId), m, 0) : null; };
+export const seriesOf = (c: Coin): PublicKey | null => { const m = mintOf(c), f = anchorOf(c).feedId; return m && f ? stook.deriveSeries(feedHexToBytes(f), m, 0) : null; };
 
 export const mintOf = (c: Coin): PublicKey | null => { const k = devnetMints[c.symbol] ?? c.mint; return k ? new PublicKey(k) : null; };
 /** A coin by its mint: the street's own, or one listed on chain (lib/listed). */

@@ -18,7 +18,9 @@ const LIVE_FALLBACK = {
 // GeckoTerminal); settlement on chain is Pyth and only Pyth. Cached at the
 // edge so the sources see one request a minute, not one per visitor.
 const COINS = {
-  STOOK: { kind: "yahoo", symbol: "SPY" },
+  // Polymarket PreStocks: Jupiter's spot price, kept a day in KV by the
+  // five-minute cron like STONK (no public intraday series for it).
+  STOOK: { kind: "jupiter", mint: "Pre8AREmFPtoJFT8mQSXQLh56cwJmM7CFDRuoGBZiUP" },
   ZCAT: { kind: "yahoo", symbol: "ZEC-USD" },   // CoinGecko rate-limits Cloudflare egress; Yahoo carries ZEC 24/7
   // STONK trades on a Raydium CLMM pool against SPYx. The pool's state is read
   // straight from the chain (no aggregator, no rate limit) and priced in
@@ -78,11 +80,19 @@ async function kvJson(kv, key, ttl = 60_000) {
  *  Requests only read the stored day; `record` (the five-minute cron, one
  *  writer for the whole world) appends to it. */
 async function series(src, record = false) {
-  if (src.kind === "raydium-clmm") {
-    const [perQuote, quote] = await Promise.all([clmmPrice(src.pool, src.quoteDecimals, src.baseDecimals), series({ kind: "yahoo", symbol: src.quoteSymbol })]);
-    const q = quote[quote.length - 1];
-    if (!q) return [];
-    const point = [Math.floor(Date.now() / 1000), q[1] / perQuote];
+  if (src.kind === "raydium-clmm" || src.kind === "jupiter") {
+    let price;
+    if (src.kind === "jupiter") {
+      const r = await fetch(`https://lite-api.jup.ag/price/v3?ids=${src.mint}`, { headers: UA });
+      price = (await r.json())?.[src.mint]?.usdPrice;
+      if (typeof price !== "number" || !(price > 0)) return [];
+    } else {
+      const [perQuote, quote] = await Promise.all([clmmPrice(src.pool, src.quoteDecimals, src.baseDecimals), series({ kind: "yahoo", symbol: src.quoteSymbol })]);
+      const q = quote[quote.length - 1];
+      if (!q) return [];
+      price = q[1] / perQuote;
+    }
+    const point = [Math.floor(Date.now() / 1000), price];
     // Keep our own day of history: one point per five minutes in KV.
     if (!src.kv) return [point];
     const key = `series:${src.key}`, dayAgo = point[0] - 86_400;
@@ -110,7 +120,7 @@ async function series(src, record = false) {
 
 // What the floor talks about: each coin's anchor (name, price, move) and the
 // coin's own dollar price and move, and the time to the bell.
-const ANCHORS = { STOOK: ["the S&P 500", 2], ZCAT: ["Zcash", 2], KNOTS: ["STONK", 4], GP: ["gold", 2] };
+const ANCHORS = { STOOK: ["Polymarket", 2], ZCAT: ["Zcash", 2], KNOTS: ["STONK", 4], GP: ["gold", 2] };
 
 /** A coin page's link preview: crawlers read the HTML and run no script, so the
  *  page's title and description are set here, on the way out. Anything else
@@ -179,7 +189,7 @@ export default {
     if (event.cron === "10 20,21 * * 1-5") { const ny = nyNow(); if (ny.hour === 16 && ["Mon", "Wed", "Fri"].includes(ny.weekday)) ctx.waitUntil(floorData(env).then((d) => runX(env, "bell", d)).catch((e) => console.log("x bell", String(e)))); return; }
     // A check asked for through KV (x:check = "whoami"): runs once, result in x:check:result.
     if (event.cron === "*/5 * * * *" && (await env.SERIES.get("x:check")) === "whoami") { await env.SERIES.delete("x:check"); await env.SERIES.put("x:check:result", JSON.stringify(await whoAmI(env).catch((e) => ({ error: String(e) }))), { expirationTtl: 86_400 }); }
-    if (event.cron === "*/5 * * * *") { ctx.waitUntil(Promise.all(Object.entries(COINS).filter(([, c]) => c.kind === "raydium-clmm").map(([k, c]) => series({ ...c, kv: env.SERIES, key: k }, true).catch(() => null)))); return; }
+    if (event.cron === "*/5 * * * *") { ctx.waitUntil(Promise.all(Object.entries(COINS).filter(([, c]) => c.kind === "raydium-clmm" || c.kind === "jupiter").map(([k, c]) => series({ ...c, kv: env.SERIES, key: k }, true).catch(() => null)))); return; }
     ctx.waitUntil(refreshAiChatter(env));
   },
 
