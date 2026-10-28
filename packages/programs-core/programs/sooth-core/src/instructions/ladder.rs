@@ -13,7 +13,8 @@ use anchor_spl::token_interface::{
 use crate::error::SoothCoreError;
 use crate::math::ladder::{apply_trade, band_width, bin_for, liquidity_for_deposit, prior, tranche_pnl, Shape};
 use crate::math::{scalar_for, wad_to_amount_ceil, wad_to_amount_floor};
-use crate::oracle::{check_live_price, check_settlement_instant, is_push_feed, read_price_update};
+use crate::oracle::{check_live_price, check_settlement_instant, read_price_update};
+use crate::pool_oracle::{is_pool, pool_latest_price, price_for_instant, POOL_LIVE_MAX_AGE_SECS};
 use crate::state::ladder::*;
 use crate::state::{require_not_paused, ProtocolConfig, Series, PROTOCOL_CONFIG_SEED};
 
@@ -479,8 +480,10 @@ pub struct LadderOpen<'info> {
     #[account(mut)]
     pub ladder: AccountLoader<'info, Ladder>,
 
-    /// CHECK: a Pyth `PriceUpdateV2`. Ownership, layout, feed, freshness,
-    /// signatures and confidence are all checked in `oracle`.
+    /// CHECK: a Pyth `PriceUpdateV2`, or the Raydium pool the round's feed
+    /// names (its observation account then the first remaining account).
+    /// Ownership, layout, feed, freshness, signatures and confidence are all
+    /// checked in `oracle` and `pool_oracle`.
     pub price_update: UncheckedAccount<'info>,
 
     /// The round's series: its volatility sets the band width. Opening at a
@@ -496,9 +499,18 @@ pub fn open_handler(ctx: Context<LadderOpen>) -> Result<()> {
     require!(l.status == STATUS_SEEDING, SoothCoreError::LadderNotSeeding);
     require!(now >= l.opens_at && now < l.opens_at + OPEN_WINDOW_SECS && now < l.locks_at, SoothCoreError::LadderBadTimes);
 
-    let price = read_price_update(&ctx.accounts.price_update.to_account_info())?;
-    let push = is_push_feed(ctx.accounts.price_update.key, &l.feed_id);
-    if now < l.opens_at + OPEN_ON_TIME_SECS {
+    let source = ctx.accounts.price_update.to_account_info();
+    let on_time = now < l.opens_at + OPEN_ON_TIME_SECS;
+    // A pool opened late opens on its latest entry; otherwise the price for
+    // `opens_at` (a pool's average to it, a Pyth update as given).
+    let (price, push) = if is_pool(&source) && !on_time {
+        let observation = ctx.remaining_accounts.first().ok_or(error!(SoothCoreError::OracleAccountMalformed))?;
+        (pool_latest_price(&source, observation, &l.feed_id)?, false)
+    } else {
+        price_for_instant(&source, ctx.remaining_accounts, &l.feed_id, l.opens_at)?
+    };
+    let live_max_age = if is_pool(&source) { POOL_LIVE_MAX_AGE_SECS } else { SETTLE_MAX_GAP_SECS };
+    if on_time {
         // On time: the grid centres on THE price at `opens_at`, by the
         // settlement rule: the first update at or after it, within 30
         // seconds, confidence under 1%. Exactly one update qualifies, so
@@ -523,7 +535,7 @@ pub fn open_handler(ctx: Context<LadderOpen>) -> Result<()> {
         // the market has moved into at its old odds. On a live price there is
         // nothing to harvest, and which live update the opener brings moves
         // the centre by no more than the market moved in those seconds.
-        check_live_price(&price, &l.feed_id, ORACLE_MIN_SIGNATURES, now, SETTLE_MAX_GAP_SECS, OPEN_CONF_STEP_BPS, push)?;
+        check_live_price(&price, &l.feed_id, ORACLE_MIN_SIGNATURES, now, live_max_age, OPEN_CONF_STEP_BPS, push)?;
         l.opens_at = now;
     }
     l.p0 = price.price;
@@ -960,7 +972,9 @@ pub struct LadderSettle<'info> {
     #[account(mut)]
     pub ladder: AccountLoader<'info, Ladder>,
 
-    /// CHECK: a Pyth `PriceUpdateV2`; verified in `oracle`.
+    /// CHECK: a Pyth `PriceUpdateV2`, or the Raydium pool the round's feed
+    /// names (its observation account then the first remaining account);
+    /// verified in `oracle` and `pool_oracle`.
     pub price_update: UncheckedAccount<'info>,
 
     /// The round's series: it learns the anchor's volatility from this price.
@@ -1010,16 +1024,8 @@ pub fn settle_handler(ctx: Context<LadderSettle>) -> Result<()> {
         SoothCoreError::LadderNotSettleable
     );
 
-    let p = read_price_update(&ctx.accounts.price_update.to_account_info())?;
-    check_settlement_instant(
-        &p,
-        &l.feed_id,
-        ORACLE_MIN_SIGNATURES,
-        l.settles_at,
-        SETTLE_MAX_GAP_SECS,
-        l.step_bps,
-        is_push_feed(ctx.accounts.price_update.key, &l.feed_id),
-    )?;
+    let (p, push) = price_for_instant(&ctx.accounts.price_update.to_account_info(), ctx.remaining_accounts, &l.feed_id, l.settles_at)?;
+    check_settlement_instant(&p, &l.feed_id, ORACLE_MIN_SIGNATURES, l.settles_at, SETTLE_MAX_GAP_SECS, l.step_bps, push)?;
     // The grid is a ratio to p0, so both must be on the same scale.
     require!(p.exponent == l.p0_expo, SoothCoreError::OracleExponentChanged);
 

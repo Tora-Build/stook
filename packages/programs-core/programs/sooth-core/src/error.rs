@@ -125,4 +125,6 @@ pub enum SoothCoreError {
     ListNotYet,
     #[msg("A listed coin's seed stays in its house for a week")]
     HouseStakeLocked,
+    #[msg("Only a pool-fed series still warming up may be seeded")]
+    SeriesNotSeedable,
 }

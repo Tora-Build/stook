@@ -76,6 +76,7 @@ pub mod events;
 pub mod instructions;
 pub mod math;
 pub mod oracle;
+pub mod pool_oracle;
 pub mod state;
 pub mod token_guard;
 
@@ -268,14 +269,19 @@ pub mod sooth_core {
         series::series_create_handler(ctx, args)
     }
 
-    /// Pause or resume a series' new rounds. Protocol authority. There is no
-    /// way to set a series' volatility.
+    /// Pause or resume a series' new rounds. Protocol authority.
     pub fn series_set(ctx: Context<SeriesSet>, active: bool) -> Result<()> {
         series::series_set_handler(ctx, active)
     }
 
-    /// Teach a series one day's close from Pyth, under the settlement rule.
-    /// Permissionless.
+    /// Start a pool-fed series warm: its starting volatility, once, and the
+    /// latest close at the pool's price. Protocol authority.
+    pub fn series_seed(ctx: Context<SeriesSeed>, var_wad: i128) -> Result<()> {
+        series::series_seed_handler(ctx, var_wad)
+    }
+
+    /// Teach a series one day's close from its feed (Pyth, or a pool's
+    /// average), under the settlement rule. Permissionless.
     pub fn series_observe(ctx: Context<SeriesObserve>, index: u32) -> Result<()> {
         series::series_observe_handler(ctx, index)
     }
