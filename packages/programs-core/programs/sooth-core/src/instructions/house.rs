@@ -421,7 +421,8 @@ pub fn house_start_handler(ctx: Context<HouseStart>, index: u32) -> Result<()> {
 
 #[derive(Accounts)]
 pub struct HouseCollect<'info> {
-    /// Anyone, once the round is final. Pays the epoch record's rent.
+    /// Anyone, once the round is final. Pays the epoch record's rent, when
+    /// there is one.
     #[account(mut)]
     pub cranker: Signer<'info>,
 
@@ -447,6 +448,10 @@ pub struct HouseCollect<'info> {
     #[account(mut, address = house.rent_payer @ SoothCoreError::LadderWrongAccount)]
     pub rent_payer: UncheckedAccount<'info>,
 
+    /// The price this epoch's queue is processed at, for the stakes in it to
+    /// book later. Only when something is queued: with an empty queue no
+    /// stake belongs to this epoch, and the record's rent would be spent for
+    /// nothing every day (it is never closed).
     #[account(
         init,
         payer = cranker,
@@ -454,7 +459,7 @@ pub struct HouseCollect<'info> {
         seeds = [HOUSE_EPOCH_SEED, house.key().as_ref(), &house.epoch.to_le_bytes()],
         bump,
     )]
-    pub epoch: Box<Account<'info, HouseEpoch>>,
+    pub epoch: Option<Box<Account<'info, HouseEpoch>>>,
 
     pub system_program: Program<'info, System>,
 }
@@ -495,24 +500,29 @@ pub fn house_collect_handler(ctx: Context<HouseCollect>) -> Result<()> {
         h.fee_ema = next_fee_ema(h.fee_ema, fees);
     }
 
-    let e = &mut ctx.accounts.epoch;
-    e.house = house_key;
-    e.epoch = h.epoch;
-    e.bump = ctx.bumps.epoch;
+    let queued = h.pending_deposits > 0 || h.pending_withdraw_shares > 0;
+    require!(!queued || ctx.accounts.epoch.is_some(), SoothCoreError::HouseEpochMissing);
     // The price the queue is processed at, as `process_queue` reads it.
     let wipes = h.assets == 0 && h.total_shares > 0;
-    e.assets = h.assets;
-    e.shares = if wipes { 0 } else { h.total_shares };
+    let (assets, shares) = (h.assets, if wipes { 0 } else { h.total_shares });
+    let epoch = h.epoch;
     let deposits = h.pending_deposits;
     let (paid, _, wiped) = process_queue(h).ok_or(SoothCoreError::MathOverflow)?;
-    e.wiped = wiped;
-    e.generation = h.generation;
+    if let Some(e) = ctx.accounts.epoch.as_mut() {
+        e.house = house_key;
+        e.epoch = epoch;
+        e.bump = ctx.bumps.epoch.ok_or(SoothCoreError::HouseEpochMissing)?;
+        e.assets = assets;
+        e.shares = shares;
+        e.wiped = wiped;
+        e.generation = h.generation;
+    }
     h.epoch = h.epoch.checked_add(1).ok_or(SoothCoreError::MathOverflow)?;
 
     emit!(HouseCollected {
         house: house_key,
         ladder: ladder_key,
-        epoch: e.epoch,
+        epoch,
         sent,
         returned,
         withdrawals_paid: paid,

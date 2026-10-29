@@ -208,13 +208,19 @@ export function houseStartIx(r: HouseRefs & { series: PublicKey }, cranker: Publ
   ]);
 }
 
-/** Book the house home from its finished round and process the queue. Anyone. */
-export function houseCollectIx(r: HouseRefs, cranker: PublicKey, h: Pick<HouseAccount, "round" | "rentPayer" | "epoch">) {
+/** Does collecting the house now write an epoch record (`HouseEpoch`)? Only
+ *  when something is queued: otherwise no stake belongs to the epoch. */
+export const houseCollectWritesEpoch = (h: Pick<HouseAccount, "pendingDeposits" | "pendingWithdrawShares">) => h.pendingDeposits > 0n || h.pendingWithdrawShares > 0n;
+
+/** Book the house home from its finished round and process the queue. Anyone.
+ *  The epoch record is passed only when something is queued (its rent is
+ *  never returned); otherwise its slot is the program id (Anchor's "none"). */
+export function houseCollectIx(r: HouseRefs, cranker: PublicKey, h: Pick<HouseAccount, "round" | "rentPayer" | "epoch" | "pendingDeposits" | "pendingWithdrawShares">) {
   const programId = pid(r);
   if (!h.round) throw new Error("the house is not in a round");
   return ix(r, data("house_collect"), [
     signer(cranker), rw(r.house), rw(h.round), rw(deriveLadderTranche(h.round, r.house, 0, programId)), rw(h.rentPayer),
-    rw(deriveHouseEpoch(r.house, h.epoch, programId)), ro(SystemProgram.programId),
+    houseCollectWritesEpoch(h) ? rw(deriveHouseEpoch(r.house, h.epoch, programId)) : ro(programId), ro(SystemProgram.programId),
   ]);
 }
 

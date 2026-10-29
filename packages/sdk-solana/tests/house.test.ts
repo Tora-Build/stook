@@ -193,6 +193,8 @@ describe.each([["a classic SPL coin", false], ["a coin with a 1% transfer fee", 
     const terms = L.trancheTerms(fin, t);
     const fees = L.trancheFees(terms.b, 6, fin.accFee, t.feeSnap);
     const owed = L.tranchePrincipal(t.deposit, L.tranchePnl(terms.b, terms.join.w[k]!, terms.join.sum, fin.curve.w[k]!, fin.curve.sum), 6) + fees;
+    // Something is queued, so the epoch's price must be recorded: leaving the record out is refused.
+    await refused(e, L.houseCollectIx(H, e.keeper.kp.publicKey, { ...hs(), pendingDeposits: 0n, pendingWithdrawShares: 0n }), e.keeper.kp, "HouseEpochMissing");
     await ok(e, L.houseCollectIx(H, e.keeper.kp.publicKey, hs()), e.keeper.kp);
     expect(balance(e, hv)).toBe(vBefore);
     const ep = L.decodeHouseEpoch(raw(e, L.deriveHouseEpoch(house, 0, PROGRAM)));

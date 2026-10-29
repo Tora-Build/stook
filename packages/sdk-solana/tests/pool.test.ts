@@ -172,8 +172,14 @@ describe("a pool-fed anchor (Polymarket PreStocks on Raydium)", () => {
     const before = AccountLayout.decode(Buffer.from(raw(e, trader.token).slice(0, ACCOUNT_SIZE))).amount;
     await ok(e, L.redeemLadderIx(refs(), trader.kp.publicKey, trader.token, shape), trader.kp);
     expect(AccountLayout.decode(Buffer.from(raw(e, trader.token).slice(0, ACCOUNT_SIZE))).amount > before).toBe(true);
+    // Nobody queued in or out during the round: no epoch record, no rent spent on one.
+    const lamportsBefore = BigInt((e.svm.getAccount(keeper.kp.publicKey.toBase58() as any) as any).lamports);
     await ok(e, L.houseCollectIx(HR, keeper.kp.publicKey, L.decodeHouse(raw(e, house))), keeper.kp);
     expect(L.decodeHouse(raw(e, house)).epoch).toBe(1);
+    const rec: any = e.svm.getAccount(L.deriveHouseEpoch(house, 0, PROGRAM).toBase58() as any);
+    expect(!rec || rec.exists === false || BigInt(rec.lamports ?? 0) === 0n).toBe(true);
+    const lamportsAfter = BigInt((e.svm.getAccount(keeper.kp.publicKey.toBase58() as any) as any).lamports);
+    expect(lamportsAfter).toBeGreaterThan(lamportsBefore);                     // the tranche's rent came back; nothing was spent on a record
     console.log(`\n  pool-fed round: opened at ${Number(l().p0) / 1e8}, settled on floor ${l().settledBin} at ${Number(at28.price) / 1e8}; open ${opened.cu} CU, settle ${settled.cu} CU\n`);
   });
 });
