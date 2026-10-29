@@ -8,7 +8,7 @@
 #   opt-level z    smallest code; about 30-45% more compute than opt-level 3,
 #                  inside every budget the keeper and the app set (measured)
 #
-# Out: target/mainnet/sooth_core.so (about 677 KB, about 4.72 SOL of rent).
+# Out: target/mainnet/sooth_core.so (about 678 KB, about 4.72 SOL of rent).
 set -e
 cd "$(dirname "$0")/../.."
 CARGO_PROFILE_RELEASE_OPT_LEVEL=z CARGO_TARGET_DIR="$PWD/target/mainnet-build" \
