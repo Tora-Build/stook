@@ -57,6 +57,9 @@
     "{anchor} hasn't moved a fucking inch. {price}.", "Dead tape. {coin} pool's just collecting fees.", "{anchor} {chg}. My grandma trades with more range.", "Somebody wake {anchor} up.", "Middle band all day on {coin}. Boring. Profitable.",
     "I could call {anchor} blindfolded today.", "Is the {coin} round even open? Feels closed.", "Nobody's started tomorrow's {coin} round. Cowards.", "{price}. Same as an hour ago. Same as yesterday.",
   ];
+  // The floor is salty, not crude: lines that swear stay off the screen.
+  const BAD = /\b(fuck\w*|shit\w*|bullshit|asshole|ass|goddamn|damn|christ|jesus|hell|idiot)\b/i;
+  for (const pool of [OPENERS, REPLIES, CLOSERS, HOT, COLD, FLAT]) for (let i = pool.length - 1; i >= 0; i--) if (BAD.test(pool[i])) pool.splice(i, 1);
   const mood = (chg) => (chg == null ? FLAT : chg > 2.5 ? HOT : chg < -2.5 ? COLD : Math.random() < 0.5 ? FLAT : null);
 
   const GENERIC = ["Coffee?", "Long day.", "Close is at four.", "Watch the tape.", "Who's on the board today?", "Nothing moves before lunch.", "You seen the new post?", "Same as yesterday.", "Calls in?", "I'll be at the $STOOK table."];
@@ -80,7 +83,7 @@
     if (feed.loading) return;
     feed.loading = true;
     fetch("/chatter").then((r) => (r.ok ? r.json() : null)).then((j) => {
-      for (const c of j?.convos ?? []) if (Array.isArray(c.lines) && c.lines.length >= 2 && !c.lines.some((l) => feed.shown.has(l))) feed.queue.push(c);
+      for (const c of j?.convos ?? []) if (Array.isArray(c.lines) && c.lines.length >= 2 && !c.lines.some((l) => feed.shown.has(l) || BAD.test(l))) feed.queue.push(c);
     }).catch(() => {}).finally(() => { feed.loading = false; });
   }
   function fromFeed(coin) {

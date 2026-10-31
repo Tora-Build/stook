@@ -1,8 +1,9 @@
 // Funding a day's round: a house ticket. The round's terms are fixed by the
 // program and the coin (the fee, the band width at open, when it opens and
 // locks), so the one thing to choose is the seed; the ticket shows the day's
-// timeline and the deal in three lines, and the How page has the rest.
-import { useState } from "react";
+// times and the deal in a few lines, and the How page has the rest.
+import { useEffect, useState } from "react";
+import { useWalletModal } from "@solana/wallet-adapter-react-ui";
 import { useNavigate } from "react-router-dom";
 import { useWallet } from "@solana/wallet-adapter-react";
 import { stook } from "@sooth/sdk-solana";
@@ -11,14 +12,15 @@ import { isDevnet, mintOf, standInNote, type Coin } from "../lib/coins";
 import { ataOf, ensureAta } from "../lib/chain";
 import { useBalance, useMint, useSend } from "../hooks/useChain";
 import { fmtCompact, parseAmount } from "../lib/format";
-import { Notice } from "./Notice";
 import { approxUsd, coinText, fromUsd, useUsdRates } from "../lib/usd";
 import { nyWhen } from "../lib/time";
-import { RoundBar } from "./RoundBar";
 
 export function StartRound({ coin, seriesKey, series, index, onClose }: { coin: Coin; seriesKey: PublicKey; series: stook.SeriesAccount; index: number; onClose: () => void }) {
   const nav = useNavigate();
   const { publicKey } = useWallet();
+  const modal = useWalletModal();
+  // Esc closes it, as the backdrop does.
+  useEffect(() => { const k = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); }; window.addEventListener("keydown", k); return () => window.removeEventListener("keydown", k); }, [onClose]);
   const send = useSend("Round funded");
   const mintKey = mintOf(coin);
   const mint = useMint(mintKey);
@@ -54,55 +56,56 @@ export function StartRound({ coin, seriesKey, series, index, onClose }: { coin: 
   };
 
 
-  return (
-    <div className="sheet-back" onClick={onClose}>
-      <section className="panel sheet ticket-sheet" onClick={(e) => e.stopPropagation()} role="dialog" aria-labelledby="fund-title">
-        <header className="ts-head">
-          <span className="ts-sign">House ticket</span>
-          <h3 id="fund-title">${coin.symbol} · {when} NY</h3>
-          <button className="ts-x" onClick={onClose} aria-label="Close">×</button>
-        </header>
-        {standInNote(coin) && <Notice tone="info" title="Devnet stand-in">{standInNote(coin)}</Notice>}
+  const t = (x: number | bigint) => nyWhen(x, { weekday: "short", hour: "numeric", minute: "2-digit" });
+  const short = balance.data !== undefined && !!seed && !!gross && balance.data < gross;
 
-        <div className="ts-clock">
-          <RoundBar opensAt={Number(terms.opensAt)} locksAt={Number(terms.locksAt)} settlesAt={settlesAt} />
+  return (
+    <div className="house-modal-back" onClick={onClose}>
+      <section className="card house-modal" onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true" aria-labelledby="fund-title">
+        <header className="house-modal-head">
+          <div>
+            <div className="kicker taxi">FUND A ROUND</div>
+            <h3 id="fund-title">${coin.symbol} · {when} NY</h3>
+          </div>
+          <button className="btn btn-sm btn-ghost house-modal-x" onClick={onClose} aria-label="Close">×</button>
+        </header>
+        {standInNote(coin) && <p className="house-note">{standInNote(coin)}</p>}
+
+        <div className="house-modal-times">
+          <div><span className="label">Opens</span><b>{t(terms.opensAt)}</b></div>
+          <div><span className="label">Trading stops</span><b>{t(terms.locksAt)}</b></div>
+          <div><span className="label">Bell</span><b>{t(settlesAt)}</b></div>
         </div>
 
-
-        <div className="field">
-          <div className="amount-head">
-            <span>Seed</span>
-            <div className="seg seg-sm" role="group" aria-label="Enter the seed in">
+        <div className="house-modal-field">
+          <div className="house-row">
+            <span className="label">Seed</span>
+            <div className="seg2" role="group" aria-label="Enter the seed in">
               {rate !== null && <button className={inUsd ? "on" : ""} onClick={() => { setInUsd(true); setText(null); }}>USD</button>}
               <button className={!inUsd ? "on" : ""} onClick={() => { setInUsd(false); setText(null); }}>{coin.symbol}</button>
             </div>
           </div>
-          <div className={`amount-input ${inUsd ? "amount-usd" : ""}`}>
-            {inUsd && <span className="amount-sign">$</span>}
+          <label className="house-amt">
+            {inUsd && <span className="house-amt-sign">$</span>}
             <input value={text} onChange={(e) => setText(e.target.value)} inputMode="decimal" autoFocus aria-label={inUsd ? "Seed in dollars" : `Seed in ${coin.symbol}`} />
-            {!inUsd && <span className="amount-unit">{coin.symbol}</span>}
-          </div>
-          <span className="hint">balance {balance.data !== undefined ? <>{coinText(balance.data, dec, coin.symbol)}{rate !== null ? ` · ${approxUsd(balance.data, dec, rate)}` : ""}</> : "…"}</span>
+            {!inUsd && <span className="house-amt-alt">{coin.symbol}</span>}
+          </label>
+          <div className="house-row dimmer"><span>Balance</span><b className="num">{balance.data !== undefined ? <>{coinText(balance.data, dec, coin.symbol)}{rate !== null ? ` · ${approxUsd(balance.data, dec, rate)}` : ""}</> : "…"}</b></div>
         </div>
-        {/* The order, on paper, as a deposit on the round page reads. */}
-        {!!seed && !!gross && (
-          <div className="ticket-paper" role="group" aria-label="Your seed">
-            <div className="tp-head"><span>Your seed</span><b className="mono">the ${coin.symbol} house, {nyWhen(settlesAt, { weekday: "short", month: "short", day: "numeric" })}</b></div>
-            <div className="tp-row"><span>You pay</span><i /><b className="mono">{coinText(gross, dec, coin.symbol)}{rate !== null && <span className="tp-usd">{approxUsd(gross, dec, rate)}</span>}</b></div>
-            {gross !== seed && <div className="tp-row tp-small"><span>with the coin's {(mint.data?.report.transferFee?.bps ?? 0) / 100}% transfer fee</span></div>}
-            <div className="tp-win">
-              <div className="tp-win-top"><span>Your share</span><em className="mono">first in</em></div>
-              <b className="mono">100%</b>
-              <div className="tp-note">90% of every fee goes to the house.</div>
-            </div>
-          </div>
-        )}
-        {!!seed && rising && <Notice tone="warn" title="Transfer fee rising">The coin's issuer has set its transfer fee to rise to {next!.bps / 100}%. If that happens before this goes through, it fails and nothing moves.</Notice>}
-        {balance.data !== undefined && !!seed && !!gross && balance.data < gross && <Notice tone="stop" title={`Not enough ${coin.symbol}`}>You hold {fmtCompact(balance.data, dec)}; this needs {fmtCompact(gross, dec)}. On devnet, get <b>test coins</b> in the header first.</Notice>}
-        <button className="primary" disabled={!publicKey || !seed || !mint.data || send.isPending || (balance.data !== undefined && !!gross && balance.data < gross)} onClick={start}>
-          {!publicKey ? "Connect a wallet" : send.isPending ? "Funding…" : `Fund the round${seed ? ` with ${coinText(seed, dec, coin.symbol)}` : ""}`}
-        </button>
-        <p className="ts-rent" title={`Account rent for the round, not a payment: about 0.009 SOL comes back when you claim your deposit, the rest when the round closes.${isDevnet ? " Devnet SOL: set your wallet to devnet." : ""}`}>+ about 0.026 {isDevnet ? "devnet " : ""}SOL rent, returned to you later</p>
+
+        {!!seed && !!gross && <div className="house-modal-sum">
+          <div className="house-row"><span>You pay</span><b className="num">{coinText(gross, dec, coin.symbol)}{rate !== null && <small className="dimmer"> {approxUsd(gross, dec, rate)}</small>}</b></div>
+          {gross !== seed && <div className="house-row dimmer"><span>Includes the {(mint.data?.report.transferFee?.bps ?? 0) / 100}% transfer fee</span></div>}
+          <div className="house-row"><span>Your share</span><b className="num">100%, first in</b></div>
+          <div className="house-row dimmer"><span>Your cut</span><b className="up">90% of every fee</b></div>
+        </div>}
+        {!!seed && rising && <p className="house-note taxi">The issuer will raise the transfer fee to {next!.bps / 100}%. If that comes first, this fails and nothing moves.</p>}
+        {short && <p className="house-note down">Not enough {coin.symbol}: you hold {fmtCompact(balance.data!, dec)}, this needs {fmtCompact(gross!, dec)}.{isDevnet ? " Get test coins with Faucet in the header." : ""}</p>}
+        {!publicKey ? <button className="btn btn-block" onClick={() => modal.setVisible(true)}>Connect a wallet</button>
+          : <button className="btn btn-block" disabled={!seed || !mint.data || send.isPending || short} onClick={start}>
+              {send.isPending ? "Funding…" : `Fund the round${seed ? ` with ${coinText(seed, dec, coin.symbol)}` : ""}`}
+            </button>}
+        <p className="house-risk" title={`Account rent for the round, not a payment: about 0.009 SOL comes back when you claim your deposit, the rest when the round closes.${isDevnet ? " Devnet SOL: set your wallet to devnet." : ""}`}>Plus about 0.026 {isDevnet ? "devnet " : ""}SOL rent, returned to you later</p>
       </section>
     </div>
   );

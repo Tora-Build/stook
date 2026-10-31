@@ -3,8 +3,8 @@
 // money is in a round, deposits and withdrawals wait for the bell and go
 // through at the price the round leaves.
 import { useState } from "react";
-import { useConnection, useWallet } from "@solana/wallet-adapter-react";
-import { useQuery } from "@tanstack/react-query";
+import { useWallet } from "@solana/wallet-adapter-react";
+import { useWalletModal } from "@solana/wallet-adapter-react-ui";
 import type { PublicKey } from "@solana/web3.js";
 import { stook } from "@sooth/sdk-solana";
 import { fmtCompact, parseAmount } from "../lib/format";
@@ -12,22 +12,18 @@ import { ataOf, ensureAta } from "../lib/chain";
 import { useBalance, useMint, useSend } from "../hooks/useChain";
 import { Notice } from "./Notice";
 import { nyWhen } from "../lib/time";
+import { isDevnet } from "../lib/coins";
+import { useHouseRead } from "../hooks/useHouse";
 
 interface Props { series: PublicKey; mint: PublicKey; symbol: string; /** Inside another panel (the round's ticket): no frame of its own. */ bare?: boolean }
 
 export function HousePanel(p: Props) {
-  const { connection } = useConnection();
   const { publicKey } = useWallet();
+  const { setVisible } = useWalletModal();
   const house = stook.deriveHouse(p.series);
   const info = useMint(p.mint).data;
-  const read = useQuery({
-    queryKey: ["house", house.toBase58(), publicKey?.toBase58()],
-    queryFn: async () => {
-      const [h, s] = await connection.getMultipleAccountsInfo([house, ...(publicKey ? [stook.deriveHouseStake(house, publicKey)] : [])]);
-      return { h: h ? stook.decodeHouse(h.data) : null, s: s ? stook.decodeHouseStake(s.data) : null };
-    },
-    refetchInterval: 15_000,
-  });
+  // The same read (and query key) as the coin page's house box.
+  const read = useHouseRead(p.series);
   const balance = useBalance(p.mint, info?.tokenProgram);
   const [text, setText] = useState("100");
   const deposit = useSend("Deposit");
@@ -62,7 +58,7 @@ export function HousePanel(p: Props) {
   return (
     <section className={p.bare ? "" : "panel"}>
       <h3>The {p.symbol} house</h3>
-      <p className="hint">One pool that funds every {p.symbol} round, one after another, from one vault: rolling to the next round moves no coins. Each round gets as much as its trading can carry, and the rest waits. Deposit once and stay in; 90% of every trading fee goes to the house.</p>
+      <p className="hint">It funds every {p.symbol} round and keeps 90% of the fees. Deposit once and stay in.</p>
       <div className="ticket-paper" role="group" aria-label="The house">
         <div className="tp-row"><span>The house holds</span><i /><b className="mono">{coin(capital)}</b></div>
         {busy && <div className="tp-row tp-small"><span>in today's round</span><i /><b className="mono">{coin(h.inRound)}</b></div>}
@@ -103,10 +99,10 @@ export function HousePanel(p: Props) {
         <span className="hint">{!publicKey ? "Connect a wallet to see your balance" : <>balance {balance.data !== undefined ? coin(balance.data) : "…"}</>}</span>
       </div>
       {fee && gross !== null && amount !== null && gross > amount && <span className="hint">You send {coin(gross)}: the coin's {(fee.bps / 100).toFixed(0)}% transfer fee comes on top, once.</span>}
-      {busy && <Notice tone="info" title="The house is in today's round">Your deposit waits for the bell and joins at the price the round leaves. You can take it back until then.</Notice>}
-      {short && <Notice tone="stop" title={`Not enough ${p.symbol}`}>On devnet, get <b>test coins</b> in the header.</Notice>}
-      <button className="primary" disabled={!publicKey || !amount || short || deposit.isPending}
-        onClick={() => publicKey && ata && amount && deposit.mutate([ensureAta(p.mint, publicKey, info.tokenProgram), stook.houseDepositIx(refs, publicKey, ata, amount, epoch, stook.maxGrossFor(amount, [fee]))])}>
+      {busy && <span className="hint">The house is in today's round: your deposit joins at the bell. You can take it back until then.</span>}
+      {short && <Notice tone="stop" title={`Not enough ${p.symbol}`}>{isDevnet ? <>Get <b>test coins</b> with Faucet in the header.</> : <>Your wallet holds less than this deposit.</>}</Notice>}
+      <button className="primary" disabled={!!publicKey && (!amount || short || deposit.isPending)}
+        onClick={() => !publicKey ? setVisible(true) : ata && amount && deposit.mutate([ensureAta(p.mint, publicKey, info.tokenProgram), stook.houseDepositIx(refs, publicKey, ata, amount, epoch, stook.maxGrossFor(amount, [fee]))])}>
         {!publicKey ? "Connect a wallet" : deposit.isPending ? "Sending…" : `Deposit ${amount ? coin(amount) : `0 ${p.symbol}`}`}
       </button>
     </section>

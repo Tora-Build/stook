@@ -1,0 +1,264 @@
+/* The house page (/c/:symbol): pages/Coin.tsx and components/house/*.
+   Loaded after tokens.css and shell.css. 8px grid; every class starts with
+   house- (the calendar's day cells use hc-). */
+
+.house { width: 100%; display: flex; flex-direction: column; }
+
+/* ── hero: the night city, the house's tower lit ─────────────────────── */
+.house-hero { position: relative; height: 360px; margin-top: calc(-1 * var(--header-h)); overflow: hidden; flex: none; }
+.house-hero-city { position: absolute; inset: 0; }
+.house-hero-in { position: relative; z-index: 2; padding-top: 120px; }
+.house-kick { font-size: 12px; }
+.house-hero h1 { font-size: 60px; letter-spacing: -2px; margin: 16px 0 8px; }
+.house-hero-line { margin: 0; font-size: 20px; font-weight: 600; color: var(--ink2); }
+.house-hero-line b { color: var(--taxi); font-weight: 800; }
+.house-coin { display: inline-flex; align-items: center; gap: 8px; margin-top: 24px; height: 40px; padding: 0 16px 0 8px; border-radius: 20px; background: rgba(17, 27, 49, .8); border: 1px solid var(--line); font-size: 14px; font-weight: 600; color: var(--text); }
+.house-logos { display: inline-flex; margin-right: 4px; }
+.house-logos img { width: 24px; height: 24px; border-radius: 50%; object-fit: cover; border: 2px solid var(--card); background: var(--card); }
+.house-logos img + img { margin-left: -8px; }
+.house-sign { position: absolute; z-index: 1; font-size: 14px; line-height: 1; color: var(--on-taxi); background: var(--taxi); padding: 10px 12px; box-shadow: 0 0 32px rgba(255, 198, 41, .45); white-space: nowrap; }
+/* the header stays dark in day theme, and so does the picture it sits on */
+:root[data-theme="day"] .house-coin { background: rgba(255, 255, 255, .8); }
+
+/* ── the body: main column and a 400px side column ─────────────────────── */
+.house-body { position: relative; z-index: 2; margin-top: 0; }
+.house-grid { display: grid; grid-template-columns: minmax(0, 1fr) 400px; gap: 24px; align-items: start; }
+.house-main { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+.house-side { display: flex; flex-direction: column; gap: 16px; position: sticky; top: 16px; }
+.house-missing { padding: 48px var(--gutter); }
+
+/* notices, in the new card look */
+.house .notice { display: flex; gap: 16px; align-items: flex-start; padding: 16px 24px; margin: 0 0 16px; border-radius: var(--r-md); background: var(--card); border: 1px solid var(--line); box-shadow: none; color: var(--text); font-family: var(--sans); }
+.house .notice-sign { flex: none; width: 24px; height: 24px; border-radius: 50%; display: grid; place-items: center; font: 800 13px var(--sans); background: var(--now-soft); color: var(--now); border: 0; box-shadow: none; }
+.house .notice-warn .notice-sign { background: var(--taxi-soft); color: var(--taxi); }
+.house .notice-stop .notice-sign { background: var(--down-soft); color: var(--down); }
+.house .notice-warn { border-color: rgba(255, 198, 41, .35); }
+.house .notice-stop { border-color: rgba(255, 107, 94, .4); }
+.house .notice-body { display: flex; flex-direction: column; gap: 4px; font-size: 14px; line-height: 1.5; color: var(--ink2); }
+.house .notice-body b { color: var(--text); font-size: 15px; font-weight: 700; font-family: var(--sans); }
+.house-main .house-notice { margin: 0; }
+
+/* ── stat tiles ───────────────────────────────────────────────────────── */
+.house-tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; }
+.house-tile { padding: 24px; min-height: 136px; }
+.house-tile .label { text-transform: uppercase; font-size: 12px; letter-spacing: .6px; }
+.house-tile-v { font-size: 40px; line-height: 1.1; font-weight: 800; letter-spacing: -1px; margin-top: 8px; }
+.house-tile-s { display: flex; flex-wrap: wrap; gap: 4px 16px; margin-top: 8px; font-size: 13px; font-weight: 500; color: var(--ink3); }
+.house-tiles-wait .card { height: 136px; background: var(--card); opacity: .6; }
+
+/* ── today's round + the 24h chart ────────────────────────────────────── */
+.house-today { display: grid; grid-template-columns: minmax(0, 5fr) minmax(0, 6fr); gap: 0; padding: 0; overflow: hidden; }
+.house-today-solo { display: block; padding: 24px; }
+.house-today-main { padding: 24px; display: flex; flex-direction: column; gap: 16px; border-right: 1px solid var(--line); }
+.house-today-side { padding: 24px; min-width: 0; }
+.house-today-top { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.house-today-top .label { text-transform: uppercase; font-size: 12px; letter-spacing: .6px; }
+.house-tag-down { color: var(--down); }
+.house-today-title { margin: 0; font-size: 28px; line-height: 1.15; letter-spacing: -.6px; }
+.house-today-count { display: flex; flex-direction: column; gap: 8px; }
+.house-today-count .count { font-size: 24px; }
+.house-today-times { display: flex; gap: 16px; flex-wrap: wrap; font-size: 13px; color: var(--ink3); font-weight: 500; }
+.house-today-times b { color: var(--ink2); font-weight: 700; margin-right: 4px; }
+.house-today-nums { display: flex; gap: 32px; padding-top: 16px; border-top: 1px solid var(--line); }
+.house-today-nums > div { display: flex; flex-direction: column; gap: 4px; }
+.house-today-nums .label { text-transform: uppercase; font-size: 12px; letter-spacing: .6px; }
+.house-today-nums b { font-size: 22px; font-weight: 800; letter-spacing: -.4px; }
+.house-today-nums small { font-size: 12px; font-weight: 500; }
+.house-today-line { margin: 0; font-size: 14px; color: var(--ink2); }
+.house-today-cta { margin-top: auto; padding-top: 8px; }
+.house-today-cta .btn { min-width: 200px; }
+
+.house-chart { display: flex; flex-direction: column; height: 100%; }
+.house-chart-head { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; margin-bottom: 16px; }
+.house-chart-head .label { text-transform: uppercase; font-size: 12px; letter-spacing: .6px; }
+.house-chart-head b { font-size: 15px; font-weight: 800; }
+.house-chart-svg { display: block; width: 100%; height: auto; overflow: visible; }
+.house-chart-grid { stroke: var(--line); stroke-dasharray: 3 5; }
+.house-chart-line { fill: none; stroke-width: 2.5; stroke-linejoin: round; stroke-linecap: round; }
+.house-chart-line.up { stroke: var(--up); } .house-chart-line.down { stroke: var(--down); }
+.house-chart-dot.up { fill: var(--up); } .house-chart-dot.down { fill: var(--down); }
+.house-chart-lbl { fill: var(--ink3); font: 600 12px var(--sans); font-variant-numeric: tabular-nums; }
+.house-chart-lbl.live { fill: var(--text); font-weight: 800; }
+.house-chart-empty { flex: 1; min-height: 200px; display: grid; place-items: center; font-size: 14px; font-weight: 600; border: 1px dashed var(--line); border-radius: var(--r-md); }
+
+/* ── section head ─────────────────────────────────────────────────────── */
+.house-sec { display: flex; flex-direction: column; gap: 16px; margin-top: 32px; scroll-margin-top: 24px; }
+.house-sec-head { display: flex; align-items: baseline; gap: 16px; flex-wrap: wrap; }
+.house-sec-head h2 { margin: 0; font-size: 24px; }
+.house-sec-head span { font-size: 14px; font-weight: 500; }
+.house-empty { margin: 0; padding: 24px 0; font-size: 14px; font-weight: 600; text-align: center; }
+
+/* ── the calendar ─────────────────────────────────────────────────────── */
+.house-cal-card { padding: 24px; }
+.house-cal-head { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 16px; }
+.house-cal-head h3 { margin: 0; font: 800 20px/1.2 var(--sans); letter-spacing: -.3px; color: var(--text); }
+.house-cal-head h3 .dimmer { font-weight: 600; }
+.house-cal-nav { display: flex; gap: 8px; }
+.house-cal-arrow { width: 40px; padding: 0; font-size: 20px; }
+.house-cal-grid { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 8px; }
+.house-cal-dow { padding: 0 8px 4px; font-size: 12px; font-weight: 600; letter-spacing: .6px; text-transform: uppercase; color: var(--ink3); }
+
+.hc-cell {
+  position: relative; min-height: 112px; padding: 8px 8px 8px 12px; border-radius: var(--r-sm);
+  display: flex; flex-direction: column; gap: 4px; text-align: left;
+  background: var(--bg2); border: 1px solid var(--line); color: var(--text);
+  font: 500 13px/1.3 var(--sans); text-decoration: none; min-width: 0;
+}
+button.hc-cell { cursor: pointer; }
+button.hc-cell:disabled { cursor: not-allowed; opacity: .6; }
+a.hc-cell:hover, button.hc-cell:not(:disabled):hover { border-color: var(--line2); background: var(--card2); text-decoration: none; color: var(--text); }
+.hc-blank { background: none; border-color: transparent; }
+.hc-quiet { background: none; }
+.hc-quiet .hc-num { color: var(--ink3); }
+.hc-today { border-color: var(--taxi); box-shadow: inset 0 0 0 1px var(--taxi); }
+.hc-today .hc-num { color: var(--taxi); }
+.hc-slot { border-style: dashed; }
+.hc-top { display: flex; align-items: center; justify-content: space-between; gap: 4px; }
+.hc-num { font-size: 15px; font-weight: 800; font-variant-numeric: tabular-nums; }
+.hc-tag { font-size: 11px; font-weight: 700; color: var(--ink3); text-transform: capitalize; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.hc-tag.up { color: var(--up); } .hc-tag.taxi { color: var(--taxi); } .hc-tag.down { color: var(--down); }
+.hc-mid { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.hc-mid b { font-size: 14px; font-weight: 800; letter-spacing: -.2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.hc-sub { font-size: 12px; color: var(--ink3); }
+.hc-fund { font-size: 13px; font-weight: 700; color: var(--taxi); }
+.hc-foot { margin-top: auto; display: flex; flex-direction: column; gap: 4px; }
+.hc-left { font-size: 11px; font-weight: 600; color: var(--now); }
+.hc-mine { align-self: flex-start; max-width: 100%; font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 8px; background: var(--taxi-soft); color: var(--taxi); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+:root[data-theme="day"] .hc-mine, :root[data-theme="day"] .hc-fund, :root[data-theme="day"] .hc-tag.taxi { color: #8a6200; }
+
+/* ── the deposit box ──────────────────────────────────────────────────── */
+.house-box { padding: 24px; display: flex; flex-direction: column; gap: 16px; scroll-margin-top: 24px; }
+.house-tabs { display: flex; width: 100%; }
+.house-tabs button { flex: 1; height: 44px; font-size: 15px; font-weight: 700; }
+.house-amt { display: flex; align-items: center; gap: 4px; height: 76px; padding: 0 16px 0 20px; border-radius: var(--r-md); background: var(--bg2); border: 1px solid var(--line); cursor: text; }
+.house-amt:focus-within { border-color: var(--taxi); }
+.house-amt-sign { font-size: 32px; font-weight: 800; color: var(--text); }
+.house-amt input { flex: 1; min-width: 0; height: 100%; border: 0; outline: none; background: none; color: var(--text); font: 800 32px var(--sans); letter-spacing: -.5px; font-variant-numeric: tabular-nums; padding: 0; }
+.house-amt input::placeholder { color: var(--ink3); }
+.house-amt-alt { flex: none; max-width: 50%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; border: 0; background: none; padding: 8px; border-radius: 8px; font: 600 14px var(--sans); color: var(--ink3); font-variant-numeric: tabular-nums; cursor: pointer; }
+button.house-amt-alt:not(:disabled):hover { color: var(--text); background: var(--card2); }
+button.house-amt-alt:disabled { cursor: default; }
+.house-amt-read { cursor: default; }
+.house-amt-val { flex: 1; font-size: 32px; font-weight: 800; letter-spacing: -.5px; }
+.house-box .chips .chip:disabled { opacity: .45; cursor: not-allowed; }
+.house-row { display: flex; align-items: baseline; justify-content: space-between; gap: 16px; font-size: 14px; font-weight: 600; }
+.house-row b { font-weight: 700; color: var(--text); text-align: right; }
+.house-row.dimmer b { color: var(--ink2); }
+.house-note { margin: 0; font-size: 13px; line-height: 1.45; font-weight: 600; color: var(--ink2); padding: 12px 16px; border-radius: var(--r-sm); background: var(--bg2); border: 1px solid var(--line); }
+.house-note.now { color: var(--now); background: var(--now-soft); border-color: transparent; }
+.house-note.down { color: var(--down); background: var(--down-soft); border-color: transparent; }
+.house-note.taxi { color: var(--taxi); background: var(--taxi-soft); border-color: transparent; }
+.house-box .btn-block { height: 60px; font-size: 18px; }
+.house-risk { margin: -4px 0 0; text-align: center; font-size: 13px; font-weight: 600; color: var(--ink3); }
+.house-box-wait { min-height: 200px; }
+.house-box-wait p { margin: 0; font-size: 14px; font-weight: 600; }
+.house-hand h3 { margin: 0; font: 800 24px/1.2 var(--sans); letter-spacing: -.4px; color: var(--text); }
+.house-hand p { margin: 0; font-size: 14px; line-height: 1.5; }
+
+/* your share */
+.house-yours { padding: 24px; display: flex; flex-direction: column; gap: 8px; }
+.house-yours .label { text-transform: uppercase; font-size: 12px; letter-spacing: .6px; }
+.house-yours-v { font-size: 36px; line-height: 1.1; font-weight: 800; letter-spacing: -1px; }
+.house-yours-list { display: flex; flex-direction: column; gap: 8px; margin-top: 8px; padding-top: 16px; border-top: 1px solid var(--line); }
+.house-yours-act { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px; }
+.house-yours-act .btn { flex: 1; }
+
+/* ── the coin's facts ─────────────────────────────────────────────────── */
+.house-cf { padding: 8px 24px 24px; }
+.house-cf-row { display: flex; align-items: center; justify-content: space-between; gap: 16px; min-height: 48px; border-bottom: 1px solid var(--line); }
+.house-cf-row .label { text-transform: uppercase; font-size: 12px; letter-spacing: .6px; }
+.house-cf-v { display: flex; align-items: baseline; gap: 8px; }
+.house-cf-v b { font-size: 16px; font-weight: 800; }
+.house-cf-v em { font-style: normal; font-size: 13px; font-weight: 700; }
+.house-cf-addr { display: flex; flex-direction: column; gap: 8px; margin-top: 16px; }
+.house .addr { display: flex; align-items: center; gap: 8px; font-size: 13px; }
+.house .addr-label { flex: 1; min-width: 0; color: var(--ink3); font-weight: 600; font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.house .addr-val { height: 32px; padding: 0 12px; border-radius: 10px; border: 1px solid var(--line); background: var(--bg2); color: var(--ink2); font: 600 13px var(--sans); font-variant-numeric: tabular-nums; cursor: pointer; box-shadow: none; }
+.house .addr-val:hover { color: var(--text); border-color: var(--line2); }
+.house .addr-link { width: 32px; height: 32px; display: grid; place-items: center; border-radius: 10px; border: 1px solid var(--line); color: var(--ink2); text-decoration: none; font-weight: 700; }
+.house .addr-link:hover { color: var(--text); border-color: var(--line2); text-decoration: none; }
+
+/* ── the fund-a-round modal ───────────────────────────────────────────── */
+.house-modal-back { position: fixed; inset: 0; z-index: 85; background: rgba(5, 8, 16, .78); display: grid; place-items: center; padding: 16px; overflow-y: auto; }
+.house-modal { width: 100%; max-width: 480px; padding: 24px; display: flex; flex-direction: column; gap: 16px; box-shadow: var(--shadow-pop); }
+.house-modal-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; }
+.house-modal-head h3 { margin: 8px 0 0; font: 800 20px/1.3 var(--sans); color: var(--text); letter-spacing: -.3px; }
+.house-modal-x { width: 40px; padding: 0; font-size: 20px; }
+.house-modal-times { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.house-modal-times > div { display: flex; flex-direction: column; gap: 4px; padding: 12px; border-radius: var(--r-sm); background: var(--bg2); border: 1px solid var(--line); }
+.house-modal-times .label { font-size: 12px; }
+.house-modal-times b { font-size: 13px; font-weight: 700; }
+.house-modal-field { display: flex; flex-direction: column; gap: 8px; }
+.house-modal-field .house-row { align-items: center; }
+.house-modal-sum { display: flex; flex-direction: column; gap: 8px; padding: 16px; border-radius: var(--r-md); background: var(--bg2); border: 1px solid var(--line); }
+.house-modal .btn-block { height: 56px; }
+
+/* ── narrower screens ─────────────────────────────────────────────────── */
+@media (max-width: 1180px) {
+  .house-grid { grid-template-columns: minmax(0, 1fr) 360px; }
+  .house-today { grid-template-columns: minmax(0, 1fr); }
+  .house-today-main { border-right: 0; border-bottom: 1px solid var(--line); }
+}
+@media (max-width: 1023px) {
+  .house-grid { grid-template-columns: minmax(0, 1fr); }
+  .house-side { position: static; order: -1; }
+  .house-hero h1 { font-size: 48px; }
+}
+@media (max-width: 640px) {
+  .house-hero { height: 400px; }
+  .house-hero-in { padding-top: calc(var(--header-h) + 32px); }
+  .house-hero h1 { font-size: 40px; letter-spacing: -1px; margin: 8px 0; }
+  .house-hero-line { font-size: 16px; }
+  .house-sign { display: none; }
+  .house-tiles { grid-template-columns: 1fr 1fr; gap: 8px; }
+  .house-tile { padding: 16px; min-height: 0; }
+  .house-tile-v { font-size: 28px; }
+  .house-today-main, .house-today-side { padding: 16px; }
+  .house-cal-card { padding: 16px 8px; }
+  .house-cal-head { padding: 0 8px; }
+  .house-cal-grid { gap: 4px; }
+  .house-cal-dow { padding: 0 2px 4px; font-size: 10px; text-align: center; }
+  .hc-cell { min-height: 64px; padding: 4px; border-radius: 8px; }
+  .hc-tag, .hc-sub, .hc-left, .hc-fund { display: none; }
+  .hc-mid b { font-size: 10px; }
+  .hc-mine { font-size: 0; padding: 0; width: 8px; height: 8px; border-radius: 50%; background: var(--taxi); }
+  .house-box, .house-yours, .house-modal { padding: 16px; }
+  .house-cf { padding: 8px 16px 16px; }
+}
+.house-unit { font-size: .5em; font-weight: 700; letter-spacing: 0; color: var(--ink3); margin-left: 8px; }
+.house-tile-v.up .house-unit { color: inherit; opacity: .7; }
+.hc-quiet { border-color: rgba(34, 49, 79, .5); }
+@media (max-width: 640px) {
+  .house-tiles .house-tile:last-child:nth-child(odd) { grid-column: 1 / -1; }
+  .house-hero-city::after { background: linear-gradient(90deg, color-mix(in srgb, var(--bg) 90%, transparent) 0%, color-mix(in srgb, var(--bg) 70%, transparent) 70%, color-mix(in srgb, var(--bg) 30%, transparent) 100%); }
+  .house-today-top .label { font-size: 11px; }
+}
+.hc-cell { min-height: 96px; }
+.hc-none { opacity: .6; }
+/* the chart's head lines up with the round's top row */
+.house-today-side { display: flex; flex-direction: column; justify-content: flex-start; }
+.house-today-side .house-chart { height: auto; }
+.house-today-top, .house-chart-head { min-height: 28px; }
+.house-chart-head { align-items: center; }
+.house-chart-note { margin: -8px 0 16px; font-size: 13px; font-weight: 600; color: var(--now); }
+.house-cf-row .label.house-cf-tick { text-transform: none; letter-spacing: 0; }
+
+/* phone: house numbers first, then the deposit box, then the round */
+@media (max-width: 1023px) {
+  .house-grid { display: flex; flex-direction: column; align-items: stretch; gap: 16px; }
+  .house-main, .house-side { display: contents; }
+  .house-grid > *, .house-main > *, .house-side > * { min-width: 0; max-width: 100%; }
+  .house-main > .house-notice { order: 0; }
+  .house-tiles { order: 1; }
+  .house-side > .house-box { order: 2; }
+  .house-yours { order: 3; }
+  .house-today { order: 4; }
+  .house-sec { order: 5; margin-top: 16px; }
+  .house-cf { order: 6; }
+}
+@media (max-width: 640px) {
+  .house-hero-line { max-width: 15em; text-shadow: 0 2px 8px var(--bg); }
+  .house-hero h1 { text-shadow: 0 2px 12px var(--bg); }
+}
+@media (max-width: 640px) { .hc-cell { min-height: 64px; } }
+:root[data-theme="day"] .house-hero-line b { color: #8a6200; }

@@ -62,12 +62,12 @@ function useFollow(find: () => Found | null, card: React.RefObject<HTMLElement>,
     const frame = () => {
       raf = requestAnimationFrame(frame);
       const vw = window.innerWidth, vh = window.innerHeight;
-      const dragging = opts.hideWhileDragging && !!document.querySelector(".tw-dragging");
+      const dragging = opts.hideWhileDragging && !!document.querySelector(".tc-dragging");
       const found = dragging ? null : f.current();
       let hole: Box | null = null, docked = false;
       if (found) {
         // The phone's call bar sits over the page: a target behind it is cut off where the bar starts.
-        const bar = document.querySelector(".tw-mbar"), inBar = !!bar && bar.contains(found.el);
+        const bar = document.querySelector(".trade-mbar"), inBar = !!bar && bar.contains(found.el);
         docked = inBar;
         const floor = bar && !inBar && visible(bar) ? bar.getBoundingClientRect().top : vh;
         const b = found.box, p = opts.pad;
@@ -89,7 +89,7 @@ function useFollow(find: () => Found | null, card: React.RefObject<HTMLElement>,
 /** Brings a target into view once, if it is not already. */
 function showTarget(found: Found | null) {
   if (!found) return;
-  const bar = document.querySelector(".tw-mbar"), inBar = !!bar && bar.contains(found.el);
+  const bar = document.querySelector(".trade-mbar"), inBar = !!bar && bar.contains(found.el);
   if (inBar) return;
   const floor = bar && visible(bar) ? bar.getBoundingClientRect().top : window.innerHeight;
   const b = found.box;
@@ -140,35 +140,33 @@ export function TowerGuide(p: { step: number; go: (n: number) => void; bell: str
   let find: () => Found | null, text: string, foot: ReactNode, key = String(p.step);
   const skip = <button className="sl-skip" onClick={done}>Skip</button>;
   if (p.step === 1) {
-    find = () => one(".tw-sc");
-    text = `Each floor is where the price could stop at ${p.bell}. Tap one.`;
+    find = () => one(".tc-sc");
+    text = `Each row is a price it could close at, at ${p.bell}. Pick one.`;
     foot = <><button className="sl-go" onClick={() => p.go(2)}>Next</button>{skip}</>;
   } else if (p.step === 2) {
     find = () => {
-      const sc = document.querySelector(".tw-sc"); if (!sc) return null;
-      const fls = [...sc.querySelectorAll<HTMLElement>(".tw-fl")];
-      const b = p.floorBin;
-      const rows = b !== null ? fls.filter((f) => Number(f.dataset.a) <= b && b <= Number(f.dataset.b)) : fls.filter((f) => f.classList.contains("in"));
-      const box = around(rows.flatMap((f) => [...f.querySelectorAll(".tw-wn, .tw-co, .tw-pc")]), sc);
+      const sc = document.querySelector(".tc-sc"); if (!sc) return null;
+      const rows = [...sc.querySelectorAll<HTMLElement>(".tc-fl.in")];
+      const box = around(rows, sc);
       return rows[0] && box ? { el: rows[0], box } : null;
     };
-    text = "Lit windows: the crowd's odds. Gold coins: what you'd win.";
+    text = "The gold band is your call. The bars on the right are the crowd's odds.";
     foot = <><button className="sl-go" onClick={() => p.go(3)}>Next</button>{skip}</>;
   } else if (p.step === 3) {
     find = () => {
-      if (p.narrow) { document.querySelector<HTMLButtonElement>(".tw-mbar-unfold")?.click(); return one('[data-coach="sure-m"]'); }
+      if (p.narrow) { document.querySelector<HTMLButtonElement>(".trade-mbar-unfold")?.click(); return one('[data-coach="sure-m"]'); }
       return one('[data-coach="sure"]');
     };
-    text = "Sure pays more, but has to land closer. Try one.";
+    text = "Tight pays more, but has to land closer. Try one.";
     foot = <><button className="sl-go" onClick={() => p.go(4)}>Next</button>{skip}</>;
   } else {
     key = `4${p.wallet}`;
     if (p.wallet === "none") {
-      find = () => one(".top .wallet-adapter-button");
+      find = () => one(".ss-head .wallet-adapter-button");
       text = "Connect a wallet, then grab free test coins.";
       foot = <><button className="sl-go" onClick={done}>Got it</button>{how}</>;
     } else if (p.wallet === "empty") {
-      find = () => one(".top .faucet-btn");
+      find = () => one(".ss-head .ss-faucet");
       text = "Grab free test coins.";
       foot = <><button className="sl-go" onClick={done}>Got it</button>{how}</>;
     } else {
@@ -186,6 +184,17 @@ export function TowerGuide(p: { step: number; go: (n: number) => void; bell: str
   );
 }
 
+/** The guide is offered, not forced: a small card in the corner on a first
+ *  visit. Start opens the four steps; No thanks puts it away for good. */
+export function GuideOffer(p: { onStart: () => void; onSkip: () => void }) {
+  return (
+    <div className="sl-offer" role="dialog" aria-label="A quick tour">
+      <p><b>New here?</b> A four step tour of this page.</p>
+      <div className="sl-row"><button className="sl-go" onClick={p.onStart}>Show me</button><button className="sl-skip" onClick={p.onSkip}>No thanks</button></div>
+    </div>
+  );
+}
+
 // ── after the bell ──────────────────────────────────────────────────────────
 /** Once per round: whether the wallet's calls landed, beside the round's notice board. */
 export function AfterBell(p: { id: string; landed: boolean; onCollect: () => void }) {
@@ -197,7 +206,7 @@ export function AfterBell(p: { id: string; landed: boolean; onCollect: () => voi
 
 function BellNote(p: { landed: boolean; onCollect: () => void; close: () => void }) {
   const card = useRef<HTMLDivElement>(null);
-  const geo = useFollow(() => one(".tw-board") ?? one(".tw-sc"), card, { hideWhileDragging: false, pad: 2, prefer: ["below", "above", "right", "left"] });
+  const geo = useFollow(() => one(".th") ?? one(".tc-sc"), card, { hideWhileDragging: false, pad: 2, prefer: ["below", "above", "right", "left"] });
   useEffect(() => {
     const on = (e: KeyboardEvent) => { if (e.key === "Escape") p.close(); };
     window.addEventListener("keydown", on);

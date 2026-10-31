@@ -1,0 +1,278 @@
+/* The home page (pages/Markets.tsx, components/home/). Every class is .home-*. */
+
+.home { width: 100%; --page-bg: var(--bg); }
+
+/* ── hero: the night city under the header ────────────────────────────── */
+.home-hero { position: relative; height: 700px; margin-top: calc(-1 * var(--header-h)); overflow: hidden; }
+.home-city { position: absolute; inset: 0; }
+.home-city::before { content: ""; position: absolute; left: 0; right: 0; bottom: 0; height: 96px; z-index: 1; pointer-events: none; background: linear-gradient(180deg, transparent, var(--bg)); }
+/* The hero is always the night picture, so in day theme it keeps the night
+   tokens. The fade at its foot still meets the page (--page-bg, set on .home). */
+:root[data-theme="day"] .home-cd .count, :root[data-theme="day"] .home-h1 em { color: #c48a00; }
+:root[data-theme="day"] .home-today, :root[data-theme="day"] .home-cd { background: rgba(255, 255, 255, .78); }
+:root[data-theme="day"] .home-tag-edge { background: rgba(255, 255, 255, .85); color: var(--text); }
+:root[data-theme="day"] .home-hero-in .btn-ghost { background: rgba(255, 255, 255, .8); }
+.home-tower { position: absolute; inset: 0; z-index: 2; pointer-events: none; }
+.home-tower-coin { position: absolute; width: 88px; height: 88px; transform: translateX(-50%); filter: drop-shadow(0 0 24px rgba(255, 198, 41, .5)); }
+.home-tag {
+  position: absolute; transform: translateY(-50%);
+  display: inline-flex; align-items: center; height: 32px; padding: 0 12px; border-radius: var(--r-sm);
+  font-size: 14px; font-weight: 700; font-variant-numeric: tabular-nums; white-space: nowrap;
+}
+.home-tag-edge { background: rgba(8, 14, 28, .82); border: 1px solid var(--line); color: var(--ink2); }
+.home-tag-now { background: var(--now); color: #04223a; font-weight: 800; }
+
+.home-hero-in { position: relative; z-index: 3; padding-top: calc(var(--header-h) + 80px); }
+.home-today {
+  display: inline-flex; align-items: center; gap: 8px; height: 40px; padding: 0 16px 0 6px;
+  border-radius: 20px; background: rgba(17, 27, 49, .85); border: 1px solid var(--line);
+  font-size: 15px; font-weight: 700;
+}
+.home-today img { width: 28px; height: 28px; border-radius: 50%; object-fit: cover; }
+.home-today-on { color: var(--ink2); font-weight: 600; }
+.home-live, .home-locked { display: inline-flex; align-items: center; gap: 8px; margin-left: 8px; font-size: 13px; font-weight: 700; }
+.home-live { color: var(--up); }
+.home-live::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: var(--up); box-shadow: 0 0 10px var(--up); }
+.home-locked { color: var(--ink3); }
+
+.home-h1 { font-size: 72px; line-height: 1.02; font-weight: 900; letter-spacing: -2.5px; margin: 24px 0 0; max-width: 640px; }
+.home-h1 em { font-style: normal; color: var(--taxi); }
+
+.home-row { display: flex; align-items: center; gap: 32px; margin-top: 32px; }
+.home-price { font-size: 48px; line-height: 1; font-weight: 800; letter-spacing: -1px; display: flex; align-items: baseline; gap: 12px; }
+.home-price small { font-size: 18px; font-weight: 700; letter-spacing: 0; }
+.home-price-wait { color: var(--ink3); }
+.home-cd { display: flex; flex-direction: column; gap: 8px; padding: 12px 16px; border-radius: var(--r-md); background: rgba(17, 27, 49, .85); border: 1px solid var(--line); }
+.home-cd .count { font-size: 24px; }
+.home-cd-k { font-size: 12px; line-height: 1; font-weight: 700; letter-spacing: .5px; text-transform: uppercase; color: var(--ink3); }
+.home-ctas { display: flex; flex-wrap: wrap; gap: 16px; margin-top: 40px; }
+.home-ctas .btn-ghost { background: rgba(17, 27, 49, .85); }
+
+/* ── body ─────────────────────────────────────────────────────────────── */
+.home-body { padding-bottom: 0; } /* the shell footer already has 80px (48px on a phone) above it */
+.home-body h3 { margin: 0; color: var(--text); font-family: var(--sans); }
+.home-sec-sub { margin-left: 8px; font-size: 15px; font-weight: 600; letter-spacing: 0; color: var(--ink3); }
+.home-clock { display: inline-flex; gap: 8px; align-items: baseline; }
+.home-clock b { color: var(--ink2); font-weight: 700; }
+.home-chg { font-size: 14px; font-weight: 700; font-variant-numeric: tabular-nums; white-space: nowrap; }
+
+/* three steps */
+.home-steps { list-style: none; margin: 40px 0 0; padding: 0; display: grid; grid-template-columns: repeat(3, 1fr); gap: 24px; }
+.home-step { display: flex; align-items: center; gap: 24px; padding: 32px; }
+.home-step h3 { font-size: 24px; line-height: 1.2; font-weight: 800; letter-spacing: -.4px; margin-top: 8px; }
+.home-step .kicker { display: block; }
+.home-ico { width: 72px; height: 72px; border-radius: 20px; display: grid; place-items: center; flex: none; }
+.home-ico-now { background: var(--now-soft); }
+.home-ico-taxi { background: var(--taxi-soft); }
+.home-ico-up { background: var(--up-soft); }
+
+/* the tables: one card per street coin */
+.home-tables { display: grid; grid-template-columns: repeat(4, 1fr); gap: 24px; }
+.home-table { display: flex; flex-direction: column; gap: 24px; min-width: 0; }
+.home-table-head { display: flex; align-items: center; gap: 16px; min-width: 0; }
+.home-table-k { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 28px; }
+.home-table-k .tag2 { flex: none; }
+.home-body .sec a, .home-body .sec .home-clock { white-space: nowrap; }
+.home-tag-time b { color: var(--text); font-weight: 700; }
+.tag2.live.home-tag-time b { color: var(--up); }
+.home-logos { position: relative; width: 56px; height: 48px; flex: none; display: block; }
+.home-logos img { position: absolute; border-radius: 50%; object-fit: cover; background: var(--card2); }
+.home-logo-a { left: 0; top: 0; width: 44px; height: 44px; }
+.home-logo-c { right: 0; bottom: 0; width: 24px; height: 24px; border: 2px solid var(--card); }
+.home-logos-big { width: 72px; height: 64px; }
+.home-logos-big .home-logo-a { width: 60px; height: 60px; }
+.home-logos-big .home-logo-c { width: 30px; height: 30px; }
+.home-table-id { display: flex; flex-direction: column; min-width: 0; }
+.home-table-name { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: 20px; line-height: 1.2; font-weight: 800; color: var(--text); letter-spacing: -.3px; }
+.home-table-name:hover { color: var(--taxi); text-decoration: none; }
+.home-table-px { display: flex; flex-direction: column; gap: 4px; }
+.home-table-px .num-l { color: var(--text); }
+.home-table-coin { display: flex; align-items: baseline; gap: 8px; padding-top: 16px; border-top: 1px solid var(--line); font-size: 15px; font-weight: 700; }
+.home-table-coin .label { margin-right: auto; }
+.home-note { margin: -8px 0 0; font-size: 13px; color: var(--ink3); }
+.home-table-foot { display: flex; align-items: center; gap: 16px; min-height: 44px; margin-top: auto; }
+.home-more { margin-left: auto; color: var(--ink2); font-size: 14px; font-weight: 600; white-space: nowrap; }
+.home-more:hover { color: var(--text); text-decoration: none; }
+
+/* listed by communities */
+.home-listed { display: flex; flex-wrap: wrap; gap: 16px; }
+.home-chip { display: flex; align-items: center; gap: 12px; padding: 12px 16px 12px 12px; border-radius: var(--r-md); color: var(--text); }
+.home-chip:hover { text-decoration: none; }
+.home-chip img { width: 36px; height: 36px; border-radius: 50%; object-fit: cover; }
+.home-chip-id { display: flex; flex-direction: column; line-height: 1.2; }
+.home-chip-id b { font-weight: 800; }
+.home-empty { margin: 0; padding: 24px; color: var(--ink2); }
+
+/* last bells */
+.home-bells { display: grid; grid-template-columns: repeat(5, 1fr); gap: 16px; }
+.home-bell { display: flex; flex-direction: column; gap: 8px; padding: 20px 24px; }
+.home-bells-few { display: flex; flex-wrap: wrap; gap: 0; padding: 0; }
+.home-bells-few .home-bell { flex-direction: row; align-items: baseline; gap: 16px; padding: 24px 32px; }
+.home-bells-few .home-bell + .home-bell { border-left: 1px solid var(--line); }
+.home-bell-to { font-size: 14px; font-weight: 600; color: var(--ink3); font-variant-numeric: tabular-nums; }
+
+/* the street's coin and the house */
+.home-pair { display: grid; grid-template-columns: 3fr 2fr; gap: 24px; margin-top: 64px; }
+.home-sst { display: flex; flex-direction: column; gap: 24px; padding: 32px; }
+.home-sst-head { display: flex; align-items: center; gap: 16px; }
+.home-sst-head h3 { font-size: 26px; line-height: 1.2; font-weight: 800; letter-spacing: -.5px; }
+.home-sst-px { margin-left: auto; display: flex; flex-direction: column; align-items: flex-end; gap: 4px; }
+.home-facts { margin: 0; display: grid; grid-template-columns: repeat(3, auto); justify-content: start; gap: 8px 48px; }
+.home-facts div { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.home-facts dt { font-size: 13px; font-weight: 600; color: var(--ink3); }
+.home-facts dd { margin: 0; font-size: 15px; font-weight: 600; color: var(--text); }
+.home-mint { color: var(--ink2); font-variant-numeric: tabular-nums; margin-left: 4px; }
+a.home-mint { margin-left: 0; }
+.home-sst-buy { align-self: flex-start; margin-top: auto; }
+.home-house { display: flex; flex-direction: column; align-items: flex-start; gap: 8px; padding: 32px; }
+.home-house-head { display: flex; align-items: center; gap: 24px; margin-bottom: 16px; }
+.home-house-head .kicker { display: block; }
+.home-house-head h3 { margin-top: 8px; }
+.home-house h3 { font-size: 26px; line-height: 1.2; font-weight: 800; letter-spacing: -.5px; }
+.home-house p { margin: 0 0 16px; font-size: 15px; }
+.home-house .btn { margin-top: auto; }
+
+/* ── narrower screens ─────────────────────────────────────────────────── */
+@media (max-width: 1279px) {
+  .home-tables { grid-template-columns: repeat(2, 1fr); }
+  .home-bells { grid-template-columns: repeat(3, 1fr); }
+  .home-bells .home-bell:nth-child(n + 4) { display: none; }
+}
+@media (max-width: 1023px) {
+  .home-hero { height: 640px; }
+  .home-tower { display: none; }
+  .home-h1 { font-size: 56px; letter-spacing: -2px; }
+  .home-steps { grid-template-columns: 1fr; gap: 16px; }
+  .home-step { padding: 24px; }
+  .home-pair { grid-template-columns: 1fr; }
+}
+@media (max-width: 640px) {
+  .home-hero { height: auto; padding-bottom: 48px; }
+  .home-city::after { background: linear-gradient(180deg, color-mix(in srgb, var(--bg) 55%, transparent), color-mix(in srgb, var(--bg) 85%, transparent)); }
+  .home-hero-in { padding-top: calc(var(--header-h) + 32px); }
+  .home-h1 { font-size: 40px; letter-spacing: -1.2px; margin-top: 16px; }
+  .home-row { flex-wrap: wrap; gap: 16px; margin-top: 24px; }
+  .home-price { font-size: 36px; }
+  .home-price small { font-size: 15px; }
+  .home-ctas { margin-top: 32px; gap: 12px; }
+  .home-ctas .btn { flex: 1 1 100%; }
+  .home-tables { grid-template-columns: 1fr; gap: 16px; }
+  .home-bells { grid-template-columns: repeat(2, 1fr); gap: 12px; }
+  .home-bells .home-bell:nth-child(n + 4) { display: flex; }
+  .home-bells .home-bell:nth-child(n + 5) { display: none; }
+  .home-step h3 { font-size: 20px; }
+  .home-ico { width: 56px; height: 56px; border-radius: 16px; }
+  .home-sst, .home-house { padding: 24px; }
+  .home-sst-head { flex-wrap: wrap; }
+  .home-facts { grid-template-columns: 1fr; gap: 16px; }
+  .home-pair { margin-top: 40px; gap: 16px; }
+}
+
+/* ── the trading floor (components/home/FloorStage.tsx) ─────────────────
+   A dark room in either theme: the tables are screens, the board is LEDs. */
+.hf {
+  position: relative; margin-top: 56px; border-radius: var(--r); border: 1px solid #22314f;
+  padding: 24px 32px 40px; color: #f5eedb;
+  background:
+    repeating-linear-gradient(90deg, transparent 0 118px, rgba(245, 238, 219, .035) 118px 120px),
+    radial-gradient(ellipse at 50% 0%, rgba(255, 198, 41, .07), transparent 60%),
+    radial-gradient(ellipse at 50% 120%, rgba(98, 208, 255, .06), transparent 55%),
+    linear-gradient(180deg, #0d1528, #0a1020);
+  box-shadow: inset 0 1px 0 rgba(245, 238, 219, .05), 0 24px 64px rgba(0, 0, 0, .35);
+}
+.hf-board {
+  display: flex; align-items: center; justify-content: space-between; gap: 16px; height: 52px; padding: 0 20px;
+  border-radius: 14px; background: #040a07; border: 1px solid #173826;
+  box-shadow: inset 0 0 0 3px #020503, inset 0 0 24px rgba(94, 240, 160, .06);
+  font-family: var(--pix); font-size: 11px; color: #5ef0a0; text-shadow: 0 0 8px rgba(94, 240, 160, .55); white-space: nowrap;
+}
+.hf-cell { display: inline-flex; align-items: baseline; gap: 10px; }
+.hf-cell i { font-style: normal; color: #2f8a5c; text-shadow: none; font-size: 9px; }
+.hf-cell b { font-weight: 400; font-size: 13px; }
+.hf-mid { color: #3fbf7f; letter-spacing: 1px; }
+.hf-posts { position: relative; display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 40px 32px; justify-items: center; padding: 56px 8px 8px; }
+.hf-post { width: 100%; max-width: 236px; display: flex; flex-direction: column; align-items: center; gap: 28px; }
+.hf-table { position: relative; display: block; width: 100%; aspect-ratio: 1; text-decoration: none; color: inherit; }
+.hf-table:hover { text-decoration: none; }
+.hf-screen {
+  position: absolute; inset: 0; border-radius: 50%; padding: 15%;
+  display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; gap: 4px;
+  background: radial-gradient(circle at 35% 28%, #1d2742, #0a1020 72%);
+  border: 2px solid #2a3758;
+  box-shadow: inset 0 0 0 6px #070c18, inset 0 -18px 40px rgba(0, 0, 0, .45), 0 18px 40px rgba(0, 0, 0, .5), 0 0 0 1px #0a1020;
+  transition: border-color .2s ease, box-shadow .2s ease;
+}
+.hf-live .hf-screen { border-color: rgba(255, 198, 41, .45); box-shadow: inset 0 0 0 6px #070c18, inset 0 -18px 40px rgba(0, 0, 0, .45), 0 18px 40px rgba(0, 0, 0, .5), 0 0 36px rgba(255, 198, 41, .16); }
+.hf-table:hover .hf-screen { border-color: var(--taxi); }
+.hf-logos { display: inline-flex; margin-bottom: 4px; }
+.hf-logos img { width: 40px; height: 40px; border-radius: 50%; object-fit: cover; border: 2px solid #0a1020; background: #0a1020; }
+.hf-logos img + img { width: 22px; height: 22px; margin: 22px 0 0 -14px; }
+.hf-sym { font-family: var(--pix); font-size: 12px; color: var(--taxi); }
+.hf-plays { font-size: 12px; font-weight: 600; color: #8391b0; }
+.hf-px { margin-top: 6px; font-size: 24px; font-weight: 800; letter-spacing: -.5px; color: #5ef0a0; text-shadow: 0 0 14px rgba(94, 240, 160, .45); white-space: nowrap; }
+.hf-chg { font-size: 12px; font-weight: 700; color: #8391b0; min-height: 1em; }
+.hf-chg.up { color: #5ef0a0; } .hf-chg.down { color: #ff7a6b; }
+.hf .led-ring { inset: -9%; width: 118%; height: 118%; }
+.hf-foot { position: relative; z-index: 4; display: flex; align-items: center; gap: 12px; }
+.hf-foot .tag2 { background: rgba(17, 27, 49, .9); border-color: #22314f; color: #a9b4cc; }
+.hf-foot .tag2.live { color: #3ddc84; }
+.hf-foot .btn-ghost { background: rgba(17, 27, 49, .9); color: #f5eedb; border-color: #22314f; }
+/* the traders' talk: crisp cream slips, not pixel type */
+.hf .floor-bubble {
+  font-family: var(--sans); font-size: 12px; font-weight: 600; line-height: 1.35; max-width: 220px;
+  background: #f5eedb; color: #101a2e; padding: 8px 10px; border: 0; border-radius: 10px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, .45);
+}
+.hf .floor-bubble::after { border: 0; width: 8px; height: 8px; bottom: -4px; background: #f5eedb; }
+.hf .floor-bubble.below::after { top: -4px; bottom: auto; }
+@media (max-width: 640px) {
+  .hf { padding: 16px 12px 32px; margin-top: 32px; }
+  .hf-mid { display: none; }
+  .hf-posts { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 32px 16px; padding-top: 32px; }
+  .hf-post { min-width: 0; gap: 20px; }
+  .hf-foot { flex-direction: column; gap: 8px; }
+  .hf-board { padding: 0 12px; gap: 8px; overflow: hidden; }
+  .hf-cell { gap: 6px; }
+  .hf-cell-r i { font-size: 0; }
+  .hf-cell-r i::before { content: "bell in"; font-size: 9px; }
+}
+
+/* ── an empty table: the invitation to list ──────────────────────────── */
+.home-open { display: flex; align-items: center; gap: 32px; padding: 28px 32px; border-radius: var(--r); border: 1px dashed var(--line2); background: linear-gradient(90deg, var(--taxi-soft), transparent 55%), var(--card); }
+.home-open-table { flex: none; width: 104px; height: 104px; border-radius: 50%; display: grid; place-items: center; border: 2px dashed rgba(255, 198, 41, .55); background: radial-gradient(circle at 35% 28%, #1d2742, #0a1020 72%); box-shadow: 0 0 0 8px rgba(255, 198, 41, .06); }
+.home-open-table .pix { color: var(--taxi); font-size: 28px; text-shadow: 0 0 14px rgba(255, 198, 41, .6); animation: home-pulse 2.4s ease-in-out infinite; }
+@keyframes home-pulse { 50% { opacity: .45; } }
+.home-open-copy { flex: 1; min-width: 0; }
+.home-open-copy h3 { margin: 8px 0 4px; font-size: 22px; font-weight: 800; letter-spacing: -.4px; }
+.home-open-copy p { margin: 0; }
+
+/* ── the last bells, as ticket stubs ──────────────────────────────────── */
+.home-stubs { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 16px; }
+.home-stub { position: relative; display: flex; flex-direction: column; gap: 4px; padding: 20px 20px 18px; border-radius: 18px; background: var(--card); border: 1px solid var(--line);
+  -webkit-mask: radial-gradient(circle 9px at 0 62%, transparent 98%, #000) , radial-gradient(circle 9px at 100% 62%, transparent 98%, #000); -webkit-mask-composite: source-in; mask-composite: intersect; }
+.home-stub::after { content: ""; position: absolute; left: 14px; right: 14px; top: 62%; border-top: 1px dashed var(--line2); }
+.home-stub-last { border-color: rgba(255, 198, 41, .45); background: linear-gradient(180deg, var(--taxi-soft), transparent 60%), var(--card); }
+.home-stub-bell { margin-bottom: 8px; filter: drop-shadow(0 0 10px rgba(255, 198, 41, .35)); }
+.home-stub-day { font-size: 13px; font-weight: 600; color: var(--ink3); }
+.home-stub-k { margin-top: 18px; font-family: var(--pix); font-size: 9px; color: var(--ink3); }
+.home-stub-px { font-size: 26px; font-weight: 800; letter-spacing: -.5px; }
+
+/* ── the house card: the vault ────────────────────────────────────────── */
+.home-house { display: flex; align-items: center; gap: 28px; overflow: hidden; position: relative; background: radial-gradient(ellipse at 15% 100%, rgba(61, 220, 132, .14), transparent 60%), var(--card); }
+.home-vault { flex: none; width: 168px; height: auto; image-rendering: pixelated; filter: drop-shadow(0 10px 24px rgba(0, 0, 0, .4)); }
+.home-vault-coins { animation: home-bob 3s ease-in-out infinite; }
+@keyframes home-bob { 50% { transform: translateY(-1px); } }
+.home-house-copy h3 { margin: 8px 0 6px; font-size: 24px; font-weight: 800; letter-spacing: -.4px; }
+.home-house-copy p { margin: 0 0 20px; }
+.home-house-copy b { color: var(--taxi); }
+:root[data-theme="day"] .home-house-copy b { color: #8a6200; }
+@media (max-width: 1023px) { .home-stubs { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 640px) { .home-open { flex-direction: column; text-align: center; } .home-house { flex-direction: column; text-align: center; } }
+.home-pair .home-house { flex-direction: row; align-items: center; }
+.home-pair .home-sst { justify-content: space-between; }
+:root[data-theme="day"] .kicker.taxi { color: #8a6200; }
+:root[data-theme="day"] .home-open-table { background: radial-gradient(circle at 35% 28%, #1d2742, #0a1020 72%); }
+@media (max-width: 640px) {
+  .home-pair .home-house { flex-direction: column; align-items: center; text-align: center; gap: 16px; padding: 24px; }
+  .home-pair .home-vault { width: 128px; }
+}

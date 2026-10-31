@@ -1,122 +1,138 @@
-// Yours: a brokerage statement from the house on the street. Every round the
-// wallet is in, what it put where, what that is worth now or pays, and one
-// button per finished round to collect all of it. Amounts stay in each
-// round's own coin: $SSt. and $KNOTS do not add up, so they are never summed.
-import { useEffect, useMemo, useState, type ReactNode } from "react";
-import { Link, useSearchParams } from "react-router-dom";
+// Yours: a player's desk. The street with a tower lit by their open calls,
+// the four numbers that matter, then four tabs: open calls, ready to collect,
+// in the house, and every round they ever played. Amounts stay in each
+// round's own coin; dollars are an estimate at today's price, used to add
+// coins up, never sent anywhere.
+import { useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import { PublicKey } from "@solana/web3.js";
 import { useConnection, useWallet } from "@solana/wallet-adapter-react";
-import { ConnectWallet } from "../components/ConnectWallet";
-import { useQueryClient } from "@tanstack/react-query";
-import { stook } from "@sooth/sdk-solana";
-import { useHoldings, useMint, useSend } from "../hooks/useChain";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useHoldings, useSend } from "../hooks/useChain";
 import { useNow } from "../hooks/useNow";
-import { fetchMint, type Holding } from "../lib/chain";
+import { fetchMint } from "../lib/chain";
 import { collectPlan, collectTxs } from "../lib/collect";
 import { COINS, anchorOf, coinByMint } from "../lib/coins";
-import { feedByHex, feedHex } from "../lib/feeds";
-import { fmtCompact, short } from "../lib/format";
-import { Amount, approxUsd, coinText, fmtUsd, toUsd, useUsdRates } from "../lib/usd";
-import { ladderCallName } from "../lib/call";
-import { Book } from "../components/Book";
-import { Faucet } from "../components/Faucet";
-import { FAUCET_AUTHORITY_BYTES } from "../lib/config";
-import { Fold } from "../components/Fold";
-import { nyDate, nyWhen } from "../lib/time";
+import { useUsdRates } from "../lib/usd";
 import { Title } from "../components/Title";
 import { History } from "../components/History";
+import { YoursHero, type HeroNums } from "../components/yours/YoursHero";
+import { CallCard } from "../components/yours/CallCard";
+import { CollectDesk, slipOf } from "../components/yours/CollectDesk";
+import { HouseShelf } from "../components/yours/HouseShelf";
+import { Empty, FirstSteps, Invite, Skeleton, Trouble } from "../components/yours/Invite";
+import { useStakes } from "../components/yours/useStakes";
+import { PixelCall, PixelCoins } from "../components/yours/art";
+import { addTo, symOf, value, type Pot } from "../components/yours/model";
 
-type Stage = "funded" | "opening" | "void soon" | "trading" | "locked" | "settling" | "settled" | "void";
+type Tab = "calls" | "collect" | "house" | "history";
+const TABS: Tab[] = ["calls", "collect", "house", "history"];
 
-const stageOf = (l: stook.LadderAccount, now: number): Stage =>
-  l.status === "settled" ? "settled" : l.status === "void" ? "void"
-    : l.status === "seeding" ? (now < Number(l.opensAt) ? "funded" : now < Number(l.opensAt) + Number(stook.OPEN_WINDOW_SECS) && now < Number(l.locksAt) ? "opening" : "void soon")
-    : now < Number(l.locksAt) ? "trading" : now < Number(l.settlesAt) ? "locked" : "settling";
+/** Calls you can still act on first, then those waiting for the bell. */
+const order = (h: { ladder: { status: string; locksAt: bigint; settlesAt: bigint } }, now: number) =>
+  (h.ladder.status === "open" && now < Number(h.ladder.locksAt) ? 0 : now < Number(h.ladder.settlesAt) ? 1e12 : 2e12) + Number(h.ladder.settlesAt);
 
-interface Line { key: string; what: string; size: bigint; cost: bigint; value: bigint | null; kind: "line" | "house"; note?: string; fees?: bigint }
-interface Valued { lines: Line[]; ready: bigint; atWork: bigint; inHouse: bigint }
+const INTRO: Record<"calls" | "collect" | "house", string> = {
+  calls: "A live call can be sold any time before trading closes. After that it waits for the 4 PM New York bell and pays if the price lands in its range.",
+  collect: "These rounds have rung their bell. What they pay sits in the round until you collect it to your wallet.",
+  house: "The house takes the other side of every call and keeps 90% of the fees. A stake works every day's round until you withdraw.",
+};
 
-/** What each thing in a round is worth: paid out if final, sold now if trading. */
-function value(h: Holding, now: number, dp: number): Valued {
-  const l = h.ladder, final = l.status === "settled" || l.status === "void";
-  const feeBps = stook.feeBpsAt(l.feeBps, BigInt(now), l.settlesAt);
-  const lines: Line[] = [];
-  let ready = 0n, atWork = 0n, inHouse = 0n;
-  for (const r of h.positions) {
-    const p = r.position;
-    if (!final && p.shares === 0n) continue;
-    const s = p.shape;
-    const what = ladderCallName(l, dp, s);
-    let v: bigint | null = null;
-    if (final) { v = stook.owedTo(l, p); ready += v > 0n ? v : 0n; }
-    else if (l.status === "open" && now < Number(l.locksAt) && p.shares > 0n) {
-      try { v = stook.quoteTrade({ curve: l.curve, b: l.b, feeBps, decimals: l.decimals }, s, -p.shares).total; } catch { v = null; }
-    }
-    if (!final) atWork += p.netPaid;
-    lines.push({ key: r.pubkey.toBase58(), kind: "line", what, size: p.shares, cost: p.netPaid, value: v, note: final ? undefined : v === null ? "held to the bell" : "if sold now" });
-  }
-  for (const r of h.tranches) {
-    const t = r.tranche;
-    let v: bigint | null = null, note: string | undefined, fees: bigint | undefined;
-    if (l.status === "settled" && l.settledBin !== null) {
-      const k = l.settledBin, tt = stook.trancheTerms(l, t);
-      v = stook.tranchePrincipal(t.deposit, stook.tranchePnl(tt.b, tt.join.w[k]!, tt.join.sum, l.curve.w[k]!, l.curve.sum), l.decimals) + stook.trancheFees(tt.b, l.decimals, l.accFee, t.feeSnap);
-      ready += v;
-    } else if (l.status === "void") {
-      v = stook.voidShare(t.deposit, l.voidLpPot, l.depositTotal); ready += v;
-    } else {
-      inHouse += t.deposit;
-      const tt = stook.trancheTerms(l, t);
-      fees = tt.b > 0n ? stook.trancheFees(tt.b, l.decimals, l.accFee, t.feeSnap) : 0n;
-    }
-    lines.push({ key: r.pubkey.toBase58(), kind: "house", what: `house deposit #${t.index}`, size: t.deposit, cost: t.deposit, value: v, note, fees });
-  }
-  return { lines, ready, atWork, inHouse };
-}
+interface Totals { rounds: number; results?: Record<string, number>; coins: { mint: string | null; coin: string | null; decimals: number | null; net: string; owed?: string }[] }
 
 export function Yours() {
   const { publicKey: wallet } = useWallet();
-  // `?account=` reads any address's statement, read-only: holdings are public
-  // on chain, and only the connected wallet gets collect buttons.
+  // `?account=` reads any address's desk, read-only: holdings are public on
+  // chain, and only the connected wallet gets the buttons that send.
   const [params, setParams] = useSearchParams();
-  // Two tabs: what the wallet holds now, and every round it played (?tab=history).
-  const tab = params.get("tab") === "history" ? "history" : "holdings";
-  const setTab = (t: "holdings" | "history") => { const p = new URLSearchParams(params); if (t === "history") p.set("tab", "history"); else p.delete("tab"); setParams(p, { replace: true }); };
   const viewed = useMemo(() => { try { const a = params.get("account"); return a ? new PublicKey(a) : null; } catch { return null; } }, [params]);
   const publicKey = viewed ?? wallet;
   const own = !!wallet && !!publicKey && wallet.equals(publicKey);
   const now = useNow();
   const holdings = useHoldings(publicKey ?? null);
+  const stakesQ = useStakes(publicKey ?? null);
+  const stakes = stakesQ.data ?? [];
   const rates = useUsdRates().data ?? {};
-  const rounds = [...(holdings.data ?? [])].sort((a, b) => Number(a.ladder.settlesAt - b.ladder.settlesAt));
-  const byCoin = new Map<string, { dec: number; ready: bigint; atWork: bigint; inHouse: bigint }>();
-  for (const h of rounds) {
-    const c = coinByMint(h.ladder.quoteMint)?.symbol ?? "tokens", v = value(h, now, 2);
-    const t = byCoin.get(c) ?? { dec: h.ladder.decimals, ready: 0n, atWork: 0n, inHouse: 0n };
-    byCoin.set(c, { dec: t.dec, ready: t.ready + v.ready, atWork: t.atWork + v.atWork, inHouse: t.inHouse + v.inHouse });
-  }
-  const tote = (pick: (x: { ready: bigint; atWork: bigint; inHouse: bigint }) => bigint) => {
-    const rows = [...byCoin.entries()].filter(([, x]) => pick(x) > 0n);
-    // In dollars across every coin, then each coin as held.
-    const usd = rows.reduce((a, [c, x]) => (rates[c] ? a + toUsd(pick(x), x.dec, rates[c]!) : a), 0);
-    return rows.length ? <>{rows.some(([c]) => rates[c]) && <div className="tote-usd mono" title="Every coin at today's price">≈ {fmtUsd(usd)}</div>}<div className="tote-coins">{rows.map(([c, x]) => { const coin = COINS.find((k) => k.symbol === c); return <span key={c} className="tote-chip mono" title={`$${c}`}>{coin && <img src={coin.logo} alt={`$${c}`} />}{fmtCompact(pick(x), x.dec)}</span>; })}</div></> : <div className="tote-v mono muted">$0</div>;
-  };
-  // Every finished round the wallet holds anything in. The slip lists these,
-  // totals these, and "Collect all" collects these, whatever the passbook
-  // below is filtered to.
-  const finished = collectPlan(rounds);
+  const rounds = useMemo(() => [...(holdings.data ?? [])].sort((a, b) => Number(a.ladder.settlesAt - b.ladder.settlesAt)), [holdings.data]);
 
-  // One button collects every finished round, one after another, each round
-  // sent as the row's own button would send it.
+  // The ledger's totals, for the net on finished rounds (one small read).
+  const acct = publicKey?.toBase58() ?? "";
+  const totals = useQuery({
+    queryKey: ["history-totals", acct],
+    enabled: !!publicKey,
+    staleTime: 15_000,
+    refetchInterval: 60_000,
+    queryFn: async (): Promise<Totals> => { const r = await fetch(`/history?wallet=${acct}&limit=1`); if (!r.ok) throw new Error(`history ${r.status}`); return (await r.json()).totals; },
+  });
+
+  // Every finished round the wallet holds anything in: the slip lists these,
+  // and "Collect all" collects these, whatever the filters show.
+  const finished = collectPlan(rounds);
+  const running = rounds.filter((h) => !finished.includes(h));
+
+  // The coin filter, for every tab but History (which has its own).
+  // A pick that no longer matches anything held (all of it collected, or
+  // another account) falls back to every coin, so no tab reads empty for it.
+  const [coinPick, setCoinF] = useState("all");
+  const coinsHeld = [...new Set([...rounds.map(symOf), ...stakes.map((s) => s.coin.symbol)])].filter((s) => s !== "tokens");
+  const coinF = coinsHeld.length > 1 && coinsHeld.includes(coinPick) ? coinPick : "all";
+  useEffect(() => { setCoinF("all"); }, [acct]);
+  const pass = (sym: string) => coinF === "all" || sym === coinF;
+
+  // Open calls: every line still at work, newest bell last.
+  const calls = running.flatMap((h) => {
+    const c = coinByMint(h.ladder.quoteMint), v = value(h, now, c ? anchorOf(c).dp : 2);
+    return v.lines.filter((x) => x.kind === "line").map((line) => ({ h, line, sym: c?.symbol ?? "tokens" }));
+  }).sort((a, b) => order(a.h, now) - order(b.h, now));
+
+  // The hero's numbers.
+  const nums: HeroNums | null = publicKey && !holdings.isLoading && !holdings.isError ? (() => {
+    const ready: Pot = new Map(), worth: Pot = new Map(), paid: Pot = new Map(), house: Pot = new Map();
+    for (const h of rounds) {
+      const sym = symOf(h), dec = h.ladder.decimals, c = coinByMint(h.ladder.quoteMint), v = value(h, now, c ? anchorOf(c).dp : 2);
+      addTo(ready, sym, dec, v.ready); addTo(house, sym, dec, v.inHouse);
+      for (const x of v.lines) if (x.kind === "line" && !finished.includes(h)) { addTo(paid, sym, dec, x.cost); if (x.value !== null) addTo(worth, sym, dec, x.value); }
+    }
+    for (const s of stakes) addTo(house, s.coin.symbol, s.coin.decimals, s.mine.value + s.mine.queuedDeposit);
+    const t = totals.data;
+    let net: HeroNums["net"] = null;
+    if (t) {
+      const pot: Pot = new Map();
+      for (const c of t.coins) {
+        if (c.decimals === null) continue;
+        let sym = c.coin ?? "";
+        try { if (c.mint) sym = coinByMint(new PublicKey(c.mint))?.symbol ?? sym; } catch { /* not an address */ }
+        sym = COINS.find((k) => k.symbol === sym || k.key === sym)?.symbol ?? sym;
+        // What a finished round still owes counts too: before it is
+        // collected it is not a loss.
+        addTo(pot, sym, c.decimals, BigInt(c.net) + BigInt(c.owed ?? "0"));
+      }
+      net = { pot, rounds: t.rounds, waiting: t.results?.unclaimed ?? 0 };
+    }
+    const bells = running.map((h) => Number(h.ladder.settlesAt)).filter((x) => x > now);
+    return { nextBell: calls.length && bells.length ? Math.min(...bells) : null, calls: calls.length, ready, readyRounds: finished.length, worth, paid, held: calls.filter((x) => x.line.value === null).length, house, stakes: stakes.length, net };
+  })() : null;
+
+  // Tabs, in the address (?tab=). With none picked, open where the money is.
+  const picked = params.get("tab") as Tab | null;
+  const auto: Tab = finished.length ? "collect" : calls.length ? "calls" : stakes.length || running.some((h) => h.tranches.length) ? "house" : "calls";
+  const tab: Tab = picked && TABS.includes(picked) ? picked : auto;
+  const setTab = (t: Tab) => {
+    const p = new URLSearchParams(params); p.set("tab", t); setParams(p, { replace: true });
+    if (t !== tab) document.getElementById("yours-tabs")?.scrollIntoView({ behavior: "smooth", block: "start" });
+  };
+
+  // One button collects every finished round, one after another, each sent
+  // exactly as its own Collect would send it.
   const { connection } = useConnection();
   const qc = useQueryClient();
   const sendCollect = useSend("Collected"), sendRefund = useSend("Refunded");
-  const [allProgress, setAllProgress] = useState<[number, number] | null>(null);
+  const [progress, setProgress] = useState<[number, number] | null>(null);
   const collectAll = async () => {
     if (!own || !wallet) return;
     const plan = finished;
     for (let n = 0; n < plan.length; n++) {
-      setAllProgress([n + 1, plan.length]);
+      setProgress([n + 1, plan.length]);
       const h = plan[n]!, send = h.ladder.status === "void" ? sendRefund : sendCollect;
       try {
         const mint = await qc.fetchQuery({ queryKey: ["mint", h.ladder.quoteMint.toBase58()], queryFn: () => fetchMint(connection, h.ladder.quoteMint), staleTime: Infinity });
@@ -124,299 +140,58 @@ export function Yours() {
         for (const tx of collectTxs(h, wallet, mint.tokenProgram)) await send.mutateAsync(tx);
       } catch { /* the toast has said why; on to the next round */ }
     }
-    setAllProgress(null);
+    setProgress(null);
   };
 
-  // The passbook: newest day first, filtered by coin and by state, each round
-  // one line that opens into its detail.
-  const [coinF, setCoinF] = useState("all");
-  const [view, setView] = useState<"all" | "open" | "done">("all");
-  const coinsHeld = [...new Set(rounds.map((h) => coinByMint(h.ladder.quoteMint)?.symbol).filter(Boolean) as string[])];
-  const shown = [...rounds].reverse().filter((h) => (coinF === "all" || coinByMint(h.ladder.quoteMint)?.symbol === coinF) && (view === "all" || (view === "done") === finished.includes(h)));
-  const days: [string, Holding[]][] = [];
-  for (const h of shown) { const d = nyDate(Number(h.ladder.settlesAt)); const last = days.at(-1); if (last && last[0] === d) last[1].push(h); else days.push([d, [h]]); }
-  const today = nyDate(now), yesterday = nyDate(now - 86_400);
-  const [jump, setJump] = useState<string | null>(null);
-  const pick = (d: string) => setJump(d);
-  const dayName = (d: string, t: bigint) => `${nyWhen(t, { weekday: "long", month: "short", day: "numeric" })}${d === today ? " · today" : d === yesterday ? " · yesterday" : ""}`;
+  const slip = slipOf(finished.filter((h) => pass(symOf(h))), now, rates);
+  const shownCalls = calls.filter((x) => pass(x.sym));
+  const houseRounds = running.filter((h) => pass(symOf(h)));
+  const houseStakes = stakes.filter((s) => pass(s.coin.symbol));
+  const houseCount = stakes.length + running.filter((h) => h.tranches.length).length;
+  const count: Record<Tab, number | null> = { calls: calls.length, collect: finished.length, house: houseCount, history: totals.data?.rounds ?? null };
+  const LABEL: Record<Tab, string> = { calls: "Open calls", collect: "Ready to collect", house: "In the house", history: "History" };
 
-  // The slip's lines and total, in dollars across coins.
-  const slip = finished.map((h) => {
-    const c = coinByMint(h.ladder.quoteMint), v = value(h, now, c ? anchorOf(c).dp : 2), rate = c ? rates[c.symbol] ?? null : null;
-    return { h, c, ready: v.ready, usd: rate !== null ? toUsd(v.ready, h.ladder.decimals, rate) : null };
-  });
-  const slipUsd = slip.reduce((a, x) => a + (x.usd ?? 0), 0);
-  const slipCoins = [...new Set(slip.filter((x) => x.ready > 0n).map((x) => x.c?.symbol ?? ""))];
-  const oneCoin = slipCoins.length <= 1 ? slip.find((x) => x.ready > 0n) : undefined;
-  const slipTotal = oneCoin ? coinText(slip.reduce((a, x) => a + x.ready, 0n), oneCoin.h.ladder.decimals, `$${oneCoin.c?.symbol ?? ""}`) : `≈ ${fmtUsd(slipUsd)}`;
-  const [slipOpen, setSlipOpen] = useState(false);
-  const SLIP_SHOWN = 4;
+  const empty = publicKey && !holdings.isLoading && !holdings.isError && rounds.length === 0 && stakes.length === 0 && !stakesQ.isLoading;
 
   return (
-    <div className="page statement">
-      <Title text="Your statement" />
-      <header className="stmt-head">
-        <div>
-          <div className="stmt-firm">STOOK STREET SECURITIES</div>
-          <h1>Statement of account</h1>
-        </div>
-        <dl className="stmt-meta mono">
-          <div><dt>account</dt><dd>{publicKey ? short(publicKey) : "not connected"}{publicKey && !own ? " · read only" : ""}</dd></div>
-          <div><dt>as of</dt><dd>{new Date(now * 1000).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}</dd></div>
-        </dl>
-      </header>
+    <div className="yours">
+      <Title text="Your desk" />
+      <YoursHero account={publicKey ?? null} own={own} nums={empty ? null : nums} loading={!!publicKey && !holdings.isError && (holdings.isLoading || (!empty && !nums))} now={now} rates={rates} progress={progress} onCollectAll={() => void collectAll()} onTab={setTab} />
 
-      <div className="seg stmt-tabs" role="tablist" aria-label="Statement">
-        <button role="tab" aria-selected={tab === "holdings"} className={tab === "holdings" ? "on" : ""} onClick={() => setTab("holdings")}>Holdings</button>
-        <button role="tab" aria-selected={tab === "history"} className={tab === "history" ? "on" : ""} onClick={() => setTab("history")}>History</button>
-      </div>
-
-      {tab === "history" ? <History wallet={publicKey ?? null} own={own} />
-        : !publicKey ? <NoAccount />
-        : holdings.isLoading ? <p className="stmt-empty">Reading the books…</p>
-        : rounds.length === 0 ? <FirstSteps />
-        : <>
-          <section className="tote">
-            <div className="tote-cell tote-ready"><div className="tote-k">ready to collect</div>{tote((x) => x.ready)}</div>
-            <div className="tote-cell"><div className="tote-k">calls at work</div>{tote((x) => x.atWork)}</div>
-            <div className="tote-cell"><div className="tote-k">in the house</div>{tote((x) => x.inHouse)}</div>
-          </section>
-
-          {slip.length > 0 && (
-            <div className="ticket-paper payout-slip" role="group" aria-label="Payout slip">
-              <div className="tp-head"><span>Payout slip</span><b className="mono">{slip.length} finished {slip.length === 1 ? "round" : "rounds"}</b></div>
-              {slip.slice(0, SLIP_SHOWN).map((x) => <SlipLine key={x.h.pubkey.toBase58()} {...x} now={now} />)}
-              {slip.length > SLIP_SHOWN && <>
-                <div className={`tp-fold ${slipOpen ? "tp-fold-open" : ""}`}>
-                  <div className="tp-fold-in">{slip.slice(SLIP_SHOWN).map((x) => <SlipLine key={x.h.pubkey.toBase58()} {...x} now={now} />)}</div>
-                </div>
-                <button className="tp-unfold" onClick={() => setSlipOpen(!slipOpen)} aria-expanded={slipOpen}>{slipOpen ? "Fold it back" : `Unfold ${slip.length - SLIP_SHOWN} more ${slip.length - SLIP_SHOWN === 1 ? "round" : "rounds"}`}</button>
-              </>}
-              <div className="tp-win">
-                <div className="tp-win-top"><span>Total to collect</span></div>
-                <b className="mono">{slipTotal}</b>
-                <div className="tp-note">{oneCoin ? (slipUsd > 0 ? `≈ ${fmtUsd(slipUsd)} today` : "") : slip.filter((x) => x.ready > 0n).map((x) => `${fmtCompact(x.ready, x.h.ladder.decimals)} $${x.c?.symbol ?? ""}`).join(" + ") || "rounds that paid nothing, to close"}</div>
+      <div className="wrap yours-body">
+        {!publicKey ? <Invite />
+          : holdings.isError ? <Trouble onRetry={() => void holdings.refetch()} />
+          : holdings.isLoading ? <><div className="yours-tabs yours-tabs-wait" /><Skeleton /></>
+          : <>
+            {!empty && <div className="yours-bar" id="yours-tabs">
+              <div className="yours-tabs" role="tablist" aria-label="Your desk">
+                {TABS.map((t) => (
+                  <button key={t} role="tab" aria-selected={tab === t} className={tab === t ? "on" : ""} onClick={() => setTab(t)}>
+                    {LABEL[t]}{count[t] ? <span className={`yours-count ${t === "collect" ? "yours-count-up" : ""}`}>{count[t]}</span> : null}
+                  </button>
+                ))}
               </div>
-              {own
-                ? <button className="primary" disabled={!!allProgress} onClick={() => void collectAll()}>{allProgress ? `Collecting ${allProgress[0]} of ${allProgress[1]}…` : slipUsd > 0 || oneCoin ? `Collect all ${slipTotal}` : "Close them all"}</button>
-                : <p className="tp-dim small">Only the account's own wallet can collect.</p>}
-            </div>
-          )}
-
-          <div className="pb-filters">
-            <div className="seg seg-sm" role="group" aria-label="Show">
-              {(["all", "open", "done"] as const).map((k) => <button key={k} className={view === k ? "on" : ""} onClick={() => setView(k)}>{k === "all" ? "All" : k === "open" ? "Running" : "Finished"}</button>)}
-            </div>
-            {days.length > 1 && <DayPicker days={days.map(([d, hs]) => [d, hs.length])} today={today} onPick={pick} />}
-            {coinsHeld.length > 1 && <div className="pb-coins" role="group" aria-label="Coin">
-              <button className={`pb-chip ${coinF === "all" ? "on" : ""}`} onClick={() => setCoinF("all")}>every coin</button>
-              {coinsHeld.map((c) => { const coin = COINS.find((x) => x.symbol === c); return <button key={c} className={`pb-chip ${coinF === c ? "on" : ""}`} onClick={() => setCoinF(c)}>{coin && <img src={coin.logo} alt="" />}${c}</button>; })}
+              {tab !== "history" && coinsHeld.length > 1 && <div className="yours-coins" role="group" aria-label="Coin">
+                <button className={coinF === "all" ? "on" : ""} aria-pressed={coinF === "all"} onClick={() => setCoinF("all")}>Every coin</button>
+                {coinsHeld.map((s) => { const c = COINS.find((x) => x.symbol === s); return <button key={s} className={coinF === s ? "on" : ""} aria-pressed={coinF === s} onClick={() => setCoinF(s)}>{c && <img src={c.logo} alt="" />}${s}</button>; })}
+              </div>}
             </div>}
-          </div>
 
-          {days.length === 0 && <p className="stmt-empty">Nothing here with these filters.</p>}
-          {jump && <div className="dp-showing"><span>Showing {nyWhen(Number(days.find(([d]) => d === jump)?.[1][0]?.ladder.settlesAt ?? 0), { weekday: "long", month: "short", day: "numeric" })}</span><button className="link" onClick={() => setJump(null)}>show every day</button></div>}
-          {days.filter(([d]) => !jump || d === jump).map(([d, hs], n) => (
-            <Day key={d} id={`day-${d}`} name={dayName(d, hs[0]!.ladder.settlesAt)} count={hs.length} startOpen={n < 3 || jump === d} force={jump === d}>
-              {hs.map((h) => <RoundBlock key={h.pubkey.toBase58()} h={h} now={now} own={own} />)}
-            </Day>
-          ))}
-          <p className="stmt-foot">Amounts are in each round's coin; ≈ dollars move with today's price. Thirty days after a close, anyone may send what it owes you to your wallet.</p>
-        </>}
-    </div>
-  );
-}
+            {tab !== "history" && !empty && !(tab === "house" && !houseCount) && <p className="yours-intro dim">{INTRO[tab]}</p>}
+            {tab === "history" ? <History wallet={publicKey} own={own} onCollect={() => setTab("collect")} />
+              : empty ? <FirstSteps />
+              : tab === "calls" ? (shownCalls.length
+                ? <div className="yours-grid">{shownCalls.map((x) => <CallCard key={x.line.key} h={x.h} line={x.line} now={now} rate={rates[x.sym] ?? null} />)}</div>
+                : <Empty art={<PixelCall size={48} />} title={coinF === "all" ? "No calls running" : `No $${coinF} calls running`} line="Pick a table and call where today's price closes. The closer you are, the more it pays." to="/#floor" cta="Pick a table" />)
+              : tab === "collect" ? (slip.length
+                ? <CollectDesk slip={slip} now={now} own={own} progress={progress} onCollectAll={() => void collectAll()} />
+                : <Empty art={<PixelCoins size={48} />} title="Nothing to collect" line="When a round you are in rings its bell, what it pays waits here until you collect it." to="/#floor" cta={calls.length ? "See your open calls" : "Pick a table"} onGo={calls.length ? () => setTab("calls") : undefined} />)
+              : <HouseShelf stakes={houseStakes} rounds={houseRounds} now={now} own={own} rates={rates} />}
 
-/** A month of dates, the days you hold something in marked: pick one to
- *  open it in the passbook below. For a long history, faster than scrolling. */
-function DayPicker({ days, today, onPick }: { days: [string, number][]; today: string; onPick: (d: string) => void }) {
-  const held = new Map(days);
-  const [open, setOpen] = useState(false);
-  const [ym, setYm] = useState(() => (days[0]?.[0] ?? today).slice(0, 7));
-  const [y, m] = ym.split("-").map(Number) as [number, number];
-  const first = new Date(Date.UTC(y, m - 1, 1)).getUTCDay(), len = new Date(Date.UTC(y, m, 0)).getUTCDate();
-  const shift = (n: number) => { const d = new Date(Date.UTC(y, m - 1 + n, 1)); setYm(d.toISOString().slice(0, 7)); };
-  const cells = [...Array(first).fill(null), ...Array.from({ length: len }, (_, i) => `${ym}-${String(i + 1).padStart(2, "0")}`)];
-  return (
-    <div className="dp">
-      <button className="pb-chip" onClick={() => setOpen(!open)} aria-expanded={open}>{open ? "Close the calendar" : "Go to a day"}</button>
-      {open && <div className="dp-card">
-        <div className="dp-head"><button onClick={() => shift(-1)} aria-label="Earlier month">‹</button><span>{new Date(Date.UTC(y, m - 1, 1)).toLocaleString("en-US", { month: "long", year: "numeric", timeZone: "UTC" })}</span><button onClick={() => shift(1)} aria-label="Later month">›</button></div>
-        <div className="dp-grid">
-          {["S", "M", "T", "W", "T", "F", "S"].map((w, n) => <span key={n} className="dp-dow">{w}</span>)}
-          {cells.map((d, n) => d === null ? <span key={"b" + n} /> : (
-            <button key={d} className={`dp-day ${held.has(d) ? "dp-held" : ""} ${d === today ? "dp-today" : ""}`} disabled={!held.has(d)} onClick={() => { onPick(d); setOpen(false); }} title={held.has(d) ? `${held.get(d)} ${held.get(d) === 1 ? "round" : "rounds"}` : undefined}>{Number(d.slice(8))}</button>
-          ))}
-        </div>
-      </div>}
-    </div>
-  );
-}
-
-/** A day in the passbook: the three latest open, older ones folded to their
- *  header, so a long history is a column of dates to open, not a scroll. */
-function Day({ id, name, count, startOpen, force, children }: { id: string; name: string; count: number; startOpen: boolean; force: boolean; children: React.ReactNode }) {
-  const [open, setOpen] = useState(startOpen);
-  useEffect(() => { if (force) setOpen(true); }, [force]);
-  return (
-    <section className="pb-day" id={id}>
-      <h2 className="pb-date"><button onClick={() => setOpen(!open)} aria-expanded={open}><span className="pb-caret" aria-hidden="true">{open ? "▾" : "▸"}</span>{name}<em>{count} {count === 1 ? "round" : "rounds"}</em></button></h2>
-      <Fold open={open}>{children}</Fold>
-    </section>
-  );
-}
-
-/** One round on the payout slip; its holdings unfold beneath it. */
-function SlipLine({ h, c, ready, usd, now }: { h: Holding; c: ReturnType<typeof coinByMint>; ready: bigint; usd: number | null; now: number }) {
-  const [open, setOpen] = useState(false);
-  const v = value(h, now, c ? anchorOf(c).dp : 2), dec = h.ladder.decimals, sym = `$${c?.symbol ?? ""}`;
-  const money = (u: bigint) => coinText(u, dec, sym);
-  return (
-    <div className={`tp-line ${open ? "tp-line-open" : ""}`}>
-      <button className="tp-row tp-row-btn" onClick={() => setOpen(!open)} aria-expanded={open}>
-        <span><span className="tp-caret" aria-hidden="true">{open ? "▾" : "▸"}</span>{c ? c.anchor.name : "round"} in {sym} · {nyWhen(h.ladder.settlesAt, { weekday: "short", month: "short", day: "numeric" })}{h.ladder.status === "void" ? " · void" : ""}</span><i />
-        <b className="mono">{ready === 0n ? <span className="tp-dim">nothing won</span> : coinText(ready, dec, sym)}{ready > 0n && usd !== null && <small className="approx">≈ {fmtUsd(usd)}</small>}</b>
-      </button>
-      <div className="tp-fold tp-fold-sub">
-        <div className="tp-fold-in">
-          {v.lines.map((x) => (
-            <div key={x.key} className="tp-row tp-sub">
-              <span>{x.kind === "line" ? `call: ${x.what}` : x.what} · {x.kind === "line" ? "paid" : "put in"} {money(x.cost)}</span><i />
-              <span className="mono">{x.value && x.value > 0n ? money(x.value) : "0"}</span>
-            </div>
-          ))}
-        </div>
+            {tab !== "history" && !empty && <p className="yours-foot dimmer">Amounts are in each round's coin; ≈ dollars move with today's price. Thirty days after a close, anyone may send what a round owes you to your wallet.</p>}
+          </>}
       </div>
     </div>
   );
 }
 
-function RoundBlock({ h, now, own }: { h: Holding; now: number; own: boolean }) {
-  const [open, setOpen] = useState(false);
-  const { publicKey } = useWallet();
-  const l = h.ladder, coin = coinByMint(l.quoteMint), feed = feedByHex(feedHex(l.feedId));
-  const mint = useMint(l.quoteMint);
-  const send = useSend(l.status === "void" ? "Refunded" : "Collected");
-  const stage = stageOf(l, now);
-  const dp = coin ? anchorOf(coin).dp : 2;
-  const v = value(h, now, dp);
-  const rates = useUsdRates().data;
-  const rate = coin ? rates?.[coin.symbol] ?? null : null;
-  // Dollars lead when the coin has a price; the coin amount sits beneath.
-  const amt = (u: bigint, sign = "") => rate !== null
-    ? <><span className="amt-big">{sign}{coinText(u, l.decimals, sym)}</span><span className="amt-coin">{approxUsd(u, l.decimals, rate)}</span></>
-    : <span className="amt-big">{sign}{coinText(u, l.decimals, sym)}</span>;
-  const big = (u: bigint) => coinText(u, l.decimals, sym);
-  const collectable = own && (stage === "settled" || stage === "void") && (h.positions.length + h.tranches.length) > 0;
-  const collect = async () => {
-    if (!publicKey || !mint.data) return;
-    try {
-      for (const tx of collectTxs(h, publicKey, mint.data.tokenProgram)) await send.mutateAsync(tx);
-    } catch { /* the toast has said why */ }
-  };
-  const sym = coin ? `$${coin.symbol}` : "";
-  // Named by the coin's real anchor, as everywhere but the round page and
-  // the fund sheet (which name the devnet stand-in feed, with a note).
-  const shownAnchor = coin ? coin.anchor : null;
-  const final = stage === "settled" || stage === "void";
-  const pnl = (x: Line) => (x.value === null ? null : x.value - x.cost);
-  // The line: what went in, what it is worth now (or pays), and the result.
-  const cost = v.lines.reduce((a, x) => a + x.cost, 0n);
-  const valued = v.lines.filter((x) => x.value !== null);
-  const worth = final ? v.ready : valued.length ? v.lines.reduce((a, x) => a + (x.value ?? x.cost), 0n) : null;
-  const result = final ? v.ready - cost : valued.length ? valued.reduce((a, x) => a + x.value! - x.cost, 0n) : null;
-  const calls = h.positions.length, deps = h.tranches.length;
-  return (
-    <article className={`pb-round stage-${stage.replace(" ", "-")} ${open ? "pb-open" : ""}`}>
-      <button className="pb-row" onClick={() => setOpen(!open)} aria-expanded={open}>
-        {coin && <span className="logos logos-anchor-first"><img src={coin.anchor.logo} alt="" className="logo-coin" /><img src={coin.logo} alt="" className="logo-anchor" /></span>}
-        <span className="pb-name">{shownAnchor ? shownAnchor.name : feed.name}<em>in {sym} · {[calls && `${calls} ${calls === 1 ? "call" : "calls"}`, deps && `${deps} house`].filter(Boolean).join(" · ")}</em></span>
-        <span className={`stamp stamp-${stage.replace(" ", "-")}`}>{stage === "locked" ? "closed" : stage}</span>
-        <span className="pb-num"><em>in</em>{big(cost)}{rate !== null && <small className="pb-usd">{approxUsd(cost, l.decimals, rate)}</small>}</span>
-        <span className="pb-num"><em>{final ? "pays" : "now"}</em>{worth === null ? "–" : big(worth)}{worth !== null && rate !== null && <small className="pb-usd">{approxUsd(worth, l.decimals, rate)}</small>}</span>
-        <span className={`pb-num pb-res ${result === null ? "muted" : result >= 0n ? "up" : "down"}`}><em>result</em>{result === null ? "at the bell" : `${result >= 0n ? "+" : "−"}${big(result >= 0n ? result : -result)}`}{result !== null && rate !== null && <small className="pb-usd">{approxUsd(result >= 0n ? result : -result, l.decimals, rate).replace("≈ ", result >= 0n ? "≈ +" : "≈ −")}</small>}</span>
-        <span className="pb-caret" aria-hidden="true">{open ? "▾" : "▸"}</span>
-      </button>
-      {open && <div className="pb-body">
-      <div className="pb-when muted small">closes {nyWhen(l.settlesAt, { weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })} New York</div>
-      {/* A finished round reads as a book: what each holding pays, the
-          total, and one button for all of it, as on the round page. */}
-      {final ? (() => {
-        const cost = v.lines.reduce((a, x) => a + x.cost, 0n), d = v.ready - cost;
-        return (
-          <div className="stmt-book">
-            <Book kind="call" title={stage === "void" ? "Refund" : "To collect"} count={v.lines.length} open total={big(v.ready)}
-              extra={cost > 0n ? <span className={d < 0n ? "down" : "up"}>{d >= 0n ? "+" : "−"}{big(d >= 0n ? d : -d)}</span> : undefined}
-              rows={v.lines.map((x) => ({
-                key: x.key,
-                label: <><span className={`chip-k ${x.kind}`}>{x.kind === "line" ? "CALL" : "HOUSE"}</span> {x.what}</>,
-                sub: <>{x.kind === "line" ? "paid" : "put in"} {big(x.cost)}</>,
-                amount: x.value !== null && x.value > 0n ? <span className="up"><Amount units={x.value} decimals={l.decimals} symbol={sym} rate={rate} /></span> : <span className="muted">0</span>,
-              }))}
-              footer={!collectable ? <span className="muted small">Only the account's own wallet can collect.</span>
-                : v.ready > 0n ? <button className="primary" disabled={!publicKey || send.isPending} onClick={() => void collect()}>{send.isPending ? "Collecting…" : `Collect ${big(v.ready)}`}</button>
-                : <button className="small" disabled={!publicKey || send.isPending} onClick={() => void collect()}>{send.isPending ? "Closing…" : "Nothing won: close these out"}</button>} />
-          </div>
-        );
-      })() : (
-        <table className="ledger">
-        <thead><tr><th>holding</th><th>cost</th><th>worth</th><th>result</th></tr></thead>
-        <tbody>
-          {v.lines.map((x) => { const r = pnl(x); return (
-            <tr key={x.key} className={x.kind}>
-              <td><span className={`chip-k ${x.kind}`}>{x.kind === "line" ? "CALL" : "HOUSE"}</span> {x.what}{x.fees !== undefined ? <div className="ledger-note">fees so far {big(x.fees)} · the rest is settled at the bell</div> : x.note && <div className="ledger-note">{x.note}</div>}</td>
-              <td className="mono">{amt(x.cost)}</td>
-              <td className="mono">{x.value === null ? "–" : amt(x.value)}</td>
-              <td className={`mono ${r === null ? "muted" : r >= 0n ? "up" : "down"}`}>{r === null ? "at the bell" : amt(r >= 0n ? r : -r, r >= 0n ? "+" : "−")}</td>
-            </tr>); })}
-        </tbody>
-        </table>
-      )}
-      <footer className="stmt-round-foot">
-        <Link to={`/m/${h.pubkey.toBase58()}`} className="small as-link">{stage === "trading" ? "To the table ›" : "Open the round ›"}</Link>
-      </footer>
-      </div>}
-    </article>
-  );
-}
-
-/** No wallet yet: what this page is, the button to connect, and a faded
- *  example of the statement it will show, so the page is not a dead end. */
-function NoAccount() {
-  return (
-    <div className="stmt-none">
-      <div className="stmt-none-cta">
-        <p>Your calls, your house deposits and what is ready to collect, one statement for every table.</p>
-        <ConnectWallet>Connect a wallet</ConnectWallet>
-      </div>
-      <div className="stmt-sample" aria-hidden="true">
-        <span className="stmt-sample-tag">EXAMPLE</span>
-        <section className="tote">
-          <div className="tote-cell tote-ready"><div className="tote-k">ready to collect</div><div className="tote-usd mono">$18.35</div><div className="tote-v tote-sub">from 2 finished rounds</div></div>
-          <div className="tote-cell"><div className="tote-k">calls at work</div><div className="tote-usd mono">$5.00</div><div className="tote-v tote-sub">1 call on today's bell</div></div>
-          <div className="tote-cell"><div className="tote-k">in the house</div><div className="tote-usd mono">$40.00</div><div className="tote-v tote-sub">earning 90% of the fees</div></div>
-        </section>
-        <div className="stmt-sample-row"><b>$SSt. · Polymarket</b><span>Near 142.30, ±3 floors</span><span className="mono">pays $9.12</span></div>
-        <div className="stmt-sample-row"><b>$GP · Gold</b><span>Between 380.00 and 384.00</span><span className="mono">collect $9.23</span></div>
-      </div>
-      <p className="stmt-foot">Just looking? <Link to="/#floor">Pick a table ›</Link> or <Link to="/how">take the walk through ›</Link></p>
-    </div>
-  );
-}
-
-/** Connected, nothing on the books yet: the three ways in, in order. */
-function FirstSteps() {
-  const steps = [
-    FAUCET_AUTHORITY_BYTES && { t: "Get test coins", d: "Free on devnet: each table's coin, enough to try a few calls.", act: <Faucet /> },
-    { t: "Make a call", d: "Pick a table, then the floor where you think today's price closes.", act: <Link className="stmt-step-go" to="/#floor">Pick a table ›</Link> },
-    { t: "Or back the house", d: "Each coin's house funds every one of its rounds, day after day, and keeps 90% of every fee.", act: <Link className="stmt-step-go" to="/c/STOOK#house">Back the house ›</Link> },
-  ].filter(Boolean) as { t: string; d: string; act: ReactNode }[];
-  return (
-    <div className="stmt-first">
-      <p className="stmt-first-h">Nothing on the books yet. How to start:</p>
-      <ol className="stmt-steps">
-        {steps.map((x, i) => <li key={x.t}><span className="stmt-step-n">{i + 1}</span><div><b>{x.t}</b><p>{x.d}</p><div className="stmt-step-act">{x.act}</div></div></li>)}
-      </ol>
-    </div>
-  );
-}

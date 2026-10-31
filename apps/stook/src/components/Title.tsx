@@ -2,6 +2,6 @@
 import { useEffect } from "react";
 
 export function Title({ text }: { text: string }) {
-  useEffect(() => { document.title = text ? `${text} — Stook Street` : "Stook Street — where will it land?"; }, [text]);
+  useEffect(() => { document.title = text ? `${text} · Stook Street` : "Stook Street · where will it land?"; }, [text]);
   return null;
 }

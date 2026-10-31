@@ -10,10 +10,13 @@ export class PageGuard extends Component<{ children: ReactNode }, { error: Error
   render() {
     if (!this.state.error) return this.props.children;
     return (
-      <div className="page">
-        <p>This page could not be drawn from what the chain returned.</p>
-        <p className="muted small mono">{this.state.error.message}</p>
-        <p><button className="small" onClick={() => this.setState({ error: null })}>Try again</button> <Link to="/">Back to the street</Link></p>
+      <div className="wrap ss-guard">
+        <div className="card">
+          <div className="label">Something broke</div>
+          <h2>This page could not load.</h2>
+          <p className="ss-guard-msg">{this.state.error.message}</p>
+          <div className="ss-guard-act"><button className="btn btn-sm" onClick={() => this.setState({ error: null })}>Try again</button> <Link className="btn btn-ghost btn-sm" to="/">Back home</Link></div>
+        </div>
       </div>
     );
   }

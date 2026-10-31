@@ -1,34 +1,20 @@
 // The Board: the street's sharpest callers in each coin, and how each coin's
 // house has done. Callers come from the ledger (infra/ledger, through the
 // site's /leaderboard route): every settled round a wallet made a call in,
-// best net first. The houses are read from chain.
+// best net first. The houses are read from chain. The parts live in
+// components/board/; the styles in web/board.css.
 import { useState } from "react";
 import { Link } from "react-router-dom";
-import { PublicKey } from "@solana/web3.js";
-import { useConnection, useWallet } from "@solana/wallet-adapter-react";
-import { useQuery } from "@tanstack/react-query";
-import { stook } from "@sooth/sdk-solana";
-import { COINS, coinPath, mintOf, seriesOf, type Coin } from "../lib/coins";
-import { fmtCompact, short } from "../lib/format";
-import { fmtUsd, toUsd, useUsdRates } from "../lib/usd";
+import { useWallet } from "@solana/wallet-adapter-react";
+import { COINS, anchorOf, coinPath, isDevnet, type Coin } from "../lib/coins";
+import { useUsdRates } from "../lib/usd";
 import { nyWhen } from "../lib/time";
 import { Title } from "../components/Title";
-
-interface Player { rank: number; wallet: string; bot: string | null; rounds: number; won: number; missed: number; hit: number; paid: string; back: string; net: string; best: string; last: number }
-interface Board { coin: string; decimals: number | null; days: number; players: number; people: number; board: Player[]; peopleBoard: Player[]; scoredAt: number; indexed?: { through: number | null; complete: boolean } }
-
-// The table style right-aligns every column after the first; names read from the left.
-const LEFT = { textAlign: "left" } as const;
-const PERIODS: [number, string][] = [[7, "This week"], [30, "30 days"], [0, "All time"]];
-
-async function fetchBoard(coin: string, days: number): Promise<Board> {
-  const r = await fetch(`/leaderboard?${new URLSearchParams({ coin, days: String(days), limit: "25" })}`);
-  if (!r.ok) throw new Error(`leaderboard ${r.status}`);
-  return r.json();
-}
-
-const abs = (v: bigint) => (v < 0n ? -v : v);
-const signed = (v: bigint) => (v > 0n ? "+" : v < 0n ? "−" : "");
+import { BoardHero } from "../components/board/BoardHero";
+import { Podium, PodiumSkeleton, Stage } from "../components/board/Podium";
+import { Ladder } from "../components/board/Ladder";
+import { Houses } from "../components/board/Houses";
+import { PERIODS, periodName, useBoard } from "../components/board/data";
 
 export function BoardPage() {
   const [coin, setCoin] = useState<Coin>(COINS[0]!);
@@ -36,104 +22,98 @@ export function BoardPage() {
   const [people, setPeople] = useState(false);
   const { publicKey } = useWallet();
   const me = publicKey?.toBase58();
-  const q = useQuery({ queryKey: ["board", coin.symbol, days], queryFn: () => fetchBoard(coin.symbol, days), staleTime: 60_000, refetchInterval: 5 * 60_000 });
+  const q = useBoard(coin, days);
   const rates = useUsdRates().data ?? {};
   const rate = rates[coin.symbol] ?? null;
   const b = q.data;
   const dec = b?.decimals ?? coin.decimals;
   const list = b ? (people ? b.peopleBoard : b.board) : [];
-  const money = (u: bigint, sign = false) => `${sign ? signed(u) : ""}${fmtCompact(abs(u), dec)} $${coin.symbol}`;
+  const sym = coin.symbol, callTo = coinPath(coin), period = periodName(days);
+  const scored = b?.scoredAt ? nyWhen(b.scoredAt, { hour: "numeric", minute: "2-digit" }) : null;
 
   return (
-    <div className="page">
+    <div className="board-page">
       <Title text="The Board" />
-      <h1>The Board</h1>
-      <p className="muted">The street's sharpest callers, coin by coin. A caller's record is every settled round they made a call in: a win when a call paid, a miss when none did. Best net first.</p>
+      <BoardHero coin={coin} callTo={callTo} players={b ? b.players : null} days={days} />
 
-      <div className="pb-filters">
-        <div className="pb-coins" role="group" aria-label="Coin">
-          {COINS.map((c) => <button key={c.symbol} className={`pb-chip ${coin.symbol === c.symbol ? "on" : ""}`} aria-pressed={coin.symbol === c.symbol} onClick={() => setCoin(c)}><img src={c.logo} alt="" />${c.symbol}</button>)}
+      <div className="wrap board-body">
+        <div className="board-filters">
+          <div className="board-coins" role="group" aria-label="Coin">
+            {COINS.map((c) => (
+              <button key={c.symbol} className={`board-coin ${coin.symbol === c.symbol ? "on" : ""}`} aria-pressed={coin.symbol === c.symbol} onClick={() => setCoin(c)}>
+                <img src={c.logo} alt="" /><span><b>${c.symbol}</b><small>plays {anchorOf(c).symbol}</small></span>
+              </button>
+            ))}
+          </div>
+          <div className="board-filters-r">
+            <div className="seg2" role="group" aria-label="Period">
+              {PERIODS.map(([d, label]) => <button key={d} className={days === d ? "on" : ""} aria-pressed={days === d} onClick={() => setDays(d)}>{label}</button>)}
+            </div>
+            {isDevnet && (
+              <button className={`board-switch ${people ? "on" : ""}`} role="switch" aria-checked={people} onClick={() => setPeople(!people)} title="The devnet sim runs bot wallets that call every day">
+                <i aria-hidden="true" />Hide the sim's bots
+              </button>
+            )}
+          </div>
         </div>
-        <div className="seg seg-sm" role="group" aria-label="Period">
-          {PERIODS.map(([d, label]) => <button key={d} className={days === d ? "on" : ""} aria-pressed={days === d} onClick={() => setDays(d)}>{label}</button>)}
-        </div>
-        <label className="small"><input type="checkbox" checked={people} onChange={(e) => setPeople(e.target.checked)} /> Hide the sim's bots</label>
+
+        <Stage left={<>${sym} · {period}</>} mid="BEST NET FIRST" right={scored ? <>SCORED {scored} NY</> : q.isLoading ? "READING THE LEDGER" : "LEDGER OFFLINE"}>
+          {q.isLoading ? <PodiumSkeleton />
+            : q.isError || !b ? <Closed onRetry={() => void q.refetch()} busy={q.isFetching} />
+            : <>
+              <Podium top={list.slice(0, 3)} sym={sym} dec={dec} rate={rate} me={me} />
+              {list.length === 0 && (
+                <div className="board-empty">
+                  <h3>{people && b.players > 0 ? "Only the sim's bots have called here in this period." : `No settled calls in $${sym} ${days ? `in the last ${days} days` : "yet"}.`}</h3>
+                  <p>Three spots are open. Make a call, and when the bell rings at 4 PM New York, your record lands here.</p>
+                  <Link className="btn" to={callTo}>Make the first call <span aria-hidden="true">→</span></Link>
+                </div>
+              )}
+            </>}
+        </Stage>
+
+        {q.isLoading && <LadderSkeleton />}
+        {b && list.length > 0 && <Ladder rows={list.slice(3)} all={list} total={people ? b.people : b.players} sym={sym} dec={dec} rate={rate} me={me} callTo={callTo} />}
+
+        {b && (
+          <p className="board-foot">
+            <b>{b.players}</b> {b.players === 1 ? "caller" : "callers"} in this period{isDevnet ? <>, <b>{b.people}</b> of them people, the rest the devnet sim's bots</> : ""}.
+            {" "}Net is what came back plus what is still to collect, less what went in. Voided rounds and house deposits do not count. Tap a caller to see their rounds.
+            {scored ? ` Scored ${scored} New York.` : ""}
+            {b.indexed && !b.indexed.complete ? " Older rounds are still being read." : ""}
+          </p>
+        )}
+
+        <Houses rates={rates} />
       </div>
-
-      <section className="panel" aria-label={`Callers in $${coin.symbol}`}>
-        {q.isLoading ? <p className="stmt-empty">Reading the ledger…</p>
-          : q.isError || !b ? <p className="stmt-empty">The board is out of reach right now. It will be back shortly. <button className="link" onClick={() => void q.refetch()}>Try again</button></p>
-          : list.length === 0 ? <p className="stmt-empty">{people && b.players > 0 ? "Only the sim's bots have called here in this period." : "No settled calls here in this period yet."} <Link to={coinPath(coin)}>Make the first call ›</Link></p>
-          : <table className="ladder-table">
-            <thead><tr><th>#</th><th style={LEFT}>Caller</th><th>Rounds</th><th>Hit</th><th>Net, ${coin.symbol}</th></tr></thead>
-            <tbody>
-              {list.map((p) => {
-                const net = BigInt(p.net), best = BigInt(p.best);
-                return (
-                  <tr key={p.wallet} className={p.wallet === me ? "on" : ""}>
-                    <td className="mono">{p.rank}</td>
-                    <td style={LEFT}>
-                      <Link to={`/yours?account=${p.wallet}&tab=history`} className="mono" title={p.wallet}>{short(new PublicKey(p.wallet))}</Link>
-                      {p.wallet === me && <b> you</b>}
-                      {p.bot && <div className="small muted" title="A wallet the devnet sim runs">bot · {p.bot}</div>}
-                    </td>
-                    <td className="mono">{p.rounds}</td>
-                    <td className="mono" title={`${p.won} won, ${p.missed} missed`}>{Math.round(p.hit * 100)}%</td>
-                    <td className={`mono ${net > 0n ? "up" : net < 0n ? "down" : ""}`} title={`Best round ${money(best, true)}`}>{signed(net)}{fmtCompact(abs(net), dec)}{rate !== null && <div className="small muted">≈ {signed(net)}{fmtUsd(toUsd(abs(net), dec, rate))}</div>}</td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>}
-        {b && <p className="stmt-foot">
-          {b.players} {b.players === 1 ? "caller" : "callers"} in this period, {b.people} of them people, the rest the devnet sim's bots. Net counts what came back and what is still to collect, less what went in; voided rounds and house deposits do not count. Tap a caller to see their rounds.
-          {b.scoredAt ? ` Scored ${nyWhen(b.scoredAt, { hour: "numeric", minute: "2-digit" })} New York.` : ""}
-        </p>}
-      </section>
-
-      <Houses rates={rates} />
     </div>
   );
 }
 
-/** Each coin's house: what it holds, how many rounds it has rolled, and what a share has made since it opened. */
-function Houses({ rates }: { rates: Record<string, number> }) {
-  const { connection } = useConnection();
-  const coins = COINS.map((c) => ({ c, series: seriesOf(c), mint: mintOf(c) })).filter((x) => x.series && x.mint);
-  const q = useQuery({
-    queryKey: ["houses", coins.map((x) => x.series!.toBase58()).join()],
-    queryFn: async () => {
-      const keys = coins.map((x) => stook.deriveHouse(x.series!));
-      const [houses, mints] = await Promise.all([connection.getMultipleAccountsInfo(keys), connection.getMultipleAccountsInfo(coins.map((x) => x.mint!))]);
-      return coins.map((x, n) => ({ ...x, h: houses[n] ? stook.decodeHouse(houses[n]!.data) : null, decimals: mints[n]?.data[44] ?? x.c.decimals }));
-    },
-    refetchInterval: 60_000,
-  });
-  const rows = (q.data ?? []).filter((x) => x.h);
-  if (!rows.length) return null;
+/** The ledger did not answer: a shuttered booth and one way back. */
+function Closed({ onRetry, busy }: { onRetry: () => void; busy: boolean }) {
   return (
-    <section className="panel" aria-label="The houses">
-      <h3>The houses</h3>
-      <p className="hint">One house per coin funds every round of that coin and rolls from one round to the next. It wins what callers miss and pays what they hit; 90% of the trading fees go to it.</p>
-      <table className="ladder-table">
-        <thead><tr><th>House</th><th>Holds</th><th>Rounds rolled</th><th>A share since it opened</th></tr></thead>
-        <tbody>
-          {rows.map(({ c, h, decimals }) => {
-            const capital = stook.houseCapital(h!);
-            // A share's worth, (capital + 1) / (shares + V), against the 1 / V a share started at.
-            const change = (Number(capital + 1n) * Number(stook.VIRTUAL_SHARES)) / Number(h!.totalShares + stook.VIRTUAL_SHARES) - 1;
-            const rate = rates[c.symbol];
-            return (
-              <tr key={c.symbol}>
-                <td><Link to={coinPath(c)} className="pb-chip"><img src={c.logo} alt="" />${c.symbol}</Link></td>
-                <td className="mono">{fmtCompact(capital, decimals)} ${c.symbol}{rate !== undefined && <div className="small muted">≈ {fmtUsd(toUsd(capital, decimals, rate))}</div>}</td>
-                <td className="mono">{h!.epoch}</td>
-                <td className={`mono ${change > 0.0005 ? "up" : change < -0.0005 ? "down" : ""}`}>{change > 0 ? "+" : change < 0 ? "−" : ""}{Math.abs(change * 100).toFixed(1)}%</td>
-              </tr>
-            );
-          })}
-        </tbody>
-      </table>
+    <div className="board-closed">
+      <svg className="board-booth" viewBox="0 0 48 40" shapeRendering="crispEdges" aria-hidden="true">
+        <rect x="2" y="36" width="44" height="4" fill="#05080f" />
+        <rect x="4" y="8" width="40" height="28" fill="#1b2a47" /><rect x="2" y="4" width="44" height="6" fill="#7d2f22" />
+        {[4, 12, 20, 28, 36, 42].map((x) => <rect key={x} x={x} y="4" width="3" height="6" fill="#f5eedb" />)}
+        <rect x="8" y="14" width="32" height="18" fill="#3a3f4c" />
+        {[16, 20, 24, 28].map((y) => <rect key={y} x="8" y={y} width="32" height="1" fill="#22314f" />)}
+        <rect x="14" y="18" width="20" height="8" fill="#ffc629" /><rect x="15" y="19" width="18" height="6" fill="#1b1505" />
+        <rect x="17" y="21" width="2" height="2" fill="#ffc629" /><rect x="21" y="21" width="2" height="2" fill="#ffc629" /><rect x="25" y="21" width="2" height="2" fill="#ffc629" /><rect x="29" y="21" width="2" height="2" fill="#ffc629" />
+      </svg>
+      <h3>The board is out of reach right now</h3>
+      <p>The ledger did not answer. Your calls and rounds are safe on chain. It will be back shortly.</p>
+      <button className="btn btn-sm" onClick={onRetry} disabled={busy}>{busy ? "Trying" : "Try again"}</button>
+    </div>
+  );
+}
+
+function LadderSkeleton() {
+  return (
+    <section className="board-ladder" aria-hidden="true">
+      <ol className="board-rows">{[0, 1, 2, 3, 4].map((i) => <li key={i} className="board-row board-row-sk"><span className="board-sk board-sk-s" /><span className="board-sk board-sk-l" /><span className="board-sk board-sk-s" /></li>)}</ol>
     </section>
   );
 }

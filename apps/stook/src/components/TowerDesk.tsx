@@ -1,71 +1,62 @@
-// Around the tower: the kind of call and how sure, the exact-prices
+// Around the chart: the kind of call and how sure, the exact-prices
 // steppers, and the phone's call bar.
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import type { stook } from "@sooth/sdk-solana";
-import { aboutMultiple, clamp, fx, MAX_S, nearAt, nudgeCall, SURE, type Grid, type Role } from "../lib/call";
+import { aboutMultiple, clamp, fx, MAX_S, nearAt, nudgeCall, SURE, toShape, type Grid, type Role } from "../lib/call";
 import type { Desk } from "../hooks/useDesk";
 import type { CallOrder } from "../hooks/useCallOrder";
+import { useWalletModal } from "@solana/wallet-adapter-react-ui";
 
-/** Gold coins in stacks, the tower's own coins: a pyramid for "near a price"
- *  (most on the middle floor), a flat row for "between two prices". */
-export function KindIcon({ kind, scale = 2 }: { kind: "near" | "between"; scale?: number }) {
-  const heights = kind === "near" ? [1, 2, 4, 2, 1] : [2, 2, 2, 2, 2];
-  const rects: ReactNode[] = [];
-  heights.forEach((n, i) => {
-    const x = i * 5;
-    for (let k = 0; k < n; k++) {
-      const y = 9 - 2 * (k + 1);
-      rects.push(<rect key={`${i}b${k}`} x={x} y={y} width="4" height="1" fill="#f0a83a" />, <rect key={`${i}e${k}`} x={x} y={y + 1} width="4" height="1" fill="#8a5a12" />);
-    }
-    rects.push(<rect key={`${i}h`} x={x + 1} y={9 - 2 * n - 1} width="2" height="1" fill="#ffe28a" />);
-  });
-  return <svg className="kind-ico" width={24 * scale} height={10 * scale} viewBox="0 0 24 10" shapeRendering="crispEdges" aria-hidden="true">{rects}</svg>;
+/** A small picture of the kind: a peak for "near a price" (most in the
+ *  middle), a flat bar for "between two prices". */
+export function KindIcon({ kind, scale = 1 }: { kind: "near" | "between"; scale?: number }) {
+  const hs = kind === "near" ? [2, 4, 8, 4, 2] : [5, 5, 5, 5, 5];
+  return <svg className="kind-ico" width={22 * scale} height={10 * scale} viewBox="0 0 22 10" aria-hidden="true">{hs.map((h, i) => <rect key={i} x={i * 4.5} y={10 - h} width="3.5" height={h} rx="1" fill="currentColor" />)}</svg>;
 }
 
-/** Brass screw heads for a plate's corners. */
-const Screws = () => <>{["tl", "tr", "bl", "br"].map((k) => <i key={k} className={`screw ${k}`} aria-hidden="true" />)}</>;
+/** How sure, in the order card's words. Each maps one to one to a width:
+ *  Tight is Sure (±1 row), Medium is Pretty sure (±3), Wide is Not sure (±6). */
+export const SURE_WORDS: Record<number, string> = { 1: "Tight", 3: "Medium", 6: "Wide" };
+const sureLabel = (name: string, s: number, mult?: string) => `${name}: pays over ${s} row${s > 1 ? "s" : ""} each side${mult ? `, wins up to ${mult} your spend` : ""}`;
+const sures = (on: number): [string, number][] => [...SURE.map(([n, s]) => [SURE_WORDS[s] ?? n, s] as [string, number]), ...(SURE.some(([, s]) => s === on) ? [] : [["Custom", on] as [string, number]])];
 
-const sureLabel = (name: string, s: number, mult?: string) => `${name}: pays over ${s} floor${s > 1 ? "s" : ""} each side${mult ? `, about ${mult} your spend` : ""}`;
-
-/** Near a price or between two, then how sure: the call's shape, in plain
- *  words, on the brass panel of an old elevator. */
-export function CallKind(p: { desk: Desk; grid: Grid; curve: stook.Curve; feeBps: number; at: number; coarse: boolean; onSure: () => void }) {
-  const { desk, grid: g } = p;
+/** Near a price or between two, then how sure: the call's shape, in plain words. */
+/** With `order`, each multiple is quoted at the spend in the box. Without
+ *  (the How page's demo), an estimate from the curve, marked with "~". */
+export function CallKind(p: { desk: Desk; grid: Grid; order?: CallOrder; curve?: stook.Curve; feeBps?: number; at: number; coarse: boolean; onSure: () => void }) {
+  const { desk, grid: g, order: o } = p;
   const L = desk.call?.kind === "near" ? desk.call.c : p.at;
   const on = desk.call?.kind === "near" ? desk.call.s : desk.lastS;
+  // Each chip's multiple is quoted at the spend in the box, the same way the
+  // order is, so the picked chip, the chart tag and the win card agree.
+  const list = sures(on);
+  const key = list.map(([, s]) => s).join(",");
+  const mults = useMemo(() => new Map(list.map(([, s]) => { const c = nearAt(g, L, s);
+      if (o) { const m = o.multOf(toShape(c)); return [s, m !== null && m > 0 ? fx(m) : ""] as const; }
+      const m = p.curve ? aboutMultiple(p.curve, c, p.feeBps ?? 0) : 0;
+      return [s, m > 0 ? `~${fx(m)}` : ""] as const; })),
+    [key, L, g, o?.budget, o?.feeBps, o?.q, p.curve, p.feeBps]); // eslint-disable-line react-hooks/exhaustive-deps
   return (
-    <section className="tw-ctl" aria-label="Kind of call">
-      <div className="brass switch-plate" role="group" aria-label="Kind of call">
-        <Screws />
+    <section className="tk-kind" aria-label="Kind of call">
+      <div className="seg2 tk-seg" role="group" aria-label="Kind of call">
         {(["near", "between"] as const).map((k) => (
-          <button key={k} className="sw-side" aria-pressed={desk.kind === k} onClick={() => desk.switchKind(k)}>
-            <span className="sw-lamp" aria-hidden="true" />
-            <KindIcon kind={k} />
-            <span className="t">{k === "near" ? "Near a price" : "Between two prices"}</span>
+          <button key={k} className={desk.kind === k ? "on" : ""} aria-pressed={desk.kind === k} onClick={() => desk.switchKind(k)}>
+            <KindIcon kind={k} />{k === "near" ? "Near a price" : "Between two prices"}
           </button>
         ))}
       </div>
-      {/* How sure is a choice only near a price; a range is drawn on the tower, so there is nothing to pick here. */}
-      {desk.kind === "near" && <div className="brass floor-plate" data-coach="sure">
-        <Screws />
-        <span className="plate-lbl">HOW SURE?{!p.coarse && <span className="plate-or">or drag ▲ ▼ on the tower</span>}</span>
-        {desk.kind === "near" ? (
-          <div className="floors" role="group" aria-label="How sure are you">
-            {/* The three, and a fourth only while the call is a width none of them is (dragged on the tower). */}
-            {[...SURE, ...(SURE.some(([, s]) => s === on) ? [] : [["Custom", on] as [string, number]])].map(([name, s]) => {
-              const mult = fx(aboutMultiple(p.curve, nearAt(g, L, s), p.feeBps)), custom = name === "Custom";
-              return (
-                <button key={s} className={`floor-btn${custom ? " fl-custom" : ""}`} aria-pressed={on === s} aria-label={sureLabel(name, s, mult)} title={sureLabel(name, s, mult)}
-                  onMouseEnter={() => desk.setPeek(s)} onMouseLeave={() => desk.setPeek(null)} onFocus={() => desk.setPeek(s)} onBlur={() => desk.setPeek(null)}
-                  onClick={() => { desk.setSure(s, p.at); p.onSure(); }}>
-                  <span className="bezel" aria-hidden="true"><span className="lens">±{s}</span></span>
-                  <span className="fl-name">{name}</span>
-                  <span className="fl-mult mono">≈{mult}</span>
-                </button>
-              );
-            })}
-          </div>
-        ) : null}
+      {/* How sure is a choice only near a price; a range is drawn on the chart, and the range box below says what to do. */}
+      {desk.kind === "near" && <div className="chips tk-sure" role="group" aria-label="How sure are you" data-coach="sure">
+        {list.map(([name, s]) => {
+          const mult = mults.get(s) ?? "";
+          return (
+            <button key={s} className={`chip${on === s ? " on" : ""}`} aria-pressed={on === s} aria-label={sureLabel(name, s, mult)} title={sureLabel(name, s, mult)}
+              onMouseEnter={() => desk.setPeek(s)} onMouseLeave={() => desk.setPeek(null)} onFocus={() => desk.setPeek(s)} onBlur={() => desk.setPeek(null)}
+              onClick={() => { desk.setSure(s, p.at); p.onSure(); }}>
+              {name}<small>{name === "Custom" ? `±${s}${mult ? " · " : ""}` : ""}{mult || "\u00a0"}</small>
+            </button>
+          );
+        })}
       </div>}
     </section>
   );
@@ -76,25 +67,19 @@ export function CallKindBar(p: { desk: Desk; grid: Grid; at: number; onSure: () 
   const { desk } = p;
   const on = desk.call?.kind === "near" ? desk.call.s : desk.lastS;
   return (
-    <div className="tw-kbar">
-      <div className="brass switch-plate sw-mini" role="group" aria-label="Kind of call">
+    <div className="tk-kbar">
+      <div className="seg2" role="group" aria-label="Kind of call">
         {(["near", "between"] as const).map((k) => (
-          <button key={k} className="sw-side" aria-pressed={desk.kind === k} aria-label={k === "near" ? "Near a price" : "Between two prices"} onClick={() => desk.switchKind(k)}>
-            <KindIcon kind={k} scale={1} />
-            <span className="t">{k === "near" ? "Near" : "Between"}</span>
+          <button key={k} className={desk.kind === k ? "on" : ""} aria-pressed={desk.kind === k} aria-label={k === "near" ? "Near a price" : "Between two prices"} onClick={() => desk.switchKind(k)}>
+            {k === "near" ? "Near" : "Between"}
           </button>
         ))}
       </div>
-      {desk.kind === "near"
-        ? <div className="brass floor-plate fp-mini" role="group" aria-label="How sure are you" data-coach="sure-m">
-            {[...SURE, ...(SURE.some(([, s]) => s === on) ? [] : [["Custom", on] as [string, number]])].map(([name, s]) => (
-              <button key={s} className={`floor-btn${name === "Custom" ? " fl-custom" : ""}`} aria-pressed={on === s} aria-label={sureLabel(name, s)} onClick={() => { desk.setSure(s, p.at); p.onSure(); }}>
-                <span className="bezel" aria-hidden="true"><span className="lens">±{s}</span></span>
-                <span className="fl-name">{name}</span>
-              </button>
-            ))}
-          </div>
-        : null}
+      {desk.kind === "near" && <div className="seg2" role="group" aria-label="How sure are you" data-coach="sure-m">
+        {sures(on).map(([name, s]) => (
+          <button key={s} className={on === s ? "on" : ""} aria-pressed={on === s} aria-label={sureLabel(name, s)} onClick={() => { desk.setSure(s, p.at); p.onSure(); }}>{name === "Custom" ? `±${s}` : name}</button>
+        ))}
+      </div>}
     </div>
   );
 }
@@ -123,38 +108,38 @@ export function ExactPrices(p: { desk: Desk; grid: Grid; all: boolean; setAll: (
       ? (role === "hi" ? { kind: "between" as const, lo: Math.min(c.lo, i), hi: Math.max(c.lo, i) } : { kind: "between" as const, lo: Math.min(i, c.hi), hi: Math.max(i, c.hi) })
       : off ? { kind: "near" as const, c: i, s: c.s } : nearAt(g, i, c.s);
     desk.set(n, { undoable: true });
-    setNote(`Snapped to ${i === 0 ? `below ${g.fmt(g.edge(1))}` : i === 63 ? `above ${g.fmt(g.edge(63))}` : `${g.fmt(g.edge(i))} to ${g.fmt(g.edge(i + 1))}`}.${off && !p.all ? " Every floor is showing now, so you can see it." : ""}`);
+    setNote(`Snapped to ${i === 0 ? `below ${g.fmt(g.edge(1))}` : i === 63 ? `above ${g.fmt(g.edge(63))}` : `${g.fmt(g.edge(i))} to ${g.fmt(g.edge(i + 1))}`}.${off && !p.all ? " Every row is showing now, so you can see it." : ""}`);
   };
   const row = (label: string, value: string, role: Role, edit: boolean, lo: boolean, hi: boolean) => (
-    <div className="tw-ed">
+    <div className="tk-step">
       <span className="k">{label}</span>
-      <button onPointerDown={hold(role, -1)} onClick={(e) => { if (e.detail === 0) step(role, -1); }} disabled={lo} aria-label={`${label} down one floor`}>▼</button>
+      <button onPointerDown={hold(role, -1)} onClick={(e) => { if (e.detail === 0) step(role, -1); }} disabled={lo} aria-label={`${label} down one row`}>▼</button>
       {edit ? <PriceField value={value} label={`${label} price`} onCommit={(t) => snap(role, t)} /> : <span className="val">{value}</span>}
-      <button onPointerDown={hold(role, 1)} onClick={(e) => { if (e.detail === 0) step(role, 1); }} disabled={hi} aria-label={`${label} up one floor`}>▲</button>
+      <button onPointerDown={hold(role, 1)} onClick={(e) => { if (e.detail === 0) step(role, 1); }} disabled={hi} aria-label={`${label} up one row`}>▲</button>
     </div>
   );
   let body: ReactNode;
-  if (!c) body = <p className="tw-note">Pick a floor first.</p>;
+  if (!c) body = <p className="tk-note">Pick a price on the chart first.</p>;
   else if (c.kind === "between") body = <>
-    {row("TOP", c.hi === 63 ? "no limit" : g.fmt(g.edge(c.hi + 1)), "hi", c.hi !== 63, false, c.hi === 63)}
-    {row("BOTTOM", c.lo === 0 ? "no limit" : g.fmt(g.edge(c.lo)), "lo", c.lo !== 0, c.lo === 0, false)}
-    <p className="tw-note">{c.hi - c.lo + 1} floor{c.hi > c.lo ? "s" : ""}, each {(g.stepBps / 100).toFixed(2).replace(/\.?0+$/, "")}% of the price tall.</p>
+    {row("Top", c.hi === 63 ? "no limit" : g.fmt(g.edge(c.hi + 1)), "hi", c.hi !== 63, false, c.hi === 63)}
+    {row("Bottom", c.lo === 0 ? "no limit" : g.fmt(g.edge(c.lo)), "lo", c.lo !== 0, c.lo === 0, false)}
+    <p className="tk-note">{c.hi - c.lo + 1} row{c.hi > c.lo ? "s" : ""}, each {(g.stepBps / 100).toFixed(2).replace(/\.?0+$/, "")}% of the price.</p>
   </>;
   else body = <>
-    {row("FLOOR", g.fmt(g.edge(clamp(c.c, 1, 63))), "c", true, c.c <= g.flo, c.c >= g.fhi)}
-    {row("SPREAD", `±${c.s} floor${c.s > 1 ? "s" : ""}`, "w", false, c.s <= 1, c.s >= MAX_S)}
-    <p className="tw-note">Full pay from {g.fmt(g.edge(clamp(c.c, 1, 63)))} to {g.fmt(g.edge(clamp(c.c + 1, 1, 63)))}. Less on each floor away, nothing below {g.fmt(g.edge(Math.max(1, c.c - c.s)))} or above {g.fmt(g.edge(Math.min(63, c.c + c.s + 1)))}.</p>
+    {row("Best price", g.fmt(g.edge(clamp(c.c, 1, 63))), "c", true, c.c <= g.flo, c.c >= g.fhi)}
+    {row("Spread", `±${c.s} row${c.s > 1 ? "s" : ""}`, "w", false, c.s <= 1, c.s >= MAX_S)}
+    <p className="tk-note">Full pay from {g.fmt(g.edge(clamp(c.c, 1, 63)))} to {g.fmt(g.edge(clamp(c.c + 1, 1, 63)))}. Less on each row away, nothing below {g.fmt(g.edge(Math.max(1, c.c - c.s)))} or above {g.fmt(g.edge(Math.min(63, c.c + c.s + 1)))}.</p>
   </>;
   return <>
     {body}
-    {note && <p className="tw-note" role="status">{note}</p>}
-    <label className="tw-allf"><input type="checkbox" checked={p.all} onChange={(e) => p.setAll(e.target.checked)} /> Show every floor (all 64)</label>
+    {note && <p className="tk-note" role="status">{note}</p>}
+    <label className="tk-all"><input type="checkbox" checked={p.all} onChange={(e) => p.setAll(e.target.checked)} /> Show every row (all 64)</label>
   </>;
 }
 
 function PriceField(p: { value: string; label: string; onCommit: (t: string) => void }) {
   const [text, setText] = useState<string | null>(null);
-  return <input className="val" value={text ?? p.value} inputMode="decimal" aria-label={p.label}
+  return <input className="val input" value={text ?? p.value} inputMode="decimal" aria-label={p.label}
     onFocus={(e) => e.currentTarget.select()} onChange={(e) => setText(e.target.value)}
     onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); if (text !== null) p.onCommit(text); setText(null); } else if (e.key === "Escape") setText(null); }}
     onBlur={() => { if (text !== null && text !== p.value) p.onCommit(text); setText(null); }} />;
@@ -163,6 +148,7 @@ function PriceField(p: { value: string; label: string; onCommit: (t: string) => 
 // ── phones: the call, what it wins and Place, always on screen ──────────────
 export function CallBar(p: { order: CallOrder; symbol: string; money: (u: bigint) => string; state: "open" | "closed"; closedText: string; pending: boolean; hasCall: boolean; held: boolean; controls?: ReactNode }) {
   const o = p.order;
+  const modal = useWalletModal();
   // The kind-and-how-sure row folds away while you scroll down the page and
   // comes back on the way up, or on a tap on the bar.
   const [folded, setFolded] = useState(false);
@@ -178,21 +164,21 @@ export function CallBar(p: { order: CallOrder; symbol: string; money: (u: bigint
   const all = opts.includes(typed) || !(typed > 0) ? opts : [...opts, typed].sort((a, b) => a - b);
   const win = p.state === "closed" ? <span className="dim">{p.closedText}</span>
     : o.toWin !== null && o.mult !== null && !o.stale ? <span>{p.money(o.toWin)} · {fx(o.mult)}</span>
-    : <span className="dim">{p.pending ? "tap the other end" : p.hasCall ? "type a spend" : "pick a floor"}</span>;
+    : <span className="dim">{p.pending ? "tap the other end" : p.hasCall ? "type a spend" : "pick a price"}</span>;
   const label = p.state === "closed" ? "Closed" : !o.connected ? "Connect" : o.send.isPending ? "Sending…" : o.short ? "Short" : p.held || o.existing ? "Add" : "Place";
   return (
-    <div className="tw-mbar" ref={bar} onClick={() => { if (folded) setFolded(false); }}>
-      {p.controls && p.state === "open" && <div className={`tw-mbar-ctl${folded ? " folded" : ""}`}>{p.controls}</div>}
-      {p.controls && p.state === "open" && folded && <button className="tw-mbar-unfold" onClick={(e) => { e.stopPropagation(); setFolded(false); }} aria-expanded={false} aria-label="Show near or between and how sure">▴</button>}
-      <div className="tw-mbar-row">
-      <label className="sp"><span className="lb">SPEND {o.unit === "usd" ? "$" : p.symbol}</span>
-        <select value={typed > 0 ? String(typed) : ""} onChange={(e) => o.setText(e.target.value)} aria-label={`Spend in ${o.unit === "usd" ? "dollars" : p.symbol}`} disabled={p.state === "closed"}>
-          {!(typed > 0) && <option value="">…</option>}
-          {all.map((v) => <option key={v} value={String(v)}>{v.toLocaleString("en-US")}</option>)}
-        </select>
-      </label>
-      <div className="tw"><span className="lb">TO WIN</span>{win}</div>
-      <button data-coach="place-m" disabled={p.state === "closed" || !o.q || o.stale || o.send.isPending || !o.connected || o.short} onClick={o.submit}>{label}</button>
+    <div className="trade-mbar" ref={bar} onClick={() => { if (folded) setFolded(false); }}>
+      {p.controls && p.state === "open" && <div className={`trade-mbar-ctl${folded ? " folded" : ""}`}>{p.controls}</div>}
+      {p.controls && p.state === "open" && folded && <button className="trade-mbar-unfold" onClick={(e) => { e.stopPropagation(); setFolded(false); }} aria-expanded={false} aria-label="Show near or between and how sure">▴</button>}
+      <div className="trade-mbar-row">
+        <label className="sp"><span className="label">Spend {o.unit === "usd" ? "$" : p.symbol}</span>
+          <select value={typed > 0 ? String(typed) : ""} onChange={(e) => o.setText(e.target.value)} aria-label={`Spend in ${o.unit === "usd" ? "dollars" : p.symbol}`} disabled={p.state === "closed"}>
+            {!(typed > 0) && <option value="">…</option>}
+            {all.map((v) => <option key={v} value={String(v)}>{v.toLocaleString("en-US")}</option>)}
+          </select>
+        </label>
+        <div className="tw"><span className="label">To win</span>{win}</div>
+        <button className="btn btn-sm" data-coach="place-m" disabled={p.state === "closed" || (o.connected && (!o.q || o.stale || o.send.isPending || o.short))} onClick={() => (o.connected ? o.submit() : modal.setVisible(true))}>{label}</button>
       </div>
     </div>
   );

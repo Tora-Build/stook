@@ -1,27 +1,29 @@
-// One coin's post: the anchor's price over the last day, and the round slots,
-// one per day, settling at the New York close, up to 31 days ahead. A slot
-// nobody has funded is empty; whoever seeds it first starts the round and is
-// its first LP; everyone after adds liquidity to the same round.
-import { useMemo } from "react";
+// A coin's page is its house: the pixel city with the house's tower lit, the
+// house's numbers, today's round and the anchor's last day, the calendar of
+// rounds, and on the right the deposit box, your share and the coin's facts.
+// A coin with a house gets one round a day from it. Without one, anyone can
+// fund a day by hand and be that round's house.
+import { useMemo, useState } from "react";
 import { useParams } from "react-router-dom";
-import { useState } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { useConnection } from "@solana/wallet-adapter-react";
+import { stook } from "@sooth/sdk-solana";
 import { StartRound } from "../components/StartRound";
-import { HousePanel } from "../components/HousePanel";
 import { WallCalendar } from "../components/WallCalendar";
 import { TodayDesk } from "../components/TodayDesk";
-import { Address } from "../components/Address";
-import { useQuery } from "@tanstack/react-query";
-import { stook } from "@sooth/sdk-solana";
-import { anchorOf, coinBySymbol, keyOf, mintOf, seriesOf } from "../lib/coins";
-import { quoteKeyOf, useListed, type ListedCoin } from "../lib/listed";
-import { useConnection } from "@solana/wallet-adapter-react";
-import { useSeries } from "../hooks/useChain";
-import { useHouse } from "../hooks/useHouse";
-import { useNow } from "../hooks/useNow";
-import { firstOpenableDay, nyWhen } from "../lib/time";
-import { fmtUsd, useCoinQuotes } from "../lib/usd";
 import { Notice } from "../components/Notice";
 import { Title } from "../components/Title";
+import { HouseHero } from "../components/house/HouseHero";
+import { HouseBox, HouseStats } from "../components/house/HouseDesk";
+import { CoinFacts } from "../components/house/CoinFacts";
+import { Chart24 } from "../components/house/Chart24";
+import { anchorOf, coinBySymbol, keyOf, mintOf, seriesOf, standInNote } from "../lib/coins";
+import { quoteKeyOf, useListed, type ListedCoin } from "../lib/listed";
+import { useSeries } from "../hooks/useChain";
+import { useHouseRead } from "../hooks/useHouse";
+import { useNow } from "../hooks/useNow";
+import { firstOpenableDay, nyWhen } from "../lib/time";
+import { useCoinQuotes } from "../lib/usd";
 
 const DATA = "";
 /** A slot can be started until this long before it settles: the program's
@@ -39,93 +41,79 @@ export function Coin() {
   const [starting, setStarting] = useState<number | null>(null);
   const seriesKey = useMemo(() => (coin ? seriesOf(coin) : null), [coin]);
   const series = useSeries(seriesKey);
-  // With a house, the house opens every day's round; without one, anyone can fund a day.
-  const house = useHouse(seriesKey).data ?? null;
-  const byHand = !house;
-  const chart = useQuery({ queryKey: ["chart", qk], queryFn: async () => (await fetch(`${DATA}/chart?coin=${qk}`)).json() as Promise<{ points: [number, number][] }>, enabled: !!coin && (!listing || qk !== keyOf(coin)), refetchInterval: 300_000 });
+  // With a house, the house opens every day's round; without one, anyone can
+  // fund a day. Until the read is back, neither: no by-hand buttons flash first.
+  const houseRead = useHouseRead(seriesKey);
+  const house = houseRead.data?.h ?? null;
+  const houseKnown = !!seriesKey && houseRead.isSuccess;
+  const houseErr = !!seriesKey && houseRead.isError && !houseRead.data;
+  const byHand = houseKnown && !house;
+  const hasHouse = houseKnown ? !!house : null;
+  // A listed coin quoted under its own key has no anchor tape to chart.
+  const chartOn = !!coin && (!listing || qk !== keyOf(coin));
+  const chart = useQuery({ queryKey: ["chart", qk], queryFn: async () => (await fetch(`${DATA}/chart?coin=${qk}`)).json() as Promise<{ points: [number, number][] }>, enabled: chartOn, refetchInterval: 300_000 });
   const quote = useQuery({ queryKey: ["quote", coin?.symbol], queryFn: async () => (await fetch(`${DATA}/prices`)).json() as Promise<Record<string, unknown>>, enabled: !!coin, refetchInterval: 60_000 });
-
-  const anchor = coin ? anchorOf(coin) : null;
   const cq = useCoinQuotes().data?.[coin?.symbol ?? ""];
 
-  if (!coin || !anchor) return <p className="page muted">{listedReady ? "No such coin on the street." : "Opening…"}</p>;
+  const anchor = coin ? anchorOf(coin) : null;
+  if (!coin || !anchor) return <div className="wrap house-missing"><p className="dimmer">{listedReady ? "No such coin on the street." : "Opening…"}</p></div>;
   const q = quote.data?.[qk] as { price: number; change24h: number | null } | undefined;
   const mint = mintOf(coin);
   const firstOpen = series.data ? firstOpenableDay(series.data) : null;
+  const canStart = byHand && !!mint && !!series.data?.active;
+  // On devnet a coin's rounds may settle on a stand-in feed, not its anchor.
+  const standIn = standInNote(coin);
+  const chartNote = standIn ? `Rounds here settle on ${anchor.symbol}, not on this chart.` : null;
+  const learning = series.data && firstOpen !== null && firstOpen > stook.indexAtOrBefore(series.data, BigInt(now)) + 1;
 
   return (
-    <div className="page">
-      <Title text={coin ? `$${coin.symbol} · ${coin.anchor.name}` : "Coin"} />
-      {/* The coin's board, as a round's: who it is on top, the numbers that
-          move on a tape below. */}
-      <header className="round-board coin-board">
-        <div className="board-top">
-          <div className="strip-id">
-            <div className="logos logos-big logos-anchor-first"><img src={coin.anchor.logo} alt={coin.anchor.symbol} className="logo-coin" /><img src={coin.logo} alt={coin.symbol} className="logo-anchor" /></div>
-            <div>
-              <h1>{coin.anchor.name} <span className="sym">{coin.anchor.symbol}</span> <span className="coin-in">in ${coin.symbol}</span></h1>
-              <div className="board-sub">
-                <Address label={`${coin.anchor.symbol} token`} value={coin.anchor.mint} />{coin.mint && <Address label={`$${coin.symbol}`} value={coin.mint} dim />}
+    <div className="house">
+      <Title text={`$${coin.symbol} · ${coin.anchor.name}`} />
+      <HouseHero coin={coin} house={hasHouse} settle={standIn ? anchor.name : null} />
+
+      <div className="wrap house-body">
+        {listing && <Notice className="house-notice" tone={listing.state === "rejected" ? "stop" : listing.state === "pending" ? "warn" : "info"} title={listing.state === "pending" ? "Listed, live soon" : listing.state === "rejected" ? "Turned down" : "Listed by its community"}>
+          {listing.state === "pending" ? <>Listed by its community, not by the street. Rounds start {nyWhen(Number(listing.opensAfter), { weekday: "short", hour: "numeric", minute: "2-digit" })} NY. Anyone can list any coin: check the mint before you trade.</>
+            : listing.state === "rejected" ? <>The street turned this listing down. No rounds. Whoever listed it can take their coins back.</>
+            : <>Not by the street. Anyone can list any coin: check the mint before you trade.</>}
+        </Notice>}
+
+        <div className="house-grid">
+          <div className="house-main">
+            {house && seriesKey && mint && <HouseStats series={seriesKey} mint={mint} symbol={coin.symbol} />}
+
+            {series.data && seriesKey
+              ? <TodayDesk seriesKey={seriesKey} series={series.data} now={now} minLeadSecs={MIN_LEAD_SECS} dp={anchor.dp} coinSymbol={coin.symbol} anchorName={coin.anchor.name} canStart={canStart} onStart={setStarting} house={hasHouse} houseError={houseErr}
+                  side={<Chart24 title={`${coin.anchor.symbol} · last 24 hours, NY`} note={chartNote} points={chart.data?.points ?? []} dp={coin.anchor.dp} state={!chartOn || chart.isError ? "none" : "loading"} />} />
+              : <section className="card house-today house-today-solo"><Chart24 title={`${coin.anchor.symbol} · last 24 hours, NY`} note={chartNote} points={chart.data?.points ?? []} dp={coin.anchor.dp} state={!chartOn || chart.isError ? "none" : "loading"} /></section>}
+
+            <section className="house-sec" id="calendar">
+              <div className="house-sec-head">
+                <h2>{byHand ? "Plan ahead" : "Calendar"}</h2>
+                <span className="dimmer">{byHand ? "Fund any day up to 31 days out." : "One round a day, closing 4 PM NY."}</span>
               </div>
-            </div>
+              {learning && <Notice className="house-notice" tone="info" title="New on the street">Rounds start {nyWhen(stook.closeOf(series.data!, firstOpen!), { weekday: "short", month: "short", day: "numeric" })}, after 20 daily closes ({series.data!.observations} so far).</Notice>}
+              <div className="card house-cal-card">
+                {series.data && seriesKey ? <WallCalendar seriesKey={seriesKey} series={series.data} now={now} minLeadSecs={MIN_LEAD_SECS} dp={anchor.dp} coinSymbol={coin.symbol} canStart={canStart} onStart={setStarting} house={hasHouse} />
+                  : <p className="house-empty dimmer">{series.isLoading ? "Reading the calendar" : "This coin has no rounds on this network yet."}</p>}
+              </div>
+            </section>
           </div>
+
+          <aside className="house-side">
+            {house && seriesKey && mint ? <HouseBox series={seriesKey} mint={mint} symbol={coin.symbol} />
+              : byHand ? <div className="card house-box house-hand">
+                  <div className="label">No house yet</div>
+                  <h3>Fund a day. Be its house.</h3>
+                  <p className="dimmer">You take the other side of every call that day, and keep 90% of its fees.</p>
+                  <a className="btn btn-block" href="#calendar">Pick a day</a>
+                </div>
+              : <div className="card house-box house-box-wait" aria-busy={!houseErr}><div className="label">The house</div><p className="dimmer">{!seriesKey ? "No rounds on this network yet" : houseErr ? "Can't read the house. Trying again." : "Reading the house"}</p></div>}
+            <CoinFacts coin={coin} anchorPrice={q?.price} anchorChange={q?.change24h} coinUsd={cq?.usd} coinChange={cq?.change24h} />
+          </aside>
         </div>
-        <div className="board-tape">
-          <div className="tape-cell"><span className="strip-k">{coin.anchor.symbol} now</span><b className="mono">{q ? `$${q.price.toLocaleString("en-US", { minimumFractionDigits: coin.anchor.dp, maximumFractionDigits: coin.anchor.dp })}` : "…"}</b>
-            {typeof q?.change24h === "number" && <em className={`mono ${q.change24h >= 0 ? "up" : "down"}`}>{q.change24h >= 0 ? "▲" : "▼"} {Math.abs(q.change24h).toFixed(2)}% in 24h</em>}</div>
-          <div className="tape-cell"><span className="strip-k">${coin.symbol}</span><b className="mono">{cq?.usd ? fmtUsd(cq.usd) : "…"}</b>
-            {typeof cq?.change24h === "number" && <em className={`mono ${cq.change24h >= 0 ? "up" : "down"}`}>{cq.change24h >= 0 ? "▲" : "▼"} {Math.abs(cq.change24h).toFixed(1)}% in 24h</em>}</div>
-          <div className="tape-cell" title={coin.feeBps > 0 ? `$${coin.symbol} takes ${coin.feeBps / 100}% on every transfer; the app shows it in every quote.` : undefined}><span className="strip-k">transfer fee</span><b className="mono">{coin.feeBps > 0 ? `${coin.feeBps / 100}%` : "none"}</b><em>{coin.feeBps > 0 ? "on every move of the coin" : "the coin moves whole"}</em></div>
-        </div>
-      </header>
-      {listing && <Notice tone={listing.state === "rejected" ? "stop" : listing.state === "pending" ? "warn" : "info"} title={listing.state === "pending" ? "Listed, live in a day" : listing.state === "rejected" ? "Turned down" : "Listed by its community"}>
-        {listing.state === "pending" ? <>Listed by its community, not by the street. Rounds start {nyWhen(Number(listing.opensAfter), { weekday: "short", hour: "numeric", minute: "2-digit" })} New York, once its day has passed. Check the mint above before you trade: anyone can list any coin.</>
-          : listing.state === "rejected" ? <>The street turned this listing down. It will not run rounds; whoever listed it can take their coins back.</>
-          : <>Listed by its community, not by the street. Check the mint above before you trade: anyone can list any coin.</>}
-      </Notice>}
-
-
-      {series.data && seriesKey && <TodayDesk seriesKey={seriesKey} series={series.data} now={now} minLeadSecs={MIN_LEAD_SECS} dp={anchor.dp} coinSymbol={coin.symbol} anchorName={coin.anchor.name} canStart={byHand && !!mint && series.data.active} onStart={setStarting} house={!!house}
-        side={<div className="desk-side"><div className="desk-next-h">{coin.anchor.symbol}, the last 24 hours, New York time</div><Chart24 points={chart.data?.points ?? []} dp={coin.anchor.dp} /></div>} />}
-
-      {seriesKey && mint && <div id="house"><HousePanel series={seriesKey} mint={mint} symbol={coin.symbol} /></div>}
-
-      <section className="slots">
-        {house
-          ? <div className="plan-head"><h3>The calendar</h3><span className="hint">One round a day, closing 4 PM New York. The house opens each one after the bell before it; past days keep where they landed.</span></div>
-          : <div className="plan-head"><h3>Plan ahead</h3><span className="hint">Fund any day up to 31 days out and be its house. Its floors are set the moment it opens.</span></div>}
-        {/* A new coin learns from 20 daily closes before its first round, once.
-            Say so only while that holds back the next round anyone could fund. */}
-        {series.data && firstOpen !== null && firstOpen > stook.indexAtOrBefore(series.data, BigInt(now)) + 1 && <Notice tone="info" title="New on the street">{coin.anchor.name}'s rounds start {nyWhen(stook.closeOf(series.data, firstOpen), { weekday: "short", month: "short", day: "numeric" })}, once it has seen 20 daily closes ({series.data.observations} so far). After that it learns every day on its own.</Notice>}
-        {series.data && seriesKey ? <WallCalendar seriesKey={seriesKey} series={series.data} now={now} minLeadSecs={MIN_LEAD_SECS} dp={anchor.dp} coinSymbol={coin.symbol} canStart={byHand && !!mint && series.data.active} onStart={setStarting} house={!!house} />
-          : <p className="muted">{series.isLoading ? "Reading the calendar…" : "This coin's rounds have not been opened on this network yet."}</p>}
-      </section>
+      </div>
       {starting !== null && byHand && series.data && seriesKey && <StartRound coin={coin} seriesKey={seriesKey} series={series.data} index={starting} onClose={() => setStarting(null)} />}
-    </div>
-  );
-}
-
-/** The anchor over the last day, as a stepped pixel line. */
-function Chart24({ points, dp }: { points: [number, number][]; dp: number }) {
-  // Drawn at the size it is shown, beside today's card, so its labels read.
-  const W = 420, H = 230, P = { l: 4, r: 58, t: 12, b: 22 };
-  if (points.length < 2) return <div className="chart-wrap chart24"><div className="chart-hover"><span className="muted">Loading the last 24 hours…</span></div></div>;
-  const ys = points.map((p) => p[1]), lo = Math.min(...ys), hi = Math.max(...ys), span = hi - lo || 1;
-  const x = (i: number) => P.l + (i / (points.length - 1)) * (W - P.l - P.r);
-  const y = (v: number) => P.t + (1 - (v - lo) / span) * (H - P.t - P.b);
-  const d = points.map((p, i) => `${i ? "L" : "M"}${x(i).toFixed(1)},${y(p[1]).toFixed(1)}`).join(" ");
-  const last = points[points.length - 1]!, first = points[0]!;
-  const ticks = [0, Math.floor(points.length / 2), points.length - 1];
-  return (
-    <div className="chart-wrap chart24">
-      <svg viewBox={`0 0 ${W} ${H}`} className="chart" role="img" aria-label="Price over the last 24 hours">
-        <path d={`${d} L${x(points.length - 1)},${H - P.b} L${x(0)},${H - P.b} Z`} className="area24" />
-        <path d={d} className={`line24 ${last[1] >= first[1] ? "up" : "down"}`} />
-        <text x={W - P.r + 6} y={y(last[1]) + 4} className="lbl lbl-live">{last[1].toLocaleString("en-US", { maximumFractionDigits: dp })}</text>
-        <text x={W - P.r + 6} y={y(hi) + 4} className="lbl">{hi.toLocaleString("en-US", { maximumFractionDigits: dp })}</text>
-        <text x={W - P.r + 6} y={y(lo) + 4} className="lbl">{lo.toLocaleString("en-US", { maximumFractionDigits: dp })}</text>
-        {ticks.map((i) => <text key={i} x={x(i)} y={H - 6} className="lbl" textAnchor={i === 0 ? "start" : i === points.length - 1 ? "end" : "middle"}>{new Date(points[i]![0] * 1000).toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", timeZone: "America/New_York" })}</text>)}
-      </svg>
     </div>
   );
 }

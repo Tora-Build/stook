@@ -20,7 +20,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
         {toasts.map((t) => (
           <div key={t.id} className={`toast toast-${t.kind}`}>
             <span>{t.text}</span>
-            {t.sig && <a href={EXPLORER("tx", t.sig)} target="_blank" rel="noreferrer">view</a>}
+            {t.sig && <a href={EXPLORER("tx", t.sig)} target="_blank" rel="noreferrer">View</a>}
           </div>
         ))}
       </div>

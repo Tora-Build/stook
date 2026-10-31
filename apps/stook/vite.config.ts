@@ -21,5 +21,8 @@ export default defineConfig({
   server: { port: 5180, strictPort: true, proxy: {
     ...Object.fromEntries(["/prices", "/chart", "/usd", "/coins", "/pyth"].map((p) => [p, { target: "https://stookstreet.xyz", changeOrigin: true }])),
     "/history": { target: process.env.LEDGER_DEV_URL || "https://stookstreet.xyz", changeOrigin: true },
+    "/leaderboard": { target: process.env.LEDGER_DEV_URL || "https://stookstreet.xyz", changeOrigin: true },
+    "/days": { target: "https://stookstreet.xyz", changeOrigin: true },
+    "/chatter": { target: "https://stookstreet.xyz", changeOrigin: true },
   } },
 });

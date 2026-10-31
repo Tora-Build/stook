@@ -7,14 +7,15 @@ import { createPortal } from "react-dom";
 
 const VIDEO = "L_wH5B0FZvY";
 
-export function WatchButton({ className = "" }: { className?: string }) {
+// `bare` drops the old look so a page can style it fully (e.g. "btn btn-ghost").
+export function WatchButton({ className = "", label = "Watch in 60s", bare = false }: { className?: string; label?: string; bare?: boolean }) {
   const [open, setOpen] = useState(false);
   const btn = useRef<HTMLButtonElement>(null);
   const close = () => { setOpen(false); btn.current?.focus(); };
   return (
     <>
-      <button ref={btn} className={`watch-btn ${className}`} onClick={() => setOpen(true)} aria-haspopup="dialog">
-        <span className="watch-play" aria-hidden="true">▶</span> Watch in 60s
+      <button ref={btn} className={bare ? className : `watch-btn ${className}`} onClick={() => setOpen(true)} aria-haspopup="dialog">
+        <span className="watch-play" aria-hidden="true">▶</span> {label}
       </button>
       {open && <WatchModal onClose={close} />}
     </>
@@ -34,7 +35,7 @@ function WatchModal({ onClose }: { onClose: () => void }) {
     <div className="watch-back" onClick={onClose}>
       <div className="watch-box" role="dialog" aria-modal="true" aria-label="Stook Street in 60 seconds" onClick={(e) => e.stopPropagation()}>
         <div className="watch-head">
-          <span>STOOK STREET IN 60s</span>
+          <span className="pix">STOOK STREET IN 60s</span>
           <button ref={shut} className="watch-x" onClick={onClose} aria-label="Close the video">✕</button>
         </div>
         <div className="watch-frame">

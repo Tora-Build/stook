@@ -1,5 +1,6 @@
 import { aiChatter, bellIn, grammarChatter } from "./chatter.js";
 import { nyNow, runX, runXVideo, whoAmI } from "./xpost.js";
+import { apply } from "./apply.js";
 import FEEDS from "../apps/stook/src/lib/feeds.json";
 
 // The feeds the app can show; /pyth answers for these only, so the key it
@@ -271,6 +272,8 @@ export default {
       if (status === 200) ctx.waitUntil(cache.put(key, res.clone()));
       return res;
     }
+    // An application to list a coin (the list page's form; site/apply.js).
+    if (url.pathname === "/apply" && request.method === "POST") return apply(request, env);
     // /chatter: conversations for the floor, from the grammar (new every
     // minute) and the AI's latest hourly batch, shuffled together.
     // The cron's job on demand, for the operator (the tape's token).

@@ -57,7 +57,8 @@ export function makeGrid(o: { curve: stook.Curve; p0: bigint; expo: number; step
   // The price at the bottom of floor k, from the SDK's own bounds.
   const edge = (k: number) => stook.binBounds(clamp(k, 1, LAST), o.p0, o.stepBps)[0] * 10 ** o.expo;
   const binOf = (v: number) => (v > 0 && p0 > 0 ? clamp(Math.floor(Math.log(v / p0) / step + 1e-12) + stook.BINS / 2, 0, LAST) : stook.BINS / 2);
-  const fmt = (v: number) => v.toLocaleString("en-US", { minimumFractionDigits: o.dp, maximumFractionDigits: o.dp });
+  // Prices are dollars, said with their sign everywhere: axis, tabs, readouts.
+  const fmt = (v: number) => `$${v.toLocaleString("en-US", { minimumFractionDigits: o.dp, maximumFractionDigits: o.dp })}`;
   let lo = 0, hi = LAST;
   if (!o.all) {
     while (lo < LAST && probs[lo]! < TAIL) lo++;
@@ -85,7 +86,7 @@ export function rowWords(g: Grid, r: number): string {
   return g.fmt(g.edge(R.a));
 }
 
-/** "between A and B", "above A", "on the A floor": how a readout says a call. */
+/** "between A and B", "above A", "near A": how a readout says a call. */
 export function callWords(g: Grid, c: Call): string {
   if (c.kind === "between") {
     if (c.lo === 0 && c.hi === LAST) return "anywhere";
@@ -93,15 +94,15 @@ export function callWords(g: Grid, c: Call): string {
     if (c.hi === LAST) return `above ${g.fmt(g.edge(c.lo))}`;
     return `between ${g.fmt(g.edge(c.lo))} and ${g.fmt(g.edge(c.hi + 1))}`;
   }
-  return c.c >= LAST ? `above ${g.fmt(g.edge(LAST))}` : c.c <= 0 ? `below ${g.fmt(g.edge(1))}` : `on the ${g.fmt(g.edge(c.c))} floor`;
+  return c.c >= LAST ? `above ${g.fmt(g.edge(LAST))}` : c.c <= 0 ? `below ${g.fmt(g.edge(1))}` : `near ${g.fmt(g.edge(c.c))}`;
 }
 
-/** A held call by name, for lists: "Near 773.90, ±3 floors", "Between 761.50 and 812.51". */
+/** A held call by name, for lists: "Near $773.90, ±3 rows", "Between $761.50 and $812.51". */
 export function callName(g: Grid, s: stook.Shape): string {
   const c = fromShape(s);
   if (c.kind === "near") {
     const at = c.c >= LAST ? `above ${g.fmt(g.edge(LAST))}` : c.c <= 0 ? `below ${g.fmt(g.edge(1))}` : g.fmt(g.edge(c.c));
-    return `Near ${at}, ±${c.s} floor${c.s > 1 ? "s" : ""}`;
+    return `Near ${at}, ±${c.s} row${c.s > 1 ? "s" : ""}`;
   }
   const w = callWords(g, c);
   return w[0]!.toUpperCase() + w.slice(1);
@@ -133,7 +134,7 @@ export function aboutMultiple(curve: stook.Curve, c: Call, feeBps: number): numb
 }
 
 export type Role = "hi" | "lo" | "body" | "c" | "w";
-const WIDEST = "That is as wide as a near call goes. Use Between for more floors.";
+const WIDEST = "That is as wide as a near call goes. Use Between for more rows.";
 /** One step of a tab or a stepper: `d` floors (rows) up or down. */
 export function nudgeCall(g: Grid, c: Call, role: Role, d: number): { call: Call; msg: string } {
   const NR = g.rows.length;
@@ -146,12 +147,12 @@ export function nudgeCall(g: Grid, c: Call, role: Role, d: number): { call: Call
   }
   if (role === "c" || role === "body") return { call: nearAt(g, c.c + d, c.s), msg: "" };
   const s = c.s + d;
-  return { call: nearAt(g, c.c, s), msg: s > MAX_S ? WIDEST : s < 1 ? "Narrowest near call. For one floor only, use Between." : "" };
+  return { call: nearAt(g, c.c, s), msg: s > MAX_S ? WIDEST : s < 1 ? "Narrowest near call. For one row only, use Between." : "" };
 }
 export const WIDEST_MSG = WIDEST;
 
 /** A call's name from the round alone (pages without a tower, like Yours). */
 export function ladderCallName(l: stook.LadderAccount, dp: number, s: stook.Shape): string {
-  if (l.p0 <= 0n) return s.h > 1 ? `Near floor ${(s.lo + s.hi) / 2}, ±${s.h - 1} floors` : `Floors ${s.lo} to ${s.hi}`;
+  if (l.p0 <= 0n) return s.h > 1 ? `Near row ${(s.lo + s.hi) / 2}, ±${s.h - 1} rows` : `Rows ${s.lo} to ${s.hi}`;
   return callName(makeGrid({ curve: l.curve, p0: l.p0, expo: l.p0Expo, stepBps: l.stepBps || 100, dp, keep: [], all: true }), s);
 }

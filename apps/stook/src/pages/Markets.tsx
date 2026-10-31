@@ -1,101 +1,54 @@
+// The home page: the featured round's question over the night city, then
+// every street coin's table, the listed coins, the last bells, the street's
+// own coin and the house.
 import { Link, Navigate, useSearchParams } from "react-router-dom";
-import { useQuery } from "@tanstack/react-query";
-import { bySymbol, COINS, coinBySymbol, coinPath, keyOf } from "../lib/coins";
-import { Skyline } from "../components/Skyline";
-import { Floor } from "../components/Floor";
-import { fmtUsd, useCoinQuotes } from "../lib/usd";
-import { Title } from "../components/Title";
-import { WatchButton } from "../components/Watch";
 import { useConnection } from "@solana/wallet-adapter-react";
+import { coinBySymbol, coinPath, COINS, keyOf } from "../lib/coins";
 import { useListed } from "../lib/listed";
-import { nyWhen } from "../lib/time";
+import { useNow } from "../hooks/useNow";
+import { Title } from "../components/Title";
+import { Hero } from "../components/home/Hero";
+import { HouseCard, LastBells, Listed, StreetCoin } from "../components/home/Sections";
+import { FloorStage } from "../components/home/FloorStage";
+import { featured, useStreetRounds, type StreetRound } from "../components/home/useStreet";
+import { anchorOf, seriesOf } from "../lib/coins";
 
 const STOOK = COINS.find((c) => keyOf(c) === "STOOK")!;
-const STOOK_MINT = STOOK.mint;
-
+// Until the chain answers, the tables show each coin with no round state.
+const BLANK: StreetRound[] = COINS.map((coin) => { const anchor = anchorOf(coin); return { coin, anchor, standIn: anchor.symbol !== coin.anchor.symbol, seriesKey: seriesOf(coin), series: null, index: null, closesAt: null, round: null, bells: [] }; });
 
 export function Markets() {
   const [params] = useSearchParams();
   const { connection } = useConnection();
-  const listed = useListed(connection).coins.filter((c) => c.listing.state !== "rejected");
-  const stookQ = useCoinQuotes().data?.[STOOK.symbol];
+  const listedQ = useListed(connection);
+  const listed = listedQ.coins.filter((c) => c.listing.state !== "rejected");
+  const now = useNow();
+  const rounds = useStreetRounds(now);
   const wanted = params.get("coin");
-  const quotes = useQuery({ queryKey: ["quotes"], queryFn: async () => bySymbol((await (await fetch("/prices")).json()) as Record<string, { price: number; change24h: number | null }>), refetchInterval: 60_000 });
   const wantedCoin = wanted ? coinBySymbol(wanted) : undefined;
   if (wantedCoin) return <Navigate to={coinPath(wantedCoin)} replace />;
-  const ticker = () => COINS.map((c) => { const q = quotes.data?.[c.symbol]; return q ? `${c.symbol} ${q.price.toLocaleString("en-US", { maximumFractionDigits: c.anchor.dp })} ${typeof q.change24h !== "number" ? "" : (q.change24h >= 0 ? "+" : "") + q.change24h.toFixed(1) + "%"}` : ""; }).filter(Boolean).join("   ") || "STOOK STREET";
+
+  const all = rounds.data ?? BLANK;
+  const top = featured(rounds.data, now);
   return (
-    <div className="street">
+    <div className="home">
       <Title text="" />
-      <div className="hero-city">
-        <Skyline hero ticker={ticker} />
-        <div className="hero-copy">
-          <h1>Where will it land?</h1>
-          <p className="lede">Memecoins anchored to stocks. Call where the stock closes, in your coin. The closer you are, the more it pays.</p>
-          <div><Link className="cta" to="/#floor">Walk onto the floor</Link><Link className="cta alt" to="/how">How it works</Link></div>
-        </div>
+      <Hero round={top} now={now} />
+      <div className="wrap home-body">
+        <FloorStage rounds={all} now={now} />
+
+        <section>
+          <div className="sec"><h2>Listed by their communities</h2><Link to="/list">List a coin <span aria-hidden="true">→</span></Link></div>
+          <Listed coins={listed} ready={listedQ.ready} />
+        </section>
+
+        {top && <LastBells r={top} />}
+
+        <section className="home-pair">
+          <StreetCoin coin={STOOK} />
+          <HouseCard />
+        </section>
       </div>
-      <div id="floor"><Floor /></div>
-
-      <section className="page listed">
-        <h2 className="px-h2 center">Listed by their communities</h2>
-        {listed.length ? (
-          <div className="pb-coins listed-row">
-            {listed.map((c) => (
-              <Link key={c.mint} to={`/c/${c.symbol}`} className="pb-chip" title={c.mint}>
-                <img src={c.logo} alt="" />${c.symbol} <span className="muted small">on {c.anchor.symbol}{c.listing.state === "pending" ? ` · live ${nyWhen(Number(c.listing.opensAfter), { weekday: "short", hour: "numeric" })}` : ""}</span>
-              </Link>
-            ))}
-          </div>
-        ) : <p className="center muted small">No coins listed yet.</p>}
-        <p className="center small">Anyone can list a coin: lock some of it as the seed of its house. <Link to="/list">List your coin ›</Link></p>
-      </section>
-
-      <section className="doors page">
-        <h2 className="px-h2 center">Two ways in</h2>
-        <div className="door-row">
-          <Link to="/#floor" className="door">
-            <div className="door-frame">
-              <svg viewBox="0 0 24 16" shapeRendering="crispEdges" aria-hidden="true">
-                <g fill="#2f5d92"><rect x="0" y="12" width="2" height="4"/><rect x="3" y="10" width="2" height="6"/><rect x="6" y="7" width="2" height="9"/><rect x="9" y="3" width="2" height="13"/><rect x="12" y="5" width="2" height="11"/><rect x="15" y="9" width="2" height="7"/><rect x="18" y="12" width="2" height="4"/><rect x="21" y="14" width="2" height="2"/></g>
-                <g fill="#f0a83a"><rect x="6" y="9" width="2" height="1"/><rect x="9" y="1" width="2" height="1"/><rect x="12" y="3" width="2" height="1"/><rect x="15" y="7" width="2" height="1"/></g>
-                <rect x="9.5" y="0" width="1" height="2" fill="#f4e9c8"/>
-              </svg>
-            </div>
-            <div className="door-sign">TRADER</div>
-            <p>Click where the price will close today. The closer you are, the more you're paid.</p>
-            <span className="door-go">Pick a table ›</span>
-          </Link>
-          <Link to="/c/STOOK#house" className="door">
-            <div className="door-frame">
-              <svg viewBox="0 0 24 16" shapeRendering="crispEdges" aria-hidden="true">
-                <g fill="#0f7a4d"><rect x="2" y="8" width="20" height="7"/></g><rect x="2" y="7" width="20" height="1" fill="#f4e9c8"/>
-                <g fill="#f0a83a"><rect x="5" y="3" width="3" height="4"/><rect x="10" y="1" width="3" height="6"/><rect x="15" y="4" width="3" height="3"/></g>
-                <g fill="#f4e9c8"><rect x="6" y="4" width="1" height="1"/><rect x="11" y="2" width="1" height="1"/><rect x="16" y="5" width="1" height="1"/></g>
-                <rect x="9" y="10" width="6" height="3" fill="#f4e9c8"/><rect x="11" y="11" width="2" height="1" fill="#0f7a4d"/>
-              </svg>
-            </div>
-            <div className="door-sign">THE HOUSE</div>
-            <p>Back a coin's house, which funds every round, and share 90% of everything traders pay in fees.</p>
-            <span className="door-go">Back the house ›</span>
-          </Link>
-        </div>
-        <p className="center small"><Link to="/how">Or take the walk through the exchange →</Link><span className="or-watch">or <WatchButton className="watch-link" /></span></p>
-      </section>
-
-      <section id="stook" className="strip page">
-        <div className="in">
-          <div className="logos logos-big"><img src="/logos/stook.png" alt="$SSt." className="logo-coin" /><img src="/logos/polymarket.png" alt="Polymarket" className="logo-anchor" /></div>
-          <dl>
-            <div><dt>coin</dt><dd>$SSt. · STOOK St. · the street's own</dd></div>
-            <div><dt>follows</dt><dd>Polymarket · PreStocks · <span className="mono">Pre8AREmFPtoJFT8mQSXQLh56cwJmM7CFDRuoGBZiUP</span></dd></div>
-            {/* the mint comes from the build's environment, not the repo */}
-            {STOOK_MINT && <div><dt>mint</dt><dd className="mono"><a href={`https://jup.ag/swap?buy=${STOOK_MINT}&sell=So11111111111111111111111111111111111111112`} target="_blank" rel="noopener noreferrer" title="Swap for $SSt. on Jupiter">{STOOK_MINT} ↗</a> <a className="jup-buy" href={`https://jup.ag/swap?buy=${STOOK_MINT}&sell=So11111111111111111111111111111111111111112`} target="_blank" rel="noopener noreferrer">Buy on Jupiter</a></dd></div>}
-            {stookQ?.usd ? <div><dt>price</dt><dd className="mono">{fmtUsd(stookQ.usd)}{typeof stookQ.change24h === "number" && <span className={stookQ.change24h >= 0 ? "up" : "down"}> {stookQ.change24h >= 0 ? "+" : ""}{stookQ.change24h.toFixed(1)}% 24h</span>}</dd></div> : null}
-            <div><dt>on</dt><dd>StonkFun, Solana</dd></div>
-          </dl>
-        </div>
-      </section>
     </div>
   );
 }

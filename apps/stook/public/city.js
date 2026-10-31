@@ -12,7 +12,7 @@
   const mix = (a, b, t) => { const A = hex(a), B = hex(b); return `rgb(${Math.round(lerp(A[0], B[0], t))},${Math.round(lerp(A[1], B[1], t))},${Math.round(lerp(A[2], B[2], t))})`; };
   const NIGHT = ["#0b1120", "#0e1729", "#101a2e", "#132038", "#182642"], DAY = ["#8fc4ee", "#a6d1f2", "#bfdcf5", "#d6e8f7", "#ecf3f8"];
   // 3×5 pixel capitals for the signs
-  const FONT = { S: ["111", "100", "111", "001", "111"], T: ["111", "010", "010", "010", "010"], O: ["111", "101", "101", "101", "111"], K: ["101", "101", "110", "101", "101"], R: ["110", "101", "110", "101", "101"], E: ["111", "100", "110", "100", "111"], X: ["101", "101", "010", "101", "101"], C: ["111", "100", "100", "100", "111"], H: ["101", "101", "111", "101", "101"], A: ["010", "101", "111", "101", "101"], N: ["101", "111", "111", "101", "101"], G: ["111", "100", "101", "101", "111"], W: ["101", "101", "111", "111", "101"], L: ["100", "100", "100", "100", "111"], " ": ["000", "000", "000", "000", "000"], "$": ["111", "100", "111", "001", "111"], ".": ["000", "000", "000", "000", "010"], 0: ["111", "101", "101", "101", "111"], 1: ["010", "110", "010", "010", "111"], 2: ["111", "001", "111", "100", "111"], 3: ["111", "001", "111", "001", "111"], 4: ["101", "101", "111", "001", "001"], 5: ["111", "100", "111", "001", "111"], 6: ["111", "100", "111", "101", "111"], 7: ["111", "001", "001", "001", "001"], 8: ["111", "101", "111", "101", "111"], 9: ["111", "101", "111", "001", "111"], "+": ["000", "010", "111", "010", "000"], "-": ["000", "000", "111", "000", "000"], "%": ["101", "001", "010", "100", "101"] };
+  const FONT = { S: ["111", "100", "111", "001", "111"], T: ["111", "010", "010", "010", "010"], O: ["111", "101", "101", "101", "111"], K: ["101", "101", "110", "101", "101"], R: ["110", "101", "110", "101", "101"], E: ["111", "100", "110", "100", "111"], X: ["101", "101", "010", "101", "101"], C: ["111", "100", "100", "100", "111"], H: ["101", "101", "111", "101", "101"], A: ["010", "101", "111", "101", "101"], N: ["101", "111", "111", "101", "101"], G: ["111", "100", "101", "101", "111"], W: ["101", "101", "111", "111", "101"], L: ["100", "100", "100", "100", "111"], " ": ["000", "000", "000", "000", "000"], "$": ["111", "100", "111", "001", "111"], ".": ["000", "000", "000", "000", "010"], 0: ["111", "101", "101", "101", "111"], 1: ["010", "110", "010", "010", "111"], 2: ["111", "001", "111", "100", "111"], 3: ["111", "001", "111", "001", "111"], 4: ["101", "101", "111", "001", "001"], 5: ["111", "100", "111", "001", "111"], 6: ["111", "100", "111", "101", "111"], 7: ["111", "001", "001", "001", "001"], 8: ["111", "101", "111", "101", "111"], 9: ["111", "101", "111", "001", "111"], "+": ["000", "010", "111", "010", "000"], "-": ["000", "000", "111", "000", "000"], "%": ["101", "001", "010", "100", "101"], U: ["101", "101", "101", "101", "111"], I: ["111", "010", "010", "010", "111"], P: ["110", "101", "110", "100", "100"], B: ["110", "101", "110", "101", "110"], D: ["110", "101", "101", "101", "110"], M: ["101", "111", "111", "101", "101"], Y: ["101", "101", "010", "010", "010"], F: ["111", "100", "110", "100", "100"], V: ["101", "101", "101", "101", "010"] };
   // 3×3 capitals for small signs (S T O K E X C H A N G + digits, space)
   const MINI = { S: ["011", "010", "110"], T: ["111", "010", "010"], O: ["111", "101", "111"], K: ["101", "110", "101"], E: ["111", "110", "111"], X: ["101", "010", "101"], C: ["111", "100", "111"], H: ["101", "111", "101"], A: ["111", "101", "101"], N: ["110", "101", "101"], G: ["110", "101", "111"], " ": ["000", "000", "000"], "+": ["010", "111", "010"], "-": ["000", "111", "000"], "%": ["101", "010", "101"], ".": ["000", "000", "010"], 0: ["111", "101", "111"], 1: ["010", "010", "010"], 2: ["110", "010", "011"], 3: ["111", "011", "111"], 4: ["101", "111", "001"], 5: ["011", "010", "110"], 6: ["100", "111", "111"], 7: ["111", "001", "001"], 8: ["111", "111", "111"], 9: ["111", "111", "001"], "$": ["011", "010", "110"] };
   function mini(px, x, y, str, col) { let cx = x; for (const ch of str.toUpperCase()) { const g = MINI[ch] || MINI[" "]; for (let r = 0; r < 3; r++) for (let c = 0; c < 3; c++) if (g[r][c] === "1") px(cx + c, y + r, 1, 1, col); cx += 4; } return cx - x; }
@@ -31,8 +31,9 @@
     return { gw, gh, ground, stars, far, near, clouds, cars, flicker: new Map(), strobes: [], steam: [], tick: 0 };
   }
 
-  function draw(ctx, c, t, hero, ticker, now, fctx) {
+  function draw(ctx, c, t, hero, ticker, now, fctx, o) {
     const { gw, gh, ground, stars, far, near, clouds, cars } = c;
+    const at = (k, d) => Math.floor(gw * ((o && o.place && o.place[k] !== undefined) ? o.place[k] : d));
     const px = (x, y, w, h, col) => { ctx.fillStyle = col; ctx.fillRect(Math.round(x), Math.round(y), w, h); };
     // fine: same coordinates, half-size pixels
     const fp = fctx ? (x, y, w, h, col) => { fctx.fillStyle = col; fctx.fillRect(Math.round(x * 2), Math.round(y * 2), w, h); } : px;
@@ -60,8 +61,9 @@
         fctx.restore();
       }
     }
+    if (o && o.tower) drawTower(px, ctx, c, o.tower, t, now, fctx, ftext);
     if (hero) { // the exchange: columns, a name over the door, flags
-      const ex = Math.floor(gw * 0.42), ew = Math.min(60, Math.floor(gw * 0.16)), eh = Math.floor(gh * 0.3);
+      const ex = at("exchange", 0.42), ew = Math.min(60, Math.floor(gw * 0.16)), eh = Math.floor(gh * 0.3);
       px(ex, ground - eh, ew, eh, "#c9bfa4"); px(ex - 2, ground - eh - 3, ew + 4, 4, "#f4e9c8"); px(ex + ew / 2 - 8, ground - eh - 9, 16, 6, "#f4e9c8");
       for (let cx = ex + 3; cx < ex + ew - 3; cx += 6) px(cx, ground - eh + 5, 3, eh - 8, "#8a8f99");
       const name = "STOOK ST EXCHANGE", nw = (name.length * 4 - 1) / 2, ny = ground - eh + 1;
@@ -74,19 +76,67 @@
       }
       // the bull, at the corner
       // the bull: a dark silhouette at night, bronze by day
-      const bx = Math.floor(gw * 0.3), by = ground, bc = mix("#3a3f4c", "#7a4a1e", t), bh = mix("#3a3f4c", "#b8742e", t);
+      const bx = at("bull", 0.3), by = ground, bc = mix("#3a3f4c", "#7a4a1e", t), bh = mix("#3a3f4c", "#b8742e", t);
       px(bx, by - 5, 9, 4, bc); px(bx + 8, by - 7, 4, 4, bc); px(bx + 11, by - 8, 1, 1, bh); px(bx + 12, by - 8, 1, 1, bh); px(bx + 1, by - 1, 1, 1, bc); px(bx + 3, by - 1, 1, 1, bc); px(bx + 6, by - 1, 1, 1, bc); px(bx + 8, by - 1, 1, 1, bc); px(bx - 1, by - 6, 1, 2, bc); px(bx + 1, by - 5, 7, 1, bh); px(bx + 9, by - 6, 1, 1, "#0b1120");
       // a hot-dog cart
-      const hx = Math.floor(gw * 0.6); px(hx, ground - 4, 6, 3, "#f4e9c8"); px(hx - 1, ground - 6, 8, 2, "#a8412f"); px(hx + 1, ground - 1, 1, 1, "#0b1120"); px(hx + 4, ground - 1, 1, 1, "#0b1120");
+      const hx = at("cart", 0.6); px(hx, ground - 4, 6, 3, "#f4e9c8"); px(hx - 1, ground - 6, 8, 2, "#a8412f"); px(hx + 1, ground - 1, 1, 1, "#0b1120"); px(hx + 4, ground - 1, 1, 1, "#0b1120");
     }
     px(0, ground, gw, 8, "#2a2a30"); for (let x = 2; x < gw; x += 10) px(x, ground + 4, 5, 1, "#f0a83a");
     for (const s of c.steam) px(s.x + Math.round(Math.sin(s.age * 3) * 1), ground - s.age * 3, 2, 2, `rgba(244,233,200,${Math.max(0, 0.5 - s.age * 0.12)})`);
     // the far lane first, so a nearer car (lower on screen) passes in front of a farther one
     for (const car of [...cars].sort((a, b) => b.dir - a.dir)) { const x = Math.round(car.x), y = ground + (car.dir > 0 ? 1 : 5); px(x, y - 2, 10, 3, car.col); px(x + 2, y - 4, 6, 2, car.col); px(x + 3, y - 3, 4, 1, "#0b1120"); px(x + 1, y + 1, 2, 1, "#0b1120"); px(x + 7, y + 1, 2, 1, "#0b1120"); if (t < 0.5) px(car.dir > 0 ? x + 9 : x, y - 1, 1, 1, "#fff6c9"); if (car.taxi) px(x + 4, y - 5, 2, 1, "#f0a83a"); }
     // the street sign: lamp-post height, a little over a car, not a building
-    const sx = Math.floor(gw * 0.72); px(sx, ground - 11, 1, 11, "#8a8f99");
+    const sx = at("sign", 0.72); px(sx, ground - 11, 1, 11, "#8a8f99");
     if (hero) { px(sx - 8, ground - 15, 17, 5, "#f4e9c8"); px(sx - 7, ground - 14, 15, 3, "#0f7a4d"); if (fctx) { const w = ftext(sx - 6.5, ground - 14, "STOOK", "#f4e9c8"); ftext(sx - 6.5 + w + 0.5, ground - 13, "ST", "#f4e9c8"); } }
     else { px(sx - 9, ground - 27, 20, 6, "#f4e9c8"); px(sx - 8, ground - 26, 18, 4, "#0f7a4d"); }
+  }
+
+  // The tower: one tall building whose floors are prices. `band()` gives the
+  // floors (from the top) of the call it shows; they burn gold and a light
+  // runs through them. At night a beacon blinks on the mast and two
+  // searchlights sweep from the roof; by day it is glass catching the sun.
+  function towerBox(c, T) {
+    const tx = Math.round(T.x * c.gw), tw = Math.max(8, Math.round(T.w / c.P)), th = Math.min(c.ground - 14, Math.round(T.h / c.P));
+    return { tx, tw, th, top: c.ground - th, fh: th / T.floors };
+  }
+  function drawTower(px, ctx, c, T, t, now, fctx, ftext) {
+    const { tx, tw, th, top, fh } = towerBox(c, T), F = T.floors, band = T.band ? T.band() : null, night = 1 - t;
+    if (night > 0.05) { // searchlights behind it
+      const sw = Math.sin(now / 2600) * 0.6, sw2 = Math.sin(now / 3100 + 2) * 0.6, cx = tx + tw / 2;
+      ctx.save(); ctx.globalAlpha = 0.07 * night; ctx.fillStyle = "#ffc629";
+      for (const a of [sw, sw2]) { ctx.beginPath(); ctx.moveTo(cx, top - 4); ctx.lineTo(cx + a * c.gh * 1.4 - 7, 0); ctx.lineTo(cx + a * c.gh * 1.4 + 7, 0); ctx.closePath(); ctx.fill(); }
+      ctx.restore();
+    }
+    if (band && night > 0) { ctx.save(); ctx.globalAlpha = 0.16 * (0.6 + 0.4 * night); px(tx - 5, top + band[0] * fh - 2, tw + 10, (band[1] - band[0] + 1) * fh + 4, "#ffc629"); ctx.restore(); }
+    // body: a setback crown, the shaft, a lit edge and a shadow side
+    const body = mix("#1d2d50", "#6f8fbf", t), lite = mix("#2e4778", "#a9c6ea", t), dark = mix("#14203a", "#4f6d99", t);
+    px(tx + 3, top - 5, tw - 6, 5, body); px(tx + 3, top - 5, tw - 6, 1, lite);
+    px(tx, top, tw, th, body); px(tx, top, 1, th, lite); px(tx + tw - 2, top, 2, th, dark);
+    // the mast and its beacon
+    px(tx + Math.floor(tw / 2), top - 14, 1, 9, mix("#8a8f99", "#c9d2e4", t));
+    if (Math.floor(now / 900) % 2 === 0 || night < 0.3) px(tx + Math.floor(tw / 2) - 1, top - 15, 3, 2, night > 0.3 ? "#ff5a4e" : "#c9d2e4");
+    const mid = band ? (band[0] + band[1]) / 2 : -9;
+    for (let f = 0; f < F; f++) {
+      const y = Math.round(top + f * fh) + 1, h = Math.max(1, Math.round(fh) - 2), inB = band && f >= band[0] && f <= band[1];
+      let col = 0;
+      for (let wx = tx + 3; wx < tx + tw - 3; wx += 3, col++) {
+        let fill;
+        if (inB) {
+          const k = 0.5 + 0.5 * Math.sin(now / 260 - f * 0.9 - col * 0.35), core = Math.abs(f - mid) < 0.6;
+          fill = core ? mix("#ffd75e", "#fff4c4", k) : mix("#c88a14", "#ffc629", k);
+        } else {
+          const lit = ((f * 7 + col * 13 + tx) % 5) < 2, key = (wx * 1000 + y) | 0, fl = c.flicker.get(key);
+          fill = (fl !== undefined ? fl : lit) ? mix("#f0a83a", "#a9c6ea", t) : mix("#0e1830", "#8fb0dc", t);
+        }
+        px(wx, y, 2, h, fill);
+      }
+    }
+    if (t > 0.3) { ctx.save(); ctx.globalAlpha = 0.35 * t; const gy = top + ((now / 40) % (th + 30)) - 15; px(tx + 1, gy, tw - 3, 2, "#ffffff"); ctx.restore(); } // the sun's glint runs down the glass
+    if (fctx) fctx.clearRect(tx * 2, (top - 16) * 2, tw * 2, (th + 16) * 2); // nothing behind it shows through
+    if (T.sign && fctx) { // a lit plate across the tower
+      const w = (T.sign.length * 4 - 1) / 2, sy = top + Math.round(fh * 1.2);
+      px(tx - 2, sy - 1, Math.ceil(w) + 4, 5, "#ffc629"); ftext(tx, sy, T.sign, "#1b1505");
+    }
   }
 
   function mount(canvas, opts) {
@@ -98,7 +148,8 @@
     if (opts.hero) canvas.parentElement.insertBefore(fine, canvas.nextSibling);
     const hero = !!opts.hero, reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
     const ticker = () => { const v = opts.ticker ? opts.ticker() : null; return Array.isArray(v) ? v : [{ text: v || "STOOK STREET" }]; };
-    function size() { const W = canvas.clientWidth, H = canvas.clientHeight, P = hero ? Math.max(3, Math.round(W / 260)) : 3; const gw = Math.ceil(W / P), gh = hero ? Math.ceil(H / P) : 22; if (!city || city.gw !== gw || city.gh !== gh) { city = layout(gw, gh, hero); canvas.width = gw; canvas.height = gh; fine.width = gw * 2; fine.height = gh * 2; } }
+    function size() { const W = canvas.clientWidth, H = canvas.clientHeight, P = hero ? (opts.px || Math.max(3, Math.round(W / 260))) : 3; const gw = Math.ceil(W / P), gh = hero ? Math.ceil(H / P) : 22; if (!city || city.gw !== gw || city.gh !== gh) { city = layout(gw, gh, hero); city.P = P; canvas.width = gw; canvas.height = gh; fine.width = gw * 2; fine.height = gh * 2; report(W, H); } }
+    function report(W, H) { if (!opts.onLayout) return; const k = W / city.gw, out = { scale: k, width: W, height: H, ground: city.ground * k }; if (opts.tower) { const b = towerBox(city, opts.tower), fh = b.fh * k; out.tower = { left: b.tx * k, top: b.top * k, width: b.tw * k, height: b.th * k, floorH: fh, floorTop: (f) => (b.top + f * b.fh) * k }; } opts.onLayout(out); }
     function frame(now) {
       raf = requestAnimationFrame(frame);
       if (!visible || now - last < 33) return;                   // ~30 fps
@@ -113,11 +164,11 @@
         if (Math.random() < dt * 1.5) city.steam.push({ x: Math.floor(city.gw * 0.52), age: 0 });
         for (const s of city.steam) s.age += dt; city.steam = city.steam.filter((s) => s.age < 4);
       }
-      draw(ctx, city, t, hero, ticker, reduce ? 0 : now, hero ? fctx : null);
+      draw(ctx, city, t, hero, ticker, reduce ? 0 : now, hero ? fctx : null, opts);
     }
     const io = new IntersectionObserver((es) => { visible = es[0].isIntersecting && !document.hidden; }); io.observe(canvas);
     const onVis = () => { visible = !document.hidden; }; document.addEventListener("visibilitychange", onVis);
-    const ro = new ResizeObserver(() => { size(); draw(ctx, city, opts.t ? opts.t() : 0, hero, ticker, 0, hero ? fctx : null); }); ro.observe(canvas);
+    const ro = new ResizeObserver(() => { size(); draw(ctx, city, opts.t ? opts.t() : 0, hero, ticker, 0, hero ? fctx : null, opts); }); ro.observe(canvas);
     size(); raf = requestAnimationFrame(frame);
     return () => { cancelAnimationFrame(raf); io.disconnect(); ro.disconnect(); document.removeEventListener("visibilitychange", onVis); fine.remove(); };
   }

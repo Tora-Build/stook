@@ -50,10 +50,10 @@ export function useDesk(grid: Grid | null): Desk {
     if (p.kind === k || !grid) return p;
     const c = p.call;
     if (!c || p.pending) return { ...p, kind: k, pending: null, call: p.pending ? null : c, msg: "" };
-    if (k === "between") { const [a, b] = span(c); return { ...p, kind: k, call: between(a, b), undo: null, msg: "Same floors, now the same pay on each." }; }
+    if (k === "between") { const [a, b] = span(c); return { ...p, kind: k, call: between(a, b), undo: null, msg: "Same rows, now the same pay on each." }; }
     if (c.kind !== "between") return p;
     const mid = Math.round((c.lo + c.hi) / 2), s = clamp(Math.ceil((c.hi - c.lo) / 2), 1, 7), n = nearAt(grid, mid, s);
-    return { ...p, kind: k, call: n, lastS: n.kind === "near" ? n.s : p.lastS, undo: null, msg: `Now pays most on the middle floor.${c.hi - c.lo > 14 ? " A near call covers 15 floors at most." : ""}` };
+    return { ...p, kind: k, call: n, lastS: n.kind === "near" ? n.s : p.lastS, undo: null, msg: `Now pays most on the middle row.${c.hi - c.lo > 14 ? " A near call covers 15 rows at most." : ""}` };
   }), [grid]);
   const setSure = useCallback((s: number, at: number) => setSt((p) => {
     if (!grid) return p;

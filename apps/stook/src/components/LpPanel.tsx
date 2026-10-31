@@ -7,12 +7,15 @@ import { ataOf, ensureAta } from "../lib/chain";
 import { useBalance, useMint, useSend, useTranches } from "../hooks/useChain";
 import { approxUsd, coinText, fromUsd } from "../lib/usd";
 import { Rack } from "./Rack";
+import { useWalletModal } from "@solana/wallet-adapter-react-ui";
+import { FAUCET_AUTHORITY_BYTES } from "../lib/config";
 import { Notice } from "./Notice";
 
 interface Props { refs: stook.LadderRefs; ladder: stook.LadderAccount; quoteSymbol: string; now: number; transferFee?: stook.TransferFee; bare?: boolean; usd?: number | null }
 
 export function LpPanel(p: Props) {
   const { publicKey } = useWallet();
+  const modal = useWalletModal();
   const rate = p.usd ?? null;
   // Dollars first when the coin has a price, as on the call side.
   const [unitPicked, setInUsd] = useState<boolean | null>(null);
@@ -143,8 +146,8 @@ export function LpPanel(p: Props) {
             </div>
           )}
           {depth && deposit && rising && <Notice tone="warn" title="Transfer fee rising">The coin's issuer has set its transfer fee to rise to {next!.bps / 100}%. If that happens before this goes through, it fails and nothing moves.</Notice>}
-          {short && <Notice tone="stop" title={`Not enough ${p.quoteSymbol}`}>You hold {fmtCompact(balance.data!, dec)}; this needs {fmtCompact(gross!, dec)}. On devnet, get <b>test coins</b> in the header.</Notice>}
-          <button className="primary" disabled={!depth || join.isPending || !publicKey || short} onClick={submit}>
+          {short && <Notice tone="stop" title={`Not enough ${p.quoteSymbol}`}>You hold {fmtCompact(balance.data!, dec)}; this needs {fmtCompact(gross!, dec)}.{FAUCET_AUTHORITY_BYTES ? <> Get <b>test coins</b> in the header.</> : null}</Notice>}
+          <button className="primary" disabled={publicKey ? !depth || join.isPending || short : false} onClick={() => (publicKey ? submit() : modal.setVisible(true))}>
             {!publicKey ? "Connect a wallet" : join.isPending ? "Sending…" : `Deposit ${deposit ? coinText(deposit, dec, p.quoteSymbol) : `0 ${p.quoteSymbol}`}`}
           </button>
         </>

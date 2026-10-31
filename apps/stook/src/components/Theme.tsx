@@ -1,4 +1,4 @@
-// Night by default; day on request. `t` is what the skyline draws with — it
+// Night by default; day on request. `t` is what the skyline draws with: it
 // tweens between the two over 1.4 s so the sun sets as the moon rises.
 import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from "react";
 
@@ -28,7 +28,7 @@ export function ThemeToggle() {
   const { name, toggle } = useTheme();
   // A pixel sun or moon; the icon is the whole button.
   return (
-    <button className="theme-btn" onClick={toggle} aria-label={name === "day" ? "Switch to night" : "Switch to day"} title={name === "day" ? "Night" : "Day"}>
+    <button className="ss-pill ss-icon" onClick={toggle} aria-label={name === "day" ? "Switch to night" : "Switch to day"} title={name === "day" ? "Night" : "Day"}>
       {name === "day" ? (
         <svg viewBox="0 0 12 12" shapeRendering="crispEdges" aria-hidden="true"><g fill="#f0a83a"><rect x="4" y="3" width="4" height="6"/><rect x="3" y="4" width="6" height="4"/><rect x="5" y="0" width="2" height="1"/><rect x="5" y="11" width="2" height="1"/><rect x="0" y="5" width="1" height="2"/><rect x="11" y="5" width="1" height="2"/><rect x="1" y="1" width="1" height="1"/><rect x="10" y="1" width="1" height="1"/><rect x="1" y="10" width="1" height="1"/><rect x="10" y="10" width="1" height="1"/></g></svg>
       ) : (

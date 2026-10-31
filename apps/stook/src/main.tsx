@@ -7,6 +7,15 @@ import { ConnectionProvider, WalletProvider } from "@solana/wallet-adapter-react
 import { WalletModalProvider } from "@solana/wallet-adapter-react-ui";
 import "@solana/wallet-adapter-react-ui/styles.css";
 import "./styles.css";
+// The new look: tokens and base styles, the shell (header, footer), then one file per page.
+import "./web/tokens.css";
+import "./web/shell.css";
+import "./web/home.css";
+import "./web/trade.css";
+import "./web/house.css";
+import "./web/yours.css";
+import "./web/board.css";
+import "./web/list.css";
 import { RPC_URL, WS_URL } from "./lib/config";
 import { ToastProvider } from "./components/Toast";
 import { ThemeProvider } from "./components/Theme";
@@ -20,7 +29,16 @@ const Coin = lazy(() => import("./pages/Coin").then((m) => ({ default: m.Coin })
 const Yours = lazy(() => import("./pages/Yours").then((m) => ({ default: m.Yours })));
 const BoardPage = lazy(() => import("./pages/Board").then((m) => ({ default: m.BoardPage })));
 const List = lazy(() => import("./pages/List").then((m) => ({ default: m.List })));
-const Page = ({ children }: { children: ReactNode }) => <Suspense fallback={<p className="page muted page-loading">Opening…</p>}>{children}</Suspense>;
+const Page = ({ children }: { children: ReactNode }) => <Suspense fallback={<p className="wrap ss-loading">Loading</p>}>{children}</Suspense>;
+
+// Inter for every word and number. Added here, not in index.html, so the font
+// loads with the stylesheets that use it.
+if (!document.querySelector("link[data-inter]")) {
+  const l = document.createElement("link");
+  l.rel = "stylesheet"; l.dataset.inter = "";
+  l.href = "https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap";
+  document.head.appendChild(l);
+}
 
 const qc = new QueryClient({ defaultOptions: { queries: { retry: 1, refetchOnWindowFocus: false } } });
 

@@ -1,6 +1,4 @@
-// A wall calendar, the kind that hangs by the door of an office on the
-// street: rings at the top, the month in large type, one page per month, and
-// a page that turns. Each day is one round of the coin's series; its address
+// The coin's calendar: one page per month. Each day is one round of the coin's series; its address
 // is derived from the series and the day, so the calendar reads exactly the
 // month's rounds instead of scanning for them. A day can be funded up to 31
 // days before its close, unless the coin has a house, which opens every day
@@ -14,7 +12,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useHoldings, useSeriesRounds } from "../hooks/useChain";
 import { coinText } from "../lib/usd";
 import { coinBySymbol, keyOf } from "../lib/coins";
-import { fmtPrice, untilText } from "../lib/format";
+import { fmtCompact, fmtPrice, untilText } from "../lib/format";
 import { firstOpenableDay, nyDate, nyWhen } from "../lib/time";
 
 interface LedgerDay { index: number; ladder: string; status: "settled" | "void"; bin: number | null; p0: string | null; expo: number | null; stepBps: number | null; closed: boolean }
@@ -28,8 +26,9 @@ interface Props {
   coinSymbol: string;
   canStart: boolean;
   onStart: (index: number) => void;
-  /** The coin has a house: it opens every day, so no day is funded by hand. */
-  house?: boolean;
+  /** The coin has a house: it opens every day, so no day is funded by hand.
+   *  `null` while the house is still being read: no day offers funding yet. */
+  house: boolean | null;
 }
 
 export function WallCalendar(p: Props) {
@@ -39,17 +38,10 @@ export function WallCalendar(p: Props) {
   const held = useHoldings(publicKey ?? null);
   const mine = useMemo(() => new Map((held.data ?? []).map((h) => [h.pubkey.toBase58(), { calls: h.positions.length, house: h.tranches.length }])), [held.data]);
   const [ty, tm, td] = nyDate(p.now).split("-").map(Number) as [number, number, number];
-  const [offset, setOffset] = useState(0);            // months from the current one; −∞..+2 (31 days ahead can reach two pages on)
-  const [turning, setTurning] = useState<{ dir: 1 | -1; phase: "out" | "in" } | null>(null);
+  const [offset, setOffset] = useState(0);            // months from the current one; back without end, ahead up to 2 (31 days ahead can reach two pages on)
   const m0 = new Date(Date.UTC(ty, tm - 1 + offset, 1));
   const year = m0.getUTCFullYear(), month = m0.getUTCMonth() + 1;
-  // A wall calendar's page lifts up over the rings and folds away; the new
-  // page is underneath and settles as the old one clears.
-  const turn = (dir: 1 | -1) => {
-    if (turning || offset + dir > 2) return;
-    setTurning({ dir, phase: "out" });
-    setTimeout(() => { setOffset((o) => o + dir); setTurning({ dir, phase: "in" }); setTimeout(() => setTurning(null), 320); }, 300);
-  };
+  const turn = (dir: 1 | -1) => setOffset((o) => Math.min(2, o + dir));
 
   const daysIn = new Date(Date.UTC(year, month, 0)).getUTCDate();
   const first = stook.daysFromCivil(year, month, 1);
@@ -70,20 +62,22 @@ export function WallCalendar(p: Props) {
   // A series part way through learning cannot open a day that locks before it has learned enough.
   const firstOpen = firstOpenableDay(p.series);
   // With a house, the next day it will open says so; the days after it wait their turn.
-  const houseNext = p.house ? indices.find((i) => !rounds.data?.get(i) && stook.hasRound(p.series, i) && Number(stook.closeOf(p.series, i)) - p.now >= p.minLeadSecs) : undefined;
+  const houseNext = p.house === true ? indices.find((i) => !rounds.data?.get(i) && stook.hasRound(p.series, i) && Number(stook.closeOf(p.series, i)) - p.now >= p.minLeadSecs) : undefined;
 
   return (
-    <div className={`wallcal ${turning ? `turn-${turning.phase}-${turning.dir > 0 ? "fwd" : "back"}` : ""}`}>
-      <div className="wc-rings" aria-hidden="true">{Array.from({ length: 9 }, (_, i) => <span key={i} />)}</div>
-      <header className="wc-head">
-        <button className="wc-arrow" onClick={() => turn(-1)} aria-label="Previous month">‹</button>
-        <div className="wc-month"><span className="wc-mname">{m0.toLocaleDateString("en-US", { month: "long", timeZone: "UTC" })}</span><span className="wc-year">{year}</span></div>
-        <button className="wc-arrow" onClick={() => turn(1)} disabled={offset >= 2} aria-label="Next month">›</button>
+    <div className="house-cal">
+      <header className="house-cal-head">
+        <h3>{m0.toLocaleDateString("en-US", { month: "long", timeZone: "UTC" })} <span className="dimmer">{year}</span></h3>
+        <div className="house-cal-nav">
+          {offset !== 0 && <button className="btn btn-sm btn-ghost" onClick={() => setOffset(0)}>Today</button>}
+          <button className="btn btn-sm btn-ghost house-cal-arrow" onClick={() => turn(-1)} aria-label="Previous month">‹</button>
+          <button className="btn btn-sm btn-ghost house-cal-arrow" onClick={() => turn(1)} disabled={offset >= 2} aria-label="Next month">›</button>
+        </div>
       </header>
-      <div className="wc-grid">
-        {["SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT"].map((w) => <div key={w} className="wc-dow">{w}</div>)}
+      <div className="house-cal-grid">
+        {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map((w) => <div key={w} className="house-cal-dow">{w}</div>)}
         {cells.map((d, i) => {
-          if (!d) return <div key={"b" + i} className="wc-cell wc-blank" />;
+          if (!d) return <div key={"b" + i} className="hc-cell hc-blank" aria-hidden="true" />;
           const index = first + d - 1;
           const r = rounds.data?.get(index);
           // Dates only: the opening curve is worked out when a day is picked.
@@ -105,26 +99,36 @@ export function WallCalendar(p: Props) {
           const stamped = l ? (l.status === "settled" ? "settled" : l.status === "void" ? "void" : null) : gone ? gone.status : past ? (noRound ? "closed" : "passed") : null;
           const landed = l && l.status === "settled" && l.settledBin !== null ? stook.binBounds(l.settledBin, l.p0, l.stepBps) : null;
           const goneLanded = gone && gone.status === "settled" && gone.bin !== null && gone.p0 && gone.stepBps ? stook.binBounds(gone.bin, BigInt(gone.p0), gone.stepBps) : null;
+          const tagged = stamped && stamped !== "passed" ? stamped : state && !stamped ? state : "";
+          // "closed" is kept for market holidays; a round past its trading is locked,
+          // and once its bell has rung it is landing.
+          const tagText = tagged === "locked" ? (p.now >= at ? "landing" : "locked") : tagged;
+          const tagTone = tagged === "trading" ? "up" : tagged === "locked" || tagged === "opening" || tagged === "funded" ? "taxi" : tagged === "void" || tagged === "void soon" ? "down" : "";
+          const held = r ? mine.get(r.pubkey.toBase58()) : undefined;
+          const heldText = held ? [held.calls && `${held.calls} ${held.calls === 1 ? "call" : "calls"}`, held.house && `${held.house} ${held.house === 1 ? "deposit" : "deposits"}`].filter(Boolean).join(" · ") : "";
           const body = (
             <>
-              <div className="wc-top"><span className="wc-num">{d}</span>{state && !stamped && <span className={`wc-state wc-state-${state === "void soon" ? "void" : state}`}>{state === "locked" ? "closed" : state}</span>}</div>
-              {/* a day that passed with no round says so quietly: a month of red stamps buried the days you can act on */}
-              {stamped === "passed" ? <div className="wc-info wc-sub wc-none">no round</div> : stamped && <span className={`stamp wc-rubber stamp-${stamped}`}>{stamped}</span>}
-              {goneLanded && <div className="wc-info"><span className="mono">{fmtPrice(goneLanded[0], gone!.expo ?? -8, p.dp)}</span><span className="wc-sub">landed</span></div>}
-              {l && landed && <div className="wc-info"><span className="mono">{fmtPrice(landed[0], l.p0Expo, p.dp)}</span><span className="wc-sub">landed</span></div>}
-              {l && !landed && <div className="wc-info"><span className="mono">{coinText(l.depositTotal, l.decimals, p.coinSymbol)}</span><span className="wc-sub">{l.curveSeq.toString()} trades</span></div>}
-              {!l && !past && !early && !learning && !paused && (p.house ? index === houseNext && <div className="wc-info wc-sub">the house opens it next</div> : <div className="wc-info wc-empty">Fund it</div>)}
-              {early && !p.house && <div className="wc-info wc-sub" title="A day can be funded up to 31 days ahead.">funding opens {nyWhen(terms.fundableFrom, { weekday: "short", month: "short", day: "numeric" })}</div>}
-              {learning && <div className="wc-info wc-sub" title="The coin is still learning how its price moves. This day locks before it has learned enough, so its round could not open.">too soon to open</div>}
-              {paused && <div className="wc-info wc-sub">paused</div>}
-              {closesIn && <div className="wc-left">closes in {closesIn.replace(/ (d|h|min)\b/g, "$1")}</div>}
-              {r && mine.get(r.pubkey.toBase58()) && (() => { const m = mine.get(r.pubkey.toBase58())!; const what = [m.calls && `${m.calls} ${m.calls === 1 ? "call" : "calls"}`, m.house && `${m.house} ${m.house === 1 ? "deposit" : "deposits"}`].filter(Boolean).join(" · "); return <span className="wc-mine" title={`You hold ${what} in this round`}>you: {what}</span>; })()}
+              <div className="hc-top"><span className="hc-num">{d}</span>{tagText && <span className={`hc-tag ${tagTone}`}>{tagText}</span>}</div>
+              <div className="hc-mid">
+                {stamped === "passed" && <span className="hc-sub hc-none">no round</span>}
+                {goneLanded && <><b className="num">{fmtPrice(goneLanded[0], gone!.expo ?? -8, p.dp)}</b><span className="hc-sub">landed</span></>}
+                {l && landed && <><b className="num">{fmtPrice(landed[0], l.p0Expo, p.dp)}</b><span className="hc-sub">landed</span></>}
+                {l && !landed && <><b className="num" title={coinText(l.depositTotal, l.decimals, p.coinSymbol)}>{fmtCompact(l.depositTotal, l.decimals)}</b><span className="hc-sub">{l.curveSeq.toString()} trades</span></>}
+                {!l && !past && !early && !learning && !paused && (p.house === false ? <span className="hc-fund">+ Fund it</span> : p.house && index === houseNext && <span className="hc-sub">the house opens it next</span>)}
+                {early && p.house === false && <span className="hc-sub" title="A day can be funded up to 31 days ahead.">funding opens {nyWhen(terms.fundableFrom, { month: "short", day: "numeric" })}</span>}
+                {learning && <span className="hc-sub" title="The coin is still learning how its price moves. This day locks before it has learned enough, so its round could not open.">too soon to open</span>}
+                {paused && <span className="hc-sub">paused</span>}
+              </div>
+              {(closesIn || heldText) && <div className="hc-foot">
+                {closesIn && <span className="hc-left">closes in {closesIn.replace(/ (d|h|min)\b/g, "$1")}</span>}
+                {heldText && <span className="hc-mine" title={`You hold ${heldText} in this round`}>you: {heldText}</span>}
+              </div>}
             </>
           );
-          const cls = `wc-cell ${isToday ? "wc-today" : ""} ${l ? `wc-${l.status}` : gone ? `wc-${gone.status}` : past || early || learning || paused || p.house ? "wc-past" : "wc-open-slot"}`;
+          const cls = `hc-cell ${isToday ? "hc-today" : ""} ${l ? `hc-${l.status}` : gone ? `hc-${gone.status}` : past || early || learning || paused || p.house !== false ? "hc-quiet" : "hc-slot"}`;
           const key = `${year}-${month}-${d}`;
           if (r) return <Link key={key} to={`/m/${r.pubkey.toBase58()}`} className={cls}>{body}</Link>;
-          if (past || early || learning || paused || p.house) return <div key={key} className={cls}>{body}</div>;
+          if (past || early || learning || paused || p.house !== false) return <div key={key} className={cls}>{body}</div>;
           return <button key={key} className={cls} onClick={() => p.onStart(index)} disabled={!p.canStart}>{body}</button>;
         })}
       </div>

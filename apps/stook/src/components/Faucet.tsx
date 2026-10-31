@@ -1,6 +1,6 @@
 // Devnet only: hands the connected wallet the mock USDC and every street
 // coin's devnet twin, in one transaction. The mint authority ships in the
-// bundle on purpose — the tokens are worthless and handing them out is the
+// bundle on purpose: the tokens are worthless and handing them out is the
 // faucet's job. Each coin comes as about $1,000 at its live price, so a
 // tester holds the same stake in every coin, whatever one coin is worth.
 import { useState } from "react";
@@ -52,7 +52,7 @@ export function Faucet() {
   };
   // A little pixel tap: devnet coins on demand.
   return (
-    <button className="faucet-btn" onClick={mint} disabled={busy} title="Devnet faucet: about $1,000 each of $SSt., $ZCAT, $KNOTS, $GP, and test USDC">
+    <button className="ss-pill ss-faucet" onClick={mint} disabled={busy} title="Devnet faucet: about $1,000 each of $SSt., $ZCAT, $KNOTS, $GP, and test USDC">
       {/* A stack of gold coins with a plus: free coins, here. */}
       <svg viewBox="0 0 12 12" shapeRendering="crispEdges" aria-hidden="true">
         <g fill="#b47416"><rect x="1" y="10" width="7" height="1"/><rect x="1" y="7" width="7" height="1"/><rect x="1" y="4" width="7" height="1"/></g>
@@ -60,7 +60,7 @@ export function Faucet() {
         <g fill="#ffe3a3"><rect x="2" y="5" width="2" height="1"/><rect x="2" y="8" width="2" height="1"/><rect x="3" y="3" width="2" height="1"/></g>
         <g fill="#5ef0a0"><rect x="9" y="0" width="1" height="3"/><rect x="8" y="1" width="3" height="1"/></g>
       </svg>
-      <span>{busy ? "minting…" : "free test coins"}</span>
+      <span>{busy ? "Minting" : "Test coins"}</span>
     </button>
   );
 }

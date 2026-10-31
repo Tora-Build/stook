@@ -32,17 +32,26 @@ export function useCallOrder(p: { refs: stook.LadderRefs; ladder: stook.LadderAc
   const stale = (s === null) !== (p.shape === null) || (!!s && !!p.shape && !sameShape(s, p.shape));
   // The fee rises over the last six hours; quote at the rate this trade lands at.
   const feeBps = stook.feeBpsAt(l.feeBps, BigInt(p.now), l.settlesAt);
-  const quote = (n: bigint) => { try { return stook.quoteTrade({ curve: l.curve, b: l.b, feeBps, decimals: dec }, s!, n); } catch { return null; } };
+  const quoteOf = (sh: stook.Shape, n: bigint) => { try { return stook.quoteTrade({ curve: l.curve, b: l.b, feeBps, decimals: dec }, sh, n); } catch { return null; } };
+  const quote = (n: bigint) => quoteOf(s!, n);
   // A spend becomes the most shares it buys, the coin's transfer fee included.
   const budget = unit === "coin" ? parseAmount(text, dec) : p.usd ? fromUsd(Number(text.replace(/,/g, "")) || 0, dec, p.usd) : null;
-  const shares = useMemo(() => {
-    if (!s || !budget || budget <= 0n || l.b === 0n) return null;
-    const cost = (n: bigint) => { const x = quote(n); return x ? stook.grossFor(x.total, p.transferFee) : null; };
+  const sharesOf = (sh: stook.Shape | null): bigint | null => {
+    if (!sh || !budget || budget <= 0n || l.b === 0n) return null;
+    const cost = (n: bigint) => { const x = quoteOf(sh, n); return x ? stook.grossFor(x.total, p.transferFee) : null; };
     let lo = 0n, hi = budget > 0n ? budget : 1n;
     for (let k = 0; k < 64; k++) { const c = cost(hi); if (c === null || c > budget) break; lo = hi; hi *= 2n; }
     for (let k = 0; k < 64 && hi - lo > 1n; k++) { const mid = (lo + hi) / 2n, c = cost(mid); if (c !== null && c <= budget) lo = mid; else hi = mid; }
     return lo > 0n ? lo : null;
-  }, [unit, text, budget, s, l, dec, feeBps, p.transferFee]); // eslint-disable-line react-hooks/exhaustive-deps
+  };
+  const shares = useMemo(() => sharesOf(s), [unit, text, budget, s, l, dec, feeBps, p.transferFee]); // eslint-disable-line react-hooks/exhaustive-deps
+  /** What another call would pay for the same spend, as a multiple: the How sure chips read it, so they match the order. */
+  const multOf = (sh: stook.Shape): number | null => {
+    const n = sharesOf(sh), x = n ? quoteOf(sh, n) : null;
+    if (!x) return null;
+    const cost = stook.grossFor(x.total, p.transferFee), win = stook.netOf(x.maxPayout, p.transferFee);
+    return cost > 0n ? Number(win) / Number(cost) : null;
+  };
   // A spend larger than the round can take on this line buys only what it can.
   const q = useMemo(() => (s && shares && shares > 0n ? quote(shares) : null), [s, shares, l, dec, feeBps]); // eslint-disable-line react-hooks/exhaustive-deps
   // Wallet numbers, not book numbers: what leaves the wallet includes the
@@ -69,7 +78,7 @@ export function useCallOrder(p: { refs: stook.LadderRefs; ladder: stook.LadderAc
     if (!q || !s || !shares || !publicKey || limit === null || stale || !sameShape(s, latest.current)) return;
     send.mutate({ computeUnits: stook.tradeComputeUnits(s), ixs: [ensureAta(l.quoteMint, publicKey, p.refs.tokenProgram), stook.tradeLadderIx(p.refs, { user: publicKey, userToken: ataOf(l.quoteMint, publicKey, p.refs.tokenProgram), shape: s, shares, limit })] });
   };
-  return { unit, setUnit, text, setText, budget, shape: s, stale, feeBps, shares, q, pays, lands, next, limit, rising, short, existing, toWin, mult, at, submit, send, balance, connected: !!publicKey };
+  return { unit, setUnit, text, setText, budget, shape: s, stale, feeBps, shares, q, pays, lands, next, limit, rising, short, existing, toWin, mult, multOf, at, submit, send, balance, connected: !!publicKey };
 }
 
 export type CallOrder = ReturnType<typeof useCallOrder>;

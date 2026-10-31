@@ -1,0 +1,279 @@
+/* The shell: header, footer, the city band, toasts, the video pop-up.
+   The header is 72px, transparent, and sits over the page's hero: a page
+   puts its hero first with `margin-top: calc(-1 * var(--header-h))`. */
+
+.ss-app { min-height: 100vh; display: flex; flex-direction: column; background: var(--bg); }
+.ss-main { padding: 0; flex: 1; display: flex; flex-direction: column; min-width: 0; }
+.ss-main > .page { width: 100%; padding: 0 var(--gutter); max-width: calc(1100px + 2 * var(--gutter)); }
+.ss-main > .page.market { max-width: calc(1280px + 2 * var(--gutter)); }
+
+/* ── header ───────────────────────────────────────────────────────────── */
+.ss-head {
+  /* the header is always on the night city, so its colours stay night */
+  --h-text: #f5eedb; --h-ink2: #a9b4cc; --h-card: rgba(17, 27, 49, .85); --h-line: #22314f;
+  position: relative; z-index: 45;
+  height: 72px; width: 100%; max-width: var(--maxw); margin: 0 auto;
+  display: flex; align-items: center; gap: 40px;
+  padding: 0 var(--gutter);
+  color: var(--h-text);
+}
+:root[data-theme="day"] .ss-head { --h-text: #101a2e; --h-ink2: #34425e; --h-card: rgba(255, 255, 255, .78); --h-line: #d2cab4; }
+.ss-logo { display: flex; align-items: center; gap: 12px; color: var(--h-text); text-decoration: none; flex: none; }
+.ss-logo:hover { text-decoration: none; }
+.ss-logo img { width: 36px; height: 36px; display: block; }
+.ss-logo .pix { font-size: 17px; line-height: 1; color: var(--h-text); letter-spacing: 1px; }
+
+.ss-links { display: flex; align-items: center; gap: 4px; min-width: 0; }
+.ss-links a {
+  height: 40px; padding: 0 16px; display: inline-flex; align-items: center;
+  border-radius: var(--r-sm); color: var(--h-ink2); font-size: 15px; font-weight: 600; white-space: nowrap; text-decoration: none;
+  transition: color .15s ease, background .15s ease;
+}
+.ss-links a:hover { color: var(--h-text); text-decoration: none; }
+.ss-links a.on { color: var(--h-text); background: var(--h-card); }
+.ss-links .ss-how-link { display: none; }
+
+.ss-right { margin-left: auto; display: flex; align-items: center; gap: 8px; flex: none; }
+.ss-pill {
+  height: 44px; padding: 0 16px; display: inline-flex; align-items: center; gap: 8px;
+  border-radius: 14px; border: 1px solid var(--h-line); background: var(--h-card); color: var(--h-text);
+  font-family: var(--sans); font-size: 15px; font-weight: 600; line-height: 1; white-space: nowrap;
+  cursor: pointer; text-decoration: none; transition: border-color .15s ease;
+}
+.ss-pill:hover { border-color: #3a4d76; text-decoration: none; color: var(--h-text); }
+.ss-pill.on { border-color: #3a4d76; }
+.ss-icon { width: 44px; padding: 0; justify-content: center; }
+.ss-icon svg { width: 20px; height: 20px; image-rendering: pixelated; }
+.ss-faucet svg { width: 20px; height: 20px; image-rendering: pixelated; }
+.ss-faucet span { color: var(--taxi); }
+.ss-faucet:disabled { opacity: .6; cursor: wait; }
+.ss-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--up); flex: none; }
+
+/* the wallet: yellow Connect, then a quiet balance pill (wallet-adapter keeps its menu) */
+.ss-head .wallet-adapter-dropdown { display: block; }
+.wallet-adapter-button.ss-wallet {
+  height: 44px !important; padding: 0 20px !important; border-radius: 14px !important; border: 0 !important;
+  background: var(--taxi) !important; color: var(--on-taxi) !important;
+  font-family: var(--sans) !important; font-size: 15px !important; font-weight: 800 !important; line-height: 1 !important;
+  box-shadow: 0 4px 0 var(--taxi-dark) !important;
+  display: inline-flex; align-items: center; white-space: nowrap; text-decoration: none;
+}
+.wallet-adapter-button.ss-wallet:not([disabled]):hover { background: #ffd04f !important; }
+.wallet-adapter-button.ss-wallet:active:not([disabled]) { transform: translateY(2px); box-shadow: 0 2px 0 var(--taxi-dark) !important; }
+.wallet-adapter-button.ss-wallet .wallet-adapter-button-start-icon { display: none; }
+.wallet-adapter-button.ss-wallet.ss-wallet-on {
+  background: var(--h-card) !important; color: var(--h-text) !important;
+  border: 1px solid var(--h-line) !important; box-shadow: none !important; font-weight: 600 !important; padding: 0 16px !important;
+}
+.wallet-adapter-button.ss-wallet.ss-wallet-on:not([disabled]):hover { background: var(--h-card) !important; border-color: #3a4d76 !important; }
+.wallet-adapter-button.ss-wallet.ss-wallet-on:active { transform: none; }
+.ss-wallet-in { display: inline-flex; align-items: center; gap: 8px; }
+.ss-wallet-in b { font-weight: 700; font-variant-numeric: tabular-nums; }
+.ss-wallet-in .ss-addr { color: #6f7c99; font-variant-numeric: tabular-nums; }
+
+/* the wallet menu: a plain card */
+.ss-head .wallet-adapter-dropdown-list {
+  top: calc(100% + 8px); right: 0; min-width: 200px; padding: 8px; gap: 0;
+  border-radius: var(--r-md); background: var(--card); color: var(--text); border: 1px solid var(--line);
+  box-shadow: var(--shadow-pop); font-family: var(--sans); animation: none !important; transform: none;
+}
+.ss-head .wallet-adapter-dropdown-list::before { display: none; }
+.ss-head .wallet-adapter-dropdown-list-item {
+  height: 40px; min-height: 40px; padding: 0 12px; border-radius: 10px; border: 0;
+  font-family: var(--sans); font-size: 14px; font-weight: 600; color: var(--text);
+}
+.ss-head .wallet-adapter-dropdown-list-item:not([disabled]):hover, .ss-head .wallet-adapter-dropdown-list-item:focus-visible { background: var(--card2); color: var(--text); }
+
+/* ── the wallet chooser (modal), same card look ───────────────────────── */
+.wallet-adapter-modal-wrapper { border-radius: var(--r); background: var(--card); color: var(--text); border: 1px solid var(--line); box-shadow: var(--shadow-pop); font-family: var(--sans); animation: none !important; }
+.wallet-adapter-modal-title { font-family: var(--sans); font-weight: 800; font-size: 22px; line-height: 1.3; color: var(--text); text-shadow: none; padding: 48px 48px 24px; }
+.wallet-adapter-modal-button-close { border-radius: 10px; background: var(--card2); border: 1px solid var(--line); }
+.wallet-adapter-modal-button-close svg { fill: var(--ink2); }
+.wallet-adapter-modal-button-close:hover { background: var(--line); }
+.wallet-adapter-modal-button-close:hover svg { fill: var(--text); }
+.wallet-adapter-modal-list { margin: 0 24px 24px; border: 0; display: flex; flex-direction: column; gap: 8px; }
+.wallet-adapter-modal-list li + li { border-top: 0; }
+.wallet-adapter-modal-list .wallet-adapter-button { background: var(--card2) !important; color: var(--text) !important; border: 1px solid var(--line) !important; border-radius: 14px !important; box-shadow: none !important; height: 56px !important; font-family: var(--sans) !important; font-size: 15px !important; font-weight: 700 !important; padding: 0 16px !important; }
+.wallet-adapter-modal-list .wallet-adapter-button:not([disabled]):hover, .wallet-adapter-modal-list .wallet-adapter-button:focus-visible { background: var(--line) !important; color: var(--text) !important; }
+.wallet-adapter-modal-list .wallet-adapter-button-start-icon img, .wallet-adapter-modal-list .wallet-adapter-button-start-icon { border-radius: 8px; }
+.wallet-adapter-modal-list .wallet-adapter-button span { font-family: var(--sans); font-size: 13px; color: var(--ink3); opacity: 1; }
+.wallet-adapter-modal-list-more { font-family: var(--sans); font-size: 14px; font-weight: 600; color: var(--ink2); padding: 16px 24px 24px; }
+.wallet-adapter-modal-middle-button { border-radius: var(--r-md); background: var(--taxi); color: var(--on-taxi); font-family: var(--sans); font-size: 16px; font-weight: 800; border: 0; box-shadow: 0 4px 0 var(--taxi-dark); }
+
+/* ── the city band (pages with no hero of their own) ──────────────────── */
+.ss-band { height: 200px; margin-top: calc(-1 * var(--header-h)); flex: none; }
+.ss-band + .page, .ss-band + * { position: relative; z-index: 2; margin-top: -40px; }
+
+/* ── footer ───────────────────────────────────────────────────────────── */
+.ss-foot {
+  margin-top: 80px; border-top: 1px solid var(--line);
+  display: flex; align-items: center; justify-content: space-between; gap: 16px;
+  padding: 24px max(var(--gutter), calc((100% - var(--maxw)) / 2 + var(--gutter)));
+  font-size: 13px; font-weight: 500; color: var(--ink3);
+}
+.ss-net { display: inline-flex; align-items: center; gap: 8px; }
+.ss-foot-links { display: flex; gap: 24px; }
+.ss-foot-links a { color: var(--ink2); font-weight: 600; }
+.ss-foot-links a:hover { color: var(--text); text-decoration: none; }
+
+/* ── loading and errors ───────────────────────────────────────────────── */
+.ss-loading { margin: 48px auto; color: var(--ink3); font-weight: 600; }
+.ss-guard { margin: 48px auto; max-width: 720px; }
+.ss-guard h2 { margin: 8px 0; }
+.ss-guard-msg { color: var(--ink3); font-size: 13px; margin: 0 0 24px; word-break: break-word; }
+.ss-guard-act { display: flex; gap: 8px; flex-wrap: wrap; }
+
+/* ── toasts ───────────────────────────────────────────────────────────── */
+.toasts { right: 24px; bottom: 24px; gap: 8px; z-index: 80; }
+.toast {
+  align-items: center; gap: 16px; max-width: 400px; padding: 14px 16px 14px 20px;
+  background: var(--card); color: var(--text); border: 1px solid var(--line); border-left: 4px solid var(--up);
+  border-radius: var(--r-md); box-shadow: var(--shadow-pop); font-size: 14px; font-weight: 500; line-height: 1.4;
+}
+.toast-ok { border-color: var(--line); border-left-color: var(--up); }
+.toast-err { border-color: var(--line); border-left-color: var(--down); }
+.toast a { color: var(--taxi); font-weight: 700; margin-left: auto; white-space: nowrap; }
+:root[data-theme="day"] .toast a { color: #8a6200; }
+
+/* ── the 60s video ────────────────────────────────────────────────────── */
+.watch-back { background: rgba(5, 8, 16, .8); z-index: 90; }
+.watch-box { background: var(--card); border: 1px solid var(--line); border-radius: var(--r); box-shadow: var(--shadow-pop); overflow: hidden; animation: none; }
+.watch-head { background: none; border-bottom: 1px solid var(--line); padding: 0 0 0 16px; min-height: 48px; color: var(--taxi); }
+.watch-head .pix { font-size: 10px; }
+.watch-x { min-width: 48px; min-height: 48px; border-left: 0; color: var(--ink2); }
+.watch-x:hover, .watch-x:focus-visible { background: var(--card2); color: var(--text); }
+.watch-yt { padding: 12px 16px; color: var(--ink2); font-weight: 600; font-size: 13px; }
+.btn .watch-play, .btn-ghost .watch-play { color: inherit; margin-right: 0; font-size: .8em; }
+
+/* ── narrower screens ─────────────────────────────────────────────────── */
+@media (max-width: 1180px) {
+  .ss-head { gap: 24px; }
+  .ss-links a { padding: 0 12px; }
+  .ss-faucet span { display: none; }
+  .ss-faucet { width: 44px; padding: 0; justify-content: center; }
+}
+@media (max-width: 1023px) {
+  .ss-how { display: none; }
+  .ss-links .ss-how-link { display: inline-flex; }
+}
+@media (max-width: 640px) {
+  /* two rows: the logo and the wallet, then the nav, scrolling sideways if it must */
+  .ss-head { height: auto; flex-wrap: wrap; gap: 0 8px; padding: 12px var(--gutter) 8px; }
+  .ss-logo { height: 48px; }
+  .ss-logo img { width: 32px; height: 32px; }
+  .ss-logo .pix { font-size: 13px; }
+  .ss-right { gap: 8px; }
+  .ss-pill, .wallet-adapter-button.ss-wallet { height: 40px !important; }
+  .ss-pill { height: 40px; }
+  .ss-icon, .ss-faucet { width: 40px; }
+  .wallet-adapter-button.ss-wallet { padding: 0 14px !important; font-size: 14px !important; }
+  .ss-wallet-in .ss-addr { display: none; }
+  .ss-links { order: 3; flex-basis: 100%; height: 44px; overflow-x: auto; scrollbar-width: none; margin: 0 calc(-1 * var(--gutter)); padding: 0 var(--gutter); }
+  .ss-links::-webkit-scrollbar { display: none; }
+  .ss-links a { height: 36px; padding: 0 12px; font-size: 14px; }
+  .ss-band { height: 184px; }
+  .ss-foot { flex-direction: column; align-items: flex-start; margin-top: 48px; }
+  .toasts { left: 16px; right: 16px; bottom: 16px; }
+  .toast { max-width: none; }
+}
+@media (max-width: 380px) {
+  .ss-logo .pix { display: none; }
+}
+@media (prefers-reduced-motion: reduce) { .ss-links a, .ss-pill { transition: none; } }
+
+/* ── older pages (Yours, Board, How, List): the new card look ────────────
+   These pages still use the first design's classes (.panel, .seg,
+   button.primary, the tour placard, the statement). Here they move onto the
+   new tokens: 1px borders, 24px radius, no offset shadows, Inter for text,
+   and the same edges as the header. */
+.ss-main > .page:not(.trade) { max-width: var(--maxw); margin: 0 auto; padding-bottom: 0; }
+.ss-main > .page:not(.trade) h1 { font-size: 56px; letter-spacing: -1.5px; margin: 0 0 16px; }
+.ss-main > .page:not(.trade) > p, .ss-main > .page:not(.trade) .how-watch { max-width: 72ch; color: var(--ink2); font-size: 16px; }
+.ss-main > .page.statement { max-width: var(--maxw); }
+
+.ss-main > .page .panel, .ss-main > .page .placard, .ss-main > .page .tote, .ss-main > .page .stmt-none-cta,
+.ss-main > .page .stmt-steps li, .ss-main > .page .stmt-round, .ss-main > .page .stmt-sample-row, .ss-main > .page .pb-round {
+  background: var(--card); border: 1px solid var(--line); border-radius: var(--r); box-shadow: none;
+}
+.ss-main > .page .panel { padding: 24px; margin-bottom: 24px; }
+.ss-main > .page .stmt-none-cta { padding: 24px; margin-bottom: 24px; }
+.ss-main > .page .stmt-sample-row { border-radius: var(--r-md); padding: 16px 24px; margin-bottom: 8px; }
+.ss-main > .page .pb-round { border-radius: var(--r-md); margin-bottom: 8px; overflow: hidden; }
+.ss-main > .page .pb-open { border-color: var(--line2); }
+.ss-main > .page .stmt-round.stage-settled, .ss-main > .page .stmt-round.stage-void { box-shadow: none; }
+.ss-main > .page .tote { overflow: hidden; margin-bottom: 24px; }
+.ss-main > .page .tote-cell { padding: 24px; }
+.ss-main > .page .tote-cell + .tote-cell { border-left: 1px solid var(--line); }
+.ss-main > .page .stmt-head { border-bottom: 1px solid var(--line); padding-bottom: 24px; margin-bottom: 24px; }
+.ss-main > .page .stmt-step-n { border: 0; border-radius: var(--r-sm); font-family: var(--sans); font-weight: 800; font-size: 15px; }
+.ss-main > .page .stmt-step-go { font-family: var(--sans); font-size: 14px; font-weight: 700; padding: 8px 16px; border: 1px solid var(--line); border-radius: var(--r-sm); }
+.ss-main > .page .stmt-step-go:hover { border-color: var(--taxi); background: var(--taxi); color: var(--on-taxi); }
+.ss-main > .page .stmt-sample-tag { border-width: 2px; border-radius: var(--r-sm); font-size: 16px; }
+
+/* kickers: the small pixel line above a title, no box */
+.ss-main > .page .sign { background: none; border: 0; padding: 0; margin-bottom: 16px; color: var(--taxi); font-size: 10px; }
+.ss-main > .page .stmt-firm { font-size: 10px; }
+
+/* the segmented switch and the coin chips */
+.ss-main > .page .seg { gap: 4px; padding: 4px; border: 1px solid var(--line); border-radius: 14px; background: var(--bg2); margin-bottom: 24px; }
+.ss-main > .page .pb-filters .seg { margin-bottom: 0; }
+.ss-main > .page .seg button { height: 32px; padding: 0 12px !important; border: 0; border-radius: 10px; background: none; color: var(--ink2); font-family: var(--sans); font-size: 14px !important; font-weight: 600; }
+.ss-main > .page .seg button + button { border-left: 0; }
+.ss-main > .page .seg button.on { background: var(--card2); color: var(--text); }
+.ss-main > .page .pb-coins { gap: 8px; }
+.ss-main > .page .pb-chip { height: 40px; padding: 0 12px; gap: 8px; border: 1px solid var(--line); border-radius: var(--r-sm); background: var(--card); color: var(--ink2); font-family: var(--sans); font-size: 14px; font-weight: 600; }
+.ss-main > .page .pb-chip.on { border-color: var(--taxi); background: var(--taxi-soft); color: var(--text); }
+.ss-main > .page .pb-filters { gap: 16px; margin-bottom: 24px; }
+
+/* the main button: same as .btn */
+.ss-main > .page button.primary {
+  height: 56px; padding: 0 32px; border: 0; border-radius: var(--r-md);
+  background: var(--taxi); color: var(--on-taxi); box-shadow: 0 5px 0 var(--taxi-dark);
+  font-family: var(--sans); font-size: 18px !important; font-weight: 800; letter-spacing: -.2px;
+}
+.ss-main > .page button.primary:hover:not(:disabled) { background: #ffd04f; }
+.ss-main > .page button.primary:active:not(:disabled) { transform: translateY(3px); box-shadow: 0 2px 0 var(--taxi-dark); }
+.ss-main > .page button.primary:disabled { background: var(--card2); color: var(--ink3); box-shadow: none; opacity: 1; }
+.ss-main > .page button.small {
+  height: 40px; padding: 0 16px; border: 1px solid var(--line); border-radius: var(--r-sm); box-shadow: none;
+  background: var(--card2); color: var(--text); font-family: var(--sans); font-size: 14px !important; font-weight: 700;
+}
+.ss-main > .page button.small:hover:not(:disabled) { border-color: var(--line2); }
+.ss-main > .page .watch-inline {
+  height: 40px; margin-left: 8px; padding: 0 16px; border: 0; border-radius: var(--r-sm); box-shadow: 0 4px 0 var(--taxi-dark);
+  background: var(--taxi); color: var(--on-taxi); font-family: var(--sans); font-size: 15px; font-weight: 800;
+}
+
+/* fields */
+.ss-main > .page .field > span:first-child { font-family: var(--sans); font-size: 13px; font-weight: 600; color: var(--ink3); }
+.ss-main > .page .field input, .ss-main > .page .amount-input { border: 1px solid var(--line); border-radius: var(--r-md); background: var(--bg2); }
+.ss-main > .page .field input { height: 56px; padding: 0 16px; font-family: var(--sans); font-size: 16px; color: var(--text); }
+.ss-main > .page .amount-input:focus-within, .ss-main > .page .field input:focus { border-color: var(--taxi); outline: none; }
+.ss-main > .page .ladder-table th { font-family: var(--sans); font-size: 12px; font-weight: 600; letter-spacing: .3px; text-transform: uppercase; }
+.ss-main > .page .ladder-table td { padding: 12px 0; }
+
+/* the tour */
+.ss-main > .page .tour-stops { gap: 8px; margin-bottom: 24px; }
+.ss-main > .page .tour-stop { height: 40px; padding: 0 12px; border: 1px solid var(--line); border-radius: var(--r-sm); background: var(--card); font-family: var(--sans); font-size: 14px; font-weight: 600; }
+.ss-main > .page .tour-stop.on { border-color: var(--taxi); background: var(--taxi-soft); }
+.ss-main > .page .tour-n { width: 22px; height: 22px; border: 0; border-radius: 6px; background: var(--card2); font-size: 12px; font-weight: 700; }
+.ss-main > .page .tour-stop.on .tour-n { background: var(--taxi); color: var(--on-taxi); }
+.ss-main > .page .placard { overflow: hidden; }
+.ss-main > .page .placard-scene { background: var(--bg2); border-right: 1px solid var(--line); padding: 32px; }
+.ss-main > .page .placard-text { padding: 32px; }
+.ss-main > .page .placard-text h2 { font-family: var(--sans); font-size: 26px; font-weight: 800; color: var(--text); margin-bottom: 16px; }
+.ss-main > .page .placard-text p { font-size: 16px; }
+.ss-main > .page .placard-text .try { font-family: var(--sans); font-size: 14px !important; font-weight: 600; color: var(--now); }
+.ss-main > .page .scene-table { border: 1px solid var(--line); border-radius: var(--r-md); background: var(--card); font-family: var(--sans); font-size: 14px !important; font-weight: 700; }
+.ss-main > .page .scene-table.on { border-color: var(--taxi); background: var(--taxi-soft); }
+
+@media (max-width: 760px) {
+  .ss-main > .page .placard-scene { border-right: 0; border-bottom: 1px solid var(--line); padding: 24px; }
+  .ss-main > .page .placard-text { padding: 24px; }
+}
+@media (max-width: 640px) {
+  .ss-main > .page:not(.trade) h1 { font-size: 36px; letter-spacing: -1px; }
+  .ss-main > .page .tote-cell + .tote-cell { border-left: 0; border-top: 1px solid var(--line); }
+}
+/* the short band sits under a see-through header: shade its top so the nav reads */
+.ss-band::after { content: ""; position: absolute; left: 0; right: 0; top: 0; height: calc(var(--header-h) + 24px); z-index: 1; pointer-events: none; background: linear-gradient(180deg, color-mix(in srgb, var(--bg) 86%, transparent), color-mix(in srgb, var(--bg) 62%, transparent) 70%, transparent); }
