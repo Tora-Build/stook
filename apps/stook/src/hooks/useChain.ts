@@ -4,6 +4,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { PublicKey, type TransactionInstruction } from "@solana/web3.js";
 import { stook } from "@sooth/sdk-solana";
 import * as chain from "../lib/chain";
+import { keyOf, poolCoinOf } from "../lib/coins";
 import { useToast } from "../components/Toast";
 
 export const useLadders = () => {
@@ -94,7 +95,16 @@ export const useBalance = (mint: PublicKey | null, tokenProgram: PublicKey | und
 export const useLivePrice = (feedId: Uint8Array | null) => {
   const { connection } = useConnection();
   const key = useMemo(() => (feedId ? Array.from(feedId).join(",") : null), [feedId]);
-  return useQuery({ queryKey: ["live", key], queryFn: () => chain.fetchLivePrice(connection, feedId!), enabled: !!feedId, refetchInterval: 20_000 });
+  return useQuery({ queryKey: ["live", key], queryFn: () => livePrice(connection, feedId!), enabled: !!feedId, refetchInterval: 20_000 });
+};
+
+/** Pyth's price for a feed; for a pool-priced anchor, the pool's price from the site's /prices (display only). */
+const livePrice = async (connection: Parameters<typeof chain.fetchLivePrice>[0], feedId: Uint8Array): Promise<chain.LivePrice | null> => {
+  const coin = poolCoinOf(Array.from(feedId, (b) => b.toString(16).padStart(2, "0")).join(""));
+  if (!coin) return chain.fetchLivePrice(connection, feedId);
+  const q = ((await (await fetch("/prices")).json()) as Record<string, { price?: number; at?: number }>)[keyOf(coin)];
+  if (typeof q?.price !== "number" || !(q.price > 0)) return null;
+  return { price: BigInt(Math.round(q.price * 1e8)), expo: -8, conf: 0n, publishTime: Math.floor((q.at ?? Date.now()) / (q.at && q.at > 1e12 ? 1000 : 1)) };
 };
 
 /** A transaction, with the refetches and the toast it implies. */

@@ -17,6 +17,9 @@ export interface Anchor {
   mint: string;
   logo: string;
   feedId: string;
+  /** Set when the anchor is priced from a Raydium CLMM pool, not Pyth: the
+   *  pool's address, which is also the feed id. */
+  pool?: string;
   /** "24/7", or the hours a round must settle inside. */
   hours: string;
   dp: number;
@@ -45,7 +48,7 @@ export const COINS: Coin[] = [
     symbol: "SSt.", key: "STOOK", name: "STOOK St.", logo: "/logos/stook.png", mint: import.meta.env.VITE_STOOK_MINT ?? "", decimals: 6, feeBps: 0,
     // Polymarket PreStocks (prestocks.com), priced from its Raydium CLMM pool
     // (5fdWxxkv63NdU7t2CspjyCQrvmMvfe3mQwSgYpHam1Gs): the feed id is the pool's address.
-    anchor: { symbol: "POLYMARKET", name: "Polymarket", mint: "Pre8AREmFPtoJFT8mQSXQLh56cwJmM7CFDRuoGBZiUP", logo: "/logos/polymarket.png", feedId: "45541ba20dabe3e68b11405564e749ac0119de0e5f4a1aa441e60e3335b737c8", hours: "24/7", dp: 2 },
+    anchor: { symbol: "POLYMARKET", name: "Polymarket", mint: "Pre8AREmFPtoJFT8mQSXQLh56cwJmM7CFDRuoGBZiUP", logo: "/logos/polymarket.png", feedId: "45541ba20dabe3e68b11405564e749ac0119de0e5f4a1aa441e60e3335b737c8", pool: "5fdWxxkv63NdU7t2CspjyCQrvmMvfe3mQwSgYpHam1Gs", hours: "24/7", dp: 2 },
   },
   {
     symbol: "ZCAT", name: "Anonymous Cat", logo: "/logos/zcat.jpg", mint: "HcRLc9VDgjLeK154xDawfb1dmVJ98DoSqcwTHGqiDeJR", decimals: 9, feeBps: 300,
@@ -84,6 +87,9 @@ export const anchorOf = (c: Coin): Anchor => {
   const d = feedOverrides[keyOf(c)];
   return d ? { ...c.anchor, symbol: d.symbol, name: d.name, feedId: d.feedId, dp: d.dp } : c.anchor;
 };
+
+/** The street coin whose anchor is the pool behind this feed id, if any. */
+export const poolCoinOf = (feedHex: string): Coin | undefined => COINS.find((c) => c.anchor.pool && anchorOf(c).feedId === feedHex);
 
 /** A coin's daily series: its rounds, one per day, closing 4 PM New York. */
 export const seriesOf = (c: Coin): PublicKey | null => { const m = mintOf(c), f = anchorOf(c).feedId; return m && f ? stook.deriveSeries(feedHexToBytes(f), m, 0) : null; };

@@ -21,7 +21,7 @@ import { useNow } from "../hooks/useNow";
 import { useDesk } from "../hooks/useDesk";
 import { useCallOrder } from "../hooks/useCallOrder";
 import { feedByHex, feedHex } from "../lib/feeds";
-import { coinByMint } from "../lib/coins";
+import { coinByMint, keyOf, poolCoinOf } from "../lib/coins";
 import { fmtCompact, fmtPrice, untilText } from "../lib/format";
 import { nyWhen } from "../lib/time";
 import { callName, callShort, clamp, fromShape, makeGrid, nearAt, sameShape, toShape, type Grid, type Call } from "../lib/call";
@@ -49,7 +49,9 @@ function Round({ l, refs, mint }: { l: stook.LadderAccount; refs: stook.LadderRe
   const { publicKey } = useWallet();
   const live = useLivePrice(l.feedId);
   const feed = feedByHex(feedHex(l.feedId));
-  const history = useQuery({ queryKey: ["hist", feed.symbol], queryFn: async () => (await fetch(`/chart?sym=${feed.symbol}`)).json() as Promise<{ points: [number, number][] }>, refetchInterval: 300_000 });
+  // A pool-priced anchor charts from its coin's tape; a Pyth feed by its symbol.
+  const poolCoin = poolCoinOf(feedHex(l.feedId));
+  const history = useQuery({ queryKey: ["hist", feed.symbol], queryFn: async () => (await fetch(poolCoin ? `/chart?coin=${keyOf(poolCoin)}` : `/chart?sym=${feed.symbol}`)).json() as Promise<{ points: [number, number][] }>, refetchInterval: 300_000 });
   const positions = usePositions(refs.ladder);
   const tranches = useTranches(refs.ladder, true);
   const voidIt = useSend("Void");
