@@ -98,3 +98,20 @@ export function useAnchorPrice(hex: string | null) {
     },
   });
 }
+
+/** The coin's dollar price from Jupiter, when it trades (null on devnet test coins). */
+export function useCoinUsd(mint: { toBase58(): string } | null) {
+  const id = mint?.toBase58() ?? null;
+  return useQuery({
+    queryKey: ["list-usd", id],
+    enabled: !!id,
+    retry: false,
+    staleTime: 60_000,
+    queryFn: async () => {
+      const r = await fetch(`https://lite-api.jup.ag/price/v3?ids=${id}`);
+      if (!r.ok) return null;
+      const p = Number((await r.json())?.[id!]?.usdPrice);
+      return Number.isFinite(p) && p > 0 ? p : null;
+    },
+  });
+}

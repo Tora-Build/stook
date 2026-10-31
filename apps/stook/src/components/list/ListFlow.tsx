@@ -12,9 +12,11 @@ import { Notice } from "../Notice";
 import { clock } from "../home/Hero";
 import { Tick } from "./Art";
 import { groupText, unitsToText } from "./data";
-import { RENT_SOL, type Listing } from "./useListing";
+import { GOOD_USD, MIN_USD, RENT_SOL, type Listing } from "./useListing";
 
-const SHARES = [50n, 100n, 250n, 500n]; // of 10,000: 0.5%, 1%, 2.5%, 5%
+const SHARES = [10n, 50n, 100n, 500n]; // of 10,000: 0.1%, 0.5%, 1%, 5% (a coin with no dollar price)
+const DOLLARS = [200, 500, 1000, 5000];
+const usdText = (v: number) => `$${v.toLocaleString("en-US", { maximumFractionDigits: v < 100 ? 2 : 0 })}`;
 
 export function Step({ n, title, done, children, sub }: { n: number; title: string; done: boolean; sub?: string; children: React.ReactNode }) {
   return (
@@ -89,12 +91,16 @@ export function AnchorStep({ L }: { L: Listing }) {
 }
 
 function SeedStep({ L }: { L: Listing }) {
-  const { supply, dec, sym, text, setText, min, max, seed, amt, publicKey, balance, seedProblem } = L;
+  const { supply, dec, sym, text, setText, min, max, seed, amt, publicKey, balance, seedProblem, usd, seedUsd, unitsFor } = L;
   const span = max - min;
   const at = seed !== null && span > 0n ? Math.max(0, Math.min(1, Number(((seed - min) * 1000n) / span) / 1000)) : null;
   return (
     <>
-      {supply > 0n && (
+      {supply > 0n && usd ? (
+        <div className="seg2 list-shares" role="group" aria-label="Seed in dollars">
+          {DOLLARS.map((d) => { const v = unitsFor(d), one = 10n ** BigInt(dec), up = ((v + one - 1n) / one) * one, t = groupText(unitsToText(up <= max ? up : v, dec)); return <button key={d} className={text === t ? "on" : ""} disabled={v > max} onClick={() => setText(t)}>{usdText(d)}</button>; })}
+        </div>
+      ) : supply > 0n && (
         <div className="seg2 list-shares" role="group" aria-label="Share of supply">
           {SHARES.map((b) => { const one = 10n ** BigInt(dec), raw = (supply * b) / 10_000n, whole = (raw / one) * one, v = whole >= min && whole > 0n ? whole : raw < min ? min : raw; const t = groupText(unitsToText(v, dec)); return <button key={String(b)} className={text === t ? "on" : ""} onClick={() => setText(t)}>{Number(b) / 100}%</button>; })}
         </div>
@@ -103,11 +109,12 @@ function SeedStep({ L }: { L: Listing }) {
         <input className="input input-big" value={text} onChange={(e) => setText(e.target.value)} onBlur={() => setText(groupText(text))} inputMode="decimal" aria-label="Seed amount" placeholder={supply > 0n ? groupText(unitsToText(min, dec)) : "0"} disabled={!L.coinOk} />
         <span className="list-unit">{sym || "coin"}</span>
       </div>
+      {seedUsd !== null && <p className={`list-usd ${seedUsd < MIN_USD ? "low" : seedUsd < GOOD_USD ? "mid" : "ok"}`}><b className="num">≈ {usdText(seedUsd)}</b>{seedUsd < MIN_USD ? ` · $${MIN_USD} at least` : seedUsd < GOOD_USD ? " · fine to start. A bigger house lets callers bet bigger." : " · a solid house"}</p>}
       <div className="list-range" aria-hidden="true">
         <span className="list-range-bar"><i style={{ left: at === null ? "0%" : `${at * 100}%`, opacity: at === null ? 0 : 1 }} /></span>
-        <span className="list-range-k"><span>0.5%{supply > 0n ? ` · ${amt(min)}` : ""}</span><span>5%{supply > 0n ? ` · ${amt(max)}` : ""}</span></span>
+        <span className="list-range-k"><span>{usd ? `$${MIN_USD}` : "least"}{supply > 0n ? ` · ${amt(min)}` : ""}</span><span>5% of supply{supply > 0n ? ` · ${amt(max)}` : ""}</span></span>
       </div>
-      <p className="list-hint">{L.coinOk ? "Pick a share or type an amount." : "Choose the coin first."}{publicKey && balance.data !== undefined ? <> You hold <b>{amt(balance.data)}</b>.</> : null}</p>
+      <p className="list-hint">{L.coinOk ? (usd ? "Pick an amount or type one." : "This coin has no dollar price yet: pick a share or type an amount.") : "Choose the coin first."}{publicKey && balance.data !== undefined ? <> You hold <b>{amt(balance.data)}</b>.</> : null}</p>
       {seedProblem && <Notice tone="warn" title="Check the seed">{seedProblem}</Notice>}
     </>
   );
@@ -146,7 +153,7 @@ export function ListFlow({ L, onApply }: { L: Listing; onApply: () => void }) {
     <ol className="list-steps">
       <Step n={1} title="Choose the coin" done={L.coinOk}><CoinStep L={L} onApply={onApply} /></Step>
       <Step n={2} title="Choose what it follows" sub="Rounds settle on this price at 4 PM New York, from Pyth." done={L.coinOk && !!anchor}><AnchorStep L={L} /></Step>
-      <Step n={3} title="Seed the house" sub="0.5% to 5% of the supply" done={L.seedOk}><SeedStep L={L} /></Step>
+      <Step n={3} title="Seed the house" sub={`$${MIN_USD} or more of the coin, locked a week`} done={L.seedOk}><SeedStep L={L} /></Step>
       <Step n={4} title="Review and sign" done={false}>
         <Receipt L={L} />
         {!publicKey

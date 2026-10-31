@@ -76,7 +76,7 @@ export function ApplyForm({ L, onBack, f }: { L: Listing; onBack?: () => void; f
       </Step>
       <Step n={3} title="Seed and contact" done={!errs.contact}>
         <div className="list-grid2">
-          <label className="list-field"><span className="label">How much the team will seed</span><input className="input" value={seed} onChange={(e) => setSeed(e.target.value.slice(0, 60))} placeholder="e.g. 2% of supply" /></label>
+          <label className="list-field"><span className="label">How much the team will seed</span><input className="input" value={seed} onChange={(e) => setSeed(e.target.value.slice(0, 60))} placeholder="e.g. $2,000 of the coin" /></label>
           <label className="list-field"><span className="label">Telegram or X handle</span><input className="input" value={contact} onChange={(e) => setContact(e.target.value.slice(0, 60))} placeholder="@yourteam" autoComplete="off" /></label>
         </div>
         {err("contact")}

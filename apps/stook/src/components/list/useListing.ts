@@ -9,10 +9,13 @@ import { fmtCompact, parseAmount } from "../../lib/format";
 import { coinByMint, coinPath } from "../../lib/coins";
 import { LISTABLE, listedByMint, reloadListed } from "../../lib/listed";
 import { useBalance, useMint, useSend } from "../../hooks/useChain";
-import { logoOf, parseKey, symOf, useAnchorPrice, useAnchors, useCoinLook, useProtocolConfig } from "./data";
+import { logoOf, parseKey, symOf, useAnchorPrice, useAnchors, useCoinLook, useCoinUsd, useProtocolConfig } from "./data";
 
 /** One-time rent for a listing's accounts, in SOL (house, series, vaults). */
 export const RENT_SOL = 0.009;
+/** What a house needs to be worth to start, and what lets callers bet properly. */
+export const MIN_USD = 200;
+export const GOOD_USD = 1000;
 
 export type CoinProblem = { kind: "missing" | "refused" | "trusted" | "street" | "taken"; text: string } | null;
 
@@ -41,8 +44,15 @@ export function useListing() {
   const sym = symOf(look.data, mint);
   const logo = logoOf(look.data, sym);
   const supply = look.data?.supply ?? 0n;
-  const [min, max] = stook.seedBounds(supply);
+  const [floor, max] = stook.seedBounds(supply);
+  // A seed is judged in dollars when the coin has a price: $200 at least.
+  // The program's own floor (0.01% of supply) only keeps out dust.
+  const usd = useCoinUsd(mint).data ?? null;
+  const unitsFor = (dollars: number) => (usd ? BigInt(Math.ceil((dollars / usd) * 10 ** dec)) : 0n);
+  const min = usd && unitsFor(MIN_USD) > floor ? (unitsFor(MIN_USD) < max ? unitsFor(MIN_USD) : max) : floor;
   const seed = parseAmount(text, dec);
+  const toUsd = (v: bigint | null) => (usd && v !== null ? (Number(v) / 10 ** dec) * usd : null);
+  const seedUsd = toUsd(seed);
   const fee = info?.report.transferFee;
   const gross = seed ? stook.grossFor(seed, fee) : null;
   const series = mint && chosen ? stook.deriveSeries(Uint8Array.from(Buffer.from(chosen, "hex")), mint, 0) : null;
@@ -66,7 +76,7 @@ export function useListing() {
     : null;
   const coinOk = !!mint && !!look.data && !!info && !problem && !coinLoading;
   const seedProblem = seed === null || !look.data ? null
-    : seed < min ? `The seed must be at least ${amt(min)}, 0.5% of the supply.`
+    : seed < min ? (usd ? `The house needs at least $${MIN_USD}: ${amt(min)}.` : `The seed must be at least ${amt(min)}.`)
     : seed > max ? `The seed may be at most ${amt(max)}, 5% of the supply.`
     : balance.data !== undefined && gross !== null && balance.data < gross ? `Your wallet holds ${amt(balance.data)}.` : null;
   const seedOk = coinOk && seed !== null && seed > 0n && !seedProblem;
@@ -90,7 +100,7 @@ export function useListing() {
   return {
     mintText, setMintText, mint, feed: chosen, setFeed, text, setText, listed, setListed,
     anchors, config, info, look, balance, sol, send, anchor, price: price.data ?? null,
-    dec, sym, logo, supply, min, max, seed, fee, gross, amt, feeSol, totalSol, problem, seedProblem,
+    dec, sym, logo, supply, min, max, seed, usd, seedUsd, unitsFor, toUsd, fee, gross, amt, feeSol, totalSol, problem, seedProblem,
     coinLoading, coinError, coinOk, seedOk, solOk, ready, list, publicKey,
   };
 }

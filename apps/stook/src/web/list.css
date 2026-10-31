@@ -356,3 +356,9 @@
 .list-checks li .list-check-top { display: flex; margin: 0; color: inherit; }
 .list-checks li .list-check-n { display: inline; margin: 0; font-size: 12px; color: var(--ink3); }
 .list-checks li.on .list-check-n { color: var(--up); }
+.list-usd { margin: 12px 0 0; font-size: 14px; color: var(--ink2); }
+.list-usd b { font-size: 18px; margin-right: 4px; }
+.list-usd.ok b { color: var(--up); }
+.list-usd.mid b { color: var(--taxi); }
+.list-usd.low b { color: var(--down); }
+:root[data-theme="day"] .list-usd.mid b { color: #8a6200; }

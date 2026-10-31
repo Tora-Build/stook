@@ -87,7 +87,7 @@ describe("listing a coin", () => {
     const e = await protocol();
     const c = lister(e);
     const [min, max] = L.seedBounds(SUPPLY);
-    expect([min, max]).toEqual([5_000_000n * UNIT, 50_000_000n * UNIT]);
+    expect([min, max]).toEqual([100_000n * UNIT, 50_000_000n * UNIT]);
 
     await refused(e, c.list(min - 1n), c.kp, "ListSeedTooSmall");
     await refused(e, c.list(max + 1n), c.kp, "ListSeedTooLarge");

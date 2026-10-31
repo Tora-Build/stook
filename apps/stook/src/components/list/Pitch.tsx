@@ -42,7 +42,7 @@ export function Needs({ done, apply, feeSol, totalSol, anchors }: { done: NeedSt
   const rows = [
     { on: done.token, h: "A Solana token", p: "SPL or Token-2022. New accounts must not open frozen, and no transfer hook." + (apply ? " A coin whose issuer keeps powers is fine here: we review it by hand." : "") },
     { on: done.anchor, h: "An asset to follow, priced on chain", p: "Rounds follow an asset such as SOL or gold. It needs a Pyth feed or a Raydium concentrated pool.", extra: anchors.length ? <span className="list-need-logos">{anchors.map((a) => <img key={a.symbol} src={a.logo} alt={a.symbol} title={a.symbol} />)}<span className="dimmer">open here now</span></span> : null },
-    { on: done.seed, h: "A house seed", p: apply ? `Coins your team puts in as the house's first money. Self-serve listings take 0.5% to 5% of the supply, locked ${lockDays} days.` : `0.5% to 5% of the supply, locked ${lockDays} days. Rounds start a day later.` },
+    { on: done.seed, h: "A house seed", p: apply ? `Your coin, worth $200 or more, as the house's first money. $1,000 or more lets callers bet bigger.` : `$200 or more of your coin, locked ${lockDays} days. $1,000 or more lets callers bet bigger.` },
     apply
       ? { on: done.last, h: "A way to reach you", p: `A Telegram or X handle. Applying is free and signs nothing. When we set up the table, the listing costs ${totalSol ? `about ${totalSol}: ${rent}, plus the ${feeSol} fee` : `${rent}, plus the listing fee`}.` }
       : { on: done.last, h: totalSol ? `About ${totalSol} in your wallet` : `About ${RENT_SOL} SOL plus the fee`, p: feeSol ? `The ${feeSol} listing fee, plus ${rent}.` : `${rent}, plus the listing fee.` },

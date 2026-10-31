@@ -1,6 +1,6 @@
 // List a coin: the page for a coin's team or holders who want to put it to
 // work on Stook Street. On devnet, the self-serve listing (`coin_list`):
-// lock 0.5% to 5% of the supply as the house's seed, on an anchor from the
+// lock $200 or more of the coin (at most 5% of supply) as the house's seed, on an anchor from the
 // street's list, and the daily rounds start a day later. On mainnet, where
 // the program's build turns self-serve listing off, an application instead.
 import { useState } from "react";

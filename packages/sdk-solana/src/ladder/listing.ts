@@ -29,8 +29,8 @@ const rw = (pubkey: PublicKey): AccountMeta => ({ pubkey, isSigner: false, isWri
 const signer = (pubkey: PublicKey, isWritable = true): AccountMeta => ({ pubkey, isSigner: true, isWritable });
 const config = (programId: PublicKey) => find([enc.encode("protocol_config")], programId);
 
-/** The seed: 0.5% to 5% of supply, locked a week; live a day after listing. */
-export const LIST_MIN_BPS = 50n;
+/** The seed: 0.01% to 5% of supply (the app asks for $200 or more), locked a week; live a day after listing. */
+export const LIST_MIN_BPS = 1n;
 export const LIST_MAX_BPS = 500n;
 export const LIST_LOCK_SECS = 7n * 86_400n;
 export const LIST_DELAY_SECS = 86_400n;

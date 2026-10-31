@@ -19,10 +19,11 @@ use anchor_lang::prelude::*;
 
 pub const LIST_ANCHOR_SEED: &[u8] = b"list_anchor";
 
-/// The seed: at least 0.5% of the coin's supply, at most 5%. The floor makes
-/// a listing mean something to whoever lists; the cap keeps the house no
-/// deeper than its trading can carry on day one.
-pub const LIST_MIN_BPS: u64 = 50;
+/// The seed: at least 0.01% of the coin's supply, at most 5%. The floor only
+/// keeps out dust: what a seed should be worth is a dollar amount (the app
+/// asks for $200 or more), which the program cannot price for any coin. The
+/// cap keeps the house no deeper than its trading can carry on day one.
+pub const LIST_MIN_BPS: u64 = 1;
 pub const LIST_MAX_BPS: u64 = 500;
 
 /// The seed stays in the house a week.
@@ -64,9 +65,9 @@ mod tests {
     use super::*;
 
     #[test]
-    fn the_seed_is_half_a_percent_to_five_percent_of_supply() {
-        assert_eq!(seed_bounds(1_000_000_000), (5_000_000, 50_000_000));
-        assert_eq!(seed_bounds(999), (5, 49), "the floor rounds up, the cap down");
+    fn the_seed_is_a_hundredth_of_a_percent_to_five_percent_of_supply() {
+        assert_eq!(seed_bounds(1_000_000_000), (100_000, 50_000_000));
+        assert_eq!(seed_bounds(999), (1, 49), "the floor rounds up, the cap down");
         assert_eq!(seed_bounds(u64::MAX).1, (u64::MAX as u128 * 500 / 10_000) as u64, "no overflow at the largest supply");
         assert_eq!(seed_bounds(0), (0, 0));
     }
