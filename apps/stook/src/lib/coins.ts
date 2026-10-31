@@ -89,7 +89,7 @@ export const anchorOf = (c: Coin): Anchor => {
 };
 
 /** The street coin whose anchor is the pool behind this feed id, if any. */
-export const poolCoinOf = (feedHex: string): Coin | undefined => COINS.find((c) => c.anchor.pool && anchorOf(c).feedId === feedHex);
+export const poolCoinOf = (feedHex: string): Coin | undefined => COINS.find((c) => !!c.anchor.pool && c.anchor.feedId === feedHex);
 
 /** A coin's daily series: its rounds, one per day, closing 4 PM New York. */
 export const seriesOf = (c: Coin): PublicKey | null => { const m = mintOf(c), f = anchorOf(c).feedId; return m && f ? stook.deriveSeries(feedHexToBytes(f), m, 0) : null; };
