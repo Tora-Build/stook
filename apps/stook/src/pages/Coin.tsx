@@ -17,7 +17,7 @@ import { HouseHero } from "../components/house/HouseHero";
 import { HouseBox, HouseStats } from "../components/house/HouseDesk";
 import { CoinFacts } from "../components/house/CoinFacts";
 import { Chart24 } from "../components/house/Chart24";
-import { anchorOf, coinBySymbol, keyOf, mintOf, seriesOf, standInNote } from "../lib/coins";
+import { anchorOf, coinBySymbol, keyOf, mintOf, seriesOf } from "../lib/coins";
 import { quoteKeyOf, useListed, type ListedCoin } from "../lib/listed";
 import { useSeries } from "../hooks/useChain";
 import { useHouseRead } from "../hooks/useHouse";
@@ -61,15 +61,12 @@ export function Coin() {
   const mint = mintOf(coin);
   const firstOpen = series.data ? firstOpenableDay(series.data) : null;
   const canStart = byHand && !!mint && !!series.data?.active;
-  // On devnet a coin's rounds may settle on a stand-in feed, not its anchor.
-  const standIn = standInNote(coin);
-  const chartNote = standIn ? `Rounds here settle on ${anchor.symbol}, not on this chart.` : null;
   const learning = series.data && firstOpen !== null && firstOpen > stook.indexAtOrBefore(series.data, BigInt(now)) + 1;
 
   return (
     <div className="house">
       <Title text={`$${coin.symbol} · ${coin.anchor.name}`} />
-      <HouseHero coin={coin} house={hasHouse} settle={standIn ? anchor.name : null} />
+      <HouseHero coin={coin} house={hasHouse} />
 
       <div className="wrap house-body">
         {listing && <Notice className="house-notice" tone={listing.state === "rejected" ? "stop" : listing.state === "pending" ? "warn" : "info"} title={listing.state === "pending" ? "Listed, live soon" : listing.state === "rejected" ? "Turned down" : "Listed by its community"}>
@@ -84,8 +81,8 @@ export function Coin() {
 
             {series.data && seriesKey
               ? <TodayDesk seriesKey={seriesKey} series={series.data} now={now} minLeadSecs={MIN_LEAD_SECS} dp={anchor.dp} coinSymbol={coin.symbol} anchorName={coin.anchor.name} canStart={canStart} onStart={setStarting} house={hasHouse} houseError={houseErr}
-                  side={<Chart24 title={`${coin.anchor.symbol} · last 24 hours, NY`} note={chartNote} points={chart.data?.points ?? []} dp={coin.anchor.dp} state={!chartOn || chart.isError ? "none" : "loading"} />} />
-              : <section className="card house-today house-today-solo"><Chart24 title={`${coin.anchor.symbol} · last 24 hours, NY`} note={chartNote} points={chart.data?.points ?? []} dp={coin.anchor.dp} state={!chartOn || chart.isError ? "none" : "loading"} /></section>}
+                  side={<Chart24 title={`${coin.anchor.symbol} · last 24 hours, NY`} points={chart.data?.points ?? []} dp={coin.anchor.dp} state={!chartOn || chart.isError ? "none" : "loading"} />} />
+              : <section className="card house-today house-today-solo"><Chart24 title={`${coin.anchor.symbol} · last 24 hours, NY`} points={chart.data?.points ?? []} dp={coin.anchor.dp} state={!chartOn || chart.isError ? "none" : "loading"} /></section>}
 
             <section className="house-sec" id="calendar">
               <div className="house-sec-head">

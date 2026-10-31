@@ -53,8 +53,8 @@ export function Tables({ rounds, now }: { rounds: StreetRound[]; now: number }) 
   return <div className="home-tables">{rounds.map((r) => <Table key={r.coin.symbol} r={r} now={now} />)}</div>;
 }
 
-/** One street coin. The big number is the price the round settles on: on a
- *  test build that is the stand-in feed, the same one the hero shows. */
+/** One street coin. The big number is the price the round settles on, the
+ *  same one the hero shows. */
 function Table({ r, now }: { r: StreetRound; now: number }) {
   const q = useFeedQuote(r);
   const cq = useCoinQuotes().data?.[r.coin.symbol];
@@ -81,7 +81,6 @@ function Table({ r, now }: { r: StreetRound; now: number }) {
         <span className="num">{cq?.usd ? fmtUsd(cq.usd) : "…"}</span>
         {typeof cq?.change24h === "number" && <span className={`home-chg ${cq.change24h >= 0 ? "up" : "down"}`}>{fmtChange(cq.change24h, 1)}</span>}
       </div>
-      {r.standIn && <p className="home-note">Test rounds settle on {r.anchor.symbol}</p>}
       <footer className="home-table-foot">
         {roundTo && (phase === "live"
           ? <Link className="btn btn-sm" to={roundTo}>Make a call</Link>

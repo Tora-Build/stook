@@ -25,15 +25,15 @@ const name = (a) => { const n = a.replace(/^the /, ""); return n[0].toUpperCase(
 const num = (v, dp) => (typeof v === "number" ? v.toLocaleString("en-US", { minimumFractionDigits: dp, maximumFractionDigits: dp }) : "…");
 const move = (c) => (typeof c === "number" ? `${c >= 0 ? "▲" : "▼"}${Math.abs(c).toFixed(2)}%` : "");
 
-export function bellText(data, ny) {
+export function bellText(data, ny, test = false) {
   const rows = data.coins.map((c) => `${name(c.anchor)} ${num(c.price, c.dp)} ${move(c.chg)}`.trim()).join("\n");
-  return `🔔 Closing bell · ${ny.label}\n\n${rows}\n\nThe next tables are open 👉 stookstreet.xyz\nDevnet · test coins`;
+  return `🔔 Closing bell · ${ny.label}\n\n${rows}\n\nThe next tables are open 👉 stookstreet.xyz${test ? "\nDevnet · test coins" : ""}`;
 }
 
-export function morningText(data, ny) {
+export function morningText(data, ny, test = false) {
   // A different table each weekday.
   const order = { Tue: 0, Thu: 3, Mon: 1, Wed: 2, Fri: 0 }, c = data.coins[order[ny.weekday] ?? 0] ?? data.coins[0];
-  return `Where does ${c.anchor} close today? 🔔\n\n${num(c.price, c.dp)} now. Bell at 4 PM New York.\nCall it with ${c.coin}. The closer you call, the more you're paid.\n\n👉 stookstreet.xyz (devnet, free test coins)`;
+  return `Where does ${c.anchor} close today? 🔔\n\n${num(c.price, c.dp)} now. Bell at 4 PM New York.\nCall it with ${c.coin}. The closer you call, the more you're paid.\n\n👉 stookstreet.xyz${test ? " (devnet, free test coins)" : ""}`;
 }
 
 // OAuth 1.0a, user context: the only way the API lets an app post as a user.
@@ -66,7 +66,9 @@ export async function whoAmI(env) {
 /** Post `kind` once per New York day, inside the monthly cap. `dry` only returns the text. */
 export async function runX(env, kind, data, { dry = false, force = false, now = Date.now() } = {}) {
   const ny = nyNow(now);
-  const text = kind === "bell" ? bellText(data, ny) : morningText(data, ny);
+  // CLUSTER (wrangler.toml [vars]): "devnet" says the coins are test coins.
+  const test = env.CLUSTER === "devnet";
+  const text = kind === "bell" ? bellText(data, ny, test) : morningText(data, ny, test);
   if (dry) return { dry: true, text };
   if (!env.X_API_KEY || !env.X_API_SECRET || !env.X_ACCESS_TOKEN || !env.X_ACCESS_SECRET) return { skipped: "no keys", text };
   const doneKey = `x:done:${ny.ymd}:${kind}`, countKey = `x:count:${ny.ym}`;

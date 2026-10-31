@@ -18,7 +18,7 @@ const payer = Keypair.fromSecretKey(Uint8Array.from(JSON.parse(readFileSync(proc
 const env = readFileSync(new URL("../../apps/stook/.env.local", import.meta.url), "utf8");
 const TWINS = JSON.parse(env.match(/^VITE_DEVNET_MINTS=(.+)$/m)?.[1] ?? "{}");
 const faucet = () => Keypair.fromSecretKey(Uint8Array.from(JSON.parse(env.match(/^VITE_FAUCET_AUTHORITY_BYTES=(.+)$/m)[1])));
-// Devnet stand-in feeds (apps/stook/src/lib/coins.ts): BTC, ETH, SOL, DOGE.
+// Devnet feeds (VITE_FEED_OVERRIDES in the app's build): BTC, ETH, SOL, DOGE.
 const FEEDS = { STOOK: "e62df6c8b4a85fe1a67db44dc12de5db330f7ac66b72dc658afedf0f4a415b43", ZCAT: "ff61491a931112ddf1bd8147cd1b641375f79f5825126d665480874634fd0ace", KNOTS: "ef0d8b6fda2ceba41da15d4095d1da392a0d2f8ed0c6c7bc0f4cfac8c280b56d", GP: "dcef50dd0a4cd2dcc17e45df1676dcb336a11a61c69df7a0299b0150c672d25c" };
 const hex = (h) => Uint8Array.from(h.match(/.{2}/g).map((b) => parseInt(b, 16)));
 const send = (ixs, signers = [payer]) => sendAndConfirmTransaction(c, new Transaction().add(...stook.withHeap(ixs, 200_000)), signers);

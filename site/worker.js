@@ -6,7 +6,7 @@ import FEEDS from "../apps/stook/src/lib/feeds.json";
 // The feeds the app can show; /pyth answers for these only, so the key it
 // holds cannot be spent on anything else.
 const FEED_IDS = new Set(FEEDS.map((f) => f.id.toLowerCase()));
-// The live price's fallback for the devnet stand-in feeds (/pyth), by Pyth feed id.
+// The live price's fallback for the crypto feeds (/pyth), by Pyth feed id.
 const LIVE_FALLBACK = {
   e62df6c8b4a85fe1a67db44dc12de5db330f7ac66b72dc658afedf0f4a415b43: "BTC-USD",
   ff61491a931112ddf1bd8147cd1b641375f79f5825126d665480874634fd0ace: "ETH-USD",
@@ -230,7 +230,7 @@ export default {
     const url = new URL(request.url);
     // /pyth?id=: the latest Pyth price for one of the app's feeds, from
     // Hermes with the PYTH_API_KEY secret. The round page's live line uses
-    // it when Pyth's on-chain price account is stale (devnet's often are).
+    // it when Pyth's on-chain price account is stale.
     // Hermes for a keeper running away from the VPS: the price updates at one
     // second, for our feeds only, behind a token of its own. The Pyth key
     // stays here.
@@ -256,8 +256,8 @@ export default {
         body = { price: p.price, conf: p.conf, expo: p.expo, publishTime: p.publish_time };
       } catch (e) {
         // Hermes serves paid keys only (since 2026-10-06). For the live price on
-        // a round page, display only, Coinbase's public ticker for the devnet
-        // stand-ins: within a few hundredths of a percent of Pyth. Settlement
+        // a round page, display only, Coinbase's public ticker for the crypto
+        // feeds: within a few hundredths of a percent of Pyth. Settlement
         // never reads this.
         const product = LIVE_FALLBACK[id];
         try {
@@ -435,7 +435,7 @@ export default {
     let body;
     if (url.pathname === "/chart") {
       // by coin (its anchor), or by a plain symbol Yahoo carries — used for
-      // the devnet stand-in feeds and for custom rounds
+      // crypto feeds and for custom rounds
       const SYMS = { BTC: "BTC-USD", ETH: "ETH-USD", SOL: "SOL-USD", DOGE: "DOGE-USD", XRP: "XRP-USD", BNB: "BNB-USD", ZEC: "ZEC-USD", SPY: "SPY", GLDx: "GLD", GLD: "GLD", SPYx: "SPY" };
       const sym = url.searchParams.get("sym");
       const coinKey = url.searchParams.get("coin");

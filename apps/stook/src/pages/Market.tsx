@@ -21,7 +21,7 @@ import { useNow } from "../hooks/useNow";
 import { useDesk } from "../hooks/useDesk";
 import { useCallOrder } from "../hooks/useCallOrder";
 import { feedByHex, feedHex } from "../lib/feeds";
-import { coinByMint, standInNote } from "../lib/coins";
+import { coinByMint } from "../lib/coins";
 import { fmtCompact, fmtPrice, untilText } from "../lib/format";
 import { nyWhen } from "../lib/time";
 import { callName, callShort, clamp, fromShape, makeGrid, nearAt, sameShape, toShape, type Grid, type Call } from "../lib/call";
@@ -66,8 +66,8 @@ function Round({ l, refs, mint }: { l: stook.LadderAccount; refs: stook.LadderRe
   const preview = useMemo(() => ((l.status === "seeding" || l.status === "void") && l.b === 0n && varWad > 0n && l.opensAt < l.settlesAt ? (() => { try { return stook.openingTerms(varWad, l.settlesAt, l.opensAt); } catch { return null; } })() : null), [l.status, l.b, varWad, l.settlesAt, l.opensAt]);
   const shown: stook.LadderAccount = useMemo(() => (preview ? { ...l, curve: preview.curve, stepBps: preview.stepBps } : l), [preview, l]);
   const coin = coinByMint(l.quoteMint);
-  // On devnet the round runs on a stand-in feed: show that feed, not the anchor's logo and mint.
-  const standIn = coin ? standInNote(coin) : null;
+  // The round's own feed: the coin's anchor, unless this build runs it on another.
+  const ownAnchor = !!coin && feed.symbol === coin.anchor.symbol;
   const quoteSymbol = coin ? coin.symbol : mint?.decimals === 6 ? "USDC" : "tokens";
   const tradeable = l.status === "open" && now < Number(l.locksAt);
   const final = l.status === "settled" || l.status === "void";
@@ -181,7 +181,6 @@ function Round({ l, refs, mint }: { l: stook.LadderAccount; refs: stook.LadderRe
 
   // ── the head of the card: the question, the price, the clock ──
   const onHelp = useCallback(() => goCoach(1), []); // eslint-disable-line react-hooks/exhaustive-deps
-  const standInShort = coin && standIn ? `Devnet: settles on ${feed.symbol} in place of ${coin.anchor.symbol}` : null;
   const px = (v: number) => `$${v.toLocaleString("en-US", { minimumFractionDigits: feed.dp, maximumFractionDigits: feed.dp })}`;
   const closePx = useMemo(() => {
     if (l.status !== "settled" || !grid) return null;
@@ -203,7 +202,7 @@ function Round({ l, refs, mint }: { l: stook.LadderAccount; refs: stook.LadderRe
   const meta = <>
     <span>{date}, New York</span>
     <span className="th-coin">{coin && <img src={coin.logo} alt="" />}Paid in {coin ? `$${coin.symbol}` : quoteSymbol}</span>
-    {coin && !standIn && <Address label={coin.anchor.symbol} value={coin.anchor.mint} />}
+    {coin && ownAnchor && <Address label={coin.anchor.symbol} value={coin.anchor.mint} />}
   </>;
 
   // ── the round in numbers ──
@@ -243,10 +242,10 @@ function Round({ l, refs, mint }: { l: stook.LadderAccount; refs: stook.LadderRe
       <div className="trade-grid">
         <div className="trade-main">
           <section className="card trade-chartcard" aria-label={`${feed.name}, ${date}, closes ${hm(l.settlesAt)} New York`}>
-            <TradeHead logo={coin && !standIn ? coin.anchor.logo : undefined} mono={feed.symbol}
+            <TradeHead logo={coin && ownAnchor ? coin.anchor.logo : undefined} mono={feed.symbol}
               question={<>Where {final ? "did" : "does"} {feed.name} close at {hm(l.settlesAt)}?</>}
               price={headPrice} priceSmall={phase === "settled" && closePx === null} priceLabel={phase === "settled" ? "Closed" : undefined} change={change} meta={meta} clock={clock}
-              note={standIn && standInShort ? { short: standInShort, full: standIn } : null} onHelp={tradeable ? onHelp : null} />
+              note={null} onHelp={tradeable ? onHelp : null} />
             {!grid ? <p className="trade-wait">Reading the price…</p>
               : showExact ? <div className="trade-exact">
                   <div className="te-steps"><h3 className="label">Your call, to the cent</h3><ExactPrices desk={desk} grid={grid} all={all} setAll={setAll} /></div>

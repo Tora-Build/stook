@@ -5,7 +5,7 @@ import { Connection, Keypair, PublicKey, Transaction, type TransactionInstructio
 import { AccountLayout, TOKEN_2022_PROGRAM_ID, TOKEN_PROGRAM_ID, createAssociatedTokenAccountIdempotentInstruction, getAssociatedTokenAddressSync } from "@solana/spl-token";
 import { stook, SOOTH_CORE_PROGRAM_ID } from "@sooth/sdk-solana";
 import type { WalletContextState } from "@solana/wallet-adapter-react";
-import { PYTH_PUSH_ORACLE, SCAN_RPC_URL } from "./config";
+import { FAUCET_AUTHORITY_BYTES, PYTH_PUSH_ORACLE, SCAN_RPC_URL } from "./config";
 
 export interface LadderRow { pubkey: PublicKey; ladder: stook.LadderAccount }
 
@@ -116,11 +116,11 @@ export const ataOf = (mint: PublicKey, owner: PublicKey, tokenProgram: PublicKey
 export const ensureAta = (mint: PublicKey, owner: PublicKey, tokenProgram: PublicKey): TransactionInstruction =>
   createAssociatedTokenAccountIdempotentInstruction(owner, ataOf(mint, owner, tokenProgram), owner, mint, tokenProgram);
 
-/** The live Pyth price for a feed, from the push oracle's devnet account. */
+/** The live Pyth price for a feed, from the push oracle's account. */
 export interface LivePrice { price: bigint; expo: number; publishTime: number; conf: bigint }
 /** The live price for a feed: Pyth's on-chain price account when it is
- *  fresh, else the site's /pyth route (Hermes). Devnet's price accounts are
- *  often left stale for days, and a stale "now" misplaces the whole chart. */
+ *  fresh, else the site's /pyth route (Hermes). Price accounts can be
+ *  left stale for days, and a stale "now" misplaces the whole chart. */
 export async function fetchLivePrice(c: Connection, feedId: Uint8Array): Promise<LivePrice | null> {
   const FRESH_SECS = 180;
   let onChain: LivePrice | null = null;
@@ -204,11 +204,11 @@ export function explain(e: unknown): string {
     LadderStillSettleable: "The closing price can still settle this round, so it cannot be voided.",
     SeriesInactive: "This coin is not starting new rounds right now.",
     LadderTooDeep: "That deposit is larger than one round can take.",
-    AccountNotInitialized: "An account this needs does not exist yet, usually a token account with none of the coin in it. Use test coins in the header first.",
+    AccountNotInitialized: "An account this needs does not exist yet, usually a token account with none of the coin in it." + (FAUCET_AUTHORITY_BYTES ? " Use test coins in the header first." : ""),
   };
   if (code && known[code]) return known[code]!;
   // The token program's own errors: 0x1 is "insufficient funds".
-  if (/Token(z|kegQ)[A-Za-z0-9]* failed: custom program error: 0x1\b/.test(logs + text) || (m?.[1] === "1" && /Token/.test(logs + text))) return "Not enough of the coin in your wallet for that. On devnet, use test coins in the header.";
+  if (/Token(z|kegQ)[A-Za-z0-9]* failed: custom program error: 0x1\b/.test(logs + text) || (m?.[1] === "1" && /Token/.test(logs + text))) return `Not enough of the coin in your wallet for that.${FAUCET_AUTHORITY_BYTES ? " Use test coins in the header." : ""}`;
   if (m?.[1] === "1") return "Not enough of the coin in your wallet for that.";
   if (text.includes("User rejected")) return "Signature declined.";
   return code ? `Program refused: ${code}` : text.slice(0, 200);

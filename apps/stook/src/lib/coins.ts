@@ -26,7 +26,7 @@ export interface Coin {
   /** The ticker shown everywhere: the mint's own symbol. */
   symbol: string;
   /** The name the site's data routes (/prices, /coins, /chart, /days), the
-   *  devnet maps and the page's address use, where it differs from the
+   *  test-build maps and the page's address use, where it differs from the
    *  symbol: $SSt. was $STOOK (`keyOf`). */
   key?: string;
   name: string;
@@ -43,9 +43,9 @@ export interface Coin {
 export const COINS: Coin[] = [
   {
     symbol: "SSt.", key: "STOOK", name: "STOOK St.", logo: "/logos/stook.png", mint: import.meta.env.VITE_STOOK_MINT ?? "", decimals: 6, feeBps: 0,
-    // Polymarket PreStocks (prestocks.com). Pyth has no feed for it yet, so
-    // there is no feed id: mainnet rounds wait for one (devnet's stand-in runs).
-    anchor: { symbol: "POLYMARKET", name: "Polymarket", mint: "Pre8AREmFPtoJFT8mQSXQLh56cwJmM7CFDRuoGBZiUP", logo: "/logos/polymarket.png", feedId: "", hours: "24/7", dp: 2 },
+    // Polymarket PreStocks (prestocks.com), priced from its Raydium CLMM pool
+    // (5fdWxxkv63NdU7t2CspjyCQrvmMvfe3mQwSgYpHam1Gs): the feed id is the pool's address.
+    anchor: { symbol: "POLYMARKET", name: "Polymarket", mint: "Pre8AREmFPtoJFT8mQSXQLh56cwJmM7CFDRuoGBZiUP", logo: "/logos/polymarket.png", feedId: "45541ba20dabe3e68b11405564e749ac0119de0e5f4a1aa441e60e3335b737c8", hours: "24/7", dp: 2 },
   },
   {
     symbol: "ZCAT", name: "Anonymous Cat", logo: "/logos/zcat.jpg", mint: "HcRLc9VDgjLeK154xDawfb1dmVJ98DoSqcwTHGqiDeJR", decimals: 9, feeBps: 300,
@@ -71,31 +71,24 @@ const devnetMints: Record<string, string> = (() => {
   try { return JSON.parse(import.meta.env.VITE_DEVNET_MINTS || "{}"); } catch { return {}; }
 })();
 
-/** The coin's mint on this cluster, or null while the mainnet mint is unknown and no twin exists. */
 /**
- * Devnet stand-in feeds. The Pyth key this deployment settles with covers
- * crypto majors only, so on devnet each coin's rounds run on a major the
- * keeper can actually open and settle; the app says so on the page. Mainnet
- * uses the real anchors above. Remove the entry for a coin once its anchor
- * feed is entitled.
+ * The build can point a coin's rounds at another feed: VITE_FEED_OVERRIDES as
+ * {key: {symbol, name, feedId, dp}}. Empty uses each coin's own anchor.
  */
-const DEVNET_FEEDS: Record<string, { symbol: string; name: string; feedId: string; dp: number }> = {
-  STOOK: { symbol: "BTC", name: "Bitcoin", feedId: "e62df6c8b4a85fe1a67db44dc12de5db330f7ac66b72dc658afedf0f4a415b43", dp: 0 },
-  ZCAT: { symbol: "ETH", name: "Ether", feedId: "ff61491a931112ddf1bd8147cd1b641375f79f5825126d665480874634fd0ace", dp: 2 },
-  KNOTS: { symbol: "SOL", name: "Solana", feedId: "ef0d8b6fda2ceba41da15d4095d1da392a0d2f8ed0c6c7bc0f4cfac8c280b56d", dp: 2 },
-  GP: { symbol: "DOGE", name: "Dogecoin", feedId: "dcef50dd0a4cd2dcc17e45df1676dcb336a11a61c69df7a0299b0150c672d25c", dp: 4 },
-};
+const feedOverrides: Record<string, { symbol: string; name: string; feedId: string; dp: number }> = (() => {
+  try { return JSON.parse(import.meta.env.VITE_FEED_OVERRIDES || "{}"); } catch { return {}; }
+})();
 export const isDevnet = Object.keys(devnetMints).length > 0;
-/** The feed a coin's rounds settle on, here: the anchor on mainnet, a stand-in on devnet. */
+/** The feed a coin's rounds settle on in this build. */
 export const anchorOf = (c: Coin): Anchor => {
-  const d = isDevnet ? DEVNET_FEEDS[keyOf(c)] : undefined;
+  const d = feedOverrides[keyOf(c)];
   return d ? { ...c.anchor, symbol: d.symbol, name: d.name, feedId: d.feedId, dp: d.dp } : c.anchor;
 };
-export const standInNote = (c: Coin): string | null => (isDevnet && DEVNET_FEEDS[keyOf(c)] ? `Rounds here settle on ${DEVNET_FEEDS[keyOf(c)]!.name} (${DEVNET_FEEDS[keyOf(c)]!.symbol}) in place of ${c.anchor.symbol}, whose Pyth feed devnet can't read yet.` : null);
 
 /** A coin's daily series: its rounds, one per day, closing 4 PM New York. */
 export const seriesOf = (c: Coin): PublicKey | null => { const m = mintOf(c), f = anchorOf(c).feedId; return m && f ? stook.deriveSeries(feedHexToBytes(f), m, 0) : null; };
 
+/** The coin's mint on this cluster, or null while the mainnet mint is unknown and no twin exists. */
 export const mintOf = (c: Coin): PublicKey | null => { const k = devnetMints[keyOf(c)] ?? c.mint; return k ? new PublicKey(k) : null; };
 /** A coin by its mint: the street's own, or one listed on chain (lib/listed). */
 export const coinByMint = (mint: PublicKey): Coin | undefined => {

@@ -41,7 +41,8 @@ infra/ladder-crank/       the keeper: learns closes, opens, settles, voids and c
 infra/tape/               live pool prices for the tables and charts (display only)
 infra/rpc-proxy/          Worker that keeps the RPC key out of the browser (method allowlist, rate limit)
 site/                     the stookstreet.xyz Worker (serves the app, /prices, /chart) and launch kit
-scripts/devnet/           protocol init, devnet coins, series, rounds from the CLI
+scripts/mainnet/          the mainnet deploy: build, protocol, $SSt.'s series and house
+scripts/devnet/           protocol init, test coins, series, rounds from the CLI
 scripts/backtest/         the replay behind band width, opening odds and the fee
 docs/architecture.md      the design, and the decisions behind it
 docs/feasibility.md       the measurements the design rests on
@@ -55,12 +56,11 @@ stack were removed once the ladder could stand without them.
 
 ## Status
 
-Deployed on devnet (`55kGEMHJyNbD3qcdonCD8UPTqzM85yg2kr6M5UF5P353`). Each
-coin has one series with a round every day, closing at 4 PM New York. On
-devnet the series run on crypto stand-in feeds (BTC, ETH, SOL and DOGE for
-SPYx, ZEC, STONK and GLDx) until the Pyth key is entitled to the anchors'
-feeds; the app names the stand-in only on a round's page and the fund sheet,
-with a note. A series learns its volatility from Pyth closes and opens rounds
+Program `55kGEMHJyNbD3qcdonCD8UPTqzM85yg2kr6M5UF5P353`. Each coin has one
+series with a round every day, closing at 4 PM New York, and settles on its
+own anchor: a Pyth feed (ZEC, STONK, GLDx), or for $SSt. the Raydium CLMM
+pool of Polymarket's PreStocks token, averaged over ten minutes
+(`pool_oracle.rs`). `scripts/mainnet/README.md` is the deploy, in order. A series learns its volatility from Pyth closes and opens rounds
 once it has 20 daily returns; funding a day never waits for that. The keeper is
 hosted: it learns each close, opens, settles and voids rounds, and pays out
 and closes finished ones. The program and SDK are tested end to end on

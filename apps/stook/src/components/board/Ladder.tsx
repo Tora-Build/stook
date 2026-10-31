@@ -73,7 +73,7 @@ function Row({ p, sym, dec, rate, mine, pinned, innerRef }: { p: Player; sym: st
       <span className="board-who-txt">
         <Link to={`/yours?account=${p.wallet}&tab=history`} className="board-addr" title={p.wallet}>{shortAddr(p.wallet)}</Link>
         {mine && <b className="board-you">YOU</b>}
-        {p.bot && <span className="board-bot" title="A wallet the devnet sim runs">bot · {p.bot}</span>}
+        {p.bot && <span className="board-bot" title="A wallet the sim runs">bot · {p.bot}</span>}
       </span>
     </span>
     <span className="board-c-r num">{p.rounds}<i className="board-ph"> {p.rounds === 1 ? "round" : "rounds"}</i></span>

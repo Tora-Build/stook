@@ -211,8 +211,8 @@ const frozen = (account) => account?.data?.[108] === 2;
  * out its backoff after a failure. Waiting on the chain or on Hermes is not a
  * failure.
  */
-// Which coin a feed's rounds are for: the anchors, and the devnet stand-ins
-// (apps/stook/src/lib/coins.ts), for the Telegram notes.
+// Which coin a feed's rounds are for: the anchors, and the test build's
+// feeds (VITE_FEED_OVERRIDES), for the Telegram notes.
 const FEED_COINS = {
   "2817b784": ["STOOK", "S&P 500"], "be9b59d1": ["ZCAT", "Zcash"], "f68272be": ["KNOTS", "STONK"], "e7d1138d": ["GP", "Gold"],
   "e62df6c8": ["STOOK", "BTC"], "ff61491a": ["ZCAT", "ETH"], "ef0d8b6f": ["KNOTS", "SOL"], "dcef50dd": ["GP", "DOGE"],

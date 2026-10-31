@@ -27,7 +27,7 @@ because a thin-tailed one occasionally hands the house a windfall.
 
 Stock anchors are replayed on weekdays only, which is what the program's
 weekday clock does (`CLOCK_NEW_YORK_WEEKDAYS`); mainnet stock series should
-use it (the devnet series run every day on crypto stand-ins). Their hourly bars start on the half
+use it. Their hourly bars start on the half
 hour, so the "price at the lock" the trader sees is really 30 minutes before
 the close: that flatters the trader, not the house.
 

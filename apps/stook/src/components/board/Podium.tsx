@@ -55,7 +55,7 @@ function Winner({ p, place, sym, dec, rate, me }: { p: Player; place: 1 | 2 | 3;
         <span className="board-w-addr">{shortAddr(p.wallet)}</span>
       </span>
       <span className="board-w-rec" title={`${p.won} won, ${p.missed} missed`}>{Math.round(p.hit * 100)}% hit · {p.rounds} {p.rounds === 1 ? "round" : "rounds"}</span>
-      {p.bot && <span className="board-w-bot" title="A wallet the devnet sim runs">bot · {p.bot}</span>}
+      {p.bot && <span className="board-w-bot" title="A wallet the sim runs">bot · {p.bot}</span>}
       <Trader wallet={p.wallet} place={place} size={place === 1 ? 6 : 5} className="board-w-trader" />
     </Link>
   );

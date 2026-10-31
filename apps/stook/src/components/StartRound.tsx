@@ -8,7 +8,7 @@ import { useNavigate } from "react-router-dom";
 import { useWallet } from "@solana/wallet-adapter-react";
 import { stook } from "@sooth/sdk-solana";
 import type { PublicKey } from "@solana/web3.js";
-import { isDevnet, mintOf, standInNote, type Coin } from "../lib/coins";
+import { isDevnet, mintOf, type Coin } from "../lib/coins";
 import { ataOf, ensureAta } from "../lib/chain";
 import { useBalance, useMint, useSend } from "../hooks/useChain";
 import { fmtCompact, parseAmount } from "../lib/format";
@@ -69,7 +69,6 @@ export function StartRound({ coin, seriesKey, series, index, onClose }: { coin: 
           </div>
           <button className="btn btn-sm btn-ghost house-modal-x" onClick={onClose} aria-label="Close">×</button>
         </header>
-        {standInNote(coin) && <p className="house-note">{standInNote(coin)}</p>}
 
         <div className="house-modal-times">
           <div><span className="label">Opens</span><b>{t(terms.opensAt)}</b></div>

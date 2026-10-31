@@ -7,8 +7,8 @@ import { homedir } from "node:os";
 import { join } from "node:path";
 
 /**
- * The coins the fleet trades and the devnet stand-in feed each one's daily
- * series runs on (as `apps/stook/src/lib/coins.ts`). The mint is the devnet
+ * The coins the fleet trades and the devnet feed each one's daily series
+ * runs on (as VITE_FEED_OVERRIDES in the app's build). The mint is the devnet
  * twin, from DEVNET_MINTS; the mainnet mints are never used here.
  */
 export const COINS = [

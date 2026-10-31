@@ -19,7 +19,7 @@ const payer = Keypair.fromSecretKey(Uint8Array.from(JSON.parse(readFileSync(proc
 const env = readFileSync(new URL("../../apps/stook/.env.local", import.meta.url), "utf8");
 const QUOTE = new PublicKey(env.match(/^VITE_QUOTE_MINT=(\S+)/m)[1]);
 const TWINS = JSON.parse(env.match(/^VITE_DEVNET_MINTS=(.+)$/m)?.[1] ?? "{}");
-const STREET = { // devnet stand-in feeds (see apps/stook/src/lib/coins.ts): BTC, ETH, SOL, DOGE
+const STREET = { // devnet feeds (VITE_FEED_OVERRIDES in the app's build): BTC, ETH, SOL, DOGE
 STOOK: ["e62df6c8b4a85fe1a67db44dc12de5db330f7ac66b72dc658afedf0f4a415b43", 6], ZCAT: ["ff61491a931112ddf1bd8147cd1b641375f79f5825126d665480874634fd0ace", 9], KNOTS: ["ef0d8b6fda2ceba41da15d4095d1da392a0d2f8ed0c6c7bc0f4cfac8c280b56d", 6], GP: ["dcef50dd0a4cd2dcc17e45df1676dcb336a11a61c69df7a0299b0150c672d25c", 6] };
 const [cmd, ...rest] = process.argv.slice(2);
 const flag = (name, dflt) => { const i = rest.indexOf(`--${name}`); return i >= 0 ? Number(rest[i + 1]) : dflt; };

@@ -14,9 +14,10 @@ export interface Bell { index: number; settlesAt: number; lo: number; hi: number
 
 export interface StreetRound {
   coin: Coin;
-  /** The feed the rounds settle on here (a stand-in on devnet). */
+  /** The feed the rounds settle on in this build. */
   anchor: Anchor;
-  standIn: boolean;
+  /** The feed is not the coin's own anchor, so its price comes from the feed, not /prices. */
+  ownFeed: boolean;
   seriesKey: PublicKey | null;
   series: stook.SeriesAccount | null;
   /** The next round whose bell is still ahead. */
@@ -41,7 +42,7 @@ export function useStreetRounds(now: number) {
       const base = await Promise.all(COINS.map(async (coin) => {
         const anchor = anchorOf(coin), seriesKey = seriesOf(coin);
         const series = seriesKey ? await fetchSeries(connection, seriesKey).catch(() => null) : null;
-        return { coin, anchor, standIn: anchor.symbol !== coin.anchor.symbol, seriesKey, series };
+        return { coin, anchor, ownFeed: anchor.symbol !== coin.anchor.symbol, seriesKey, series };
       }));
       // Every round to read, for every coin, in one call.
       const plan = base.map((b) => {
@@ -102,16 +103,16 @@ export const useAnchorQuotes = () =>
 /** The live price of the feed a round settles on, and its 24h move when known. */
 export function useFeedQuote(r: StreetRound | undefined): Quote | null {
   const quotes = useAnchorQuotes();
-  const feed = useMemo(() => (r?.standIn ? stookFeed(r.anchor.feedId) : null), [r?.standIn, r?.anchor.feedId]);
+  const feed = useMemo(() => (r?.ownFeed ? stookFeed(r.anchor.feedId) : null), [r?.ownFeed, r?.anchor.feedId]);
   const live = useLivePrice(feed);
   const chart = useQuery({
     queryKey: ["hist", r?.anchor.symbol],
     queryFn: async () => (await fetch(`/chart?sym=${r!.anchor.symbol}`)).json() as Promise<{ points: [number, number][] }>,
-    enabled: !!r?.standIn,
+    enabled: !!r?.ownFeed,
     refetchInterval: 300_000,
   });
   if (!r) return null;
-  if (!r.standIn) return quotes.data?.[r.coin.symbol] ?? null;
+  if (!r.ownFeed) return quotes.data?.[r.coin.symbol] ?? null;
   const pts = chart.data?.points ?? [];
   const lp = live.data && live.data.price > 0n ? Number(live.data.price) * 10 ** live.data.expo : null;
   const price = lp ?? pts[pts.length - 1]?.[1] ?? null;

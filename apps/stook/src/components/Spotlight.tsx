@@ -3,6 +3,7 @@
 // after the bell, a one-time note on a round where the wallet held calls.
 import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import { Link } from "react-router-dom";
+import { FAUCET_AUTHORITY_BYTES } from "../lib/config";
 
 // ── the guide's memory ──────────────────────────────────────────────────────
 // The same key as the old three-step coach: whoever finished or skipped that does not see this one.
@@ -163,7 +164,7 @@ export function TowerGuide(p: { step: number; go: (n: number) => void; bell: str
     key = `4${p.wallet}`;
     if (p.wallet === "none") {
       find = () => one(".ss-head .wallet-adapter-button");
-      text = "Connect a wallet, then grab free test coins.";
+      text = FAUCET_AUTHORITY_BYTES ? "Connect a wallet, then grab free test coins." : "Connect a wallet to place a call.";
       foot = <><button className="sl-go" onClick={done}>Got it</button>{how}</>;
     } else if (p.wallet === "empty") {
       find = () => one(".ss-head .ss-faucet");

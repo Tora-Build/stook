@@ -7,9 +7,9 @@ import { readFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
 
-/** Feeds the street's rounds settle on: devnet's stand-ins and mainnet's anchors. */
+/** Feeds the street's rounds settle on: the test build's feeds and the anchors. */
 export const FEEDS = {
-  // devnet stand-ins (lib/coins.ts DEVNET_FEEDS)
+  // the test build's feeds (VITE_FEED_OVERRIDES)
   e62df6c8b4a85fe1a67db44dc12de5db330f7ac66b72dc658afedf0f4a415b43: { coin: "STOOK", symbol: "BTC", name: "Bitcoin", dp: 0 },
   ff61491a931112ddf1bd8147cd1b641375f79f5825126d665480874634fd0ace: { coin: "ZCAT", symbol: "ETH", name: "Ether", dp: 2 },
   ef0d8b6fda2ceba41da15d4095d1da392a0d2f8ed0c6c7bc0f4cfac8c280b56d: { coin: "KNOTS", symbol: "SOL", name: "Solana", dp: 2 },

@@ -154,8 +154,8 @@ and a close ("4 PM New York", computed on chain with the US daylight-saving
 rule). The program also has a New York weekday clock
 (`CLOCK_NEW_YORK_WEEKDAYS`: no round on Saturday, Sunday or an NYSE
 holiday) for stock anchors;
-the devnet series run on the every-day clock because their stand-in feeds
-are crypto, and mainnet stock series should use the weekday one. The
+anchors that trade every day (crypto, and pool-priced tokens) use the
+every-day clock, and stock series use the weekday one. The
 holidays are the exchange's own rule, computed on chain
 (`calendar::nyse_holiday`), so the list never runs out: New Year's Day,
 Martin Luther King Jr. Day, Washington's Birthday, Good Friday, Memorial Day,
@@ -312,8 +312,9 @@ The program went from 1.82 MB to about 715 KB.
 **No adjudicator.** Sooth carries manual, zkTLS and bonded-optimistic
 resolution plus committees, because "did this happen" can be contested. "What
 was this number" cannot, so settlement is a Pyth read of the anchor's feed
-(xStock feeds for tokenized equities, crypto feeds otherwise; devnet uses
-crypto stand-ins), consumed by a vendored `PriceUpdateV2` layout with no Pyth
+(xStock feeds for tokenized equities, crypto feeds otherwise), or for an
+anchor Pyth does not carry, a Raydium CLMM pool's own ten-minute average
+(`pool_oracle.rs`); the Pyth price is consumed by a vendored `PriceUpdateV2` layout with no Pyth
 crate, and the resolution stack is unused weight here.
 
 ## Token-2022, and what an xStock actually is

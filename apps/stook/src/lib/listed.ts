@@ -17,7 +17,7 @@ export function badge(symbol: string, hue = 200): string {
   return `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`;
 }
 
-/** Anchors a coin may be listed on, by feed: the free on-chain Pyth feeds (and devnet's stand-ins). */
+/** Anchors a coin may be listed on, by feed: the free on-chain Pyth feeds. */
 export const LISTABLE: Record<string, Anchor> = {
   be9b59d178f0d6a97ab4c343bff2aa69caa1eaae3e9048a65788c529b125bb24: { symbol: "ZEC", name: "Zcash", mint: "A7bdiYdS5GjqGFtxf17ppRHtDKPkkRqbKtR27dxvQXaS", logo: "/logos/zec.svg", feedId: "be9b59d178f0d6a97ab4c343bff2aa69caa1eaae3e9048a65788c529b125bb24", hours: "24/7", dp: 2 },
   ef0d8b6fda2ceba41da15d4095d1da392a0d2f8ed0c6c7bc0f4cfac8c280b56d: { symbol: "SOL", name: "Solana", mint: "So11111111111111111111111111111111111111112", logo: badge("SOL", 270), feedId: "ef0d8b6fda2ceba41da15d4095d1da392a0d2f8ed0c6c7bc0f4cfac8c280b56d", hours: "24/7", dp: 2 },

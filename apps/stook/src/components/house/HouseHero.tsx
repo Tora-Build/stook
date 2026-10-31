@@ -3,8 +3,7 @@
 import { City } from "../City";
 import type { Coin } from "../../lib/coins";
 
-/** `settle`: the feed the rounds settle on, when it is not the coin's anchor (devnet). */
-export function HouseHero({ coin, house, settle }: { coin: Coin; house: boolean | null; settle?: string | null }) {
+export function HouseHero({ coin, house }: { coin: Coin; house: boolean | null }) {
   return (
     <header className="house-hero">
       <City className="house-hero-city" fade="both" px={4} place={{ exchange: 0.86, bull: 0.58, cart: 0.95, sign: 0.5 }}
@@ -14,8 +13,8 @@ export function HouseHero({ coin, house, settle }: { coin: Coin; house: boolean 
         <h1>Be the house</h1>
         <p className="house-hero-line">{house === false ? "Fund a day's round. Keep" : "Take the other side of every call. Keep"} <b>90% of the fees</b>.</p>
         <div className="house-coin">
-          <span className="house-logos">{!settle && <img src={coin.anchor.logo} alt="" />}<img src={coin.logo} alt="" /></span>
-          <b>{settle ?? coin.anchor.name}</b><span className="dimmer">rounds in</span><b>${coin.symbol}</b>{settle && <span className="dimmer">· devnet</span>}
+          <span className="house-logos"><img src={coin.anchor.logo} alt="" /><img src={coin.logo} alt="" /></span>
+          <b>{coin.anchor.name}</b><span className="dimmer">rounds in</span><b>${coin.symbol}</b>
         </div>
       </div>
     </header>

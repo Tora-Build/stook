@@ -15,7 +15,7 @@ import { anchorOf, seriesOf } from "../lib/coins";
 
 const STOOK = COINS.find((c) => keyOf(c) === "STOOK")!;
 // Until the chain answers, the tables show each coin with no round state.
-const BLANK: StreetRound[] = COINS.map((coin) => { const anchor = anchorOf(coin); return { coin, anchor, standIn: anchor.symbol !== coin.anchor.symbol, seriesKey: seriesOf(coin), series: null, index: null, closesAt: null, round: null, bells: [] }; });
+const BLANK: StreetRound[] = COINS.map((coin) => { const anchor = anchorOf(coin); return { coin, anchor, ownFeed: anchor.symbol !== coin.anchor.symbol, seriesKey: seriesOf(coin), series: null, index: null, closesAt: null, round: null, bells: [] }; });
 
 export function Markets() {
   const [params] = useSearchParams();
