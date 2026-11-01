@@ -128,6 +128,23 @@ const ANCHORS = { STOOK: ["Polymarket", 2], ZCAT: ["Zcash", 2], KNOTS: ["STONK",
 /** A coin page's link preview: crawlers read the HTML and run no script, so the
  *  page's title and description are set here, on the way out. Anything else
  *  passes through untouched. */
+/** The asset as a byte range when the request asks for one ("bytes=a-b", "a-", "-n"), else whole with Accept-Ranges. */
+async function videoRange(request, res) {
+  if (res.status !== 200) return res;
+  const headers = new Headers(res.headers);
+  headers.set("accept-ranges", "bytes");
+  const m = /^bytes=(\d*)-(\d*)$/.exec(request.headers.get("range") || "");
+  if (!m || (m[1] === "" && m[2] === "")) return new Response(res.body, { status: 200, headers });
+  const buf = await res.arrayBuffer(), size = buf.byteLength;
+  let start, end;
+  if (m[1] === "") { start = Math.max(0, size - Number(m[2])); end = size - 1; }
+  else { start = Number(m[1]); end = m[2] === "" ? size - 1 : Math.min(Number(m[2]), size - 1); }
+  if (start >= size || start > end) { headers.set("content-range", `bytes */${size}`); headers.delete("content-length"); return new Response(null, { status: 416, headers }); }
+  headers.set("content-range", `bytes ${start}-${end}/${size}`);
+  headers.set("content-length", String(end - start + 1));
+  return new Response(request.method === "HEAD" ? null : buf.slice(start, end + 1), { status: 206, headers });
+}
+
 function coinPreview(url, res) {
   const m = url.pathname.match(/^\/c\/([A-Za-z]+)\/?$/), sym = m && m[1].toUpperCase();
   if (!sym || !ANCHORS[sym] || !(res.headers.get("content-type") || "").includes("text/html")) return res;
@@ -424,6 +441,8 @@ export default {
       ctx.waitUntil(cache.put(key, res.clone()));
       return res;
     }
+    // A video answers byte ranges (206): iPhone Safari will not play one otherwise.
+    if (url.pathname.endsWith(".mp4")) return videoRange(request, await env.ASSETS.fetch(request));
     if (url.pathname !== "/prices" && url.pathname !== "/chart") return coinPreview(url, await env.ASSETS.fetch(request));
     const cache = caches.default;
     const key = new Request(url.origin + url.pathname + (url.pathname === "/chart" ? `?coin=${url.searchParams.get("coin")}&sym=${url.searchParams.get("sym")}` : ""));
