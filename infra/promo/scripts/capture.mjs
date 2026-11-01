@@ -1,7 +1,7 @@
 // Footage of the live app for the ad: frame-exact PNGs of the site running
 // locally (pnpm -F @stook/app dev, with VITE_FEED_OVERRIDES empty so every
 // coin shows its own anchor), one file a frame at 30 fps, into
-// public/footage/<shot>/0001.png…  The page's clock is faked and stepped a
+// public/footage/<shot>/0001.jpg…  The page's clock is faked and stepped a
 // frame at a time, so the city, the floor and the clocks animate exactly as
 // on the site, and every frame is sharp (device pixels, not a screen recording).
 //   node scripts/capture.mjs            all shots
@@ -59,8 +59,9 @@ try {
       ? { viewport: { width: WIDE.W, height: WIDE.H }, deviceScaleFactor: WIDE.DSF, colorScheme: "dark" }
       : { viewport: { width: W, height: H }, deviceScaleFactor: DSF, isMobile: true, hasTouch: true, colorScheme: "dark" });
     const p = await ctx.newPage();
-    await p.goto(BASE + shot.path, { waitUntil: "networkidle" });
-    if (shot.wide) await p.addStyleTag({ content: ".ss-head, .home-hero-in, .house-hero-in { visibility: hidden !important } .city-fade-left::before, .city-fade-both::before { display: none !important }" });
+    // "load", not "networkidle": the live quotes poll for ever, so the page is never idle
+    await p.goto(BASE + shot.path, { waitUntil: "load", timeout: 60_000 });
+    if (shot.wide) await p.addStyleTag({ content: ".ss-head, .home-hero-in, .house-hero-in { visibility: hidden !important } .city-fade-left::before, .city-fade-left::after, .city-fade-both::before, .city-fade-both::after { display: none !important }" });
     await p.waitForTimeout(2500); // data, fonts, the city script
     await shot.prep?.(p);
     await p.waitForTimeout(800);
@@ -70,7 +71,7 @@ try {
     for (let f = 0; f < n; f++) {
       await shot.during?.(p, f);
       await p.clock.runFor(Math.round(1000 / FPS));
-      await p.screenshot({ path: join(dir, `${String(f + 1).padStart(4, "0")}.png`), animations: "allow", caret: "hide" });
+      await p.screenshot({ path: join(dir, `${String(f + 1).padStart(4, "0")}.jpg`), type: "jpeg", quality: 92, animations: "allow", caret: "hide" });
     }
     console.log(name, n, "frames");
     await ctx.close();

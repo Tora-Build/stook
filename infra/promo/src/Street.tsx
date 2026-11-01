@@ -17,10 +17,10 @@ import { ST } from "./config";
 
 const BG = "#05070d";
 
-// ── footage of the live site (scripts/capture.mjs → public/footage/<shot>/0001.png…) ──
+// ── footage of the live site (scripts/capture.mjs → public/footage/<shot>/0001.jpg…) ──
 /** Frames each shot has: seconds × 30, as capture.mjs makes them. */
 const LEN: Record<string, number> = { city: 270, cityDawn: 210, floorWide: 210, houseWide: 180, home: 270, dawn: 210, floor: 240, house: 210, houseDesk: 150, list: 180, listSeed: 150, board: 150 };
-const frameOf = (shot: string, f: number) => staticFile(`footage/${shot}/${String((Math.max(0, f) % LEN[shot]!) + 1).padStart(4, "0")}.png`);
+const frameOf = (shot: string, f: number) => staticFile(`footage/${shot}/${String((Math.max(0, f) % LEN[shot]!) + 1).padStart(4, "0")}.jpg`);
 
 /** A desktop shot (3600×1800, the hero only) filling the frame's height, the camera panning from x0 to x1 (0 left … 1 right) and pushing in by `zoom`. */
 function Wide(p: { shot: string; x?: [number, number]; zoom?: [number, number]; from?: number; style?: React.CSSProperties }) {
@@ -257,9 +257,9 @@ function ListPhone(p: { at: number; seed: number }) {
       <Phone shot="list" w={w} x={x} y={y} at={0} tilt={-12} />
       <div style={{ position: "absolute", left: tall ? 60 : 50, right: tall ? 60 : 50, top: tall ? H * 0.08 : H * 0.07 }}>
         <Slam at={p.at} size={tall ? 118 : 70} style={{ textAlign: "left" }}>{"LIST\nYOUR COIN."}</Slam>
-        <div style={{ marginTop: tall ? 30 : 16, display: "flex", alignItems: "baseline", gap: tall ? 24 : 14 }}>
+        <div style={{ marginTop: tall ? 30 : 16, display: "flex", flexDirection: "column", gap: tall ? 10 : 6 }}>
           <Count at={p.seed} to={200} prefix="$" size={tall ? 190 : 110} />
-          <Slam at={p.seed + 2} size={tall ? 44 : 28} weight={700} color="#c9bfa4" style={{ letterSpacing: "0", textTransform: "none" }}>{"dollars seeds a table.\nyour community calls it."}</Slam>
+          <Slam at={p.seed + 2} size={tall ? 46 : 28} weight={700} color="#c9bfa4" style={{ letterSpacing: "0", textTransform: "none" }}>{"seeds a table. your community calls it."}</Slam>
         </div>
       </div>
     </AbsoluteFill>
