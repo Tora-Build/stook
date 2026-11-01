@@ -45,7 +45,7 @@ const SHOTS = {
   // the header, played with during the shot
   howTower: { path: "/how?step=tower", seconds: 10, prep: scene, during: async (p, f) => { if (f === 90) await tapRow(p, "$102.02"); if (f === 200) await tapRow(p, "$101.01"); } },
   howCall: { path: "/how?step=line", seconds: 8, prep: scene, during: async (p, f) => { const chip = async (re) => p.getByRole("button", { name: re }).first().click(); if (f === 60) await chip(/^Tight/); if (f === 130) await chip(/^Wide/); if (f === 190) await chip(/^Medium/); } },
-  howBell: { path: "/how?step=bell", seconds: 14, prep: scene, during: async (p, f) => { if (f === 265) await p.getByRole("button", { name: "ring the bell" }).click(); } },
+  howBell: { path: "/how?step=bell", seconds: 18, prep: scene, during: async (p, f) => { if (f === 265) await p.getByRole("button", { name: "ring the bell" }).click(); } },
   howHouse: { path: "/how?step=house", seconds: 6, prep: scene, during: async (p, f) => { const set = (v) => p.evaluate((v) => { const el = document.querySelector("input.px-range"); const s = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value").set; s.call(el, v); el.dispatchEvent(new Event("input", { bubbles: true })); }, v); if (f === 40) await set(2000); if (f === 90) await set(3500); if (f === 140) await set(5000); } },
 };
 

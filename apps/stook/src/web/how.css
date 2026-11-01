@@ -1,0 +1,139 @@
+/* The How page (pages/How.tsx), on the new look. Loaded after tokens.css and
+   shell.css. 8px grid; every class is .how-*. The drawings inside the stops
+   (.scene-*, from styles.css) are restyled here so they match. */
+
+.how { width: 100%; }
+.how h1, .how h2, .how h3 { font-family: var(--sans); color: var(--text); }
+
+/* ── hero: the street, the question ───────────────────────────────────── */
+.how-hero { position: relative; height: 560px; margin-top: calc(-1 * var(--header-h)); overflow: hidden; flex: none; }
+.how-hero-city { position: absolute; inset: 0; }
+.how-hero-city::before { content: ""; position: absolute; left: 0; right: 0; bottom: 0; height: 120px; z-index: 1; pointer-events: none; background: linear-gradient(180deg, transparent, var(--bg)); }
+.how-hero-in { position: relative; z-index: 3; padding-top: calc(var(--header-h) + 64px); }
+.how-kick { display: block; }
+.how-h1 { font-size: 72px; line-height: 1.02; font-weight: 900; letter-spacing: -2.5px; margin: 20px 0 0; max-width: 680px; }
+.how-h1 em { font-style: normal; color: var(--taxi); }
+.how-hero-line { margin: 24px 0 0; max-width: 27em; font-size: 20px; line-height: 1.45; font-weight: 600; color: var(--ink2); }
+.how-hero-line b { color: var(--text); font-weight: 800; }
+.how-hero-ctas { display: flex; flex-wrap: wrap; gap: 16px; margin-top: 40px; }
+.how-hero-ctas .btn-ghost { background: rgba(17, 27, 49, .85); }
+:root[data-theme="day"] .how-hero-ctas .btn-ghost { background: rgba(255, 255, 255, .85); }
+:root[data-theme="day"] .how-hero-line { text-shadow: 0 0 12px rgba(244, 241, 232, .9), 0 0 24px rgba(244, 241, 232, .9); }
+.how-hero-line { text-shadow: 0 0 12px rgba(8, 14, 28, .9), 0 0 24px rgba(8, 14, 28, .9); }
+.how-hero-facts { display: flex; flex-wrap: wrap; gap: 12px; margin: 40px 0 0; }
+.how-hero-facts div { display: flex; flex-direction: column; gap: 8px; padding: 12px 16px; border-radius: var(--r-md); background: #040a07; border: 1px solid #173826; box-shadow: inset 0 0 0 3px #020503, inset 0 0 24px rgba(94, 240, 160, .08); }
+.how-hero-facts dt { font-size: 11px; font-weight: 700; letter-spacing: .5px; text-transform: uppercase; color: #2f8a5c; }
+.how-hero-facts dd { margin: 0; font-family: var(--pix); font-size: 14px; color: #5ef0a0; text-shadow: 0 0 10px rgba(94, 240, 160, .55); }
+
+/* ── sections ─────────────────────────────────────────────────────────── */
+.how-body { padding-bottom: 96px; }
+.how-sec { margin-top: 96px; }
+.how-sec:first-child { margin-top: 40px; }
+.how-sec-head { margin-bottom: 32px; max-width: 720px; }
+.how-sec-head .kicker { display: block; margin-bottom: 12px; }
+.how-sec-head h2 { font-size: 36px; letter-spacing: -1px; margin: 0; }
+.how-sec-head p { margin: 12px 0 0; font-size: 16px; color: var(--ink2); }
+
+/* ── the walk: six stops, one open at a time ──────────────────────────── */
+.how-stops { list-style: none; margin: 0 0 24px; padding: 0; display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 12px; }
+.how-stop { display: flex; align-items: center; gap: 12px; padding: 12px 16px 12px 12px; border-radius: var(--r-md); background: var(--card); border: 1px solid var(--line); color: var(--ink2); font: inherit; font-size: 15px; font-weight: 700; text-align: left; cursor: pointer; transition: border-color .2s ease, background .2s ease, color .2s ease; }
+.how-stop:hover { border-color: var(--line2); color: var(--text); }
+.how-stop-n { flex: none; width: 36px; height: 36px; border-radius: var(--r-sm); display: grid; place-items: center; background: var(--card2); border: 1px solid var(--line); color: var(--taxi); font-family: var(--pix); font-size: 10px; }
+.how-stop.on { border-color: var(--taxi); background: linear-gradient(180deg, var(--taxi-soft), transparent 70%), var(--card); color: var(--text); }
+.how-stop.on .how-stop-n { background: var(--taxi); border-color: var(--taxi); color: var(--on-taxi); }
+.how-stop.done { color: var(--ink3); }
+.how-stop.done .how-stop-n { background: var(--up-soft); border-color: transparent; color: var(--up); }
+
+.how-placard { display: grid; grid-template-columns: minmax(0, 6fr) minmax(0, 5fr); border-radius: var(--r); background: var(--card); border: 1px solid var(--line); overflow: hidden; animation: how-rise .25s ease-out both; }
+@keyframes how-rise { from { opacity: 0; transform: translateY(8px); } }
+.how-scene { padding: 32px; background: radial-gradient(ellipse at 50% 110%, rgba(255, 198, 41, .1), transparent 60%), var(--bg2); border-right: 1px solid var(--line); display: flex; flex-direction: column; justify-content: center; min-height: 560px; }
+.how-text { padding: 40px 40px 32px; display: flex; flex-direction: column; }
+.how-text .kicker { display: block; margin-bottom: 12px; }
+.how-text h2 { font-size: 30px; letter-spacing: -.7px; margin: 0 0 16px; }
+.how-text p { margin: 0 0 14px; font-size: 16px; line-height: 1.55; color: var(--ink2); }
+.how-text p b { color: var(--text); }
+.how-try { display: flex; align-items: center; gap: 12px; margin: 8px 0 0 !important; color: var(--text) !important; font-weight: 600; }
+.how-try-tag { flex: none; font-family: var(--pix); font-size: 9px; padding: 8px 10px; border-radius: 8px; background: var(--now-soft); color: var(--now); border: 1px solid rgba(98, 208, 255, .3); }
+.how-nav { margin-top: auto; padding-top: 24px; display: flex; align-items: center; justify-content: space-between; gap: 16px; }
+.how-dots { display: flex; gap: 6px; }
+.how-dots i { width: 8px; height: 8px; border-radius: 50%; background: var(--line2); }
+.how-dots i.on { background: var(--taxi); box-shadow: 0 0 8px rgba(255, 198, 41, .6); }
+.how-dots i.done { background: var(--ink3); }
+
+/* the rules, folded */
+.how-more { margin: 4px 0 14px; border-radius: var(--r-md); background: var(--bg2); border: 1px solid var(--line); overflow: hidden; }
+.how-more-btn { width: 100%; display: flex; align-items: center; justify-content: space-between; gap: 12px; text-align: left; background: none; border: 0; padding: 14px 16px; color: var(--text); font: inherit; font-size: 15px; font-weight: 700; cursor: pointer; }
+.how-more-btn:hover { background: var(--card2); }
+.how-more-btn .pb-caret { color: var(--taxi); font-size: 16px; line-height: 1; }
+.how-more-in { padding: 0 16px 8px; }
+.how-more-in p { font-size: 14px !important; line-height: 1.5; margin: 0 0 10px !important; }
+
+/* the drawings inside the stops: the tables, the paper, the rows */
+.how-scene .scene { gap: 16px; }
+.how-scene .scene-tables { grid-template-columns: repeat(2, 1fr); gap: 12px; max-width: 420px; margin: 0 auto; width: 100%; }
+.how-scene .scene-table { display: flex; flex-direction: column; align-items: center; gap: 10px; padding: 24px 12px; border-radius: var(--r-md); background: var(--card); border: 1px solid var(--line); font-family: var(--sans); font-size: 15px; font-weight: 800; color: var(--ink2); transition: border-color .2s ease, transform .2s ease; }
+.how-scene .scene-table:hover { border-color: var(--line2); transform: translateY(-2px); }
+.how-scene .scene-table img { width: 64px; height: 64px; border-radius: 50%; object-fit: cover; }
+.how-scene .scene-table.on { border-color: var(--taxi); background: linear-gradient(180deg, var(--taxi-soft), transparent 70%), var(--card); color: var(--taxi); }
+.how-scene .scene-caption { font-size: 16px; color: var(--ink2); text-align: center; min-height: 0; margin-top: 8px; }
+.how-scene .scene-caption b { color: var(--text); }
+.how-scene .scene-caption.muted { font-size: 13px; color: var(--ink3); }
+.how-scene .scene-anchor { width: 24px; height: 24px; border-radius: 50%; vertical-align: middle; margin-right: 4px; }
+.how-scene .scene-row { font-size: 15px; color: var(--ink2); }
+.how-scene .scene-row .small { height: 40px; padding: 0 16px; border-radius: var(--r-sm); background: var(--taxi); color: var(--on-taxi); border: 0; font: inherit; font-size: 15px; font-weight: 800; cursor: pointer; box-shadow: 0 4px 0 var(--taxi-dark); }
+.how-scene .scene-row .small:disabled { opacity: .45; cursor: not-allowed; box-shadow: none; }
+.how-scene .scene-row .link { background: none; border: 0; color: var(--taxi); font: inherit; font-weight: 700; cursor: pointer; text-decoration: underline; text-underline-offset: 3px; }
+.how-scene .scene-row .mono { color: var(--text); font-weight: 800; }
+.how-scene .scene-paper { border-radius: var(--r-md); box-shadow: 0 12px 32px rgba(0, 0, 0, .35); }
+.how-scene .scene-paper .primary { width: 100%; margin-top: 8px; }
+
+/* ── a day on the street: open, lock, bell ────────────────────────────── */
+.how-day { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(3, 1fr); gap: 24px; }
+.how-day li { display: flex; flex-direction: column; gap: 8px; padding: 24px; border-radius: var(--r); background: var(--card); border: 1px solid var(--line); }
+.how-day .kicker { display: block; }
+.how-day-t { font-family: var(--pix); font-size: 22px; line-height: 1.3; color: var(--taxi); margin: 8px 0 4px; }
+.how-day li.now .how-day-t { color: var(--now); }
+.how-day li.up .how-day-t { color: var(--up); }
+.how-day b { font-size: 20px; font-weight: 800; letter-spacing: -.3px; }
+.how-day p { margin: 0; color: var(--ink2); font-size: 15px; line-height: 1.5; }
+
+/* ── the door ─────────────────────────────────────────────────────────── */
+.how-door { display: flex; align-items: center; justify-content: space-between; gap: 32px; padding: 40px; border-radius: var(--r); background: linear-gradient(135deg, var(--card2), var(--card)); border: 1px solid var(--line); }
+.how-door h2 { font-size: 32px; letter-spacing: -.8px; margin: 8px 0 8px; }
+.how-door p { margin: 0; font-size: 16px; color: var(--ink2); }
+.how-door-ctas { display: flex; gap: 12px; flex: none; flex-wrap: wrap; }
+
+/* ── narrower screens ─────────────────────────────────────────────────── */
+@media (max-width: 1180px) {
+  .how-stops { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
+@media (max-width: 1023px) {
+  .how-placard { grid-template-columns: 1fr; }
+  .how-scene { border-right: 0; border-bottom: 1px solid var(--line); min-height: 0; }
+  .how-day { grid-template-columns: 1fr; }
+  .how-door { flex-direction: column; align-items: flex-start; }
+}
+@media (max-width: 640px) {
+  .how-hero { height: auto; min-height: 0; padding-bottom: 48px; }
+  /* on a phone the copy sits on the city, so the city dims under it (as on List) */
+  .how-hero-city::after { content: ""; position: absolute; inset: 0; z-index: 1; background: linear-gradient(180deg, color-mix(in srgb, var(--bg) 65%, transparent), color-mix(in srgb, var(--bg) 90%, transparent)); }
+  .how-hero-in { padding-top: calc(var(--header-h) + 32px); }
+  .how-hero-ctas .btn { flex: 1 1 100%; }
+  .how-hero-facts { gap: 8px; }
+  .how-hero-facts div { flex: 1 1 40%; padding: 10px 12px; }
+  .how-hero-facts dd { font-size: 12px; }
+  .how-hero-facts dt { font-size: 10px; }
+  .how-h1 { font-size: 44px; letter-spacing: -1.4px; margin-top: 12px; }
+  .how-hero-line { font-size: 17px; margin-top: 16px; }
+  .how-hero-ctas { margin-top: 28px; gap: 12px; }
+  .how-hero-facts { margin-top: 28px; }
+  .how-sec { margin-top: 64px; }
+  .how-sec-head h2 { font-size: 28px; }
+  .how-stops { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+  .how-stop { padding: 10px 12px 10px 10px; font-size: 14px; }
+  .how-scene { padding: 20px 16px; }
+  .how-text { padding: 24px 20px; }
+  .how-text h2 { font-size: 26px; }
+  .how-door { padding: 24px; }
+}
+@media (prefers-reduced-motion: reduce) { .how-placard { animation: none; } }

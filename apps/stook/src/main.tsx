@@ -16,6 +16,7 @@ import "./web/house.css";
 import "./web/yours.css";
 import "./web/board.css";
 import "./web/list.css";
+import "./web/how.css";
 import { RPC_URL, WS_URL } from "./lib/config";
 import { ToastProvider } from "./components/Toast";
 import { ThemeProvider } from "./components/Theme";

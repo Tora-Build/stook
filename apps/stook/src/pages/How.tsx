@@ -1,5 +1,6 @@
-// The walk through the exchange: one stop at a time, a scene on the left you
-// can poke at, the words on the right. The scenes are the round page's own
+// The walk through the exchange, on the new look: the street up top with the
+// question, then one stop at a time, a scene on the left you can poke at, the
+// words on the right, a day's clock, and the door to the floor. The scenes are the round page's own
 // Tower, drawn in demo mode on a made-up round: nothing is read or sent.
 
 import { useMemo, useState, type ReactNode } from "react";
@@ -13,6 +14,7 @@ import { useDesk } from "../hooks/useDesk";
 import { aboutMultiple, callWords, height, makeGrid, nearAt, toShape, type Grid } from "../lib/call";
 import { Title } from "../components/Title";
 import { WatchButton } from "../components/Watch";
+import { City } from "../components/City";
 
 const STOPS = ["The tables", "The tower", "Your call", "The bell", "The house", "Your statement"] as const;
 const KEYS = ["tables", "tower", "line", "bell", "house", "statement"];
@@ -34,79 +36,117 @@ export function How() {
   // ?step=tower (or tables, line, bell, house, statement) opens that stop
   const [params] = useSearchParams();
   const [i, setI] = useState(() => { const k = params.get("step") ?? ""; return Math.max(0, KEYS.indexOf(ALIAS[k] ?? k)); });
-  const go = (n: number) => setI(Math.max(0, Math.min(STOPS.length - 1, n)));
+  const go = (n: number) => { setI(Math.max(0, Math.min(STOPS.length - 1, n))); document.getElementById("how-walk")?.scrollIntoView({ block: "start", behavior: "smooth" }); };
+  const jump = (id: string) => (e: React.MouseEvent) => { e.preventDefault(); document.getElementById(id)?.scrollIntoView({ block: "start", behavior: "smooth" }); };
   return (
-    <div className="page tour-page">
+    <div className="how">
       <Title text="How it works" />
-      <span className="sign">A WALK THROUGH THE EXCHANGE</span>
-      <h1>How the street works</h1>
-      <p className="how-watch">Rather watch? <WatchButton className="watch-inline" /></p>
-
-      <div className="tour-stops">
-        {STOPS.map((s, n) => <button key={s} className={`tour-stop ${n === i ? "on" : ""} ${n < i ? "done" : ""}`} onClick={() => go(n)}><span className="tour-n">{n + 1}</span><span className="tour-name">{s}</span></button>)}
-      </div>
-
-      <div className="placard" key={i}>
-        <div className="placard-scene">{[<Tables />, <TowerScene />, <CallScene />, <BellScene />, <House />, <Statement />][i]}</div>
-        <div className="placard-text">
-          {i === 0 && <>
-            <h2>The tables</h2>
-            <p>Every coin has a table and follows one stock or asset, its <b>anchor</b>. Each day asks one question: where does the anchor close at <b>4 PM New York</b>? Everything at a table is paid in its coin.</p>
-            <p className="try">Pick a table.</p>
-          </>}
-          {i === 1 && <>
-            <h2>The tower</h2>
-            <p>Each day is a tower. Every <b>floor</b> is a price, and the close lands on exactly one of them. The <b>line</b> across the glass is the price today; the elevator is the price right now.</p>
-            <p><b>Lit windows</b> are the crowd's chance for that floor: more light, more likely. <b>Gold coins</b> are what your call wins if the close lands there.</p>
-            <Details>
-              <p>The tower has 64 floors, each a set step of the price, sized from how much the anchor usually moves in a day. The thin, unlikely ends fold into a <b>rooftop</b> (anything above) and a <b>basement</b> (anything below); each is one floor you can call.</p>
-            </Details>
-            <p className="try">Point at a floor, or tap it, to read it.</p>
-          </>}
-          {i === 2 && <>
-            <h2>Your call</h2>
-            <p><b>Near a price</b> pays most on your floor and less on each floor away. <b>How sure?</b> sets how many floors it pays on: <b>Sure</b> is one floor each side and pays the most, <b>Pretty sure</b> three, <b>Not sure</b> six.</p>
-            <p><b>Between two prices</b> pays the same on every floor from one end to the other. Fewer floors pay more.</p>
-            <Details>
-              <p>Tap a floor, or drag the gold tabs to change a call. Exact prices lets you type them. You say what you spend, in dollars or the coin; the ticket shows what you pay, the fee and what you win before you sign. Sell any time before the lock.</p>
-            </Details>
-            <p className="try">Tap a floor. Try each How sure.</p>
-          </>}
-          {i === 3 && <>
-            <h2>The lock and the bell</h2>
-            <p>Trading closes a little before the bell: the <b>lock</b>. Your calls ride to 4 PM New York, when the first <b>Pyth price</b> lands on one floor. Calls that pay there win; the rest win nothing. Nobody picks the result.</p>
-            <p>Then <b>collect</b>: the round page and Yours show what you won, one button sends it to your wallet.</p>
-            <Details>
-              <p>The round takes the anchor's price at the close itself: Pyth's price, which must come within 30 seconds, or for an anchor priced from its trading pool, the pool's average over the last ten minutes. If it came late or unsure the round is <b>void</b>: deposits come back first and open calls share the rest. With no price at all, a round can be voided a week after the close. Nobody can void a round that could settle.</p>
-            </Details>
-            <p className="try">Ring it.</p>
-          </>}
-          {i === 4 && <>
-            <h2>The house</h2>
-            <p>Each coin has one house. It takes the other side of every call, round after round, and keeps <b>90% of the fees</b>. Deposit once and stay in; the most you can lose is what you put in.</p>
-            <Details>
-              <p>Right after each bell the house collects the round that ended and opens the next day's round. It puts in as much as the trading it gets can carry, about fifteen times what it earns in fees a round, and the rest waits in the vault for busier days. Nothing moves between rounds: one vault per coin funds them all. Each round trades for the 24 hours before its close and stops an hour before it.</p>
-              <p>Deposit or withdraw from the coin's page at any time. While the house is in a round, your deposit or withdrawal waits for the bell and goes through at the price the round leaves; until then you can take a waiting deposit back.</p>
-              <p>Trades pay 2%, rising to 5% over the last six hours: 90% to the house, 5% to whoever rings the bell, 5% to the protocol. A close far from the open can cost the house a large part of that round; an ordinary one costs it little. A round that cannot open in time is void and the house gets its money back.</p>
-              <p>Any coin can get its own house. Whoever lists it locks $200 or more of the coin as the house's first money, for a week, and picks the price it follows. Its rounds start a day later. A listed coin's page always shows its mint, because anyone can list any coin.</p>
-            </Details>
-            <p className="try">Move the deposit.</p>
-          </>}
-          {i === 5 && <>
-            <h2>Your statement</h2>
-            <p>Everything you hold, one line per round by day. Finished rounds gather on the <b>payout slip</b>: unfold one to see it, and <b>Collect all</b> at once.</p>
-            <Details>
-              <p>Amounts are in the round's coin, as the chain holds them; ≈ dollars move with today's price. Some coins take a fee on every move, and the app shows it.</p>
-              <p>Collect whenever you like. Thirty days after a close anyone may send what a round owes you to your wallet, so it can close. Every quote is the program's own maths, to the unit.</p>
-            </Details>
-            <p className="try">Unfold a round.</p>
-          </>}
-          <div className="placard-nav">
-            <button className="small" onClick={() => go(i - 1)} disabled={i === 0}>‹ back</button>
-            <span className="muted mono">{i + 1} / {STOPS.length}</span>
-            {i < STOPS.length - 1 ? <button className="small" onClick={() => go(i + 1)}>next ›</button> : <Link to="/#floor" className="small as-link">to the floor ›</Link>}
+      <section className="how-hero">
+        <City className="how-hero-city" fade="left" px={4} place={{ exchange: 0.86, bull: 0.5, cart: 0.96, sign: 0.42 }} />
+        <div className="wrap how-hero-in">
+          <span className="kicker taxi how-kick">HOW IT WORKS</span>
+          <h1 className="how-h1">Where will it <em>close?</em></h1>
+          <p className="how-hero-line">One question a day, at every table. Call a floor on the tower, the bell rings at <b>4 PM New York</b>, and the floor the close lands on gets paid, in the coin.</p>
+          <div className="how-hero-ctas">
+            <WatchButton bare className="btn" label="Watch in 60s" />
+            <a className="btn btn-ghost" href="#how-walk" onClick={jump("how-walk")}>Walk the street</a>
           </div>
+          <dl className="how-hero-facts">
+            <div><dt>The bell</dt><dd>4 PM NY</dd></div>
+            <div><dt>Floors</dt><dd>64</dd></div>
+            <div><dt>House keeps</dt><dd>90%</dd></div>
+            <div><dt>Paid in</dt><dd>THE COIN</dd></div>
+          </dl>
         </div>
+      </section>
+
+      <div className="wrap how-body">
+        <section className="how-sec" id="how-walk" aria-labelledby="how-walk-h">
+          <div className="how-sec-head"><span className="kicker taxi">A WALK THROUGH THE EXCHANGE</span><h2 id="how-walk-h">Six stops, two minutes</h2><p>Every stop is a live drawing of the real thing. Poke it.</p></div>
+          <ol className="how-stops">
+            {STOPS.map((s, n) => <li key={s}><button className={`how-stop ${n === i ? "on" : ""} ${n < i ? "done" : ""}`} onClick={() => go(n)} aria-current={n === i ? "step" : undefined}><span className="how-stop-n">{n < i ? "✓" : `0${n + 1}`}</span><span>{s}</span></button></li>)}
+          </ol>
+
+          <div className="how-placard" key={i}>
+            <div className="how-scene">{[<Tables />, <TowerScene />, <CallScene />, <BellScene />, <House />, <Statement />][i]}</div>
+            <div className="how-text">
+              <span className="kicker">STOP 0{i + 1} OF 06</span>
+              {i === 0 && <>
+                <h2>The tables</h2>
+                <p>Every coin has a table and follows one stock or asset, its <b>anchor</b>. Each day asks one question: where does the anchor close at <b>4 PM New York</b>? Everything at a table is paid in its coin.</p>
+                <p className="how-try"><span className="how-try-tag">TRY IT</span>Pick a table.</p>
+              </>}
+              {i === 1 && <>
+                <h2>The tower</h2>
+                <p>Each day is a tower. Every <b>floor</b> is a price, and the close lands on exactly one of them. The <b>line</b> across the glass is the price today; the dot is the price right now.</p>
+                <p><b>The bars on the right</b> are the crowd's chance for each floor: longer, more likely. <b>The gold band</b> is your call, and what it wins if the close lands there.</p>
+                <Details>
+                  <p>The tower has 64 floors, each a set step of the price, sized from how much the anchor usually moves in a day. The thin, unlikely ends fold into a <b>rooftop</b> (anything above) and a <b>basement</b> (anything below); each is one floor you can call.</p>
+                </Details>
+                <p className="how-try"><span className="how-try-tag">TRY IT</span>Tap a floor to move your call.</p>
+              </>}
+              {i === 2 && <>
+                <h2>Your call</h2>
+                <p><b>Near a price</b> pays most on your floor and less on each floor away. <b>How sure?</b> sets how many floors it pays on: <b>Tight</b> wins bigger, <b>Wide</b> wins easier, <b>Medium</b> sits between.</p>
+                <p><b>Between two prices</b> pays the same on every floor from one end to the other. Fewer floors pay more.</p>
+                <Details>
+                  <p>Tap a floor, or drag the gold tabs to change a call. Exact prices lets you type them. You say what you spend, in dollars or the coin; the ticket shows what you pay, the fee and what you win before you sign. Sell any time before the lock.</p>
+                </Details>
+                <p className="how-try"><span className="how-try-tag">TRY IT</span>Switch Tight, Medium, Wide and watch what it wins.</p>
+              </>}
+              {i === 3 && <>
+                <h2>The lock and the bell</h2>
+                <p>Trading closes a little before the bell: the <b>lock</b>. Your calls ride to 4 PM New York, when the close lands on one floor. Calls that pay there win; the rest win nothing. Nobody picks the result.</p>
+                <p>Then <b>collect</b>: the round page and Yours show what you won, and one button sends it to your wallet.</p>
+                <Details>
+                  <p>The round takes the anchor's price at the close itself: Pyth's price, which must come within 30 seconds, or for an anchor priced from its trading pool, the pool's average over the last ten minutes. If it came late or unsure the round is <b>void</b>: deposits come back first and open calls share the rest. With no price at all, a round can be voided a week after the close. Nobody can void a round that could settle.</p>
+                </Details>
+                <p className="how-try"><span className="how-try-tag">TRY IT</span>Ring the bell.</p>
+              </>}
+              {i === 4 && <>
+                <h2>The house</h2>
+                <p>Each coin has one house. It takes the other side of every call, round after round, and keeps <b>90% of the fees</b>. Deposit once and stay in; the most you can lose is what you put in.</p>
+                <Details>
+                  <p>Right after each bell the house collects the round that ended and opens the next day's round. It puts in as much as the trading it gets can carry, about fifteen times what it earns in fees a round, and the rest waits in the vault for busier days. Nothing moves between rounds: one vault per coin funds them all. Each round trades for the 24 hours before its close and stops an hour before it.</p>
+                  <p>Deposit or withdraw from the coin's page at any time. While the house is in a round, your deposit or withdrawal waits for the bell and goes through at the price the round leaves; until then you can take a waiting deposit back.</p>
+                  <p>Trades pay 2%, rising to 5% over the last six hours: 90% to the house, 5% to whoever rings the bell, 5% to the protocol. A close far from the open can cost the house a large part of that round; an ordinary one costs it little. A round that cannot open in time is void and the house gets its money back.</p>
+                  <p>Any coin can get its own house. Whoever lists it locks $200 or more of the coin as the house's first money, for a week, and picks the price it follows. Its rounds start a day later. A listed coin's page always shows its mint, because anyone can list any coin.</p>
+                </Details>
+                <p className="how-try"><span className="how-try-tag">TRY IT</span>Move the deposit.</p>
+              </>}
+              {i === 5 && <>
+                <h2>Your statement</h2>
+                <p>Everything you hold, one line per round by day. Finished rounds gather on the <b>payout slip</b>: unfold one to see it, and <b>Collect all</b> at once.</p>
+                <Details>
+                  <p>Amounts are in the round's coin, as the chain holds them; ≈ dollars move with today's price. Some coins take a fee on every move, and the app shows it.</p>
+                  <p>Collect whenever you like. Thirty days after a close anyone may send what a round owes you to your wallet, so it can close. Every quote is the program's own maths, to the unit.</p>
+                </Details>
+                <p className="how-try"><span className="how-try-tag">TRY IT</span>Unfold a round.</p>
+              </>}
+              <nav className="how-nav" aria-label="Stops">
+                <button className="btn btn-sm btn-ghost" onClick={() => go(i - 1)} disabled={i === 0}>‹ Back</button>
+                <span className="how-dots" aria-hidden="true">{STOPS.map((_, n) => <i key={n} className={n === i ? "on" : n < i ? "done" : ""} />)}</span>
+                {i < STOPS.length - 1 ? <button className="btn btn-sm" onClick={() => go(i + 1)}>Next ›</button> : <Link to="/#floor" className="btn btn-sm">To the floor ›</Link>}
+              </nav>
+            </div>
+          </div>
+        </section>
+
+        <section className="how-sec" aria-labelledby="how-day-h">
+          <div className="how-sec-head"><span className="kicker taxi">A DAY ON THE STREET</span><h2 id="how-day-h">Open, lock, bell</h2><p>Every round runs the same clock, every day.</p></div>
+          <ol className="how-day">
+            <li><span className="kicker">01 · OPEN</span><span className="how-day-t">THE DAY BEFORE</span><b>The tower opens</b><p>A new round opens at 4 PM NY on the price then. Call a floor any time, or sell a call back before the lock.</p></li>
+            <li className="now"><span className="kicker">02 · LOCK</span><span className="how-day-t">3 PM NY</span><b>Trading closes</b><p>An hour before the bell the book locks. Every call rides to the close as it stands.</p></li>
+            <li className="up"><span className="kicker">03 · BELL</span><span className="how-day-t">4 PM NY</span><b>The close lands</b><p>The anchor's close picks one floor. Calls that pay there win; collect from Yours or the round page.</p></li>
+          </ol>
+        </section>
+
+        <section className="how-sec" aria-label="Where to go next">
+          <div className="how-door">
+            <div><span className="kicker taxi">READY</span><h2>Make your call</h2><p>Today's rounds are on the floor. Or back a house and earn its fees.</p></div>
+            <div className="how-door-ctas"><Link className="btn" to="/#floor">To the floor <span aria-hidden="true">→</span></Link><Link className="btn btn-ghost" to="/c/SSt.">Be the house</Link></div>
+          </div>
+        </section>
       </div>
     </div>
   );

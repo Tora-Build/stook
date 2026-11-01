@@ -47,6 +47,9 @@
 .ss-faucet svg { width: 20px; height: 20px; image-rendering: pixelated; }
 .ss-faucet span { color: var(--taxi); }
 .ss-faucet:disabled { opacity: .6; cursor: wait; }
+.ss-ca { gap: 8px; }
+.ss-ca-tag { color: var(--taxi); font-weight: 800; letter-spacing: .04em; }
+.ss-ca-val { font-size: 13px; }
 .ss-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--up); flex: none; }
 
 /* the wallet: yellow Connect, then a quiet balance pill (wallet-adapter keeps its menu) */
@@ -150,6 +153,7 @@
   .ss-head { gap: 24px; }
   .ss-links a { padding: 0 12px; }
   .ss-faucet span { display: none; }
+  .ss-ca-val { display: none; }
   .ss-faucet { width: 44px; padding: 0; justify-content: center; }
 }
 @media (max-width: 1023px) {

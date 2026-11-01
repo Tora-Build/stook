@@ -180,14 +180,14 @@ export function Grain() {
  *  a short fade in and `fadeOut` frames out; silent if the file is absent or
  *  `track` is "none". With music on, public/sfx/<name>.(mp3|wav) plays on its hit. */
 export type AdProps = { track?: string | null };
-export function Sound(p: AdProps & { length: number; start: number; fadeOut: number; hits: [name: string, frame: number][] }) {
+export function Sound(p: AdProps & { length: number; start: number; fadeOut: number; hits: [name: string, frame: number, volume?: number][]; music?: number }) {
   const files = getStaticFiles().map((x) => x.name);
   const track = p.track === "none" ? null : p.track ?? (files.includes("music.mp3") ? "music.mp3" : null);
   if (!track) return null;
   const sfx = (n: string) => ["mp3", "wav"].map((e) => `sfx/${n}.${e}`).find((x) => files.includes(x));
   return <>
-    <Audio src={staticFile(track)} trimBefore={Math.round(p.start * 30)} volume={(fr) => interpolate(fr, [0, 9, p.length - p.fadeOut, p.length], [0, 1, 1, 0], { extrapolateLeft: "clamp", extrapolateRight: "clamp" })} />
-    {p.hits.map(([n, fr], i) => { const src = sfx(n); return src ? <Sequence key={i} from={fr}><Audio src={staticFile(src)} volume={0.5} /></Sequence> : null; })}
+    <Audio src={staticFile(track)} trimBefore={Math.round(p.start * 30)} volume={(fr) => (p.music ?? 1) * interpolate(fr, [0, 9, p.length - p.fadeOut, p.length], [0, 1, 1, 0], { extrapolateLeft: "clamp", extrapolateRight: "clamp" })} />
+    {p.hits.map(([n, fr, v], i) => { const src = sfx(n); return src ? <Sequence key={i} from={fr}><Audio src={staticFile(src)} volume={v ?? 0.5} /></Sequence> : null; })}
   </>;
 }
 

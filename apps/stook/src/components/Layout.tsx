@@ -2,14 +2,15 @@ import { Link, NavLink, Outlet, useLocation } from "react-router-dom";
 import { useEffect } from "react";
 import { ConnectWallet } from "./ConnectWallet";
 import { Faucet } from "./Faucet";
+import { CopyCA } from "./CopyCA";
 import { ThemeToggle } from "./Theme";
 import { PageGuard } from "./PageGuard";
 import { City } from "./City";
-import { isDevnet } from "../lib/coins";
+import { coinBySymbol, isDevnet } from "../lib/coins";
 
 // Pages that draw their own hero (a City under the header). The rest get a
 // short city band from the shell, so every page opens on the same picture.
-const OWN_HERO = (path: string) => path === "/" || path === "/yours" || path === "/board" || path === "/list" || path.startsWith("/m/") || path.startsWith("/c/");
+const OWN_HERO = (path: string) => path === "/" || path === "/yours" || path === "/board" || path === "/list" || path === "/how" || path.startsWith("/m/") || path.startsWith("/c/");
 
 export function Layout() {
   const location = useLocation();
@@ -34,7 +35,8 @@ export function Layout() {
         </nav>
         <div className="ss-right">
           <Link to="/how" className={`ss-pill ss-how ${path === "/how" ? "on" : ""}`}>How it works</Link>
-          <Faucet />
+          {/* the coin's contract address, or on devnet without a coin the faucet (also on Yours) */}
+          {coinBySymbol("SSt.")?.mint ? <CopyCA /> : <Faucet />}
           <ThemeToggle />
           <ConnectWallet nav />
         </div>

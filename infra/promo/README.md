@@ -6,7 +6,7 @@ Stook Street's ads for X and the site, made with [Remotion](https://www.remotion
 
 | composition | file | what |
 |---|---|---|
-| `Street`, `StreetSquare` | `out/stook-60s-{vertical,square}.mp4` (+ `-web.mp4`, the site's copy) | **the current cut** (`src/Street.tsx`, 64 s, told the way pump.fun's ads are): a chat on a phone at night ("where's polymarket closing today?"), the link, the dive into it on the drop; WHERE WILL IT CLOSE? over the live city; 4 PM NEW YORK; the floor on a phone, every coin's table; the site's own tower in the phone (a tap moves the call), HOW SURE? (tight, medium, wide), the lock, a bar of silence, the bell on the beat's return and what it paid; OR BE THE HOUSE, 90%; LIST YOUR COIN, $200; the chat's payoff (WIN 2.3×); the door. Heavy type slamming in on the beats, a glitch on every cut, the real site as footage (`scripts/capture.mjs`, including the How page's drawings played live). Its track is `public/street.mp3` (Mixkit "Party" by Arulo, trap, free licence; grid in `src/beats-street.json`) with `public/sfx/{ping,whoosh,hit,ding,bell,win}.mp3` (Mixkit). |
+| `Street`, `StreetSquare` | `out/stook-60s-{vertical,square}.mp4` (+ `-web.mp4`, the site's copy) | **the current cut** (`src/Street.tsx`, 64 s, told the way pump.fun's ads are): a chat on a phone at night ("where's polymarket closing today?"), the link, the dive into it on the drop; WHERE WILL IT CLOSE? over the live city; 4 PM NEW YORK; the floor on a phone, every coin's table; the site's own tower in the phone (a tap moves the call), HOW SURE? (tight, medium, wide), the lock, a bar of silence, the bell on the beat's return and what it paid; OR BE THE HOUSE, 90%; LIST YOUR COIN, $200; the chat's payoff (WIN 2.3×); the door. Heavy type slamming in on the beats, a glitch on every cut, the real site as footage (`scripts/capture.mjs`, including the How page's drawings played live). Its track is `public/street.mp3` (Mixkit "Party" by Arulo, trap, free licence; grid in `src/beats-street.json`) with `public/sfx/*.mp3`: `whoosh`, `hit`, `ding`, `win` from Mixkit; `ping` is the iPhone's own text tone, trimmed from a clip the user chose; `sent` (the send swoosh) and `bell` (the exchange bell) are synthesised with ffmpeg noise and sine sources, see below. The picture pulses on the track's own kicks (`kicks` in `beats-street.json`, librosa onsets on the low band). |
 | `Full`, `FullVertical` | `out/stook-68s-{square,vertical}.mp4` | the whole track (68.2 s): 1970s TV open → "WHERE WILL IT LAND?" on the drop (9.33 s) → split-flap board → the floor → the call on the tower → the elevator, WIN 2.3× → or be the house → the 4 PM bell → end card |
 | `Square`, `Vertical` | `out/stook-15s-{square,vertical}.mp4` | track from 7.2 s, drop at 2.1 s: TV → hook → board → the call → the bell → end card |
 | `Square6`, `Vertical6` | `out/stook-6s-{square,vertical}.mp4` | track from 8.8 s, drop at 0.5 s: hook → fastest pick → end card |
@@ -27,7 +27,9 @@ cp <track>.mp3 public/music.mp3   # the old cuts' track; not committed (gitignor
 # the street cut: public/street.mp3 and public/sfx/*.mp3 (gitignored too). Mixkit's free
 # library has direct links: https://assets.mixkit.co/music/303/303.mp3 is the track,
 # https://assets.mixkit.co/active_storage/sfx/<id>/<id>-preview.mp3 the effects
-# (933 ping, 1491 whoosh, 2596 hit, 110 ding, 591 bell, 2863 win)
+# (1491 whoosh, 2596 hit, 110 ding, 2863 win). The track is loudness-normalised (ffmpeg loudnorm I=-14).
+# sent and bell are made with ffmpeg: sent = 0.35 s of pink noise through a 1.2 kHz bandpass; bell = sines 1047, 2491, 2890 Hz
+# under a 9 Hz tremolo for 2.6 s, faded out.
 # footage of the live app (public/footage, gitignored): run the app locally in its
 # mainnet look, then step it a frame at a time into PNGs
 VITE_FEED_OVERRIDES= VITE_FAUCET_AUTHORITY_BYTES= pnpm -F @stook/app dev   # in the repo root
