@@ -1,11 +1,12 @@
 # @stook/promo
 
-Stook Street's ads for X, made with [Remotion](https://www.remotion.dev)
+Stook Street's ads for X and the site, made with [Remotion](https://www.remotion.dev)
 (React components rendered to video), cut to a retro-funk track. Each in square
 1080×1080 and vertical 1080×1920, 30 fps, H.264 / yuv420p, AAC:
 
 | composition | file | what |
 |---|---|---|
+| `Street`, `StreetSquare` | `out/stook-60s-{vertical,square}.mp4` (+ `-web.mp4`, the site's copy) | **the current cut** (`src/Street.tsx`, the track's 68 s): a chat on a phone at night ("where's polymarket closing today?"), the link, the dive into it on the drop; WHERE WILL IT CLOSE? over the live city; 4 PM NEW YORK; the floor on a phone, every coin's table; the call on the tower; the elevator; the bell; how it pays; OR BE THE HOUSE, 90%; LIST YOUR COIN, $200; the chat's payoff (WIN 2.3×); the door. Heavy type slamming in on the beats, a glitch on every cut, the real site as footage (`scripts/capture.mjs`). |
 | `Full`, `FullVertical` | `out/stook-68s-{square,vertical}.mp4` | the whole track (68.2 s): 1970s TV open → "WHERE WILL IT LAND?" on the drop (9.33 s) → split-flap board → the floor → the call on the tower → the elevator, WIN 2.3× → or be the house → the 4 PM bell → end card |
 | `Square`, `Vertical` | `out/stook-15s-{square,vertical}.mp4` | track from 7.2 s, drop at 2.1 s: TV → hook → board → the call → the bell → end card |
 | `Square6`, `Vertical6` | `out/stook-6s-{square,vertical}.mp4` | track from 8.8 s, drop at 0.5 s: hook → fastest pick → end card |
@@ -23,8 +24,13 @@ so the ads read muted. Only the 68 s cut is rendered by default now
 ```sh
 npm install                  # standalone: not part of the pnpm workspace
 cp <track>.mp3 public/music.mp3   # not committed (gitignored)
-npx remotion studio          # preview all six
-sh render.sh Full FullVertical   # the 68 s cut → out/  (no args: all six)
+# footage of the live app (public/footage, gitignored): run the app locally in its
+# mainnet look, then step it a frame at a time into PNGs
+VITE_FEED_OVERRIDES= VITE_FAUCET_AUTHORITY_BYTES= pnpm -F @stook/app dev   # in the repo root
+node scripts/capture.mjs     # every shot; `node scripts/capture.mjs floor 3` for one shot, 3 s
+npx remotion studio          # preview
+sh render.sh                 # the street cut, vertical and square → out/  (`sh render.sh Full FullVertical` for the old one)
+cp out/stook-60s-vertical-web.mp4 ../../apps/stook/public/video/stook-60s.mp4   # the site's player (components/Watch.tsx)
 sh stills.sh 283 900         # PNG stills (COMPS="Full FullVertical" for others)
 sh check.sh                  # codec, size, length, audio; stills of each MP4
 ```
@@ -62,7 +68,8 @@ forces silence. Optional sound effects play with the music when present:
 
 ## Notes
 
-- If Remotion can't fetch its headless Chrome: `REMOTION_CHROME=/path/to/chrome sh render.sh`.
+- If Remotion can't fetch its headless Chrome: `REMOTION_CHROME="/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" sh render.sh`.
+- The chat, the slams and the counters are `src/Street.tsx`; the coin, the anchor and the tower's prices are `src/brand.ts` (data from `src/data/poly.json`, `https://stookstreet.xyz/chart?coin=STOOK`).
 - **License:** Remotion is free for individuals and companies of up to 3
   people; larger companies need a company license (https://www.remotion.dev/license).
   The track is Pixabay's "Retro Funk" (prettyjohn1); check Pixabay's license

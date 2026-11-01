@@ -6,7 +6,7 @@ import { AbsoluteFill, Easing, interpolate, random, useCurrentFrame, useVideoCon
 import { C, Explainer, MONO, PX, useLay } from "../Ad";
 import { Skyline } from "../Skyline";
 
-const TAPE = "$STOOK ▲ S&P 500   $ZCAT ▼ ZCASH   $KNOTS ▲ STONK   $GP ▲ GOLD   BELL 4:00 PM NEW YORK   WHERE WILL IT LAND?   ";
+const TAPE = "$SSt. ▲ POLYMARKET   $ZCAT ▼ ZCASH   $KNOTS ▲ STONK   $GP ▲ GOLD   BELL 4:00 PM NEW YORK   WHERE WILL IT LAND?   ";
 
 // the lower third, one line a bar, building up to the drop
 const LOWER = ["LIVE FROM THE FLOOR", "ONE QUESTION A DAY", "WHERE DOES IT CLOSE?", "BELL AT 4 PM NEW YORK"];

@@ -5,11 +5,12 @@
 import { AbsoluteFill, Easing, interpolate, random, spring, useCurrentFrame, useVideoConfig } from "remotion";
 import { C, MONO, PX, Rise, SANS, Shout, useLay } from "../Ad";
 import { Pixel } from "../pixel";
+import { BRAND, fmtPx } from "../brand";
 
 const NF = 34, START = 3, TARGET = 20;
-// S&P 500 floors, as on the tower beat: the called floor 770.43, each floor ~0.5% (src/data/spx.json's level).
-const price = (i: number) => 770.43 * Math.pow(1.005, i - TARGET);
-const fmt = (v: number) => v.toFixed(2);
+// the floors, as on the tower beat: the called floor one above the last price, `step` apart
+const price = (i: number) => BRAND.last * Math.pow(BRAND.step, i - TARGET + 1);
+const fmt = fmtPx;
 const GOLD = ["...aaa...", ".abbbba..", "abcbbbba.", "abcbbbbba", "abbbbbbba", "abbbbbbba", ".abbbbba.", "..aaaaa.."];
 const GOLDPAL = { a: "#8a5a12", b: "#f0a83a", c: "#ffe28a" };
 
@@ -79,7 +80,7 @@ export function Elevator(p: { stopAt: number; coinsAt: number; winAt: number }) 
       {/* the win */}
       {f >= p.winAt && <div style={{ position: "absolute", left: 0, right: 0, top: cy + (tall ? 210 : 150), display: "flex", flexDirection: "column", alignItems: "center", gap: 12, transform: `scale(${win})` }}>
         <div style={{ background: C.cream, color: C.ink, border: `6px solid ${C.ink}`, boxShadow: `8px 8px 0 #b47416`, padding: "10px 26px", fontFamily: PX, fontSize: tall ? 64 : 54 }}>WIN 2.3×</div>
-        <div style={{ fontFamily: PX, fontSize: tall ? 22 : 18, color: C.ink, background: C.taxi, padding: "8px 12px" }}>PAID IN $STOOK</div>
+        <div style={{ fontFamily: PX, fontSize: tall ? 22 : 18, color: C.ink, background: C.taxi, padding: "8px 12px" }}>PAID IN {BRAND.coin}</div>
       </div>}
       {/* the line */}
       {f < p.stopAt + 6 && <Rise at={6} style={{ position: "absolute", left: 0, right: 0, bottom: tall ? 170 : 60, textAlign: "center" }}>

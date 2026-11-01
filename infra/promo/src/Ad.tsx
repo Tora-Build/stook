@@ -5,6 +5,7 @@ import { AbsoluteFill, Audio, Easing, getStaticFiles, Img, interpolate, Sequence
 import { loadFont as loadPixel } from "@remotion/google-fonts/PressStart2P";
 import { loadFont as loadSans } from "@remotion/google-fonts/IBMPlexSans";
 import { loadFont as loadMono } from "@remotion/google-fonts/IBMPlexMono";
+import { loadFont as loadInter } from "@remotion/google-fonts/Inter";
 import { Skyline } from "./Skyline";
 import { TowerScene } from "./TowerScene";
 import { BellScene } from "./BellScene";
@@ -19,15 +20,17 @@ import { Elevator } from "./hero/Elevator";
 
 export const PX = loadPixel("normal", { weights: ["400"], subsets: ["latin"] }).fontFamily;
 export const SANS = loadSans("normal", { weights: ["500", "600", "700"], subsets: ["latin"] }).fontFamily;
+export const INTER = loadInter("normal", { weights: ["500", "700", "800", "900"], subsets: ["latin"] }).fontFamily;
 export const MONO = loadMono("normal", { weights: ["500", "600", "700"], subsets: ["latin"] }).fontFamily;
 export const C = { ink: "#0b1120", sky: "#101a2e", sky2: "#182642", taxi: "#f0a83a", cream: "#f4e9c8", cream2: "#c9bfa4", brick: "#a8412f", brick2: "#7d2f22", green: "#0e7449", teal: "#35c4c4", good: "#5ec48f" };
 
 export const useLay = () => { const { width, height } = useVideoConfig(); return { W: width, H: height, tall: height > width }; };
 const ease = Easing.bezier(0.2, 0.8, 0.2, 1);
 
-/** Bold pixel lettering with the street's hard shadow. */
+/** The headline face: heavy, tight, upper case, with a hard drop. `size` is the pixel face's size; this face runs a quarter larger for the same width. */
 export function Shout(p: { children: React.ReactNode; size: number; color?: string; shadow?: string; style?: React.CSSProperties }) {
-  return <div style={{ fontFamily: PX, fontSize: p.size, lineHeight: 1.35, color: p.color ?? C.cream, textShadow: `${Math.round(p.size / 12)}px ${Math.round(p.size / 12)}px 0 ${p.shadow ?? C.brick2}`, letterSpacing: "0.02em", ...p.style }}>{p.children}</div>;
+  const size = p.size * 1.3;
+  return <div style={{ fontFamily: INTER, fontWeight: 900, fontSize: size, lineHeight: 0.98, color: p.color ?? C.cream, textShadow: `0 ${Math.round(size / 14)}px 0 rgba(0,0,0,.55)`, letterSpacing: "-0.03em", textTransform: "uppercase", ...p.style }}>{p.children}</div>;
 }
 
 /** Text that comes up from below and settles: the beat's line. */
@@ -85,7 +88,7 @@ function Hook(p: { slamAt?: number }) {
 
 // ── 2. the idea: four tables, each a memecoin playing a stock or an asset ────
 export const TABLES = [
-  { coin: "$STOOK", logo: "logos/stook.png", anchor: "S&P 500", alogo: "logos/spyx.png" },
+  { coin: "$SSt.", logo: "logos/stook.png", anchor: "Polymarket", alogo: "logos/polymarket.png" },
   { coin: "$ZCAT", logo: "logos/zcat.jpg", anchor: "Zcash", alogo: "logos/zec.svg" },
   { coin: "$KNOTS", logo: "logos/knots.png", anchor: "STONK", alogo: "logos/stonk.png" },
   { coin: "$GP", logo: "logos/gp.jpg", anchor: "Gold", alogo: "logos/gldx.png" },
@@ -144,7 +147,7 @@ export function EndCard() {
       <AbsoluteFill style={{ background: "linear-gradient(180deg, rgba(11,17,32,.9) 0%, rgba(11,17,32,.55) 55%, rgba(11,17,32,.2) 100%)" }} />
       <AbsoluteFill style={{ alignItems: "center", justifyContent: "center", gap: tall ? 56 : 34, paddingBottom: tall ? 220 : 120 }}>
         <Img src={staticFile("stook-coin.svg")} style={{ width: tall ? 300 : 210, height: tall ? 300 : 210, imageRendering: "pixelated", transform: `scale(${coin}) rotate(${(1 - coin) * -200}deg)` }} />
-        <Rise at={8} style={{ textAlign: "center" }}><Shout size={tall ? 70 : 60}>STOOK STREET</Shout><div style={{ fontFamily: PX, fontSize: tall ? 30 : 24, color: C.cream2, marginTop: tall ? 22 : 14 }}>WHERE WILL IT LAND?</div></Rise>
+        <Rise at={8} style={{ textAlign: "center" }}><Shout size={tall ? 70 : 60}>STOOK STREET</Shout><div style={{ fontFamily: PX, fontSize: tall ? 30 : 24, color: C.cream2, marginTop: tall ? 22 : 14 }}>WHERE WILL IT CLOSE?</div></Rise>
         <Rise at={14}><div style={{ fontFamily: MONO, fontWeight: 600, fontSize: tall ? 68 : 58, color: C.taxi, letterSpacing: "0.01em" }}>stookstreet.xyz</div></Rise>
         <Rise at={22}>
           <div style={{ transform: `scale(${pulse})`, fontFamily: PX, fontSize: tall ? 36 : 30, color: C.ink, background: C.taxi, padding: tall ? "30px 44px" : "24px 36px", border: `6px solid ${C.ink}`, boxShadow: `10px 10px 0 ${C.brick2}` }}>MAKE YOUR CALL ›</div>

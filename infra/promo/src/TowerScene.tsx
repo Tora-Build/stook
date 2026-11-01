@@ -6,20 +6,20 @@
 // Wins are paid in more $STOOK, the coin you trade with.
 import { AbsoluteFill, interpolate, spring, useCurrentFrame, useVideoConfig } from "remotion";
 import { C, MONO, PX, Rise, SANS, Shout, useLay } from "./Ad";
-import SPX from "./data/spx.json";
+import { BRAND, fmtPx } from "./brand";
 
-const N = 11, MID = 5, STEP = 1.005;
-const pts0 = SPX.points as [number, number][];
-const last = pts0[pts0.length - 1]![1];
+const N = 11, MID = 5, STEP = BRAND.step;
+const pts0 = BRAND.points;
+const last = BRAND.last;
 // band edges: the middle floor holds the last price; floor 0 is the top
 const lo = (k: number) => last / Math.sqrt(STEP) * STEP ** (MID - k); // bottom edge of floor k (k=0 top)
 const PRICES = Array.from({ length: N }, (_, k) => lo(k));
-const fmt = (v: number) => v.toFixed(2);
+const fmt = fmtPx;
 // the crowd's chance per floor, peaked on the price
 const PCT = Array.from({ length: N }, (_, k) => { const d = Math.abs(k - MID); return [24, 18, 11, 6, 2.5, 0.8][Math.min(5, d)]!; });
 const PICK = MID - 1; // the call: one floor above the price
 // how sure: reach in floors, and the illustrative payout multiple at that reach
-export const SURE = [{ name: "Sure", reach: 1, stack: 8, x: "4.1×", win: "WIN 7.66M $STOOK" }, { name: "Pretty sure", reach: 2, stack: 6, x: "2.3×", win: "WIN 3.12M $STOOK" }, { name: "Not sure", reach: 4, stack: 4, x: "1.4×", win: "WIN 1.90M $STOOK" }] as const;
+export const SURE = [{ name: "Sure", reach: 1, stack: 8, x: "4.1×", win: `WIN 7.66M ${BRAND.coin}` }, { name: "Pretty sure", reach: 2, stack: 6, x: "2.3×", win: `WIN 3.12M ${BRAND.coin}` }, { name: "Not sure", reach: 4, stack: 4, x: "1.4×", win: `WIN 1.90M ${BRAND.coin}` }] as const;
 const level = (r: number, reach: number) => Math.max(0, reach + 1 - Math.abs(r - PICK));
 
 export function TowerScene(p: { coinsAt: number; winAt: number; fast?: boolean }) {
@@ -51,8 +51,8 @@ export function TowerScene(p: { coinsAt: number; winAt: number; fast?: boolean }
   const tower = (
     <div style={{ width: g.TW, border: `6px solid ${C.cream}`, background: C.sky, boxShadow: `14px 14px 0 ${C.brick2}`, position: "relative" }}>
       <div style={{ height: tall ? 48 : 36, background: "#050608", borderBottom: "4px solid #c9bfa4", display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0 14px" }}>
-        <span style={{ fontFamily: MONO, fontWeight: 600, fontSize: g.small, color: "#ffb13b", textShadow: "0 0 6px rgba(255,160,40,.6)" }}>S&amp;P 500 · BELL 4:00 PM</span>
-        <span style={{ fontFamily: MONO, fontWeight: 600, fontSize: g.small - 2, color: C.cream2 }}>PAID IN $STOOK</span>
+        <span style={{ fontFamily: MONO, fontWeight: 600, fontSize: g.small, color: "#ffb13b", textShadow: "0 0 6px rgba(255,160,40,.6)" }}>{BRAND.anchor} · BELL 4:00 PM</span>
+        <span style={{ fontFamily: MONO, fontWeight: 600, fontSize: g.small - 2, color: C.cream2 }}>PAID IN {BRAND.coin}</span>
       </div>
       <div style={{ position: "relative", height: HT }}>
         {PRICES.map((pr, r) => {
@@ -118,7 +118,7 @@ export function TowerScene(p: { coinsAt: number; winAt: number; fast?: boolean }
   const head = (
     <Rise at={0} style={{ textAlign: "center" }}>
       <Shout size={tall ? 56 : 42}>CALL WHERE<br />IT <span style={{ color: C.taxi }}>CLOSES</span></Shout>
-      <div style={{ fontFamily: SANS, fontWeight: 600, fontSize: tall ? 36 : 26, color: C.cream2, marginTop: tall ? 16 : 6 }}>$STOOK plays the S&amp;P 500. Pick a floor for 4 PM New York.</div>
+      <div style={{ fontFamily: SANS, fontWeight: 600, fontSize: tall ? 36 : 26, color: C.cream2, marginTop: tall ? 16 : 6 }}>{BRAND.coin} plays {BRAND.anchorName}. Pick a floor for 4 PM New York.</div>
     </Rise>
   );
   const towerBox = <div style={{ transform: `translateY(${(1 - rise) * 160}px) scale(${push})`, opacity: Math.min(1, rise * 1.4) }}>{tower}</div>;

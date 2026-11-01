@@ -22,6 +22,8 @@ const edit = (e: { start: number; seconds: number; fadeOut: number }) => {
 };
 
 const F = edit(B.full), L = edit(B.long), S = edit(B.short);
+/** The street cut (src/Street.tsx): the whole track, beats placed in the scene itself. */
+export const ST = edit({ ...B.full, fadeOut: 1.6 });
 /** The full-length ad, the track's own length: TV open, the drop, board, floor, tower, elevator, house, bell, end. */
 export const FULL = { ...F, cuts: B.full.cuts.map(F.at), drop: F.at(16), flaps: B.full.flaps.map(F.at), pops: B.full.pops.map(F.at), coins: F.at(B.full.coins), win: F.at(B.full.win), stop: F.at(B.full.stop), lift: F.at(B.full.lift), liftWin: F.at(B.full.liftWin), rewards: F.at(B.full.rewards), pages: B.full.pages.map(F.at), funded: F.at(B.full.funded), four: F.at(B.full.four), bell: F.at(B.full.bell), payout: B.full.payout.map(F.at) };
 /** The 15 s cut: TV open, the drop on the hook, board, the call, the bell, end. */

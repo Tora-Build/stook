@@ -1,11 +1,11 @@
-// "Watch in 60s": the one-minute explainer (a YouTube Short) in a pop-up.
-// Nothing from YouTube loads until the button is pressed; the player is the
-// no-cookie one. The Short is vertical, so it sits in a tall window rather
+// "60 s video": the one-minute explainer, served by the site itself
+// (public/video, made in infra/promo) in a pop-up. Nothing loads until the
+// button is pressed. The cut is vertical, so it sits in a tall window rather
 // than in the page, where it would leave wide bars on a desktop.
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 
-const VIDEO = "L_wH5B0FZvY";
+const SRC = "/video/stook-60s.mp4", POSTER = "/video/stook-60s.jpg";
 
 // `bare` drops the old look so a page can style it fully (e.g. "btn btn-ghost").
 export function WatchButton({ className = "", label = "Watch in 60s", bare = false }: { className?: string; label?: string; bare?: boolean }) {
@@ -39,10 +39,9 @@ function WatchModal({ onClose }: { onClose: () => void }) {
           <button ref={shut} className="watch-x" onClick={onClose} aria-label="Close the video">✕</button>
         </div>
         <div className="watch-frame">
-          <iframe src={`https://www.youtube-nocookie.com/embed/${VIDEO}?autoplay=1&rel=0&playsinline=1&modestbranding=1`}
-            title="Stook Street: call where your coin's Stonk closes" allow="autoplay; encrypted-media; picture-in-picture; fullscreen" allowFullScreen />
+          <video src={SRC} poster={POSTER} controls autoPlay playsInline preload="metadata" title="Stook Street: call where your coin's anchor closes" />
         </div>
-        <a className="watch-yt" href={`https://www.youtube.com/shorts/${VIDEO}`} target="_blank" rel="noreferrer">Open on YouTube ↗</a>
+        <a className="watch-yt" href={SRC} download="stook-street-60s.mp4">Save the video ↓</a>
       </div>
     </div>,
     document.body,
