@@ -3,15 +3,14 @@
 // the real site as footage inside the phone and full-bleed behind the words,
 // one shot every bar or two, every cut and every word on a beat of the
 // track, heavy type slamming in with a colour split, a glitch on the cuts.
-// Then the mechanics on the tower (the call, the elevator, the bell, how it
-// pays), the house, listing a coin, the chat's payoff and the door.
+// Then the mechanics in the site's own tower (the call, how sure, the bell,
+// how it pays: the How page's drawings, filmed), the house, listing a coin,
+// the chat's payoff and the door. The track is a trap beat (public/street.mp3,
+// grid in beats-street.json): a quiet intro under the chat, the drop on the
+// first slam, a bar of silence before the bell, which rings as the beat returns.
 import { AbsoluteFill, Easing, Img, Sequence, interpolate, random, spring, staticFile, useCurrentFrame, useVideoConfig } from "remotion";
 import { C, Cut, EndCard, Grain, INTER, MONO, PX, Sound, useLay, type AdProps } from "./Ad";
 import { Skyline } from "./Skyline";
-import { TowerScene } from "./TowerScene";
-import { BellScene } from "./BellScene";
-import { Elevator } from "./hero/Elevator";
-import { PayoutScene } from "./hero/Payout";
 import { BRAND } from "./brand";
 import { ST } from "./config";
 
@@ -19,7 +18,9 @@ const BG = "#05070d";
 
 // ── footage of the live site (scripts/capture.mjs → public/footage/<shot>/0001.jpg…) ──
 /** Frames each shot has: seconds × 30, as capture.mjs makes them. */
-const LEN: Record<string, number> = { city: 270, cityDawn: 210, floorWide: 210, houseWide: 180, home: 270, dawn: 210, floor: 240, house: 210, houseDesk: 150, list: 180, listSeed: 150, board: 150 };
+const LEN: Record<string, number> = { city: 270, cityDawn: 210, floorWide: 210, houseWide: 180, home: 270, dawn: 210, floor: 240, house: 210, houseDesk: 150, list: 180, listSeed: 150, board: 150, howTower: 300, howCall: 240, howBell: 420, howHouse: 180 };
+/** Frame of the howBell shot on which the bell is rung (scripts/capture.mjs). */
+const BELL_RUNG = 265;
 const frameOf = (shot: string, f: number) => staticFile(`footage/${shot}/${String((Math.max(0, f) % LEN[shot]!) + 1).padStart(4, "0")}.jpg`);
 
 /** A desktop shot (3600×1800, the hero only) filling the frame's height, the camera panning from x0 to x1 (0 left … 1 right) and pushing in by `zoom`. */
@@ -227,7 +228,77 @@ function FloorPhone(p: { at: number; names: number[] }) {
   );
 }
 
-// ── 4. the house, the listing ────────────────────────────────────────────────
+// ── 4. the tower, the call, the bell: the site's own drawings in the phone ───
+/** A phone in the middle of the frame, large, over a blurred shot of the city, the words above it. */
+function BigPhone(p: { shot: string; from?: number; tilt?: number; bg?: string; bgFrom?: number; children: React.ReactNode }) {
+  const { W, H, tall } = useLay();
+  const w = tall ? 780 : 430, x = tall ? (W - w) / 2 : W - w - 40, y = tall ? H * 0.3 : H * 0.1;
+  return (
+    <AbsoluteFill style={{ background: BG, overflow: "hidden" }}>
+      <Wide shot={p.bg ?? "city"} from={p.bgFrom ?? 0} x={[0.4, 0.6]} zoom={[1.15, 1.25]} style={{ opacity: 0.3, filter: "blur(3px)" }} />
+      <AbsoluteFill style={{ background: "linear-gradient(180deg, rgba(5,7,13,.95) 0%, rgba(5,7,13,.6) 45%, rgba(5,7,13,.3) 100%)" }} />
+      <Phone shot={p.shot} from={p.from} w={w} x={x} y={y} at={0} tilt={p.tilt ?? -5} />
+      <div style={{ position: "absolute", left: tall ? 60 : 50, right: tall ? 60 : 50, top: tall ? H * 0.07 : H * 0.07 }}>{p.children}</div>
+    </AbsoluteFill>
+  );
+}
+
+/** "CALL WHERE IT CLOSES." over the tower: the chart with its floors, the crowd's odds, a tap moves the gold band. */
+function TowerPhone(p: { at: number; words: number[] }) {
+  const { tall } = useLay();
+  const small = tall ? 54 : 34;
+  return (
+    <BigPhone shot="howTower" bgFrom={30}>
+      <Slam at={p.at} size={tall ? 118 : 70} style={{ textAlign: "left" }}>{"CALL WHERE\nIT CLOSES."}</Slam>
+      <div style={{ marginTop: tall ? 24 : 12, display: "flex", flexDirection: "column", gap: tall ? 8 : 4 }}>
+        <Slam at={p.words[0]!} size={small} color={C.taxi} style={{ textAlign: "left" }}>TAP A FLOOR.</Slam>
+        <Slam at={p.words[1]!} size={small} color={C.taxi} style={{ textAlign: "left" }}>THE CROWD'S ODDS ON THE RIGHT.</Slam>
+      </div>
+    </BigPhone>
+  );
+}
+
+/** "HOW SURE?" over the call: tight, medium, wide, and what each wins. */
+function CallPhone(p: { at: number; words: number[] }) {
+  const { tall } = useLay();
+  const small = tall ? 54 : 34;
+  return (
+    <BigPhone shot="howCall" from={40} bg="floorWide" tilt={5}>
+      <Slam at={p.at} size={tall ? 118 : 70} style={{ textAlign: "left" }}>HOW SURE?</Slam>
+      <div style={{ marginTop: tall ? 24 : 12, display: "flex", flexDirection: "column", gap: tall ? 8 : 4 }}>
+        <Slam at={p.words[0]!} size={small} color={C.taxi} style={{ textAlign: "left" }}>TIGHT: UP TO 3.2×.</Slam>
+        <Slam at={p.words[1]!} size={small} color={C.taxi} style={{ textAlign: "left" }}>WIDE: SAFER, PAYS LESS.</Slam>
+      </div>
+    </BigPhone>
+  );
+}
+
+/** The lock, a bar of silence, the bell on the beat's return, then how it paid: all on the How page's bell drawing. */
+function BellPhone(p: { at: number; words: number[]; ring: number; pay: number[] }) {
+  const f = useCurrentFrame(), { tall, W, H } = useLay();
+  const t = f - p.ring, flash = t >= 0 && t < 6 ? 1 - t / 6 : 0;
+  const shake = t >= 0 && t < 12 ? Math.round(Math.sin(t * 2.4) * (12 - t) * 1.6) : 0;
+  const small = tall ? 54 : 34;
+  return (
+    <AbsoluteFill style={{ transform: `translate(${shake}px, ${-shake}px)` }}>
+      <BigPhone shot="howBell" from={BELL_RUNG - p.ring} bgFrom={150} tilt={-4}>
+        <Slam at={p.at} hold={p.ring} size={tall ? 150 : 90} style={{ textAlign: "left" }}>4:00 PM.</Slam>
+        <Slam at={p.words[0]!} hold={p.ring - p.words[0]!} size={tall ? 118 : 70} color={C.taxi} style={{ textAlign: "left" }}>THE BELL.</Slam>
+        <Slam at={p.words[1]!} hold={p.ring - p.words[1]!} size={small} color="#c9bfa4" style={{ textAlign: "left", marginTop: tall ? 20 : 10 }}>TRADING CLOSED. YOUR CALL RIDES.</Slam>
+        <Slam at={p.ring} size={tall ? 190 : 110} color={C.taxi} style={{ textAlign: "left" }}>RANG.</Slam>
+        <div style={{ marginTop: tall ? 20 : 10, display: "flex", flexDirection: "column", gap: tall ? 8 : 4 }}>
+          <Slam at={p.pay[0]!} size={tall ? 66 : 40} style={{ textAlign: "left" }}>THE CLOSER YOU ARE,</Slam>
+          <Slam at={p.pay[1]!} size={tall ? 66 : 40} color={C.taxi} style={{ textAlign: "left" }}>THE MORE IT PAYS.</Slam>
+          <Slam at={p.pay[2]!} size={small} color="#c9bfa4" style={{ textAlign: "left" }}>{`PAID IN ${BRAND.coin.toUpperCase()}. ON CHAIN.`}</Slam>
+        </div>
+      </BigPhone>
+      <AbsoluteFill style={{ background: "#fff7e0", opacity: flash * 0.85, pointerEvents: "none" }} />
+      {t >= 0 && t < 40 && <AbsoluteFill style={{ background: `radial-gradient(circle at ${W / 2}px ${H * 0.5}px, rgba(240,168,58,${0.35 * Math.exp(-t / 10)}) 0%, rgba(0,0,0,0) 60%)`, pointerEvents: "none" }} />}
+    </AbsoluteFill>
+  );
+}
+
+// ── 5. the house, the listing ────────────────────────────────────────────────
 function HousePhone(p: { at: number; pct: number; words: number }) {
   const { W, H, tall } = useLay();
   const w = tall ? 660 : 380, x = tall ? (W - w) / 2 - 150 : 50, y = tall ? H * 0.52 : H * 0.12;
@@ -235,7 +306,7 @@ function HousePhone(p: { at: number; pct: number; words: number }) {
     <AbsoluteFill style={{ background: BG, overflow: "hidden" }}>
       <Wide shot="houseWide" x={[0.9, 0.5]} zoom={[1.15, 1.25]} style={{ opacity: 0.4, filter: "blur(2px)" }} />
       <AbsoluteFill style={{ background: "linear-gradient(180deg, rgba(5,7,13,.92) 0%, rgba(5,7,13,.6) 50%, rgba(5,7,13,.2) 100%)" }} />
-      <Phone shot="house" w={w} x={x} y={y} at={0} tilt={12} />
+      <Phone shot="howHouse" w={w} x={x} y={y} at={0} tilt={12} />
       <div style={{ position: "absolute", left: tall ? 60 : 50, right: tall ? 60 : 50, top: tall ? H * 0.08 : H * 0.07, textAlign: "right" }}>
         <Slam at={p.at} size={tall ? 118 : 70} style={{ textAlign: "right" }}>{"OR BE\nTHE HOUSE."}</Slam>
         <div style={{ marginTop: tall ? 30 : 16, display: "flex", justifyContent: "flex-end", alignItems: "baseline", gap: tall ? 24 : 14 }}>
@@ -267,69 +338,71 @@ function ListPhone(p: { at: number; seed: number }) {
 }
 
 // ── the cut ──────────────────────────────────────────────────────────────────
-/** Beats of the track (112 BPM, bar = 4, the drop on 16) each scene sits on. */
+/** Beats of the track (136 BPM, bar = 4; the drop on 24, the silent bar 88-92, the beat back on 92) each scene sits on. */
 const B = {
-  chat: 0, slam: 16, dawn: 24, floor: 32, tower: 40, lift: 56, bell: 64, pay: 72, house: 80, list: 88, chat2: 96, end: 116,
+  chat: 0, slam: 24, dawn: 32, floor: 40, tower: 48, call: 64, bell: 72, ring: 92, house: 100, list: 110, chat2: 118, end: 134,
 };
 const at = ST.at;
 
 export function Street(p: AdProps) {
-  const cuts = [B.slam, B.dawn, B.floor, B.tower, B.lift, B.bell, B.pay, B.house, B.list, B.chat2, B.end].map(at);
-  const [slam, dawn, floor, tower, lift, bell, pay, house, list, chat2, end] = cuts as [number, number, number, number, number, number, number, number, number, number, number];
+  const cuts = [B.slam, B.dawn, B.floor, B.tower, B.call, B.bell, B.house, B.list, B.chat2, B.end].map(at);
+  const [slam, dawn, floor, tower, call, bell, house, list, chat2, end] = cuts as [number, number, number, number, number, number, number, number, number, number];
   const seg = (from: number, to: number) => ({ from, durationInFrames: to - from });
+  const ring = at(B.ring);
   return (
     <AbsoluteFill style={{ background: BG }}>
       <Pulse beats={ST.beats} from={slam}>
         <Sequence {...seg(0, slam)}>
-          <Chat name="Jay" dive={at(14.5)} glowAt={at(12)} msgs={[
-            { at: at(1), in: true, typing: 24, text: "bro where's polymarket closing today" },
-            { at: at(4.5), text: "no idea. 4pm?" },
-            { at: at(8), in: true, typing: 26, text: "yeah. there's a street for that now" },
-            { at: at(11.5), in: true, typing: 22, link: true },
+          <Chat name="Jay" dive={at(20)} glowAt={at(16)} msgs={[
+            { at: at(2), in: true, typing: 30, text: "bro where's polymarket closing today" },
+            { at: at(7), text: "no idea. 4pm?" },
+            { at: at(12), in: true, typing: 34, text: "yeah. there's a street for that now" },
+            { at: at(16.5), in: true, typing: 28, link: true },
           ]} />
         </Sequence>
         <Sequence {...seg(slam, dawn)}>
-          <SlamStreet shot="city" x={[0.62, 0.45]} zoom={[1.02, 1.1]} words={[{ at: 0, text: "WHERE WILL\nIT CLOSE?" }, { at: at(20) - slam, text: "ONE QUESTION.", size: 92, color: C.taxi }, { at: at(22) - slam, text: "EVERY DAY.", size: 92, color: C.taxi }]} />
+          <SlamStreet shot="city" x={[0.62, 0.45]} zoom={[1.02, 1.1]} words={[{ at: 0, text: "WHERE WILL\nIT CLOSE?" }, { at: at(28) - slam, text: "ONE QUESTION.", size: 92, color: C.taxi }, { at: at(30) - slam, text: "EVERY DAY.", size: 92, color: C.taxi }]} />
         </Sequence>
         <Sequence {...seg(dawn, floor)}>
-          <SlamStreet shot="cityDawn" x={[0.3, 0.7]} zoom={[1.08, 1.0]} top={1180} words={[{ at: 0, text: "4 PM" }, { at: at(26) - dawn, text: "NEW YORK." }, { at: at(28) - dawn, text: "THE BELL.", color: C.taxi }]} />
+          <SlamStreet shot="cityDawn" x={[0.3, 0.7]} zoom={[1.08, 1.0]} top={1180} words={[{ at: 0, text: "4 PM" }, { at: at(34) - dawn, text: "NEW YORK." }, { at: at(36) - dawn, text: "THE BELL.", color: C.taxi }]} />
         </Sequence>
         <Sequence {...seg(floor, tower)}>
-          <FloorPhone at={0} names={[at(34), at(35.5), at(37), at(38.5)].map((x) => x - floor)} />
+          <FloorPhone at={0} names={[at(42), at(43.5), at(45), at(46.5)].map((x) => x - floor)} />
         </Sequence>
-        <Sequence {...seg(tower, lift)}>
-          <TowerScene coinsAt={at(44) - tower} winAt={at(48) - tower} />
+        <Sequence {...seg(tower, call)}>
+          <TowerPhone at={0} words={[at(54) - tower, at(58) - tower]} />
         </Sequence>
-        <Sequence {...seg(lift, bell)}>
-          <Elevator stopAt={at(60) - lift} coinsAt={at(61) - lift} winAt={at(62) - lift} />
+        <Sequence {...seg(call, bell)}>
+          <CallPhone at={0} words={[at(66) - call, at(69) - call]} />
         </Sequence>
-        <Sequence {...seg(bell, pay)}>
-          <BellScene ringAt={at(68) - bell} clockAt={at(66) - bell} confetti stamp={false} caption={false} />
-        </Sequence>
-        <Sequence {...seg(pay, house)}>
-          <PayoutScene at={[at(73), at(74), at(75), at(77), at(78.5)].map((x) => x - pay)} />
+        <Sequence {...seg(bell, house)}>
+          <BellPhone at={0} words={[at(76) - bell, at(84) - bell]} ring={ring - bell} pay={[at(94), at(96), at(98)].map((x) => x - bell)} />
         </Sequence>
         <Sequence {...seg(house, list)}>
-          <HousePhone at={0} pct={at(83) - house} words={at(85) - house} />
+          <HousePhone at={0} pct={at(103) - house} words={at(105) - house} />
         </Sequence>
         <Sequence {...seg(list, chat2)}>
-          <ListPhone at={0} seed={at(91) - list} />
+          <ListPhone at={0} seed={at(113) - list} />
         </Sequence>
         <Sequence {...seg(chat2, end)}>
           <Chat name="Jay" glowAt={0} msgs={[
-            { at: at(97) - chat2, paid: true },
-            { at: at(100) - chat2, in: true, typing: 20, text: "no way" },
-            { at: at(103) - chat2, text: "called the floor. bell rang." },
-            { at: at(107) - chat2, in: true, typing: 28, text: "ok im the house tomorrow" },
-            { at: at(111) - chat2, text: "90% of the fees. see you at 4." },
+            { at: at(119) - chat2, paid: true },
+            { at: at(122) - chat2, in: true, typing: 20, text: "no way" },
+            { at: at(125) - chat2, text: "called the floor. bell rang." },
+            { at: at(128.5) - chat2, in: true, typing: 24, text: "ok im the house tomorrow" },
+            { at: at(132) - chat2, text: "90% of the fees. see you at 4." },
           ]} />
         </Sequence>
         <Sequence from={end} durationInFrames={ST.total - end}><EndCard /></Sequence>
       </Pulse>
       {cuts.map((a) => <Cut key={a} at={a} />)}
-      {cuts.map((a) => <Glitch key={`g${a}`} at={a} />)}
+      {[...cuts, ring].map((a) => <Glitch key={`g${a}`} at={a} />)}
       <Grain />
-      <Sound track={p.track} length={ST.total} start={ST.start} fadeOut={ST.fadeOut} hits={[["coins", at(44)], ["stop", at(60)], ["coins", at(61)], ["bell", at(68)]]} />
+      <Sound track={p.track} length={ST.total} start={ST.start} fadeOut={ST.fadeOut} hits={[
+        ["ping", at(2)], ["ping", at(12)], ["ping", at(16.5)], ["whoosh", at(20)], ["hit", slam],
+        ["ding", at(54)], ["ding", at(58)], ["whoosh", bell], ["bell", ring],
+        ["win", at(119)], ["ping", at(122)], ["ping", at(128.5)], ["whoosh", end],
+      ]} />
     </AbsoluteFill>
   );
 }

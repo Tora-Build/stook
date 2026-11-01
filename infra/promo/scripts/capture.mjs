@@ -40,7 +40,25 @@ const SHOTS = {
   listSeed: { path: "/list", seconds: 5, prep: async (p) => { await p.evaluate(() => { const el = document.querySelector(".list-usd, .list-flow, [class*=list-seed]"); if (el) window.scrollTo(0, el.getBoundingClientRect().top + window.scrollY - 160); }); } },
   // the board
   board: { path: "/board", seconds: 5, prep: async (p) => { await p.evaluate(() => window.scrollTo(0, 0)); } },
+  // the How page's drawings of the tower, the call, the bell and the house: the
+  // real components on a made-up round (nothing sent), each scene scrolled under
+  // the header, played with during the shot
+  howTower: { path: "/how?step=tower", seconds: 10, prep: scene, during: async (p, f) => { if (f === 90) await tapRow(p, "$102.02"); if (f === 200) await tapRow(p, "$101.01"); } },
+  howCall: { path: "/how?step=line", seconds: 8, prep: scene, during: async (p, f) => { const chip = async (re) => p.getByRole("button", { name: re }).first().click(); if (f === 60) await chip(/^Tight/); if (f === 130) await chip(/^Wide/); if (f === 190) await chip(/^Medium/); } },
+  howBell: { path: "/how?step=bell", seconds: 14, prep: scene, during: async (p, f) => { if (f === 265) await p.getByRole("button", { name: "ring the bell" }).click(); } },
+  howHouse: { path: "/how?step=house", seconds: 6, prep: scene, during: async (p, f) => { const set = (v) => p.evaluate((v) => { const el = document.querySelector("input.px-range"); const s = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value").set; s.call(el, v); el.dispatchEvent(new Event("input", { bubbles: true })); }, v); if (f === 40) await set(2000); if (f === 90) await set(3500); if (f === 140) await set(5000); } },
 };
+
+/** Scrolls the How page so its drawing sits just under the header. */
+async function scene(p) {
+  await p.evaluate(() => { const el = document.querySelector(".placard-scene"); const head = document.querySelector(".ss-head"); const h = head ? head.getBoundingClientRect().height : 0; window.scrollTo(0, el.getBoundingClientRect().top + window.scrollY - h - 12); });
+}
+/** Taps the tower's row whose axis label says `price`, inside the chart. */
+async function tapRow(p, price) {
+  const sc = await p.locator(".placard-scene").boundingBox();
+  const lab = await p.getByText(price, { exact: true }).first().boundingBox();
+  if (sc && lab) await p.mouse.click(sc.x + sc.width * 0.3, lab.y + lab.height / 2);
+}
 
 async function setTheme(p, want) {
   await p.evaluate((want) => {

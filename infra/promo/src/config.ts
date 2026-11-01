@@ -3,17 +3,21 @@
 // second of the track the ad opens on. To re-time to another track, rebuild the
 // grid with scripts/beats.mjs and move the beat numbers.
 import B from "./beats.json";
+import STREET from "./beats-street.json";
 
 export const FPS = B.fps;
-const T = B.beatTimes, SPB = 60 / B.bpm;
-/** The time of a beat (fractions between beats, beats past the grid at bpm). */
-export function beatTime(b: number) {
-  if (b <= 0) return T[0]! + b * SPB;
-  const i = Math.floor(b), k = b - i;
-  if (i + 1 < T.length) return T[i]! + (T[i + 1]! - T[i]!) * k;
-  return T[T.length - 1]! + (b - (T.length - 1)) * SPB;
-}
-const edit = (e: { start: number; seconds: number; fadeOut: number }) => {
+/** The time of a beat of a grid (fractions between beats, beats past the grid at bpm). */
+const grid = (g: { bpm: number; beatTimes: number[] }) => {
+  const T = g.beatTimes, SPB = 60 / g.bpm;
+  return (b: number) => {
+    if (b <= 0) return T[0]! + b * SPB;
+    const i = Math.floor(b), k = b - i;
+    if (i + 1 < T.length) return T[i]! + (T[i + 1]! - T[i]!) * k;
+    return T[T.length - 1]! + (b - (T.length - 1)) * SPB;
+  };
+};
+export const beatTime = grid(B);
+const edit = (e: { start: number; seconds: number; fadeOut: number }, beatTime: (b: number) => number = grid(B)) => {
   const at = (b: number) => Math.round((beatTime(b) - e.start) * FPS);
   const total = Math.round(e.seconds * FPS);
   // every beat inside the ad, for the small motion hits
@@ -22,8 +26,8 @@ const edit = (e: { start: number; seconds: number; fadeOut: number }) => {
 };
 
 const F = edit(B.full), L = edit(B.long), S = edit(B.short);
-/** The street cut (src/Street.tsx): the whole track, beats placed in the scene itself. */
-export const ST = edit({ ...B.full, fadeOut: 1.6 });
+/** The street cut (src/Street.tsx): its own track and grid (beats-street.json), beats placed in the scene itself. */
+export const ST = edit(STREET.street, grid(STREET));
 /** The full-length ad, the track's own length: TV open, the drop, board, floor, tower, elevator, house, bell, end. */
 export const FULL = { ...F, cuts: B.full.cuts.map(F.at), drop: F.at(16), flaps: B.full.flaps.map(F.at), pops: B.full.pops.map(F.at), coins: F.at(B.full.coins), win: F.at(B.full.win), stop: F.at(B.full.stop), lift: F.at(B.full.lift), liftWin: F.at(B.full.liftWin), rewards: F.at(B.full.rewards), pages: B.full.pages.map(F.at), funded: F.at(B.full.funded), four: F.at(B.full.four), bell: F.at(B.full.bell), payout: B.full.payout.map(F.at) };
 /** The 15 s cut: TV open, the drop on the hook, board, the call, the bell, end. */

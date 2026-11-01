@@ -6,7 +6,7 @@ Stook Street's ads for X and the site, made with [Remotion](https://www.remotion
 
 | composition | file | what |
 |---|---|---|
-| `Street`, `StreetSquare` | `out/stook-60s-{vertical,square}.mp4` (+ `-web.mp4`, the site's copy) | **the current cut** (`src/Street.tsx`, the track's 68 s): a chat on a phone at night ("where's polymarket closing today?"), the link, the dive into it on the drop; WHERE WILL IT CLOSE? over the live city; 4 PM NEW YORK; the floor on a phone, every coin's table; the call on the tower; the elevator; the bell; how it pays; OR BE THE HOUSE, 90%; LIST YOUR COIN, $200; the chat's payoff (WIN 2.3×); the door. Heavy type slamming in on the beats, a glitch on every cut, the real site as footage (`scripts/capture.mjs`). |
+| `Street`, `StreetSquare` | `out/stook-60s-{vertical,square}.mp4` (+ `-web.mp4`, the site's copy) | **the current cut** (`src/Street.tsx`, 64 s, told the way pump.fun's ads are): a chat on a phone at night ("where's polymarket closing today?"), the link, the dive into it on the drop; WHERE WILL IT CLOSE? over the live city; 4 PM NEW YORK; the floor on a phone, every coin's table; the site's own tower in the phone (a tap moves the call), HOW SURE? (tight, medium, wide), the lock, a bar of silence, the bell on the beat's return and what it paid; OR BE THE HOUSE, 90%; LIST YOUR COIN, $200; the chat's payoff (WIN 2.3×); the door. Heavy type slamming in on the beats, a glitch on every cut, the real site as footage (`scripts/capture.mjs`, including the How page's drawings played live). Its track is `public/street.mp3` (Mixkit "Party" by Arulo, trap, free licence; grid in `src/beats-street.json`) with `public/sfx/{ping,whoosh,hit,ding,bell,win}.mp3` (Mixkit). |
 | `Full`, `FullVertical` | `out/stook-68s-{square,vertical}.mp4` | the whole track (68.2 s): 1970s TV open → "WHERE WILL IT LAND?" on the drop (9.33 s) → split-flap board → the floor → the call on the tower → the elevator, WIN 2.3× → or be the house → the 4 PM bell → end card |
 | `Square`, `Vertical` | `out/stook-15s-{square,vertical}.mp4` | track from 7.2 s, drop at 2.1 s: TV → hook → board → the call → the bell → end card |
 | `Square6`, `Vertical6` | `out/stook-6s-{square,vertical}.mp4` | track from 8.8 s, drop at 0.5 s: hook → fastest pick → end card |
@@ -23,11 +23,16 @@ so the ads read muted. Only the 68 s cut is rendered by default now
 
 ```sh
 npm install                  # standalone: not part of the pnpm workspace
-cp <track>.mp3 public/music.mp3   # not committed (gitignored)
+cp <track>.mp3 public/music.mp3   # the old cuts' track; not committed (gitignored)
+# the street cut: public/street.mp3 and public/sfx/*.mp3 (gitignored too). Mixkit's free
+# library has direct links: https://assets.mixkit.co/music/303/303.mp3 is the track,
+# https://assets.mixkit.co/active_storage/sfx/<id>/<id>-preview.mp3 the effects
+# (933 ping, 1491 whoosh, 2596 hit, 110 ding, 591 bell, 2863 win)
 # footage of the live app (public/footage, gitignored): run the app locally in its
 # mainnet look, then step it a frame at a time into PNGs
 VITE_FEED_OVERRIDES= VITE_FAUCET_AUTHORITY_BYTES= pnpm -F @stook/app dev   # in the repo root
 node scripts/capture.mjs     # every shot; `node scripts/capture.mjs floor 3` for one shot, 3 s
+# (the how* shots film the How page's drawings and play with them: a tap on a floor, the chips, the bell, the slider)
 npx remotion studio          # preview
 sh render.sh                 # the street cut, vertical and square → out/  (`sh render.sh Full FullVertical` for the old one)
 cp out/stook-60s-vertical-web.mp4 ../../apps/stook/public/video/stook-60s.mp4   # the site's player (components/Watch.tsx)
@@ -61,6 +66,10 @@ For another track:
 
 then move the beat numbers in `beats.json` (`cuts`, `flaps`, `coins`, `bell`, …)
 so cuts land on that track's phrases, and set each ad's `start` and `fadeOut`.
+
+The street cut keeps its own grid in `src/beats-street.json` (`ST` in `src/config.ts`): beat 24 is the
+track's drop, 88-92 its silent bar; to re-time it, measure the new track (librosa's
+`beat_track`), put the beats in `beatTimes` with the drop on 24, and move `B` in `src/Street.tsx`.
 
 Without `public/music.mp3` every render is silent; `--props='{"track":"none"}'`
 forces silence. Optional sound effects play with the music when present:
