@@ -48,7 +48,7 @@ export function Layout() {
       <footer className="ss-foot">
         <span className="ss-net"><i className="ss-dot" aria-hidden="true" />Stook Street · {isDevnet ? "devnet" : "mainnet"}</span>
         <span className="ss-foot-links">
-          <a href="https://x.com/StookStreet" target="_blank" rel="noreferrer" aria-label="Stook Street on X (Twitter)">X</a>
+          <a href="https://x.com/stookstreetxyz" target="_blank" rel="noreferrer" aria-label="Stook Street on X (Twitter)">X</a>
           <a href="https://t.me/StookStreet" target="_blank" rel="noreferrer">Telegram</a>
           <a href="https://github.com/Tora-Build/stook" target="_blank" rel="noreferrer">Source</a>
         </span>

@@ -8,7 +8,7 @@ import { CoinStep, Step } from "./ListFlow";
 import { parseKey } from "./data";
 import type { Listing } from "./useListing";
 
-const TG = "https://t.me/StookStreet", X = "https://x.com/StookStreet";
+const TG = "https://t.me/StookStreet", X = "https://x.com/stookstreetxyz";
 const isSource = (s: string) => { const t = s.trim(); return !t || /^(0x)?[0-9a-fA-F]{64}$/.test(t) || !!parseKey(t); };
 export const isContact = (s: string) => /^@?[A-Za-z0-9_]{3,32}$/.test(s.trim()) || /^https:\/\/(t\.me|x\.com|twitter\.com)\/[A-Za-z0-9_]{3,32}\/?$/.test(s.trim());
 

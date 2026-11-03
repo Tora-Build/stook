@@ -1,4 +1,4 @@
-// Posts to X as @StookStreet: one poster video a weekday, the morning
+// Posts to X as @stookstreetxyz: one poster video a weekday, the morning
 // question (Tue, Thu) or the closing bell (Mon, Wed, Fri). The box renders
 // the video (infra/x-poster) and hands it to /x/video; this file uploads and
 // posts it. Keys live in Cloudflare secrets (X_API_KEY, X_API_SECRET,

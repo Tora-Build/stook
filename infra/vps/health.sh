@@ -32,7 +32,7 @@ Keeper wallet: ${SOL:-?} SOL
 Last 24h: ${OPENS} opened, ${SETTLES} settled, ${VOIDS} voided
 Prices:
 ${PRICES:-  tape not answering}
-Last X post: ${XWHEN:-none}${XID:+ x.com/StookStreet/status/$XID}
+Last X post: ${XWHEN:-none}${XID:+ x.com/stookstreetxyz/status/$XID}
 
 $(printf '%s\n' "$FLEET")
 

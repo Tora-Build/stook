@@ -123,7 +123,7 @@ export function Faq({ feeSol, totalSol, apply }: { feeSol: string | null; totalS
         <div className="card list-talk">
           <TalkArt />
           <div><b>Still not sure?</b><p className="dim">Ask us. A person reads every message.</p>
-            <span className="list-talk-ctas"><a className="btn btn-sm" href="https://t.me/StookStreet" target="_blank" rel="noreferrer">Telegram</a><a className="btn btn-sm btn-ghost" href="https://x.com/StookStreet" target="_blank" rel="noreferrer">X</a></span></div>
+            <span className="list-talk-ctas"><a className="btn btn-sm" href="https://t.me/StookStreet" target="_blank" rel="noreferrer">Telegram</a><a className="btn btn-sm btn-ghost" href="https://x.com/stookstreetxyz" target="_blank" rel="noreferrer">X</a></span></div>
         </div>
       </div>
       <div className="list-faq">
