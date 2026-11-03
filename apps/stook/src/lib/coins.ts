@@ -43,7 +43,7 @@ export interface Coin {
   anchor: Anchor;
 }
 
-export const COINS: Coin[] = [
+const ALL_COINS: Coin[] = [
   {
     symbol: "SSt.", key: "STOOK", name: "STOOK St.", logo: "/logos/stook.png", mint: import.meta.env.VITE_STOOK_MINT ?? "", decimals: 6, feeBps: 0,
     // Polymarket PreStocks (prestocks.com), priced from its Raydium CLMM pool
@@ -63,6 +63,9 @@ export const COINS: Coin[] = [
     anchor: { symbol: "GLDx", name: "Gold", mint: "Xsv9hRk1z5ystj9MhnA7Lq4vjSsLwzL2nxrwmwtD3re", logo: "/logos/gldx.png", feedId: "e7d1138d0083368634087268c64b7bea0b4101a6365f83915cba9e76a8364b96", hours: "24/7", dp: 2 },
   },
 ];
+
+/** The tables on the street: on mainnet only $SSt. so far; the others stay on devnet. */
+export const COINS: Coin[] = import.meta.env.VITE_CLUSTER === "mainnet-beta" ? ALL_COINS.slice(0, 1) : ALL_COINS;
 
 /**
  * On devnet the mainnet mints do not exist; `scripts/devnet/coins.mjs` makes

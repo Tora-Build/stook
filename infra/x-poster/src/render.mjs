@@ -32,8 +32,8 @@ const FFMPEG = process.env.FFMPEG ?? join(homedir(), "bin/ffmpeg");
 const FPS = 30;
 const log = (...a) => console.log(new Date().toISOString(), kind, ...a);
 
-// The morning question asks about one table; a different one each time.
-const day = Math.floor(Date.now() / 86_400_000), table = Math.floor(day / 2) % 4;
+// The morning question asks about the one table on mainnet.
+const table = 0;
 
 const dir = join(homedir(), "x-posts"); mkdirSync(dir, { recursive: true });
 const stamp = new Date().toISOString().slice(0, 10), mp4 = join(dir, `${stamp}-${kind}.mp4`), wav = join(dir, `${stamp}-${kind}.wav`);

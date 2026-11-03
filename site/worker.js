@@ -158,10 +158,23 @@ function coinPreview(url, res) {
     .on('meta[property="og:url"]', set(url.origin + url.pathname))
     .transform(res);
 }
+// The pool $SSt.'s rounds settle on: what the floor argues about, five minutes old at most.
+const FLOOR_POOL = "5fdWxxkv63NdU7t2CspjyCQrvmMvfe3mQwSgYpHam1Gs";
+async function poolStats() {
+  const m = memo.get("floor:stats"); if (m && Date.now() - m.at < 300_000) return m.v;
+  const base = `https://api.geckoterminal.com/api/v2/networks/solana/pools/${FLOOR_POOL}`, get = (u) => fetch(u, { headers: { accept: "application/json" }, signal: AbortSignal.timeout(4000) }).then((r) => (r.ok ? r.json() : null));
+  const [pool, days] = await Promise.all([get(base), get(`${base}/ohlcv/day?limit=30`)]);
+  const a = pool?.data?.attributes, list = days?.data?.attributes?.ohlcv_list ?? [], week = list.slice(0, 7), num = (x) => (x == null || x === "" ? null : Number(x));
+  const range = (rows, i, f) => (rows.length ? f(...rows.map((r) => r[i])) : null);
+  const v = { h1: num(a?.price_change_percentage?.h1), h6: num(a?.price_change_percentage?.h6), vol: num(a?.volume_usd?.h24), liq: num(a?.reserve_in_usd), buys: a?.transactions?.h24?.buys ?? null, sells: a?.transactions?.h24?.sells ?? null,
+    hi7: range(week, 2, Math.max), lo7: range(week, 3, Math.min), hi30: range(list, 2, Math.max), lo30: range(list, 3, Math.min) };
+  memo.set("floor:stats", { at: Date.now(), v });
+  return v;
+}
 async function floorData(env) {
-  const [tape, coins] = await Promise.all([fromTape(env, "/prices").catch(() => null), coinQuotes(env).catch(() => ({}))]);
+  const [tape, coins, stats] = await Promise.all([fromTape(env, "/prices").catch(() => null), coinQuotes(env).catch(() => ({})), poolStats().catch(() => null)]);
   const bell = bellIn();
-  const out = await Promise.all(Object.keys(COINS).map(async (k) => {
+  const out = await Promise.all(["STOOK"].map(async (k) => {
     let p = null, chg = null;
     const t = tape?.[k];
     if (typeof t?.price === "number") { p = t.price; chg = typeof t.change24h === "number" ? t.change24h : null; }
@@ -169,7 +182,7 @@ async function floorData(env) {
       try { const pts = await series({ ...COINS[k], kv: env.SERIES, key: k }); const l = pts[pts.length - 1], f = pts[0]; if (l) { p = l[1]; chg = pts.length > 1 ? (l[1] / f[1] - 1) * 100 : null; } } catch {}
     }
     const [anchor, dp] = ANCHORS[k] ?? [k, 2];
-    return { coin: k, ticker: TICKER[k] ?? k, anchor, dp, price: p, chg, usd: coins[k]?.usd ?? null, usdChg: coins[k]?.change24h ?? null, bell };
+    return { coin: k, ticker: TICKER[k] ?? k, anchor, dp, price: p, chg, usd: coins[k]?.usd ?? null, usdChg: coins[k]?.change24h ?? null, bell, stats };
   }));
   return { coins: out };
 }

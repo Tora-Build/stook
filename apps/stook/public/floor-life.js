@@ -62,7 +62,7 @@
   for (const pool of [OPENERS, REPLIES, CLOSERS, HOT, COLD, FLAT]) for (let i = pool.length - 1; i >= 0; i--) if (BAD.test(pool[i])) pool.splice(i, 1);
   const mood = (chg) => (chg == null ? FLAT : chg > 2.5 ? HOT : chg < -2.5 ? COLD : Math.random() < 0.5 ? FLAT : null);
 
-  const GENERIC = ["Coffee?", "Long day.", "Close is at four.", "Watch the tape.", "Who's on the board today?", "Nothing moves before lunch.", "You seen the new post?", "Same as yesterday.", "Calls in?", "I'll be at the $STOOK table."];
+  const GENERIC = ["Coffee?", "Long day.", "Close is at four.", "Watch the tape.", "Who's on the board today?", "Nothing moves before lunch.", "You seen the new post?", "Same as yesterday.", "Calls in?", "I'll be at the $SSt. table."];
   function line(tpl, k, q) {
     if (!q || q.price == null) return pick(GENERIC);       // no number to talk about: small talk
     const dp = q.dp ?? 2, p = q.price, chg = q.change24h;

@@ -4,7 +4,7 @@
 // the bell. The big number on each table is the price its round settles on.
 import { useEffect, useRef } from "react";
 import { Link } from "react-router-dom";
-import { coinPath } from "../../lib/coins";
+import { coinPath, isDevnet } from "../../lib/coins";
 import { useCoinQuotes } from "../../lib/usd";
 import { LedRing } from "../LedRing";
 import { clock, nextBell } from "./Hero";
@@ -40,8 +40,30 @@ export function FloorStage({ rounds, now }: { rounds: StreetRound[]; now: number
       </div>
       <div className="hf-posts" ref={posts}>
         {rounds.map((r) => <FloorTable key={r.coin.symbol} r={r} now={now} said={said} />)}
+        {!isDevnet && <NextTable />}
       </div>
+      <p className="hf-note">The traders here are made up, for fun. Their talk is not real play or advice.</p>
     </section>
+  );
+}
+
+/** The empty table: what comes next, and the way to it. */
+function NextTable() {
+  return (
+    <div className="hf-post hf-post-next">
+      <Link to="/list" className="hf-table" title="List your coin on Stook Street">
+        <div className="hf-screen" data-coin="NEXT">
+          <span className="hf-next-plus pix" aria-hidden="true">+</span>
+          <span className="hf-sym">YOUR COIN</span>
+          <span className="hf-plays">plays what?</span>
+        </div>
+        <LedRing symbol="NEXT" usd={undefined} change={undefined} />
+      </Link>
+      <div className="hf-foot">
+        <span className="tag2">Empty seat</span>
+        <Link className="btn btn-sm btn-ghost" to="/list">List a coin</Link>
+      </div>
+    </div>
   );
 }
 

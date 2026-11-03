@@ -217,6 +217,10 @@ a.home-mint { margin-left: 0; }
 .hf-foot .tag2 { background: rgba(17, 27, 49, .9); border-color: #22314f; color: #a9b4cc; }
 .hf-foot .tag2.live { color: #3ddc84; }
 .hf-foot .btn-ghost { background: rgba(17, 27, 49, .9); color: #f5eedb; border-color: #22314f; }
+.hf-post-next .hf-screen { border: 2px dashed rgba(255, 198, 41, .5); background: radial-gradient(circle at 35% 28%, #141c31, #090e1c 72%); }
+.hf-post-next .led-ring { opacity: .4; }
+.hf-next-plus { font-size: 34px; line-height: 1; color: var(--taxi); margin-bottom: 8px; }
+.hf-note { margin: 32px 0 0; text-align: center; font-size: 12px; color: #8391b0; }
 /* the traders' talk: crisp cream slips, not pixel type */
 .hf .floor-bubble {
   font-family: var(--sans); font-size: 12px; font-weight: 600; line-height: 1.35; max-width: 220px;
