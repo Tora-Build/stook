@@ -149,15 +149,12 @@
       const tk = tables[b.table]?.coin || tables[a.table]?.coin;
       const withData = Object.keys(q).filter((c) => q[c] && q[c].price != null);
       const k = Math.random() < 0.7 && q[tk] ? tk : withData.length ? pick(withData) : tk;
-      // Most conversations come from the live feed; the built-in lines fill in.
+      // Conversations come from the live feed; small talk fills in.
       const fed = fromFeed(tk);
       if (fed) { convos.push({ lines: fed.map((t, i) => [i % 2 ? b : a, t]), i: 0, until: 0, a, b }); return; }
-      const pool = mood(q[k]?.change24h);
-      const opener = pool && Math.random() < 0.7 ? pick(pool) : pick(OPENERS);
-      const lines = [[a, line(opener, k, q[k])], [b, line(pick(REPLIES), k, q[k])]];
-      const r = Math.random();
-      if (r < 0.35) lines.push([a, line(pick(pool || OPENERS), k, q[k])], [b, pick(CLOSERS)]);       // a longer argument
-      else if (r < 0.75) lines.push([Math.random() < 0.5 ? a : b, pick(CLOSERS)]);
+      // No feed for now: small talk, never a made-up call or number.
+      const lines = [[a, pick(GENERIC)], [b, pick(GENERIC)]];
+      if (Math.random() < 0.6) lines.push([a, pick(CLOSERS)]);
       convos.push({ lines, i: 0, until: 0, a, b });
     }
 
