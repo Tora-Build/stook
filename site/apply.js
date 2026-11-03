@@ -10,6 +10,13 @@ const B58 = /^[1-9A-HJ-NP-Za-km-z]{32,44}$/;
 const HEX64 = /^(0x)?[0-9a-fA-F]{64}$/;
 const HANDLE = /^@?[A-Za-z0-9_]{3,32}$|^https:\/\/(t\.me|x\.com|twitter\.com)\/[A-Za-z0-9_]{3,32}\/?$/;
 
+/** A line on Telegram for each application (TG_BOT_TOKEN, TG_CHAT_ID): plain text, so nothing in it can format or link as markup. The application is saved either way. */
+async function tell(env, a, country) {
+  if (!env.TG_BOT_TOKEN || !env.TG_CHAT_ID) return;
+  const text = ["New application to list a coin", `Coin: ${a.mint}${a.symbol ? ` ($${a.symbol})` : ""}`, `Follows: ${a.asset}`, a.source && `Price source: ${a.source}`, a.seed && `Seed: ${a.seed}`, `Contact: ${a.contact}`, a.note && `Note: ${a.note}`, country && `From: ${country}`].filter(Boolean).join("\n");
+  try { await fetch(`https://api.telegram.org/bot${env.TG_BOT_TOKEN}/sendMessage`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ chat_id: env.TG_CHAT_ID, text, disable_web_page_preview: true }), signal: AbortSignal.timeout(5000) }); } catch {}
+}
+
 const json = (body, status = 200) => new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json", "cache-control": "no-store", "x-content-type-options": "nosniff" } });
 /** Plain text, one line (or a few for the note), no control characters, at most `n` long. */
 const text = (v, n, lines = false) => (typeof v === "string" ? v : "").replace(lines ? /[\u0000-\u0009\u000B-\u001F\u007F]/g : /[\u0000-\u001F\u007F]/g, " ").trim().slice(0, n);
@@ -48,5 +55,6 @@ export async function apply(request, env) {
   const at = Date.now();
   const id = `apply:${at}:${crypto.randomUUID().slice(0, 8)}`;
   await env.SERIES.put(id, JSON.stringify({ ...app, at, country: request.cf?.country ?? null }), { expirationTtl: TTL });
+  await tell(env, app, request.cf?.country);
   return json({ ok: true });
 }
