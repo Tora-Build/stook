@@ -1,5 +1,5 @@
 [Unit]
-Description=Alert that the %i X post failed
+Description=Alert that the %i Telegram post failed
 
 [Service]
 Type=oneshot

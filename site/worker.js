@@ -1,5 +1,4 @@
 import { aiChatter, bellIn, grammarChatter } from "./chatter.js";
-import { nyNow, runX, runXVideo, whoAmI } from "./xpost.js";
 import { apply } from "./apply.js";
 import FEEDS from "../apps/stook/src/lib/feeds.json";
 
@@ -202,14 +201,6 @@ export default {
   // Every five minutes: one point of history for the pools only we record.
   // Hourly: a fresh batch of AI chatter about what happened.
   async scheduled(event, env, ctx) {
-    // The X posts run on two UTC hours each, so one of them is always the
-    // right New York hour whether or not it is daylight saving time.
-    // One post a day: the morning question on Tuesday and Thursday, the
-    // closing bell on Monday, Wednesday and Friday. About 22 a month.
-    if (event.cron === "35 13,14 * * 1-5") { const ny = nyNow(); if (ny.hour === 9 && (ny.weekday === "Tue" || ny.weekday === "Thu")) ctx.waitUntil(floorData(env).then((d) => runX(env, "morning", d)).catch((e) => console.log("x morning", String(e)))); return; }
-    if (event.cron === "10 20,21 * * 1-5") { const ny = nyNow(); if (ny.hour === 16 && ["Mon", "Wed", "Fri"].includes(ny.weekday)) ctx.waitUntil(floorData(env).then((d) => runX(env, "bell", d)).catch((e) => console.log("x bell", String(e)))); return; }
-    // A check asked for through KV (x:check = "whoami"): runs once, result in x:check:result.
-    if (event.cron === "*/5 * * * *" && (await env.SERIES.get("x:check")) === "whoami") { await env.SERIES.delete("x:check"); await env.SERIES.put("x:check:result", JSON.stringify(await whoAmI(env).catch((e) => ({ error: String(e) }))), { expirationTtl: 86_400 }); }
     if (event.cron === "*/5 * * * *") { ctx.waitUntil(Promise.all(Object.entries(COINS).filter(([, c]) => c.kind === "raydium-clmm" || c.kind === "jupiter").map(([k, c]) => series({ ...c, kv: env.SERIES, key: k }, true).catch(() => null)))); return; }
     ctx.waitUntil(refreshAiChatter(env));
   },
@@ -221,27 +212,9 @@ export default {
     // and a redirected POST would lose its body.
     {
       const u = new URL(request.url);
-      const data = /^\/(prices|chart|usd|coins|supply|chatter|pyth|x|history)$|^\/(chatter|tape|hermes)\//.test(u.pathname);
+      const data = /^\/(prices|chart|usd|coins|supply|chatter|pyth|history)$|^\/(chatter|tape|hermes)\//.test(u.pathname);
       if (u.hostname !== HOME && !data && !u.hostname.endsWith(".workers.dev") && u.hostname !== "localhost") {
         return Response.redirect(`https://${HOME}${u.pathname}${u.search}`, 301);
-      }
-    }
-    {
-      const u = new URL(request.url);
-      if (u.pathname === "/x/video" && request.method === "POST") {
-        // The box's daily poster video (infra/x-poster), behind the tape token.
-        if (!env.TAPE_TOKEN || request.headers.get("authorization") !== `Bearer ${env.TAPE_TOKEN}`) return new Response("no", { status: 401 });
-        const kind = u.searchParams.get("kind") === "morning" ? "morning" : "bell", check = u.searchParams.has("check");
-        try { return Response.json(await runXVideo(env, kind, u.searchParams.get("text"), check ? null : await request.arrayBuffer(), { check }), { headers: { "cache-control": "no-store" } }); }
-        catch (e) { console.log("x video", String(e)); return Response.json({ error: String(e).slice(0, 300) }, { status: 500 }); }
-      }
-      if (u.pathname === "/x") {
-        // Anyone may preview the text; only the tape token may post by hand.
-        const post = u.searchParams.has("post");
-        if (post && (!env.TAPE_TOKEN || request.headers.get("authorization") !== `Bearer ${env.TAPE_TOKEN}`)) return new Response("no", { status: 401 });
-        const kind = u.searchParams.get("kind") === "morning" ? "morning" : "bell";
-        try { return Response.json(await runX(env, kind, await floorData(env), { dry: !post, force: post }), { headers: { "cache-control": "no-store" } }); }
-        catch (e) { return Response.json({ error: String(e).slice(0, 300) }, { status: 500 }); }
       }
     }
     const url = new URL(request.url);

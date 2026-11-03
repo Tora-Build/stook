@@ -1,13 +1,11 @@
-// The daily X post, made and sent from the box:
+// The daily poster video, made and sent from the box:
 //   node src/render.mjs morning|bell [--dry]
 // A headless Chromium opens the poster studio (../studio.html), fills the
 // poster with today's numbers from stookstreet.xyz, draws it frame by frame
 // and renders its sound offline; ffmpeg joins them into an MP4. The video
-// then goes to stookstreet.xyz/x/video, where the worker holds the X keys,
-// posts it and keeps the daily and monthly limits. The same video goes to the
-// Telegram channel (TG_CHANNEL, with TG_BOT_TOKEN, from ~/stook-alerts.env),
-// once a day, with the site's link (a link costs nothing there). --dry stops
-// after the video (saved in ~/x-posts/ either way).
+// goes to the Telegram channel (TG_CHANNEL, with TG_BOT_TOKEN, from
+// ~/stook-alerts.env), once a day, with the site's link. --dry stops after
+// the video (saved in ~/x-posts/ either way).
 //
 // By hand, to Telegram only, any scene of the studio:
 //   node src/render.mjs live --telegram-only [--still] [--caption file.txt] [--dm]
@@ -30,7 +28,6 @@ const arg = (f) => (process.argv.includes(f) ? process.argv[process.argv.indexOf
 const callers = arg("--callers"), topx = arg("--topx");
 const captionFile = process.argv.includes("--caption") ? process.argv[process.argv.indexOf("--caption") + 1] : null;
 if (!/^[a-z]+$/.test(kind ?? "") || (!tgOnly && !dry && kind !== "morning" && kind !== "bell")) { console.error("usage: render.mjs morning|bell [--dry] | render.mjs <scene> --telegram-only [--still] [--caption file] [--dm]"); process.exit(2); }
-const SITE = process.env.X_POST_URL ?? "https://stookstreet.xyz/x/video";
 const FFMPEG = process.env.FFMPEG ?? join(homedir(), "bin/ffmpeg");
 const FPS = 30;
 const log = (...a) => console.log(new Date().toISOString(), kind, ...a);
@@ -38,21 +35,12 @@ const log = (...a) => console.log(new Date().toISOString(), kind, ...a);
 // The morning question asks about one table; a different one each time.
 const day = Math.floor(Date.now() / 86_400_000), table = Math.floor(day / 2) % 4;
 
-// Ask first, so a day already posted (or a month at its cap) costs no render.
-async function ask(query, body, headers = {}) {
-  const r = await fetch(`${SITE}?kind=${kind}${query}`, { method: "POST", body, headers: { authorization: `Bearer ${process.env.TAPE_TOKEN}`, ...headers }, signal: AbortSignal.timeout(180_000) });
-  const text = await r.text();
-  if (!r.ok) throw new Error(`site ${r.status}: ${text.slice(0, 300)}`);
-  return JSON.parse(text);
-}
 const dir = join(homedir(), "x-posts"); mkdirSync(dir, { recursive: true });
 const stamp = new Date().toISOString().slice(0, 10), mp4 = join(dir, `${stamp}-${kind}.mp4`), wav = join(dir, `${stamp}-${kind}.wav`);
 const { TG_BOT_TOKEN: tg, TG_CHANNEL, TG_CHAT_ID } = process.env, channel = dm ? TG_CHAT_ID : TG_CHANNEL, tgDone = join(dir, `${stamp}-${kind}.telegram`);
 const toTelegram = !dry && tg && channel && (tgOnly || !existsSync(tgDone));
 if (tgOnly && !toTelegram) { console.error("no Telegram keys or chat (~/stook-alerts.env)"); process.exit(2); }
-let toX = false;
-if (!dry && !tgOnly) { const pre = await ask("&check=1").catch((e) => ({ skipped: String(e) })); toX = !!pre.ok; if (!toX) log("x skip:", pre.skipped); }
-if (!dry && !toX && !toTelegram) process.exit(0);
+if (!dry && !toTelegram) process.exit(0);
 
 /** Telegram HTML: the first line bold, a Solana address tap-to-copy. */
 function telegramHtml(text) {
@@ -96,11 +84,6 @@ try {
 writeFileSync(mp4.replace(/\.mp4$/, ".txt"), caption);
 if (dry) { log("dry run, not posted:\n" + caption); process.exit(0); }
 let failed = false;
-if (toX) {
-  const res = await ask(`&text=${encodeURIComponent(caption)}`, readFileSync(mp4), { "content-type": "video/mp4" }).catch((e) => ({ error: String(e) }));
-  log("site:", JSON.stringify(res));
-  if (!res.posted && !res.skipped) failed = true;
-}
 if (toTelegram) {
   const form = new FormData();
   form.append("chat_id", channel);

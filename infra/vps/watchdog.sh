@@ -100,5 +100,5 @@ case "$1" in
       "$ALERT" --ok resolver "Soo resolver is answering again."
     fi ;;
   x)
-    "$ALERT" "x-$2" "Today's X ${2} post failed. Log: ~/stook-x.log. Post by hand: sudo systemctl start stook-x@${2}" ;;
+    "$ALERT" "x-$2" "Today's Telegram ${2} post failed. Log: ~/stook-x.log. Post by hand: sudo systemctl start stook-x@${2}" ;;
 esac

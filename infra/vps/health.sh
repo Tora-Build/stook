@@ -16,8 +16,6 @@ import sys, json, time
 d = json.load(sys.stdin); n = time.time()
 print('\n'.join(f\"  {k} {v['price']:,.6g} ({int((n - v['at']) / 60)} min old)\" for k, v in d.items() if isinstance(v, dict) and 'price' in v))" 2>/dev/null)
 RES=$(curl -s -m 10 localhost:8790/health | grep -q '"ok":true' && echo "answering" || echo "NOT answering")
-XLINE=$(grep '"posted"' "$H/stook-x.log" 2>/dev/null | tail -1)
-XWHEN=${XLINE:0:10}; XID=$(echo "$XLINE" | grep -o '"posted":"[0-9]*"' | cut -d'"' -f4)
 
 # The simulated fleet's day, as the bot's /fleet answers it.
 FLEET=$(cd $H/stook/infra/sim && HOME=$H SIM_DIR=$H/sim timeout 60 /usr/bin/node src/bot.bundle.mjs --print /fleet 2>/dev/null | grep -v "^Last:")
@@ -32,7 +30,6 @@ Keeper wallet: ${SOL:-?} SOL
 Last 24h: ${OPENS} opened, ${SETTLES} settled, ${VOIDS} voided
 Prices:
 ${PRICES:-  tape not answering}
-Last X post: ${XWHEN:-none}${XID:+ x.com/stookstreetxyz/status/$XID}
 
 $(printf '%s\n' "$FLEET")
 

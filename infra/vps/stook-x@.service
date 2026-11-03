@@ -1,5 +1,5 @@
 [Unit]
-Description=Stook X post: render today's %i poster and post it
+Description=Stook poster: render today's %i video and post it to Telegram
 After=network-online.target
 Wants=network-online.target
 OnFailure=stook-x-alert@%i.service

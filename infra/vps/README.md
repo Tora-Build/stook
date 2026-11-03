@@ -21,17 +21,16 @@ The box runs these as systemd services under the `zak` user (no cron on it).
 
 Logs: `~/ladder-crank.log`, `~/stook-tape.log`, `~/ledger.log`, `~/resolver.log`, `~/resolver-cron.log`.
 
-## Daily X post
+## Daily Telegram video
 
 `stook-x-bell.timer` (Mon, Wed, Fri 16:10 New York) and `stook-x-morning.timer`
 (Tue, Thu 9:35) run `stook-x@<kind>.service`: `infra/x-poster/src/render.mjs`
 opens the poster studio in a headless Chromium (playwright's headless shell in
 `~/.cache/ms-playwright`), fills it from stookstreet.xyz/prices, renders it
 frame by frame with ffmpeg (`~/bin/ffmpeg`, a static build) and sends the MP4
-to `stookstreet.xyz/x/video` with the tape token. The worker holds the X keys
-and posts it: once a New York day, at most 23 a month, never with a link
-(X charges $0.20 for a post with a link, $0.015 without). Videos land in
-`~/x-posts/`, the log in `~/stook-x.log`. Try one without posting:
+to the Telegram channel. Nothing posts to X through the API; X posts are made
+by hand. Videos land in `~/x-posts/`, the log in `~/stook-x.log`. Try one
+without posting:
 `cd ~/stook/infra/x-poster && set -a && . ~/stook.env && node src/render.mjs bell --dry`.
 Post today's by hand: `sudo systemctl start stook-x@bell`.
 
@@ -43,7 +42,7 @@ Post today's by hand: `sudo systemctl start stook-x@bell`.
   for 15 min, keeper wallet under 0.5 SOL (checked every 30 min)
 - price tape stale for 45 min (restarted)
 - Soo's resolver not answering `/health` (every 5 min)
-- an X post that failed (`stook-x@.service` → `OnFailure=stook-x-alert@%i`)
+- a Telegram video post that failed (`stook-x@.service` → `OnFailure=stook-x-alert@%i`)
 
 Each problem alerts at most once an hour, and says so again when it recovers.
 Keys: `/home/zak/stook-alerts.env` with `TG_BOT_TOKEN=` and `TG_CHAT_ID=`,
@@ -59,7 +58,7 @@ With the same keys the box also sends:
   skipped. Each note is also written, time-stamped, to `~/stook-events.log`.
 - **Daily report** (`stook-health.timer`, 9:00 New York, `health.sh`): services,
   keeper pass and health age, wallet SOL, the last 24 h of opens, settles and
-  voids, tape prices and their age, resolver, last X post, load, memory, disk.
+  voids, tape prices and their age, resolver, load, memory, disk.
 - **Channel**: with `TG_CHANNEL=@StookStreet` in `~/stook-alerts.env` (the bot an
   admin allowed to post there), the bell and morning videos also go to the
   channel, once a day each, with the site's link.
