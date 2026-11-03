@@ -8,6 +8,8 @@ User=zak
 WorkingDirectory=/home/zak/stook/infra/tape
 EnvironmentFile=/home/zak/stook.env
 Environment=TAPE_FILE=/home/zak/stook-tape.json
+# The site is on mainnet, so /history and /days come from the mainnet ledger.
+Environment=LEDGER_URL=http://127.0.0.1:8793
 ExecStart=/usr/bin/node /home/zak/stook/infra/tape/src/index.bundle.mjs
 Restart=always
 RestartSec=5
