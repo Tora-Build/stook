@@ -14,7 +14,7 @@ export const WS_URL: string = env.VITE_WS_URL || `wss://api.${CLUSTER}.solana.co
 export const SCAN_RPC_URL: string = env.VITE_SCAN_RPC_URL || PUBLIC_RPC;
 export const QUOTE_MINT: PublicKey | null = env.VITE_QUOTE_MINT ? new PublicKey(env.VITE_QUOTE_MINT) : null;
 /** The test-coin faucet's mint authority. Empty (always on mainnet) hides every test-coin hint. */
-export const FAUCET_AUTHORITY_BYTES: string = CLUSTER === "devnet" ? env.VITE_FAUCET_AUTHORITY_BYTES || "" : "";
+export const FAUCET_AUTHORITY_BYTES: string = import.meta.env.VITE_CLUSTER === "mainnet-beta" ? "" : CLUSTER === "devnet" ? env.VITE_FAUCET_AUTHORITY_BYTES || "" : "";
 export const EXPLORER = (kind: "address" | "tx", id: string) => `https://explorer.solana.com/${kind}/${id}${CLUSTER === "devnet" ? "?cluster=devnet" : ""}`;
 
 /** Pyth's push oracle: one `PriceUpdateV2` per feed, refreshed by Pyth's own keeper. */

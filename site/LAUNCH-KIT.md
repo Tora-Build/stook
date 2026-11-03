@@ -26,7 +26,7 @@ Stook Street is a corner of the financial district for memecoins anchored to sto
 
 ## What the site claims, and whether it is true today
 
-- "Program and app run on Solana devnet": true (program `55kGEMHJ…`). Each coin has a daily series; its rounds open once the series has learned 20 daily returns from Pyth.
+- "Program and app run on Solana mainnet": true (program `55kGEMHJ…`). Each coin has a daily series; its rounds open once the series has learned 20 daily returns from Pyth.
 - "Rounds open and settle themselves from Pyth; the keeper is public and paid a bounty": true (`infra/ladder-crank`, hosted; bounty in `ladder_settle`, half the protocol's 10% of fees). A round the keeper cannot open within five minutes, or whose closing price fails the settlement rule, voids and refunds, depositors first.
 - "$STOOK is live on StonkFun, anchored to SPY": true (relaunched 2026-09-24 as a standard token; the first mint `GWrd84X5…` is retired).
 - "Rounds settle on the real anchor": true. $SSt. settles on the Raydium CLMM pool of Polymarket's PreStocks token, averaged over ten minutes (`pool_oracle.rs`). The other coins open on mainnet once their anchors' Pyth feeds can be read on chain.

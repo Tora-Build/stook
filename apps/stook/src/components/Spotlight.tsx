@@ -166,7 +166,7 @@ export function TowerGuide(p: { step: number; go: (n: number) => void; bell: str
       find = () => one(".ss-head .wallet-adapter-button");
       text = FAUCET_AUTHORITY_BYTES ? "Connect a wallet, then grab free test coins." : "Connect a wallet to place a call.";
       foot = <><button className="sl-go" onClick={done}>Got it</button>{how}</>;
-    } else if (p.wallet === "empty") {
+    } else if (p.wallet === "empty" && FAUCET_AUTHORITY_BYTES) {
       find = () => one(".ss-head .ss-faucet");
       text = "Grab free test coins.";
       foot = <><button className="sl-go" onClick={done}>Got it</button>{how}</>;

@@ -81,7 +81,8 @@ const devnetMints: Record<string, string> = (() => {
 const feedOverrides: Record<string, { symbol: string; name: string; feedId: string; dp: number }> = (() => {
   try { return JSON.parse(import.meta.env.VITE_FEED_OVERRIDES || "{}"); } catch { return {}; }
 })();
-export const isDevnet = Object.keys(devnetMints).length > 0;
+// Decided at build time, so a mainnet build carries no test-coin text at all.
+export const isDevnet = import.meta.env.VITE_CLUSTER !== "mainnet-beta" && Object.keys(devnetMints).length > 0;
 /** The feed a coin's rounds settle on in this build. */
 export const anchorOf = (c: Coin): Anchor => {
   const d = feedOverrides[keyOf(c)];
