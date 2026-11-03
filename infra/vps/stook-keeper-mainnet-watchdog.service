@@ -1,0 +1,6 @@
+[Unit]
+Description=Restart stook-keeper-mainnet when stuck; alert when its wallet is low
+
+[Service]
+Type=oneshot
+ExecStart=/home/zak/stook/infra/vps/watchdog.sh keeper-mainnet

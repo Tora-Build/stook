@@ -4,6 +4,8 @@
 #   watchdog.sh keeper   no pass (heartbeat) for 5 minutes: restart; rounds failing
 #                        (health) for 15: alert, and restart once an hour at most;
 #                        keeper wallet under 0.5 SOL: alert
+#   watchdog.sh keeper-mainnet  the same for the mainnet keeper once it runs; its
+#                        wallet under 0.15 SOL: alert
 #   watchdog.sh tape     no coin updated for 45 minutes: restart, alert
 #   watchdog.sh resolver Soo's resolver not answering /health: alert
 #   watchdog.sh ledger   no successful poll of the chain for 10 minutes (or no
@@ -46,6 +48,29 @@ case "$1" in
         "$ALERT" keeper-sol "Keeper wallet is low: ${SOL} SOL. Top it up on devnet before it stops opening and settling rounds."
       elif [ -n "$SOL" ]; then
         "$ALERT" --ok keeper-sol "Keeper wallet topped up: ${SOL} SOL."
+      fi
+    fi ;;
+  keeper-mainnet)
+    # Only once it runs: no pass for 5 minutes, restart.
+    if systemctl is-active -q stook-keeper-mainnet; then
+      BEAT=/home/zak/ladder-crank-mainnet.beat
+      AGE=$(( $(now) - $(stat -c %Y "$BEAT" 2>/dev/null || echo 0) ))
+      if [ "$AGE" -gt 300 ] && [ "$(up stook-keeper-mainnet)" -gt 300 ]; then
+        echo "$(date -u +%FT%TZ) watchdog: no pass for ${AGE}s, restarting" >> /home/zak/ladder-crank-mainnet.log
+        "$ALERT" keeper-mainnet-dead "MAINNET keeper can't read the chain: no pass for $((AGE / 60)) min. Restarting it. Log: ~/ladder-crank-mainnet.log"
+        systemctl restart stook-keeper-mainnet
+      elif [ "$AGE" -le 300 ]; then
+        "$ALERT" --ok keeper-mainnet-dead "MAINNET keeper is passing again."
+      fi
+    fi
+    # Its wallet pays the rent of each open round (back when the round
+    # closes) and the fees: every 30 minutes, alert under 0.15 SOL.
+    if [ $(( $(now) / 60 % 30 )) -eq 0 ]; then
+      SOL=$(set -a && . /home/zak/stook-mainnet.env && set +a && timeout 30 /usr/bin/node /home/zak/stook/infra/vps/sol-balance.mjs 3 2>/dev/null)
+      if [ -n "$SOL" ] && awk "BEGIN{exit !($SOL < 0.15)}"; then
+        "$ALERT" keeper-mainnet-sol "MAINNET keeper wallet is low: ${SOL} SOL. Send SOL to H1xgYrQwuFHPWz6FiM6XBgVD3EyqsoPfeFqPsu9cWoP4 before it stops opening rounds."
+      elif [ -n "$SOL" ]; then
+        "$ALERT" --ok keeper-mainnet-sol "MAINNET keeper wallet topped up: ${SOL} SOL."
       fi
     fi ;;
   tape)
