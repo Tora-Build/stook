@@ -1,0 +1,23 @@
+[Unit]
+Description=Stook ledger on mainnet (served on 127.0.0.1:8793)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+User=zak
+WorkingDirectory=/home/zak/stook/infra/ledger
+EnvironmentFile=/home/zak/stook-mainnet.env
+Environment=LEDGER_DIR=/home/zak/ledger-mainnet
+Environment=LEDGER_PORT=8793
+# node:sqlite: behind this flag on Node 22.5 to 22.12, a no-op after. On a
+# Node without node:sqlite the ledger falls back to its JSONL store.
+ExecStart=/usr/bin/node --experimental-sqlite --disable-warning=ExperimentalWarning /home/zak/stook/infra/ledger/src/index.bundle.mjs
+Restart=always
+RestartSec=10
+Nice=10
+MemoryMax=400M
+StandardOutput=append:/home/zak/ledger-mainnet.log
+StandardError=append:/home/zak/ledger-mainnet.log
+
+[Install]
+WantedBy=multi-user.target

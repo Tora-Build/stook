@@ -32,6 +32,10 @@ export default {
     if (request.method === "OPTIONS") {
       return new Response(null, { headers: CORS });
     }
+    // Mainnet: only our own pages, so another site can't spend the key's quota.
+    if (env.ORIGINS && !env.ORIGINS.split(",").includes(request.headers.get("origin") ?? "")) return deny("origin not served", 403);
+    // Mainnet: confirmations subscribe over a websocket, passed through as it is.
+    if (env.PASS_WS && request.headers.get("upgrade")?.toLowerCase() === "websocket") return fetch(env.UPSTREAM_RPC, request);
     if (request.method !== "POST") {
       return new Response("POST JSON-RPC only", { status: 405, headers: CORS });
     }
@@ -47,11 +51,24 @@ export default {
     const list = Array.isArray(calls) ? calls : [calls];
     if (list.length === 0 || list.length > MAX_BATCH) return deny("batch size", 400);
     for (const c of list) if (!c || typeof c.method !== "string" || !METHODS.has(c.method)) return deny(`method not served: ${String(c?.method).slice(0, 40)}`, 403);
+    // Mainnet: a scan costs ten times a read and every open tab repeats it, so
+    // all tabs share one answer for SCAN_CACHE_SECS.
+    const scan = !!env.SCAN_CACHE_SECS && !Array.isArray(calls) && calls.method === "getProgramAccounts";
+    const cacheKey = scan ? new Request(`https://scan.cache/${[...new Uint8Array(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(JSON.stringify(calls.params))))].map((b) => b.toString(16).padStart(2, "0")).join("")}`) : null;
+    if (scan) {
+      const hit = await caches.default.match(cacheKey);
+      if (hit) return new Response(JSON.stringify({ ...(await hit.json()), id: calls.id }), { headers: { "content-type": "application/json", ...CORS } });
+    }
     const upstream = await fetch(env.UPSTREAM_RPC, {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: text,
     });
+    if (scan && upstream.ok) {
+      const answer = await upstream.text();
+      if (!JSON.parse(answer).error) await caches.default.put(cacheKey, new Response(answer, { headers: { "cache-control": `public, max-age=${env.SCAN_CACHE_SECS}` } }));
+      return new Response(answer, { headers: { "content-type": "application/json", ...CORS } });
+    }
     return new Response(upstream.body, {
       status: upstream.status,
       headers: { "content-type": "application/json", ...CORS },

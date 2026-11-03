@@ -22,6 +22,16 @@ Run `setup.mjs init series seed house deposit` shortly before a 4 PM New York
 bell, so the house's first round opens on time. `seed` needs the pool's
 observation entries to cover the latest close (they cover about a day).
 
+## The site
+
+The browser reads through `infra/rpc-proxy` (`wrangler deploy --env mainnet`,
+secret `UPSTREAM_RPC`): the public RPC refuses browsers, and the proxy keeps the
+key server-side, serves only our origin and shares scans between tabs. The app's
+mainnet settings are in `apps/stook/.env.local`; the devnet ones in
+`.env.devnet.local`. On the box the keeper's scans and the ledger
+(`stook-ledger-mainnet`, port 8793) use the public RPC, which is free and
+answers the box; `stook-tape` passes `/history` to `LEDGER_URL`.
+
 ## What it costs and what comes back
 
 | | SOL | comes back |

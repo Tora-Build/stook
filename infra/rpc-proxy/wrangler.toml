@@ -10,3 +10,15 @@ compatibility_date = "2026-08-01"
 name = "LIMITER"
 namespace_id = "7001"
 simple = { limit = 300, period = 10 }
+
+# Mainnet, for the site's browsers: wrangler deploy --env mainnet
+[env.mainnet]
+name = "stook-rpc-mainnet"
+[env.mainnet.vars]
+ORIGINS = "https://stookstreet.xyz,https://www.stookstreet.xyz"
+PASS_WS = "1"
+SCAN_CACHE_SECS = "20"
+[[env.mainnet.ratelimits]]
+name = "LIMITER"
+namespace_id = "7002"
+simple = { limit = 60, period = 10 }

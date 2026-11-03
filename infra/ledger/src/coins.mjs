@@ -15,6 +15,7 @@ export const FEEDS = {
   ef0d8b6fda2ceba41da15d4095d1da392a0d2f8ed0c6c7bc0f4cfac8c280b56d: { coin: "KNOTS", symbol: "SOL", name: "Solana", dp: 2 },
   dcef50dd0a4cd2dcc17e45df1676dcb336a11a61c69df7a0299b0150c672d25c: { coin: "GP", symbol: "DOGE", name: "Dogecoin", dp: 4 },
   // mainnet anchors (lib/coins.ts COINS)
+  "45541ba20dabe3e68b11405564e749ac0119de0e5f4a1aa441e60e3335b737c8": { coin: "STOOK", symbol: "POLY", name: "Polymarket", dp: 2 },
   "2817b78438c769357182c04346fddaad1178c82f4048828fe0997c3c64624e14": { coin: "STOOK", symbol: "SPYx", name: "S&P 500", dp: 2 },
   be9b59d178f0d6a97ab4c343bff2aa69caa1eaae3e9048a65788c529b125bb24: { coin: "ZCAT", symbol: "ZEC", name: "Zcash", dp: 2 },
   f68272be1240150c36b54dce26a9b75f62f507a94f49f43533a5050c77e07049: { coin: "KNOTS", symbol: "STONK", name: "STONK", dp: 4 },
