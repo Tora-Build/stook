@@ -10,11 +10,12 @@ User=zak
 WorkingDirectory=/home/zak/stook/infra/x-poster
 EnvironmentFile=/home/zak/stook.env
 EnvironmentFile=-/home/zak/stook-alerts.env
+Environment=DAILY_CHROME=/home/zak/.cache/ms-playwright/chromium_headless_shell-1243/chrome-headless-shell-linux-arm64/chrome-headless-shell
 ExecStart=/usr/bin/node /home/zak/stook/infra/x-poster/src/render.mjs %i
 # A guest on a shared box: low priority, one core, bounded memory.
 Nice=10
 CPUQuota=100%
-MemoryMax=1500M
-TimeoutStartSec=15min
+MemoryMax=3G
+TimeoutStartSec=30min
 StandardOutput=append:/home/zak/stook-x.log
 StandardError=append:/home/zak/stook-x.log

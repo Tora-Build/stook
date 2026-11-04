@@ -1,6 +1,7 @@
 import { Composition } from "remotion";
 import { Ad, Ad6, Full, type AdProps } from "./Ad";
 import { FPS, FULL, LONG, SHORT, ST } from "./config";
+import { DAILY_SAMPLE, Daily, dailyTotal } from "./Daily";
 import { Street } from "./Street";
 
 // For X: the full-length ad (the track's length), a 15 s and a 6 s cut, each
@@ -11,6 +12,8 @@ const street: AdProps = { track: "street.mp3" };
 export function Root() {
   return (
     <>
+      <Composition id="DailyBell" component={Daily} durationInFrames={dailyTotal("bell")} fps={FPS} width={1080} height={1920} defaultProps={{ ...DAILY_SAMPLE, kind: "bell" as const }} />
+      <Composition id="DailyMorning" component={Daily} durationInFrames={dailyTotal("morning")} fps={FPS} width={1080} height={1920} defaultProps={{ ...DAILY_SAMPLE, kind: "morning" as const }} />
       <Composition id="Street" component={Street} durationInFrames={ST.total} fps={FPS} width={1080} height={1920} defaultProps={street} />
       <Composition id="StreetSquare" component={Street} durationInFrames={ST.total} fps={FPS} width={1080} height={1080} defaultProps={street} />
       <Composition id="Full" component={Full} durationInFrames={FULL.total} fps={FPS} width={1080} height={1080} defaultProps={props} />

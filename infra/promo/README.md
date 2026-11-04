@@ -77,6 +77,16 @@ Without `public/music.mp3` every render is silent; `--props='{"track":"none"}'`
 forces silence. Optional sound effects play with the music when present:
 `public/sfx/{flap,stop,coins,bell}.(mp3|wav)`.
 
+## The daily videos
+
+`src/Daily.tsx`: 1080x1920, about 19 s, one for the bell and one for the morning.
+Built by `scripts/daily-clips.sh`, rendered by `scripts/daily-render.mjs`.
+`public-daily/` and `bundle-daily/` are not in git. Each video has its own track
+from Mixkit (mixkit.co), by Arulo: bell "Trap" (305), morning "C.B.P.D" (400).
+Sound effects are also Mixkit: 619, 2908, 1143, 2609, 444, 1045, 2719, 1490, 1457,
+1993, 1989. Render with chrome-headless-shell (`DAILY_CHROME`): desktop Chrome
+gives tiled, half-black frames.
+
 ## Notes
 
 - If Remotion can't fetch its headless Chrome: `REMOTION_CHROME="/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" sh render.sh`.

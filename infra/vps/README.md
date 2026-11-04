@@ -34,6 +34,13 @@ without posting:
 `cd ~/stook/infra/x-poster && set -a && . ~/stook.env && node src/render.mjs bell --dry`.
 Post today's by hand: `sudo systemctl start stook-x@bell`.
 
+The video is the street cut's design (`infra/promo/src/Daily.tsx`, compositions
+`DailyBell`, `DailyMorning`). `~/stook-daily` holds the bundle, `cuts.json` and
+prebuilt clips (`clips/<kind>-head.mp4`, `-tail.mp4`, `<kind>.m4a`). Each post
+renders only the part with the numbers, about 3 minutes, then `src/daily.mjs`
+joins it and checks it. Any failure falls back to the old studio video. After a
+change to `Daily.tsx`: rebuild the bundle, then `~/stook-daily/daily-clips-box.sh`.
+
 ## Telegram alerts
 
 `alert.sh` sends to Telegram; `watchdog.sh` calls it, from the timers:

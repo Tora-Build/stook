@@ -1,4 +1,4 @@
-// The daily poster video, made and sent from the box:
+// The daily video, made and sent from the box (daily.mjs; the studio as the fallback and for other scenes):
 //   node src/render.mjs morning|bell [--dry]
 // A headless Chromium opens the poster studio (../studio.html), fills the
 // poster with today's numbers from stookstreet.xyz, draws it frame by frame
@@ -19,6 +19,7 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
+import { dailyReady, makeDaily } from "./daily.mjs";
 
 const kind = process.argv[2];
 const flag = (f) => process.argv.includes(f);
@@ -49,8 +50,14 @@ function telegramHtml(text) {
   return [`<b>${head}</b>`, ...rest].join("\n").replace(/\b[1-9A-HJ-NP-Za-km-z]{32,44}\b/g, (a) => `<code>${a}</code>`);
 }
 
+// The morning and the bell: the new design. If it fails, the studio's video goes out instead, so no day is missed.
+let caption, made = false;
+if ((kind === "morning" || kind === "bell") && !tgOnly && !captionFile && dailyReady()) {
+  try { caption = await makeDaily(kind, mp4, FFMPEG, { lead: flag("--now") ? 30 : 420 }); made = true; log(`video ${mp4} (new design)`); }
+  catch (e) { log("new video failed, using the studio:", String(e)); }
+}
+if (!made) {
 const browser = await chromium.launch({ args: ["--autoplay-policy=no-user-gesture-required"] });
-let caption;
 try {
   const page = await browser.newPage({ viewport: { width: 1400, height: 1200 } });
   const studio = join(dirname(fileURLToPath(import.meta.url)), "../studio.html");
@@ -80,6 +87,7 @@ try {
   log(`video ${mp4} (${frames} frames)`);
   }
 } finally { await browser.close(); }
+}
 
 writeFileSync(mp4.replace(/\.mp4$/, ".txt"), caption);
 if (dry) { log("dry run, not posted:\n" + caption); process.exit(0); }
@@ -90,7 +98,7 @@ if (toTelegram) {
   form.append("caption", telegramHtml(caption.replace(/link in bio/g, "stookstreet.xyz")));
   form.append("parse_mode", "HTML");
   if (still) form.append("photo", new Blob([readFileSync(mp4.replace(/\.mp4$/, ".png"))], { type: "image/png" }), `stook-${kind}.png`);
-  else { form.append("supports_streaming", "true"); form.append("video", new Blob([readFileSync(mp4)], { type: "video/mp4" }), `stook-${kind}.mp4`); }
+  else { form.append("supports_streaming", "true"); form.append("width", "1080"); form.append("height", made ? "1920" : "1080"); form.append("video", new Blob([readFileSync(mp4)], { type: "video/mp4" }), `stook-${kind}.mp4`); }
   const r = await fetch(`https://api.telegram.org/bot${tg}/${still ? "sendPhoto" : "sendVideo"}`, { method: "POST", body: form, signal: AbortSignal.timeout(120_000) }).then((x) => x.json()).catch((e) => ({ ok: false, description: String(e) }));
   if (r.ok && !tgOnly) { writeFileSync(tgDone, String(r.result?.message_id ?? "")); log("telegram: posted", r.result?.message_id); }
   else if (r.ok) log("telegram: posted", r.result?.message_id);
