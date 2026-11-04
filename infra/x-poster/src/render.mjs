@@ -52,7 +52,7 @@ function telegramHtml(text) {
 
 // The morning and the bell: the new design. If it fails, the studio's video goes out instead, so no day is missed.
 let caption, made = false;
-if ((kind === "morning" || kind === "bell") && !tgOnly && !captionFile && dailyReady()) {
+if ((kind === "morning" || kind === "bell") && !still && !captionFile && dailyReady()) {
   try { caption = await makeDaily(kind, mp4, FFMPEG, { lead: flag("--now") ? 30 : 420 }); made = true; log(`video ${mp4} (new design)`); }
   catch (e) { log("new video failed, using the studio:", String(e)); }
 }
