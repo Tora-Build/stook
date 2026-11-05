@@ -1,4 +1,4 @@
-# The VPS: systemd units for the keeper, the tape and Soo's zk-resolver
+# The VPS: systemd units for the keeper, the ledger and the tape
 
 The box runs these as systemd services under the `zak` user (no cron on it).
 `install.sh` copies the units into /etc/systemd/system and starts them.
@@ -10,16 +10,11 @@ The box runs these as systemd services under the `zak` user (no cron on it).
 - `stook-tape`: `infra/tape`, env from `~/stook.env`. It starts its own
   cloudflared quick tunnel; stopping the service stops the tunnel too.
   `stook-tape-watchdog.timer` restarts it when no coin has updated for 45 minutes.
-- `soo-resolver`: Soo's `infra/zk-resolver --serve --port 8790` from
-  `~/soo/infra/zk-resolver` (its own `.env`), and `soo-resolver-pass.timer`
-  runs `--once` every 5 minutes. `resolver.sooth.market` reaches it through
-  the box's named Cloudflare tunnel (managed by Daniel).
-
 - `stook-ledger`: `infra/ledger`, the history behind the History tab on Yours
   (see "Ledger" below). `stook-ledger-watchdog.timer` restarts it when it has
   not read the chain for 10 minutes.
 
-Logs: `~/ladder-crank.log`, `~/stook-tape.log`, `~/ledger.log`, `~/resolver.log`, `~/resolver-cron.log`.
+Logs: `~/ladder-crank.log`, `~/stook-tape.log`, `~/ledger.log`, `~/stook-bot.log`.
 
 ## Daily Telegram video
 
@@ -46,9 +41,8 @@ change to `Daily.tsx`: rebuild the bundle, then `~/stook-daily/daily-clips-box.s
 `alert.sh` sends to Telegram; `watchdog.sh` calls it, from the timers:
 
 - keeper can't read the chain (no pass for 5 min, restarted), rounds failing
-  for 15 min, keeper wallet under 0.5 SOL (checked every 30 min)
+  for 15 min, keeper wallet under 0.15 SOL (checked every 30 min)
 - price tape stale for 45 min (restarted)
-- Soo's resolver not answering `/health` (every 5 min)
 - a Telegram video post that failed (`stook-x@.service` → `OnFailure=stook-x-alert@%i`)
 
 Each problem alerts at most once an hour, and says so again when it recovers.
@@ -67,6 +61,10 @@ With the same keys the box also sends:
   calls, wallets, volume and fees, the rounds, the house and wallet balances, the
   market, and the systems. By hand, without sending:
   `set -a; . ~/stook-mainnet.env; set +a; node --experimental-sqlite monitor.mjs report --print`
+- **Mainnet commands** (`stook-bot`, `monitor.mjs bot`): `/status`, `/trades [n]`,
+  `/wallets`, `/rounds`, `/balances`, `/market`, `/systems`, `/help`. It reads only and
+  answers `TG_CHAT_ID` only. Try one on the box, without Telegram:
+  `set -a; . ~/stook-mainnet.env; set +a; node --experimental-sqlite monitor.mjs ask /rounds`
 - **Mainnet watch** (`stook-monitor.timer`, every 5 minutes, `monitor.mjs watch`): each
   new trade, and an alert for a service down, rounds failing, a late settle, no round
   open, a void, the house down 10%, the site or RPC proxy not answering, a stale

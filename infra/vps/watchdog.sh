@@ -4,7 +4,6 @@
 #   watchdog.sh keeper-mainnet  no pass (heartbeat) for 5 minutes: restart; keeper
 #                        wallet under 0.15 SOL: alert
 #   watchdog.sh tape     no coin updated for 45 minutes: restart, alert
-#   watchdog.sh resolver Soo's resolver not answering /health: alert
 #   watchdog.sh ledger   no successful poll of the chain for 10 minutes (or no
 #                        answer on /health): restart, alert
 up() { local ts; ts=$(systemctl show -p ActiveEnterTimestampMonotonic --value "$1"); echo $(( ($(cut -d. -f1 /proc/uptime) * 1000000 - ts) / 1000000 )); }
@@ -53,12 +52,6 @@ case "$1" in
       systemctl restart stook-ledger-mainnet
     elif [ "${AGE:-999999}" -le 600 ]; then
       "$ALERT" --ok ledger "Ledger is reading the chain again."
-    fi ;;
-  resolver)
-    if ! curl -s -m 10 localhost:8790/health | grep -q '"ok":true'; then
-      "$ALERT" resolver "Soo resolver is not answering /health on the box. Check: systemctl status soo-resolver"
-    else
-      "$ALERT" --ok resolver "Soo resolver is answering again."
     fi ;;
   x)
     "$ALERT" "x-$2" "Today's Telegram ${2} post failed. Log: ~/stook-x.log. Post by hand: sudo systemctl start stook-x@${2}" ;;

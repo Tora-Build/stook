@@ -1,6 +1,8 @@
 // Mainnet, on Telegram (through alert.sh). Read only: no key, nothing signed.
 //   node --experimental-sqlite monitor.mjs report [--print]   the state of the street, twice a day (stook-health.timer)
 //   node --experimental-sqlite monitor.mjs watch [--print]    every 5 minutes (stook-monitor.timer): new trades, and what is wrong
+//   node --experimental-sqlite monitor.mjs bot                answers commands from one chat (stook-bot.service)
+//   node --experimental-sqlite monitor.mjs ask /status        prints what the bot would answer
 // watch keeps its place in ~/.stook-monitor.json. On its first run it notes where
 // the ledger is and tells nothing, so old trades are not sent again.
 import { spawnSync } from "node:child_process";
@@ -11,7 +13,7 @@ const HOME = "/home/zak", ALERT = `${HOME}/stook/infra/vps/alert.sh`, STATE = `$
 const HOUSE = "2hMUE33LXhCg78BaXYsKwuUZRB2WeNVQonaQEeedsrAQ", MINT = "Buc1mBBU63RmtWefNSoi3w3CjZ2iQvyPjeF6bJNxCuwq";
 const KEEPER = "H1xgYrQwuFHPWz6FiM6XBgVD3EyqsoPfeFqPsu9cWoP4", DEPLOY = "DMUtpDCXfmumuR5kKC5h17u1SVS632KgHVZMK4zbgRre";
 const TEAM = { FftHnc6DsnWsr7amM7N7SUwVAjjWWAZSMLggv2EgPk7K: "you", [DEPLOY]: "deploy wallet", [KEEPER]: "keeper" };
-const SERVICES = { "stook-keeper-mainnet": "Keeper", "stook-ledger-mainnet": "Ledger", "stook-tape": "Price tape" };
+const SERVICES = { "stook-keeper-mainnet": "Keeper", "stook-ledger-mainnet": "Ledger", "stook-tape": "Price tape", "stook-bot": "Telegram bot" };
 const PROXY = "https://stook-rpc-mainnet.zak-a35.workers.dev", SITE = "https://stookstreet.xyz";
 const RPC = process.env.RPC_URL;
 
@@ -89,7 +91,8 @@ function roundsNow(rounds) {
 }
 const priceOf = (r, raw) => Number(raw) * 10 ** (r.expo ?? 0);
 
-async function report() {
+/** Each part of the report, read fresh. The scheduled report and the commands share it. */
+async function sections() {
   const t = now(), { rows, rounds } = ledger(), day = usage(rows, t - 86_400), all = usage(rows, 0), { open, done } = roundsNow(rounds);
   const [h, kSol, dSol, prices, led, gecko, jup] = await Promise.all([
     safe(house()), safe(sol(KEEPER)), safe(sol(DEPLOY)), safe(getJson(`${SITE}/prices`)), safe(getJson("http://127.0.0.1:8793/health")),
@@ -101,38 +104,47 @@ async function report() {
   const change = h && state.houseBase ? ` (${h.capital >= state.houseBase ? "+" : ""}${num(h.capital - state.houseBase)} since last report)` : "";
   const posts = safe2(() => readFileSync(`${HOME}/stook-x.log`, "utf8").split("\n").filter((l) => /telegram: posted|new video failed/.test(l)).slice(-1)[0]?.slice(0, 19).replace("T", " "));
   const design = safe2(() => readFileSync(`${HOME}/stook-x.log`, "utf8").split("\n").filter((l) => / video /.test(l)).slice(-1)[0]?.includes("new design"));
-  const lines = [
-    `📊 Stook mainnet, ${new Date().toLocaleString("en-US", { timeZone: "America/New_York", weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })} New York`,
-    "",
-    "Trades, last 24h",
-    `  ${count(day.calls, "call")} from ${count(day.wallets, "wallet")} (${day.outside} outside the team, ${day.newWallets} new)`,
-    `  Volume ${num(day.volume)} SSt.${usd(day.volume)}, outside the team ${num(day.outsideVolume)} SSt.`,
-    `  Fees ${num(day.fees)} SSt.${usd(day.fees)}, paid out ${num(day.paid + day.sold)} SSt., house deposits ${num(day.deposits)} SSt.`,
-    `All time: ${count(all.calls, "call")}, ${count(all.everWallets, "wallet")}, ${num(all.volume)} SSt. volume, ${num(all.fees)} SSt. fees`,
-    "",
-    "Rounds",
-    open ? `  Open: bell ${nyTime(open.settlesAt)} NY, calls close ${nyTime(open.locksAt)}, ${count(inOpen.length, "call")}, ${num(inOpen.reduce((s, x) => s + coins(x.amountIn ?? 0), 0))} SSt.` : "  ❌ No round open",
-    done ? `  Last: ${done.voided ? "VOIDED" : `settled at ${num(priceOf(done, done.settled.price), 2)}`}, ${mins(t - (done.settled?.time ?? done.voided?.time ?? t))}` : "  Last: none yet",
-    `  Last 24h: ${ev.filter((l) => l.includes("🟢")).length} opened, ${ev.filter((l) => l.includes("🔔")).length} settled, ${ev.filter((l) => l.includes("⚪")).length} voided`,
-    "",
-    "Balances",
-    h ? `  House ${num(h.capital)} SSt.${usd(h.capital)}${change}` : "  House: could not read",
-    h ? `  In the round ${num(h.inRound)}, queued ${num(h.queued)}, claimable ${num(h.claimable)}` : "",
-    `  Keeper ${kSol === null ? "?" : kSol.toFixed(3)} SOL${kSol !== null && kSol < 0.15 ? " ⚠️ LOW" : ""}, deploy wallet ${dSol === null ? "?" : dSol.toFixed(3)} SOL`,
-    "",
-    "Market",
-    prices?.STOOK ? `  Polymarket ${num(prices.STOOK.price, 2)} (${(prices.STOOK.change24h ?? 0).toFixed(2)}%), price ${mins(t - prices.STOOK.at)}` : "  ❌ Polymarket price not answering",
-    a ? `  SSt. $${Number(a.price_usd).toPrecision(3)}, value $${num(Number(a.fdv_usd))}, 24h volume $${num(Number(a.volume_usd?.h24 ?? 0))}, liquidity $${num(Number(a.total_reserve_in_usd))}${jup?.[0]?.holderCount ? `, ${num(jup[0].holderCount)} holders` : ""}` : "  SSt. market data not answering",
-    "",
-    "Systems",
-    ...Object.entries(SERVICES).map(([u, n]) => `  ${active(u) === "active" ? "✅" : "❌"} ${n}`),
-    `  Keeper pass ${mins(ageOf(`${HOME}/ladder-crank-mainnet.beat`))}, all rounds OK ${mins(ageOf(`${HOME}/ladder-crank-mainnet.health`))}`,
-    `  Ledger read the chain ${led ? mins(led.pollAge) : "not answering"}`,
-    `  Last Telegram post ${posts ?? "?"} UTC, ${design ? "new design" : "⚠️ OLD video"}`,
-    `  Box load ${readFileSync("/proc/loadavg", "utf8").split(" ").slice(0, 3).join(" ")}, disk ${spawnSync("df", ["--output=pcent", "/"], { encoding: "utf8" }).stdout.split("\n")[1].trim()}`,
-  ].filter((l) => l !== null);
-  const msg = lines.join("\n");
-  if (h && !printOnly) writeState({ ...state, houseBase: h.capital });
+  return {
+    title: `📊 Stook mainnet, ${new Date().toLocaleString("en-US", { timeZone: "America/New_York", weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })} New York`,
+    trades: [
+      "Trades, last 24h",
+      `  ${count(day.calls, "call")} from ${count(day.wallets, "wallet")} (${day.outside} outside the team, ${day.newWallets} new)`,
+      `  Volume ${num(day.volume)} SSt.${usd(day.volume)}, outside the team ${num(day.outsideVolume)} SSt.`,
+      `  Fees ${num(day.fees)} SSt.${usd(day.fees)}, paid out ${num(day.paid + day.sold)} SSt., house deposits ${num(day.deposits)} SSt.`,
+      `All time: ${count(all.calls, "call")}, ${count(all.everWallets, "wallet")}, ${num(all.volume)} SSt. volume, ${num(all.fees)} SSt. fees`,
+    ],
+    rounds: [
+      "Rounds",
+      open ? `  Open: bell ${nyTime(open.settlesAt)} NY, calls close ${nyTime(open.locksAt)}, ${count(inOpen.length, "call")}, ${num(inOpen.reduce((s, x) => s + coins(x.amountIn ?? 0), 0))} SSt.` : "  ❌ No round open",
+      done ? `  Last: ${done.voided ? "VOIDED" : `settled at ${num(priceOf(done, done.settled.price), 2)}`}, ${mins(t - (done.settled?.time ?? done.voided?.time ?? t))}` : "  Last: none yet",
+      `  Last 24h: ${ev.filter((l) => l.includes("🟢")).length} opened, ${ev.filter((l) => l.includes("🔔")).length} settled, ${ev.filter((l) => l.includes("⚪")).length} voided`,
+    ],
+    balances: [
+      "Balances",
+      ...(h ? [`  House ${num(h.capital)} SSt.${usd(h.capital)}${change}`, `  In the round ${num(h.inRound)}, queued ${num(h.queued)}, claimable ${num(h.claimable)}`] : ["  House: could not read"]),
+      `  Keeper ${kSol === null ? "?" : kSol.toFixed(3)} SOL${kSol !== null && kSol < 0.15 ? " ⚠️ LOW" : ""}, deploy wallet ${dSol === null ? "?" : dSol.toFixed(3)} SOL`,
+    ],
+    market: [
+      "Market",
+      prices?.STOOK ? `  Polymarket ${num(prices.STOOK.price, 2)} (${(prices.STOOK.change24h ?? 0).toFixed(2)}%), price ${mins(t - prices.STOOK.at)}` : "  ❌ Polymarket price not answering",
+      a ? `  SSt. $${Number(a.price_usd).toPrecision(3)}, value $${num(Number(a.fdv_usd))}, 24h volume $${num(Number(a.volume_usd?.h24 ?? 0))}, liquidity $${num(Number(a.total_reserve_in_usd))}${jup?.[0]?.holderCount ? `, ${num(jup[0].holderCount)} holders` : ""}` : "  SSt. market data not answering",
+    ],
+    systems: [
+      "Systems",
+      ...Object.entries(SERVICES).map(([u, n]) => `  ${active(u) === "active" ? "✅" : "❌"} ${n}`),
+      `  Keeper pass ${mins(ageOf(`${HOME}/ladder-crank-mainnet.beat`))}, all rounds OK ${mins(ageOf(`${HOME}/ladder-crank-mainnet.health`))}`,
+      `  Ledger read the chain ${led ? mins(led.pollAge) : "not answering"}`,
+      `  Last Telegram post ${posts ?? "?"} UTC, ${design ? "new design" : "⚠️ OLD video"}`,
+      `  Box load ${readFileSync("/proc/loadavg", "utf8").split(" ").slice(0, 3).join(" ")}, disk ${spawnSync("df", ["--output=pcent", "/"], { encoding: "utf8" }).stdout.split("\n")[1].trim()}`,
+    ],
+    houseCapital: h?.capital ?? null, state,
+  };
+}
+const fullReport = (s) => [[s.title], s.trades, s.rounds, s.balances, s.market, s.systems].map((p) => p.join("\n")).join("\n\n");
+
+async function report() {
+  const s = await sections(), msg = fullReport(s);
+  if (s.houseCapital !== null && !printOnly) writeState({ ...s.state, houseBase: s.houseCapital });
   if (printOnly) console.log(msg); else spawnSync(ALERT, ["--report", msg], { stdio: "ignore", timeout: 30_000 });
 }
 function safe2(f) { try { return f(); } catch { return null; } }
@@ -207,6 +219,92 @@ async function watch() {
   else console.log("watch ok", { rows: rows.length, fresh: fresh.length, open: open?.ladder?.slice(0, 6), sickAge: sick, house: h?.capital, misses });
 }
 
+const HELP = [
+  "Stook mainnet",
+  "/status  the full report",
+  "/trades [n]  the last trades, with links (10, at most 20)",
+  "/wallets  who has played, by volume",
+  "/rounds  the open round and the last five",
+  "/balances  the house and our wallets",
+  "/market  Polymarket and SSt.",
+  "/systems  services, keeper, ledger, posts, box",
+  "/help  this list",
+].join("\n");
+
+function tradesText(n) {
+  const list = ledger().rows.filter(isPlayer).slice(-n).reverse();
+  if (!list.length) return "No trades yet.";
+  return [`Last ${count(list.length, "trade")}, newest first`, ...list.map((x) => `${nyTime(x.time)} NY: ${who(x.wallet)} ${VERB[x.kind]} ${num(coins(x.kind === "buy" || x.kind === "deposit" ? x.amountIn ?? 0 : x.amountOut ?? 0))} SSt.\nsolscan.io/tx/${x.sig}`)].join("\n\n");
+}
+
+function walletsText() {
+  const by = new Map();
+  for (const x of ledger().rows.filter(isPlayer)) {
+    const w = by.get(x.wallet) ?? { wallet: x.wallet, calls: 0, volume: 0, paid: 0, last: 0 };
+    if (isCall(x)) { w.calls += 1; w.volume += coins(x.amountIn ?? 0); }
+    if (["sell", "redeem", "claim"].includes(x.kind)) w.paid += coins(x.amountOut ?? 0);
+    w.last = Math.max(w.last, x.time);
+    by.set(x.wallet, w);
+  }
+  const list = [...by.values()].sort((a, b) => b.volume - a.volume), outside = list.filter((w) => !TEAM[w.wallet]).length;
+  if (!list.length) return "No wallets yet.";
+  return [`${count(list.length, "wallet")}, ${outside} outside the team`, ...list.slice(0, 15).map((w) => `${who(w.wallet)}: ${count(w.calls, "call")}, ${num(w.volume)} SSt. in, ${num(w.paid)} SSt. out, last ${nyTime(w.last)} NY\nsolscan.io/account/${w.wallet}`)].join("\n\n");
+}
+
+function pastRounds() {
+  const { rows, rounds } = ledger(), past = rounds.filter((r) => r.settled || r.voided).slice(-5).reverse();
+  if (!past.length) return "Finished rounds: none yet";
+  return ["Finished rounds", ...past.map((r) => { const calls = rows.filter((x) => x.ladder === r.ladder && isCall(x)); return `  ${nyTime(r.settlesAt)} NY: ${r.voided ? "VOIDED" : `settled at ${num(priceOf(r, r.settled.price), 2)}`}, ${count(calls.length, "call")}, ${num(calls.reduce((s, x) => s + coins(x.amountIn ?? 0), 0))} SSt.`; })].join("\n");
+}
+
+/** The answer to one line from the chat. Reads only: no state, no key. */
+async function answer(text) {
+  const [word, arg] = text.trim().toLowerCase().split(/\s+/), cmd = word.replace(/@.*$/, "");
+  const part = async (name) => (await sections())[name].join("\n");
+  switch (cmd) {
+    case "/status": return fullReport(await sections());
+    case "/trades": return tradesText(Math.min(20, Math.max(1, parseInt(arg, 10) || 10)));
+    case "/wallets": return walletsText();
+    case "/rounds": return `${await part("rounds")}\n\n${pastRounds()}`;
+    case "/balances": return part("balances");
+    case "/market": return part("market");
+    case "/systems": return part("systems");
+    default: return HELP;
+  }
+}
+
+/** Long-polls Telegram and answers one chat only (TG_CHAT_ID). Anyone else gets no reply. */
+async function bot() {
+  const { TG_BOT_TOKEN: token, TG_CHAT_ID: chat } = process.env;
+  if (!token || !chat) throw new Error("TG_BOT_TOKEN and TG_CHAT_ID are required");
+  const tg = (method, body, ms = 30_000) => fetch(`https://api.telegram.org/bot${token}/${method}`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body), signal: AbortSignal.timeout(ms) }).then((r) => r.json());
+  const log = (m) => console.log(`${new Date().toISOString()} ${m}`);
+  const commands = HELP.split("\n").slice(1).map((l) => { const [c, ...rest] = l.split(/\s+/); return { command: c.slice(1), description: rest.join(" ") }; });
+  // The old bot's menu goes; this one shows in this chat only.
+  await tg("deleteMyCommands", {});
+  await tg("setMyCommands", { commands, scope: { type: "chat", chat_id: chat } });
+  // What was sent while the bot was down is not answered late.
+  const pending = await tg("getUpdates", { offset: -1, timeout: 0 });
+  let offset = pending.result?.at(-1)?.update_id + 1 || 0;
+  log("bot up");
+  for (;;) {
+    try {
+      const r = await tg("getUpdates", { offset, timeout: 50, allowed_updates: ["message"] }, 70_000);
+      if (!r.ok) { log(`getUpdates: ${r.error_code} ${r.description}`); await new Promise((d) => setTimeout(d, 10_000)); continue; }
+      for (const u of r.result) {
+        offset = u.update_id + 1;
+        const m = u.message;
+        if (!m?.text || String(m.chat.id) !== String(chat)) continue;
+        log(m.text.split(/\s+/)[0].slice(0, 20));
+        const text = await answer(m.text).catch((e) => { log(`failed: ${e.message}`); return "Could not build that. See ~/stook-bot.log on the box."; });
+        await tg("sendMessage", { chat_id: chat, text: text.length > 4000 ? `${text.slice(0, 3990)}\n…` : text, disable_web_page_preview: true });
+      }
+    } catch (e) { log(`poll: ${e.name}`); await new Promise((d) => setTimeout(d, 5_000)); }
+  }
+}
+
 if (mode === "report") await report();
 else if (mode === "watch") await watch();
-else { console.error("usage: monitor.mjs report|watch [--print]"); process.exit(2); }
+else if (mode === "bot") await bot();
+else if (mode === "ask") console.log(await answer(flags.join(" ")));
+else { console.error("usage: monitor.mjs report|watch [--print] | bot | ask /command"); process.exit(2); }

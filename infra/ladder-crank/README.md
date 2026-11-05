@@ -92,8 +92,7 @@ verified updates.
 
 ## Hosted
 
-Runs on the `tora` box under cron (`deploy/keepalive.sh` every minute, same
-pattern as Soo's resolver), as its own devnet wallet
+Runs on the `tora` box under cron (`deploy/keepalive.sh` every minute), as its own devnet wallet
 `AWJiY5es1XWzba2QMQxU3jYEabBR5wxP2QKgJfVYB65r` (needs SOL for fees; ~0.01 SOL
 per settle). `deploy/deploy.sh` rsyncs the repo and restarts it (and the
 tape). Secrets live only in `~/stook.env` on the box, written by hand over

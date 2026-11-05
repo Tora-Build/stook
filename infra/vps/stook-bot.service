@@ -1,0 +1,19 @@
+[Unit]
+Description=Stook mainnet commands on Telegram (/status, /trades ...), read only
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+User=zak
+EnvironmentFile=/home/zak/stook-mainnet.env
+EnvironmentFile=/home/zak/stook-alerts.env
+ExecStart=/usr/bin/node --experimental-sqlite --disable-warning=ExperimentalWarning /home/zak/stook/infra/vps/monitor.mjs bot
+Restart=always
+RestartSec=10
+Nice=10
+MemoryMax=300M
+StandardOutput=append:/home/zak/stook-bot.log
+StandardError=append:/home/zak/stook-bot.log
+
+[Install]
+WantedBy=multi-user.target
