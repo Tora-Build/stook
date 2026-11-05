@@ -5,8 +5,9 @@ const env = import.meta.env;
 /** The cluster: VITE_CLUSTER, else devnet when the build carries devnet mints. */
 export const CLUSTER: "devnet" | "mainnet-beta" = env.VITE_CLUSTER === "devnet" || (!env.VITE_CLUSTER && env.VITE_DEVNET_MINTS) ? "devnet" : "mainnet-beta";
 const PUBLIC_RPC = `https://api.${CLUSTER}.solana.com`;
-// Mainnet builds set a keyed proxy; the public endpoint rate-limits a browser after a few reads.
-export const RPC_URL: string = env.VITE_RPC_URL || PUBLIC_RPC;
+// On devnet the default is a keyed proxy (an Alchemy endpoint behind a Worker);
+// the public endpoint rate-limits a browser after a few reads. Mainnet sets its own.
+export const RPC_URL: string = env.VITE_RPC_URL || (CLUSTER === "devnet" ? "https://soo-rpc.zak-a35.workers.dev" : PUBLIC_RPC);
 /** Confirmations subscribe over a websocket the HTTP proxy cannot carry. */
 export const WS_URL: string = env.VITE_WS_URL || `wss://api.${CLUSTER}.solana.com/`;
 /** For getProgramAccounts only; see lib/chain. */

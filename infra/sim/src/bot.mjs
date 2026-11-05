@@ -2,7 +2,7 @@
 // (TG_CHAT_ID), through TG_BOT_TOKEN, both from ~/stook-alerts.env.
 //   node src/bot.mjs            long-polls Telegram (stook-tgbot.service)
 //
-//   /status            services, keeper, wallet, tape, box
+//   /status            services, keeper, wallet, tape, resolver, box
 //   /fleet             the simulated fleet: today's actions, wallets (active, retiring, retired), treasury and runway
 //   /activity [n]      the fleet's last n actions (default 15)
 //   /issues            unexpected failures the fleet has met

@@ -1,0 +1,6 @@
+[Unit]
+Description=Check Soo's resolver answers, alert if not
+
+[Service]
+Type=oneshot
+ExecStart=/home/zak/stook/infra/vps/watchdog.sh resolver

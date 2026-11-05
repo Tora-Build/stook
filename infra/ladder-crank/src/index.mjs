@@ -53,7 +53,7 @@ import { historyConnection, historyPrices } from "./history.mjs";
 import { poolPrices, routed } from "./pools.mjs";
 const { PythSolanaReceiver } = pyth;
 
-const RPC_URL = process.env.RPC_URL ?? "https://api.devnet.solana.com";
+const RPC_URL = process.env.RPC_URL ?? "https://soo-rpc.zak-a35.workers.dev";
 const HERMES = (process.env.HERMES_URL ?? "https://hermes.pyth.network").replace(/\/$/, "");
 const KEYPAIR = process.env.KEYPAIR ?? `${homedir()}/.config/solana/id.json`;
 const INTERVAL = Number(process.env.CRANK_INTERVAL_SECS ?? 5) * 1000;

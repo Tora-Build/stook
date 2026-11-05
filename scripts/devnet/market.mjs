@@ -14,7 +14,7 @@ import { stook, SOOTH_CORE_PROGRAM_ID } from "@sooth/sdk-solana";
 
 const FEEDS = Object.fromEntries(JSON.parse(readFileSync(new URL("../../apps/stook/src/lib/feeds.json", import.meta.url), "utf8")).map((f) => [f.symbol, f.id]));
 const PUSH = new PublicKey("pythWSnswVUd12oZpeFP8e9CVaEqJg25g1Vtc2biRsT");
-const c = new Connection(process.env.RPC_URL ?? "https://api.devnet.solana.com", { commitment: "confirmed", wsEndpoint: process.env.WS_URL ?? "wss://api.devnet.solana.com/" });
+const c = new Connection(process.env.RPC_URL ?? "https://soo-rpc.zak-a35.workers.dev", { commitment: "confirmed", wsEndpoint: process.env.WS_URL ?? "wss://api.devnet.solana.com/" });
 const payer = Keypair.fromSecretKey(Uint8Array.from(JSON.parse(readFileSync(process.env.KEYPAIR ?? `${homedir()}/.config/solana/id.json`, "utf8"))));
 const env = readFileSync(new URL("../../apps/stook/.env.local", import.meta.url), "utf8");
 const QUOTE = new PublicKey(env.match(/^VITE_QUOTE_MINT=(\S+)/m)[1]);

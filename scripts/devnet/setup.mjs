@@ -17,7 +17,7 @@ import { Connection, Keypair, SystemProgram, Transaction, sendAndConfirmTransact
 import { MINT_SIZE, TOKEN_PROGRAM_ID, createAssociatedTokenAccountIdempotentInstruction, createInitializeMint2Instruction, createMintToInstruction, getAssociatedTokenAddressSync, getMinimumBalanceForRentExemptMint } from "@solana/spl-token";
 import { stook, SOOTH_CORE_PROGRAM_ID } from "@sooth/sdk-solana";
 
-const RPC_URL = process.env.RPC_URL ?? "https://api.devnet.solana.com";
+const RPC_URL = process.env.RPC_URL ?? "https://soo-rpc.zak-a35.workers.dev";
 const KEYPAIR = process.env.KEYPAIR ?? `${homedir()}/.config/solana/id.json`;
 const ENV_FILE = resolve(import.meta.dirname, "../../apps/stook/.env.local");
 

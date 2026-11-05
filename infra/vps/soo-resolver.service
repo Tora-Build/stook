@@ -1,0 +1,16 @@
+[Unit]
+Description=Soo zk-resolver (attestation previews, port 8790)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+User=zak
+WorkingDirectory=/home/zak/soo/infra/zk-resolver
+ExecStart=/usr/bin/node /home/zak/soo/infra/zk-resolver/src/index.mjs --serve --port 8790
+Restart=always
+RestartSec=5
+StandardOutput=append:/home/zak/resolver.log
+StandardError=append:/home/zak/resolver.log
+
+[Install]
+WantedBy=multi-user.target

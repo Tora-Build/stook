@@ -1,4 +1,4 @@
-# The VPS: systemd units for the keeper, the ledger and the tape
+# The VPS: systemd units for the keeper, the tape and Soo's zk-resolver
 
 The box runs these as systemd services under the `zak` user (no cron on it).
 `install.sh` copies the units into /etc/systemd/system and starts them.
@@ -10,11 +10,16 @@ The box runs these as systemd services under the `zak` user (no cron on it).
 - `stook-tape`: `infra/tape`, env from `~/stook.env`. It starts its own
   cloudflared quick tunnel; stopping the service stops the tunnel too.
   `stook-tape-watchdog.timer` restarts it when no coin has updated for 45 minutes.
+- `soo-resolver`: Soo's `infra/zk-resolver --serve --port 8790` from
+  `~/soo/infra/zk-resolver` (its own `.env`), and `soo-resolver-pass.timer`
+  runs `--once` every 5 minutes. `resolver.sooth.market` reaches it through
+  the box's named Cloudflare tunnel (managed by Daniel).
+
 - `stook-ledger`: `infra/ledger`, the history behind the History tab on Yours
   (see "Ledger" below). `stook-ledger-watchdog.timer` restarts it when it has
   not read the chain for 10 minutes.
 
-Logs: `~/ladder-crank.log`, `~/stook-tape.log`, `~/ledger.log`, `~/stook-bot.log`.
+Logs: `~/ladder-crank.log`, `~/stook-tape.log`, `~/ledger.log`, `~/stook-bot.log`, `~/resolver.log`, `~/resolver-cron.log`.
 
 ## Daily Telegram video
 
@@ -43,6 +48,7 @@ change to `Daily.tsx`: rebuild the bundle, then `~/stook-daily/daily-clips-box.s
 - keeper can't read the chain (no pass for 5 min, restarted), rounds failing
   for 15 min, keeper wallet under 0.15 SOL (checked every 30 min)
 - price tape stale for 45 min (restarted)
+- Soo's resolver not answering `/health` (every 5 min)
 - a Telegram video post that failed (`stook-x@.service` → `OnFailure=stook-x-alert@%i`)
 
 Each problem alerts at most once an hour, and says so again when it recovers.
