@@ -1,0 +1,11 @@
+[Unit]
+Description=Stook mainnet watch: new trades and anything wrong, to Telegram
+
+[Service]
+Type=oneshot
+User=zak
+EnvironmentFile=/home/zak/stook-mainnet.env
+ExecStart=/usr/bin/node --experimental-sqlite --disable-warning=ExperimentalWarning /home/zak/stook/infra/vps/monitor.mjs watch
+Nice=10
+MemoryMax=300M
+TimeoutStartSec=4min

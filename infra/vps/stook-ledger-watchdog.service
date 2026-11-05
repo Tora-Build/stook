@@ -1,5 +1,5 @@
 [Unit]
-Description=Restart stook-ledger when it is up but no longer reading the chain
+Description=Restart stook-ledger-mainnet when it is up but no longer reading the chain
 
 [Service]
 Type=oneshot

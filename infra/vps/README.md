@@ -3,8 +3,8 @@
 The box runs these as systemd services under the `zak` user (no cron on it).
 `install.sh` copies the units into /etc/systemd/system and starts them.
 
-- `stook-keeper`: `infra/ladder-crank --watch`, env from `~/stook.env`.
-  `stook-keeper-watchdog.timer` restarts it when no clean pass has written
+- `stook-keeper-mainnet`: `infra/ladder-crank --watch`, env from `~/stook-mainnet.env`.
+  `stook-keeper-mainnet-watchdog.timer` restarts it when no clean pass has written
   `~/ladder-crank.beat` for 5 minutes (a process can stay up with every
   request failing, as on 2026-09-25).
 - `stook-tape`: `infra/tape`, env from `~/stook.env`. It starts its own
@@ -62,97 +62,26 @@ With the same keys the box also sends:
 
 - **Round notes** (keeper, `EnvironmentFile=-~/stook-alerts.env`): each round
   that opens, settles or voids, with its page link; hourly test rounds are
-  skipped. Each note is also written, time-stamped, to `~/stook-events.log`.
-- **Daily report** (`stook-health.timer`, 9:00 New York, `health.sh`): services,
-  keeper pass and health age, wallet SOL, the last 24 h of opens, settles and
-  voids, tape prices and their age, resolver, load, memory, disk.
+  skipped. Each note is also written, time-stamped, to `~/stook-events-mainnet.log`.
+- **Mainnet report** (`stook-health.timer`, 9:00 and 16:30 New York, `monitor.mjs report`):
+  calls, wallets, volume and fees, the rounds, the house and wallet balances, the
+  market, and the systems. By hand, without sending:
+  `set -a; . ~/stook-mainnet.env; set +a; node --experimental-sqlite monitor.mjs report --print`
+- **Mainnet watch** (`stook-monitor.timer`, every 5 minutes, `monitor.mjs watch`): each
+  new trade, and an alert for a service down, rounds failing, a late settle, no round
+  open, a void, the house down 10%, the site or RPC proxy not answering, a stale
+  price, or a daily video that fell back to the old one.
 - **Channel**: with `TG_CHANNEL=@StookStreet` in `~/stook-alerts.env` (the bot an
   admin allowed to post there), the bell and morning videos also go to the
   channel, once a day each, with the site's link.
 
-## Simulated users
-
-`stook-sim` runs `infra/sim --watch`: a fleet of devnet wallets (200 by
-default) that trade the daily rounds the way the app does. Callers buy lines
-and ranges near the live price, long shots buy the tails, traders buy and sell
-hours later, houses deposit, starters fund tomorrow's round for a coin that
-has none, and everyone collects after the close (some hours or days late).
-`install.sh` installs the unit but does not enable or start it.
-
-Pacing: a Poisson process that follows New York hours (quiet overnight, busier
-at the open and busiest from 2 to 3 PM, the last hour before the rounds lock,
-lower on weekends), at most `SIM_TX_PER_MIN` (4) transactions a minute. It
-never sends from 15:50 to 16:15 New York, near any of its coins' rounds
-opening or settling, or while the keeper's heartbeat is over a minute old:
-those minutes are the keeper's. The pause is checked again right before every
-send, so a turn that waited on the minute cap does not spill into it.
-
-After the close the keeper sweeps each losing line with its own transaction
-before its next heartbeat, so the fleet holds at most 15 lines in one round
-(`SIM_MAX_POSITIONS_PER_ROUND`) and 40 across all rounds closing together
-(`SIM_MAX_LINES_PER_CLOSE`): about a minute or two of sweeping.
-
-Files in `~/sim` (the unit reads `~/stook.env`, `~/stook-alerts.env` and
-`~/sim/sim.env`):
-
-- `sim.env`, `chmod 600`, written by hand: `FAUCET_AUTHORITY=[…]` (the app's
-  `VITE_FAUCET_AUTHORITY_BYTES`) and `DEVNET_MINTS='{"STOOK":"…",…}'` (the
-  app's `VITE_DEVNET_MINTS`, twins only; never the mainnet mint). Optional:
-  `QUOTE_MINT` (the app's `VITE_QUOTE_MINT`, so the faucet also mints test
-  USDC as the app's does), `SIM_RPC_URL`, `SIM_WALLETS`, `SIM_TX_PER_MIN`,
-  `SIM_DAILY_SOL`, `SIM_PERSONAS`. Every setting here wins over the
-  environment, for the service and for the manual runs below alike.
-- The RPC: `SIM_RPC_URL`, or the public devnet endpoint when unset. Never the
-  keeper's `RPC_URL`: its key's quota keeps rounds opening and settling, and
-  a run with `SIM_RPC_URL` set to it is refused. Its own key is best.
-- `wallets/<n>.json`: the fleet's keys, made on first run, `0600`. `wallets.txt`
-  lists their public keys, personas and sizes.
-- `state.json` (the treasury's spend today, the report window),
-  `journal.json` (what each wallet holds, so nothing needs an account scan),
-  `actions.jsonl` (every action with its signature or error, rotated at
-  20 MB), `issues.jsonl` (unexpected failures, one line per kind, counted),
-  `lock` (the running `--once` or `--watch`; a second run is refused).
-
-The treasury is `~/.config/solana/sim-treasury.json`; its public key is the
-address to fund. It tops a wallet up to 0.05 SOL when it drops under 0.015,
-and never sends more than `SIM_DAILY_SOL` (9) in a UTC day. Each top-up is
-counted before it is sent, so a restart mid-send cannot lose track of it. Test coins come
-from the faucet key, about $1,000 of each coin, at most once a day per wallet.
-
-Telegram, through `alert.sh`: a new kind of unexpected failure (`sim-<hash>`,
-at most hourly), a treasury under 1 SOL (`sim-treasury`), the service stopped
-for good after five failed starts (`sim-dead`, from `stook-sim-failed`), and
-the day's summary at 21:00 New York. A refusal the fleet's own check had ruled
-out counts as unexpected: a slippage on a curve nobody moved (`QuoteMismatch`),
-or coins short after the balance passed (`InsufficientFundsDespiteCheck`).
-Those mean the app's quote or check disagrees with the program.
-
-Before starting it, read what it would do; nothing is sent or written:
-
-    cd ~/stook/infra/sim && set -a && . ~/stook.env && set +a && node src/index.mjs --plan 20
-
-Then a few real turns, and the service:
-
-    node src/index.mjs --once 3
-    sudo systemctl enable --now stook-sim
-    journalctl -u stook-sim -f; tail -f ~/sim/actions.jsonl
-
-## Telegram commands
-
-`stook-tgbot.service` runs `infra/sim/src/bot.mjs`: @stookstreet_bot answers
-commands from `TG_CHAT_ID` only (everyone else is ignored): `/status` (the
-health report, `health.sh --print`), `/fleet`, `/activity [n]`, `/issues`,
-`/rounds`, `/wallet <n>`, `/pause` and `/resume` (stop or start `stook-sim`).
-Check every answer without Telegram: `node src/bot.mjs --selftest` from
-`~/stook/infra/sim` with the env files loaded.
-
 ## Ledger
 
-`stook-ledger` runs `infra/ledger`: it reads every sooth_core transaction once
+`stook-ledger-mainnet` runs `infra/ledger`: it reads every sooth_core transaction once
 (`getSignaturesForAddress` on the program, then `getTransaction`), turns each
 into rows per wallet (calls, adds, sells, collects, refunds, house deposits and
 payouts, round starts, the starter's fees, keeper sweeps), and serves a
-wallet's rounds on `127.0.0.1:8792`: `/history?wallet=&limit=&before=&coin=&result=`
+wallet's rounds on `127.0.0.1:8793`: `/history?wallet=&limit=&before=&coin=&result=`
 and `/health`. Read only: no key, nothing sent.
 
 - First start: a backfill from the newest transaction back to the program's
@@ -164,14 +93,14 @@ and `/health`. Read only: no key, nothing sent.
   ignore). On a Node without node:sqlite it keeps `~/ledger/ledger.jsonl`
   instead and rebuilds its index on start. Delete `~/ledger` to rebuild from
   the chain.
-- RPC: `LEDGER_RPC_URL` (public devnet by default), `LEDGER_RPS` (3), with
+- RPC: `LEDGER_RPC_URL` (the public mainnet endpoint), `LEDGER_RPS` (3), with
   back-off on 429 and 5xx. Never the keeper's `RPC_URL`. A day costs about
   5,800 signature polls plus one `getTransaction` per program transaction
   (about 1,300 a day now); `/health` shows the running rate.
 - Older transactions: the program is upgraded in place, and an instruction or
   event of an earlier layout (account count or event size not today's) is
   not read, so rounds from before 2026-09-23 may show without their terms.
-  A few settles and opens are missing from devnet's signature index; such a
+  A few settles and opens can be missing from the signature index; such a
   round still shows as finished once it has paid out, without its floor.
 - Coins: rounds are named by their quote mint, from `DEVNET_MINTS` in
   `~/sim/sim.env` (only that key is read) or `LEDGER_MINTS`, else by feed.

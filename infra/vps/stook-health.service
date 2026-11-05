@@ -1,6 +1,8 @@
 [Unit]
-Description=Stook daily health report to Telegram
+Description=Stook mainnet report to Telegram
 
 [Service]
 Type=oneshot
-ExecStart=/home/zak/stook/infra/vps/health.sh
+User=zak
+EnvironmentFile=/home/zak/stook-mainnet.env
+ExecStart=/usr/bin/node --experimental-sqlite --disable-warning=ExperimentalWarning /home/zak/stook/infra/vps/monitor.mjs report

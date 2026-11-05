@@ -20,7 +20,5 @@ bundle() { # entry, extra flags
 }
 bundle infra/ladder-crank/src/index.mjs
 bundle infra/ledger/src/index.mjs
-bundle infra/sim/src/index.mjs
-bundle infra/sim/src/bot.mjs
 bundle infra/tape/src/index.mjs
 ls -la infra/*/src/*.bundle.mjs | awk '{print $5, $9}'
