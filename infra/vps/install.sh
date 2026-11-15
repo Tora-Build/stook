@@ -10,5 +10,6 @@ units=()
 [[ $WHAT == soo || $WHAT == all ]] && units+=(soo-resolver.service soo-resolver-pass.service soo-resolver-pass.timer)
 for u in "${units[@]}"; do sudo install -m 644 "$D/$u" /etc/systemd/system/; done
 sudo systemctl daemon-reload
-for u in "${units[@]}"; do case $u in *.timer|stook-keeper.service|stook-tape.service|stook-ledger.service|soo-resolver.service|stook-tgbot.service) sudo systemctl enable --now "$u";; esac; done
+# The daily X/Telegram posts were about $SSt. and stay off until they have a new subject.
+for u in "${units[@]}"; do case $u in stook-x-*.timer) ;; *.timer|stook-keeper.service|stook-tape.service|stook-ledger.service|soo-resolver.service|stook-tgbot.service) sudo systemctl enable --now "$u";; esac; done
 systemctl --no-pager --plain list-units 'stook-*' 'soo-*' | head -20
