@@ -30,12 +30,11 @@ export interface Coin {
   symbol: string;
   /** The name the site's data routes (/prices, /coins, /chart, /days), the
    *  test-build maps and the page's address use, where it differs from the
-   *  symbol: $SSt. was $STOOK (`keyOf`). */
+   *  symbol (`keyOf`). */
   key?: string;
   name: string;
   logo: string;
-  /** Mainnet mint, on StonkFun. $STOOK's comes from the build's environment
-   *  (VITE_STOOK_MINT), not the repo; empty means unknown. */
+  /** Mainnet mint; empty means unknown. */
   mint: string;
   decimals: number;
   /** The mint's transfer fee, as launched. Informational; the program reads the live schedule. */
@@ -44,12 +43,6 @@ export interface Coin {
 }
 
 const ALL_COINS: Coin[] = [
-  {
-    symbol: "SSt.", key: "STOOK", name: "STOOK St.", logo: "/logos/stook.png", mint: import.meta.env.VITE_STOOK_MINT ?? "", decimals: 6, feeBps: 0,
-    // Polymarket PreStocks (prestocks.com), priced from its Raydium CLMM pool
-    // (5fdWxxkv63NdU7t2CspjyCQrvmMvfe3mQwSgYpHam1Gs): the feed id is the pool's address.
-    anchor: { symbol: "POLYMARKET", name: "Polymarket", mint: "Pre8AREmFPtoJFT8mQSXQLh56cwJmM7CFDRuoGBZiUP", logo: "/logos/polymarket.png", feedId: "45541ba20dabe3e68b11405564e749ac0119de0e5f4a1aa441e60e3335b737c8", pool: "5fdWxxkv63NdU7t2CspjyCQrvmMvfe3mQwSgYpHam1Gs", hours: "24/7", dp: 2 },
-  },
   {
     symbol: "ZCAT", name: "Anonymous Cat", logo: "/logos/zcat.jpg", mint: "HcRLc9VDgjLeK154xDawfb1dmVJ98DoSqcwTHGqiDeJR", decimals: 9, feeBps: 300,
     anchor: { symbol: "ZEC", name: "Zcash", mint: "A7bdiYdS5GjqGFtxf17ppRHtDKPkkRqbKtR27dxvQXaS", logo: "/logos/zec.svg", feedId: "be9b59d178f0d6a97ab4c343bff2aa69caa1eaae3e9048a65788c529b125bb24", hours: "24/7", dp: 2 },
@@ -64,8 +57,8 @@ const ALL_COINS: Coin[] = [
   },
 ];
 
-/** The tables on the street: on mainnet only $SSt. so far; the others stay on devnet. */
-export const COINS: Coin[] = import.meta.env.VITE_CLUSTER === "mainnet-beta" ? ALL_COINS.slice(0, 1) : ALL_COINS;
+/** The tables on the street. */
+export const COINS: Coin[] = ALL_COINS;
 
 /**
  * On devnet the mainnet mints do not exist; `scripts/devnet/coins.mjs` makes

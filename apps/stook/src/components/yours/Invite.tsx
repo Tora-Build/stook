@@ -5,6 +5,7 @@ import { Link } from "react-router-dom";
 import { ConnectWallet } from "../ConnectWallet";
 import { Faucet } from "../Faucet";
 import { FAUCET_AUTHORITY_BYTES } from "../../lib/config";
+import { coinPath, COINS } from "../../lib/coins";
 import { PixelBell, PixelCall, PixelCoins, PixelDesk, PixelVault } from "./art";
 
 /** No wallet: the empty desk, what lands on it, and the one way in. */
@@ -35,7 +36,7 @@ export function FirstSteps() {
   const steps = [
     FAUCET_AUTHORITY_BYTES && { t: "Get test coins", d: "Free on devnet: each table's coin, enough to try a few calls.", act: <Faucet /> },
     { t: "Make a call", d: "Pick a table, then the floor where you think today's price closes.", act: <Link className="btn btn-sm" to="/#floor">Pick a table <span aria-hidden="true">→</span></Link> },
-    { t: "Or back the house", d: "Each coin's house funds every one of its rounds and keeps 90% of every fee.", act: <Link className="btn btn-sm btn-ghost" to="/c/STOOK#house">Back the house <span aria-hidden="true">→</span></Link> },
+    { t: "Or back the house", d: "Each coin's house funds every one of its rounds and keeps 90% of every fee.", act: <Link className="btn btn-sm btn-ghost" to={`${coinPath(COINS[0])}#house`}>Back the house <span aria-hidden="true">→</span></Link> },
   ].filter(Boolean) as { t: string; d: string; act: ReactNode }[];
   return (
     <div className="yours-invite">

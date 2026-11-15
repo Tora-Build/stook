@@ -6,7 +6,7 @@ import { useConnection } from "@solana/wallet-adapter-react";
 import { useQuery } from "@tanstack/react-query";
 import type { PublicKey } from "@solana/web3.js";
 import { stook } from "@sooth/sdk-solana";
-import { anchorOf, bySymbol, COINS, keyOf, seriesOf, type Anchor, type Coin } from "../../lib/coins";
+import { anchorOf, bySymbol, COINS, seriesOf, type Anchor, type Coin } from "../../lib/coins";
 import { fetchLaddersAt, fetchSeries, type LadderRow } from "../../lib/chain";
 import { useLivePrice } from "../../hooks/useChain";
 
@@ -85,13 +85,11 @@ export function phaseOf(r: StreetRound | undefined, now: number): Phase {
   return l.status;
 }
 
-/** The round the hero asks about: $SSt.'s if it has one here, else the one that locks soonest. */
+/** The round the hero asks about: the live one that locks soonest. */
 export function featured(rounds: StreetRound[] | undefined, now: number): StreetRound | undefined {
   if (!rounds) return undefined;
-  const sst = rounds.find((r) => keyOf(r.coin) === "STOOK");
-  if (sst?.round) return sst;
   const live = rounds.filter((r) => phaseOf(r, now) === "live").sort((a, b) => Number(a.round!.ladder.locksAt - b.round!.ladder.locksAt));
-  return live[0] ?? rounds.find((r) => r.round) ?? (sst?.series ? sst : rounds.find((r) => r.series));
+  return live[0] ?? rounds.find((r) => r.round) ?? rounds.find((r) => r.series);
 }
 
 type Quote = { price: number; change24h: number | null };

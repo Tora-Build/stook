@@ -17,7 +17,7 @@ async function fetchBoard(coin: string, days: number): Promise<Board> {
   return r.json();
 }
 
-/** The route keys a coin by its data name ($SSt. is STOOK), never by the ticker. */
+/** The route keys a coin by its data name (`keyOf`), never by the ticker. */
 export function useBoard(coin: Coin, days: number) {
   const key = keyOf(coin);
   return useQuery({ queryKey: ["board", key, days], queryFn: () => fetchBoard(key, days), staleTime: 60_000, refetchInterval: 5 * 60_000 });

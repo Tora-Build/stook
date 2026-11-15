@@ -18,9 +18,6 @@ const LIVE_FALLBACK = {
 // GeckoTerminal); settlement on chain is Pyth and only Pyth. Cached at the
 // edge so the sources see one request a minute, not one per visitor.
 const COINS = {
-  // Polymarket PreStocks: Jupiter's spot price, kept a day in KV by the
-  // five-minute cron like STONK (no public intraday series for it).
-  STOOK: { kind: "jupiter", mint: "Pre8AREmFPtoJFT8mQSXQLh56cwJmM7CFDRuoGBZiUP" },
   ZCAT: { kind: "yahoo", symbol: "ZEC-USD" },   // CoinGecko rate-limits Cloudflare egress; Yahoo carries ZEC 24/7
   // STONK trades on a Raydium CLMM pool against SPYx. The pool's state is read
   // straight from the chain (no aggregator, no rate limit) and priced in
@@ -40,10 +37,9 @@ const BASE_MINTS = {
   GP: "HTmQz7My6MehV7bjhJ6jde8nDND1yvsz68d24LP7YgUQ",
 };
 
-/** Jupiter's price API for the coins: { STOOK: { usd, change24h }, … }; a coin it lacks is left out. */
+/** Jupiter's price API for the coins: { ZCAT: { usd, change24h }, … }; a coin it lacks is left out. */
 async function coinQuotes(env) {
-  // $STOOK's mint is a Worker setting (STOOK_MINT), not in the repo.
-  const MINTS = { ...BASE_MINTS, ...(env.STOOK_MINT ? { STOOK: env.STOOK_MINT } : {}) };
+  const MINTS = BASE_MINTS;
   const r = await fetch(`https://lite-api.jup.ag/price/v3?ids=${Object.values(MINTS).join(",")}`, { headers: UA });
   if (!r.ok) throw new Error(`jupiter ${r.status}`);
   const j = await r.json();
@@ -120,9 +116,9 @@ async function series(src, record = false) {
 
 // What the floor talks about: each coin's anchor (name, price, move) and the
 // coin's own dollar price and move, and the time to the bell.
-// A coin's ticker, where it differs from its key here: $SSt. was $STOOK.
-const TICKER = { STOOK: "SSt." };
-const ANCHORS = { STOOK: ["Polymarket", 2], ZCAT: ["Zcash", 2], KNOTS: ["STONK", 4], GP: ["gold", 2] };
+// A coin's ticker, where it differs from its key here.
+const TICKER = {};
+const ANCHORS = { ZCAT: ["Zcash", 2], KNOTS: ["STONK", 4], GP: ["gold", 2] };
 
 /** A coin page's link preview: crawlers read the HTML and run no script, so the
  *  page's title and description are set here, on the way out. Anything else
@@ -158,23 +154,10 @@ function coinPreview(url, res) {
     .on('meta[property="og:url"]', set(url.origin + url.pathname))
     .transform(res);
 }
-// The pool $SSt.'s rounds settle on: what the floor argues about, five minutes old at most.
-const FLOOR_POOL = "5fdWxxkv63NdU7t2CspjyCQrvmMvfe3mQwSgYpHam1Gs";
-async function poolStats() {
-  const m = memo.get("floor:stats"); if (m && Date.now() - m.at < 300_000) return m.v;
-  const base = `https://api.geckoterminal.com/api/v2/networks/solana/pools/${FLOOR_POOL}`, get = (u) => fetch(u, { headers: { accept: "application/json" }, signal: AbortSignal.timeout(4000) }).then((r) => (r.ok ? r.json() : null));
-  const [pool, days] = await Promise.all([get(base), get(`${base}/ohlcv/day?limit=30`)]);
-  const a = pool?.data?.attributes, list = days?.data?.attributes?.ohlcv_list ?? [], week = list.slice(0, 7), num = (x) => (x == null || x === "" ? null : Number(x));
-  const range = (rows, i, f) => (rows.length ? f(...rows.map((r) => r[i])) : null);
-  const v = { h1: num(a?.price_change_percentage?.h1), h6: num(a?.price_change_percentage?.h6), vol: num(a?.volume_usd?.h24), liq: num(a?.reserve_in_usd), buys: a?.transactions?.h24?.buys ?? null, sells: a?.transactions?.h24?.sells ?? null,
-    hi7: range(week, 2, Math.max), lo7: range(week, 3, Math.min), hi30: range(list, 2, Math.max), lo30: range(list, 3, Math.min) };
-  memo.set("floor:stats", { at: Date.now(), v });
-  return v;
-}
 async function floorData(env) {
-  const [tape, coins, stats] = await Promise.all([fromTape(env, "/prices").catch(() => null), coinQuotes(env).catch(() => ({})), poolStats().catch(() => null)]);
+  const [tape, coins] = await Promise.all([fromTape(env, "/prices").catch(() => null), coinQuotes(env).catch(() => ({}))]);
   const bell = bellIn();
-  const out = await Promise.all(["STOOK"].map(async (k) => {
+  const out = await Promise.all(Object.keys(COINS).map(async (k) => {
     let p = null, chg = null;
     const t = tape?.[k];
     if (typeof t?.price === "number") { p = t.price; chg = typeof t.change24h === "number" ? t.change24h : null; }
@@ -182,7 +165,7 @@ async function floorData(env) {
       try { const pts = await series({ ...COINS[k], kv: env.SERIES, key: k }); const l = pts[pts.length - 1], f = pts[0]; if (l) { p = l[1]; chg = pts.length > 1 ? (l[1] / f[1] - 1) * 100 : null; } } catch {}
     }
     const [anchor, dp] = ANCHORS[k] ?? [k, 2];
-    return { coin: k, ticker: TICKER[k] ?? k, anchor, dp, price: p, chg, usd: coins[k]?.usd ?? null, usdChg: coins[k]?.change24h ?? null, bell, stats };
+    return { coin: k, ticker: TICKER[k] ?? k, anchor, dp, price: p, chg, usd: coins[k]?.usd ?? null, usdChg: coins[k]?.change24h ?? null, bell };
   }));
   return { coins: out };
 }
@@ -382,38 +365,6 @@ export default {
         catch { status = 502; body = '{"error":"leaderboard unavailable"}'; }
       }
       const res = new Response(body, { status, headers: { "content-type": "application/json", "cache-control": `public, max-age=${status === 200 ? 60 : 5}`, "access-control-allow-origin": "*", "x-content-type-options": "nosniff" } });
-      if (status === 200) ctx.waitUntil(cache.put(key, res.clone()));
-      return res;
-    }
-    // /supply: $SSt.'s circulating supply, for aggregators (Jupiter asks for
-    // {"circulatingSupply": number} on the team's domain). Read from chain:
-    // the mint's supply, less the token accounts listed in the STOOK_EXCLUDE
-    // setting (comma-separated, e.g. locked or team tokens).
-    // The mint is the STOOK_MINT setting, so neither is in the repo.
-    if (url.pathname === "/supply") {
-      const cache = caches.default, key = new Request(url.origin + "/supply");
-      const hit = await cache.match(key); if (hit) return hit;
-      if (!env.STOOK_MINT) return new Response(JSON.stringify({ error: "mint not configured" }), { status: 503, headers: { "content-type": "application/json" } });
-      // Plain account reads: the public endpoints refuse token-index calls
-      // from Cloudflare, but any node serves getAccountInfo.
-      const account = async (key) => {
-        const j = await (await fetch(RPC, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "getAccountInfo", params: [key, { encoding: "base64" }] }) })).json();
-        if (j.error || !j.result?.value) throw new Error(`account ${key.slice(0, 6)}: ${j.error?.message ?? "not found"}`);
-        return Uint8Array.from(atob(j.result.value.data[0]), (c) => c.charCodeAt(0));
-      };
-      const u64 = (d, o) => new DataView(d.buffer).getBigUint64(o, true);
-      let body, status = 200;
-      try {
-        // SPL and Token-2022 mints share the base layout: supply at 36, decimals at 44
-        const mint = await account(env.STOOK_MINT);
-        const decimals = mint[44];
-        let units = u64(mint, 36);
-        // excluded token accounts (not owners): their balance sits at 64
-        for (const w of (env.STOOK_EXCLUDE ?? "").split(",").map((s) => s.trim()).filter(Boolean)) units -= u64(await account(w), 64);
-        const circ = Number(units) / 10 ** decimals;
-        body = { circulatingSupply: Math.max(0, circ) };
-      } catch (e) { body = { error: "supply unavailable", detail: String(e).slice(0, 160) }; status = 502; }
-      const res = new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json", "cache-control": `public, max-age=${status === 200 ? 300 : 30}`, "access-control-allow-origin": "*", "x-content-type-options": "nosniff" } });
       if (status === 200) ctx.waitUntil(cache.put(key, res.clone()));
       return res;
     }

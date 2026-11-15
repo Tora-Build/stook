@@ -4,7 +4,7 @@
 import { Link } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { stook } from "@sooth/sdk-solana";
-import { coinPath, keyOf } from "../../lib/coins";
+import { coinPath, COINS, keyOf } from "../../lib/coins";
 import { fmtUsd, useCoinQuotes } from "../../lib/usd";
 import { nyWhen } from "../../lib/time";
 import type { ListedCoin } from "../../lib/listed";
@@ -162,36 +162,6 @@ export function LastBells({ r }: { r: StreetRound }) {
   );
 }
 
-const JUP = (mint: string) => `https://jup.ag/swap?buy=${mint}&sell=So11111111111111111111111111111111111111112`;
-
-export function StreetCoin({ coin }: { coin: StreetRound["coin"] }) {
-  const cq = useCoinQuotes().data?.[coin.symbol];
-  const a = coin.anchor;
-  return (
-    <div className="card home-sst" id="stook">
-      <div className="home-sst-head">
-        <span className="home-logos home-logos-big"><img src={coin.logo} alt="" className="home-logo-a" /><img src={a.logo} alt="" className="home-logo-c" /></span>
-        <div>
-          <h3>${coin.symbol}</h3>
-          <span className="label">{coin.name} · the street's own coin</span>
-        </div>
-        {cq?.usd ? (
-          <div className="home-sst-px">
-            <b className="num-m">{fmtUsd(cq.usd)}</b>
-            {typeof cq.change24h === "number" && <span className={`home-chg ${cq.change24h >= 0 ? "up" : "down"}`}>{fmtChange(cq.change24h, 1)}</span>}
-          </div>
-        ) : null}
-      </div>
-      <dl className="home-facts">
-        <div><dt>Follows</dt><dd>{a.name} PreStocks <span className="home-mint" title={a.mint}>{a.mint.slice(0, 4)}…{a.mint.slice(-4)}</span></dd></div>
-        <div><dt>On</dt><dd>StonkFun, Solana</dd></div>
-        {/* the mint comes from the build's environment, not the repo */}
-        {coin.mint && <div><dt>Mint</dt><dd><a className="home-mint" href={JUP(coin.mint)} target="_blank" rel="noopener noreferrer" title={coin.mint}>{coin.mint.slice(0, 4)}…{coin.mint.slice(-4)} ↗</a></dd></div>}
-      </dl>
-      {coin.mint && <a className="btn btn-sm home-sst-buy" href={JUP(coin.mint)} target="_blank" rel="noopener noreferrer">Buy on Jupiter</a>}
-    </div>
-  );
-}
 
 export function HouseCard() {
   return (
@@ -208,7 +178,7 @@ export function HouseCard() {
         <span className="kicker taxi">THE HOUSE</span>
         <h3>Be the house</h3>
         <p className="dim">It takes the other side of every call and keeps <b>90% of the fees</b>.</p>
-        <Link className="btn btn-sm" to="/c/STOOK#house">Back the house <span aria-hidden="true">→</span></Link>
+        <Link className="btn btn-sm" to={`${coinPath(COINS[0])}#house`}>Back the house <span aria-hidden="true">→</span></Link>
       </div>
     </div>
   );

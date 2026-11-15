@@ -71,7 +71,7 @@ export function Usd({ units, decimals, rate, sign, className }: { units: bigint;
   return <span className={`usd ${className ?? ""}`}>{sign && v > 0 ? "+" : ""}{fmtUsd(v)}</span>;
 }
 
-/** A coin amount as it stands on chain: "3.26M STOOK". */
+/** A coin amount as it stands on chain: "3.26M ZCAT". */
 export const coinText = (units: bigint, decimals: number, symbol: string): string => `${fmtCompact(units, decimals)} ${symbol}`;
 
 /** Its dollar value today, marked as an estimate: "≈ $20.20", or "" with no price. */

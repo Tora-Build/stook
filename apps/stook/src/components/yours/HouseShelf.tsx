@@ -6,7 +6,7 @@ import { useWallet } from "@solana/wallet-adapter-react";
 import { stook } from "@sooth/sdk-solana";
 import type { Holding } from "../../lib/chain";
 import { ataOf, ensureAta } from "../../lib/chain";
-import { anchorOf, coinByMint, coinPath } from "../../lib/coins";
+import { anchorOf, coinByMint, coinPath, COINS } from "../../lib/coins";
 import { useMint, useSend } from "../../hooks/useChain";
 import { coinText, fmtUsd, toUsd } from "../../lib/usd";
 import { nyWhen } from "../../lib/time";
@@ -23,7 +23,7 @@ export function HouseShelf({ stakes, rounds, now, own, rates }: { stakes: Stake[
         <span className="kicker taxi">THE HOUSE</span>
         <h3>Nothing in the house yet</h3>
         <p className="dim">The house takes the other side of every call and keeps <b className="taxi">90% of the fees</b>. Stake a coin and it works every day's round.</p>
-        <Link className="btn btn-sm" to="/c/STOOK#house">Back the house <span aria-hidden="true">→</span></Link>
+        <Link className="btn btn-sm" to={`${coinPath(COINS[0])}#house`}>Back the house <span aria-hidden="true">→</span></Link>
       </div>
     </div>
   );

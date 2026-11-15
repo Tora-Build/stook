@@ -1,8 +1,9 @@
 #!/bin/bash
 # Restart a Stook service that is up but stuck, and tell Telegram (alert.sh).
 # Run by the watchdog timers.
-#   watchdog.sh keeper-mainnet  no pass (heartbeat) for 5 minutes: restart; keeper
-#                        wallet under 0.15 SOL: alert
+#   watchdog.sh keeper   no pass (heartbeat) for 5 minutes: restart; rounds failing
+#                        (health) for 15: alert, and restart once an hour at most;
+#                        keeper wallet under 0.5 SOL: alert
 #   watchdog.sh tape     no coin updated for 45 minutes: restart, alert
 #   watchdog.sh resolver Soo's resolver not answering /health: alert
 #   watchdog.sh ledger   no successful poll of the chain for 10 minutes (or no
@@ -11,27 +12,40 @@ up() { local ts; ts=$(systemctl show -p ActiveEnterTimestampMonotonic --value "$
 ALERT=/home/zak/stook/infra/vps/alert.sh
 now() { date +%s; }
 case "$1" in
-  keeper-mainnet)
-    # Only once it runs: no pass for 5 minutes, restart.
-    if systemctl is-active -q stook-keeper-mainnet; then
-      BEAT=/home/zak/ladder-crank-mainnet.beat
-      AGE=$(( $(now) - $(stat -c %Y "$BEAT" 2>/dev/null || echo 0) ))
-      if [ "$AGE" -gt 300 ] && [ "$(up stook-keeper-mainnet)" -gt 300 ]; then
-        echo "$(date -u +%FT%TZ) watchdog: no pass for ${AGE}s, restarting" >> /home/zak/ladder-crank-mainnet.log
-        "$ALERT" keeper-mainnet-dead "MAINNET keeper can't read the chain: no pass for $((AGE / 60)) min. Restarting it. Log: ~/ladder-crank-mainnet.log"
-        systemctl restart stook-keeper-mainnet
-      elif [ "$AGE" -le 300 ]; then
-        "$ALERT" --ok keeper-mainnet-dead "MAINNET keeper is passing again."
-      fi
+  keeper)
+    BEAT=/home/zak/ladder-crank.beat
+    AGE=$(( $(now) - $(stat -c %Y "$BEAT" 2>/dev/null || echo 0) ))
+    if [ "$AGE" -gt 300 ] && [ "$(up stook-keeper)" -gt 300 ]; then
+      echo "$(date -u +%FT%TZ) watchdog: no pass for ${AGE}s, restarting" >> /home/zak/ladder-crank.log
+      "$ALERT" keeper-dead "Keeper can't read the chain: no pass for $((AGE / 60)) min. Restarting it. Rounds may miss their open or settle. Log: ~/ladder-crank.log"
+      systemctl restart stook-keeper
+      exit 0
     fi
-    # Its wallet pays the rent of each open round (back when the round
-    # closes) and the fees: every 30 minutes, alert under 0.15 SOL.
+    [ "$AGE" -le 300 ] && "$ALERT" --ok keeper-dead "Keeper is passing again."
+    # Alive, but rounds failing: say so; restart at most once an hour, since a
+    # round the program keeps refusing stays refused.
+    SICK=$(( $(now) - $(stat -c %Y /home/zak/ladder-crank.health 2>/dev/null || echo 0) ))
+    if [ "$SICK" -gt 900 ] && [ "$(up stook-keeper)" -gt 900 ]; then
+      WHY=$(grep -E "failing|failed" /home/zak/ladder-crank.log | tail -1 | cut -c1-200)
+      "$ALERT" keeper-sick "Keeper is up but rounds are failing for $((SICK / 60)) min. Last: ${WHY:-see ~/ladder-crank.log}"
+      LAST=$(stat -c %Y /home/zak/.stook-keeper-sick-restart 2>/dev/null || echo 0)
+      if [ $(( $(now) - LAST )) -gt 3600 ]; then
+        echo "$(date -u +%FT%TZ) watchdog: rounds failing for ${SICK}s, restarting (once an hour at most)" >> /home/zak/ladder-crank.log
+        touch /home/zak/.stook-keeper-sick-restart
+        systemctl restart stook-keeper
+      else
+        echo "$(date -u +%FT%TZ) watchdog: rounds failing for ${SICK}s" >> /home/zak/ladder-crank.log
+      fi
+    elif [ "$SICK" -le 900 ]; then
+      "$ALERT" --ok keeper-sick "Keeper rounds are going through again."
+    fi
+    # The keeper's wallet pays every open, settle and price post: every 30 minutes.
     if [ $(( $(now) / 60 % 30 )) -eq 0 ]; then
-      SOL=$(set -a && . /home/zak/stook-mainnet.env && set +a && timeout 30 /usr/bin/node /home/zak/stook/infra/vps/sol-balance.mjs 3 2>/dev/null)
-      if [ -n "$SOL" ] && awk "BEGIN{exit !($SOL < 0.15)}"; then
-        "$ALERT" keeper-mainnet-sol "MAINNET keeper wallet is low: ${SOL} SOL. Send SOL to H1xgYrQwuFHPWz6FiM6XBgVD3EyqsoPfeFqPsu9cWoP4 before it stops opening rounds."
+      SOL=$(set -a && . /home/zak/stook.env && set +a && timeout 30 /usr/bin/node /home/zak/stook/infra/vps/sol-balance.mjs 3 2>/dev/null)
+      if [ -n "$SOL" ] && awk "BEGIN{exit !($SOL < 0.5)}"; then
+        "$ALERT" keeper-sol "Keeper wallet is low: ${SOL} SOL. Top it up on devnet before it stops opening and settling rounds."
       elif [ -n "$SOL" ]; then
-        "$ALERT" --ok keeper-mainnet-sol "MAINNET keeper wallet topped up: ${SOL} SOL."
+        "$ALERT" --ok keeper-sol "Keeper wallet topped up: ${SOL} SOL."
       fi
     fi ;;
   tape)
@@ -46,11 +60,11 @@ case "$1" in
     fi ;;
   ledger)
     # pollAge: seconds since the ledger last read the chain's newest signatures
-    AGE=$(curl -s -m 5 localhost:8793/health | python3 -c "import sys,json; a=json.load(sys.stdin).get('pollAge'); print(a if a is not None else 999999)" 2>/dev/null || echo 999999)
-    if [ "${AGE:-999999}" -gt 600 ] && [ "$(up stook-ledger-mainnet)" -gt 600 ]; then
-      echo "$(date -u +%FT%TZ) watchdog: ledger poll ${AGE}s old, restarting" >> /home/zak/ledger-mainnet.log
-      "$ALERT" ledger "Ledger is stale: no read of the chain for $((AGE / 60)) min (or no answer on /health). Restarting it. History on Yours stops at that point until it is back. Log: ~/ledger-mainnet.log"
-      systemctl restart stook-ledger-mainnet
+    AGE=$(curl -s -m 5 localhost:8792/health | python3 -c "import sys,json; a=json.load(sys.stdin).get('pollAge'); print(a if a is not None else 999999)" 2>/dev/null || echo 999999)
+    if [ "${AGE:-999999}" -gt 600 ] && [ "$(up stook-ledger)" -gt 600 ]; then
+      echo "$(date -u +%FT%TZ) watchdog: ledger poll ${AGE}s old, restarting" >> /home/zak/ledger.log
+      "$ALERT" ledger "Ledger is stale: no read of the chain for $((AGE / 60)) min (or no answer on /health). Restarting it. History on Yours stops at that point until it is back. Log: ~/ledger.log"
+      systemctl restart stook-ledger
     elif [ "${AGE:-999999}" -le 600 ]; then
       "$ALERT" --ok ledger "Ledger is reading the chain again."
     fi ;;

@@ -1,0 +1,6 @@
+[Unit]
+Description=Alert that stook-sim has stopped for good (its restarts ran out)
+
+[Service]
+Type=oneshot
+ExecStart=/home/zak/stook/infra/vps/alert.sh sim-dead "Stook sim has stopped: it failed five times in ten minutes and systemd gave up. The fleet sends nothing until it is started again. See: journalctl -u stook-sim -n 50"

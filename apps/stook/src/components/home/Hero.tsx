@@ -6,7 +6,6 @@ import { useState } from "react";
 import { Link } from "react-router-dom";
 import { stook } from "@sooth/sdk-solana";
 import { City, type CityLayout } from "../City";
-import { WatchButton } from "../Watch";
 import { coinPath } from "../../lib/coins";
 import { nyAt, nyDate, nyWhen } from "../../lib/time";
 import { fmtAnchor, fmtChange, phaseOf, useFeedQuote, type StreetRound } from "./useStreet";
@@ -97,7 +96,6 @@ export function Hero({ round, now }: { round: StreetRound | undefined; now: numb
         </div>
         <div className="home-ctas">
           <Link className="btn" to={roundTo}>{cta} <span aria-hidden="true">→</span></Link>
-          <WatchButton bare className="btn btn-ghost" label="60 s video" />
         </div>
       </div>
     </section>

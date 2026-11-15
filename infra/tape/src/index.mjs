@@ -28,7 +28,6 @@ const LEDGER_URL = process.env.LEDGER_URL ?? "http://127.0.0.1:8792";
 // Pools are identified by account, never by ticker. `quote` names the pool a
 // price is expressed through; USDC is the dollar, SPYx resolves through its own pool.
 const POOLS = {
-  STOOK: { name: "Polymarket (PreStocks)", kind: "clmm", pool: "5fdWxxkv63NdU7t2CspjyCQrvmMvfe3mQwSgYpHam1Gs", quote: "USDC", dp: 2 },
   // No coin's anchor now; STONK is priced through it.
   SPYX: { name: "S&P 500 (SPYx)", kind: "clmm", pool: "6truu3rZuiB9rKQg4VYC3Dt3QwV7DgwGqXrYUcrvnDDE", quote: "USDC", dp: 2 },
   GP: { name: "Gold (GLDx)", kind: "clmm", pool: "78ReVNMLGRWmjtf2HmBoHUe2pRcsctXTTbxJnbhchyze", quote: "USDC", dp: 2 },
@@ -108,7 +107,7 @@ async function prime() {
     }
     const raw = poolPrice(p.kind, d) * (whirlDecimals[p.pool] ?? 1); lastRaw[coin] = raw;
   }
-  for (const coin of ["STOOK", "GP", "ZCAT", "SPYX", "KNOTS"]) record(coin, lastRaw[coin], 0);   // quotes first, then STONK through SPYx
+  for (const coin of ["GP", "ZCAT", "SPYX", "KNOTS"]) record(coin, lastRaw[coin], 0);   // quotes first, then STONK through SPYx
 }
 function subscribe() {
   const ws = new WebSocket(WS_URL); const byId = {}; let id = 0;

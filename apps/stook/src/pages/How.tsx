@@ -6,14 +6,13 @@
 import { useMemo, useState, type ReactNode } from "react";
 import { useSearchParams } from "react-router-dom";
 import { Link } from "react-router-dom";
-import { COINS } from "../lib/coins";
+import { coinPath, COINS } from "../lib/coins";
 import { Slider } from "../components/Slider";
 import { Tower, type HeldMark, type Phase, type RoofSign, type TickerItem } from "../components/Tower";
 import { CallKind } from "../components/TowerDesk";
 import { useDesk } from "../hooks/useDesk";
 import { aboutMultiple, callWords, height, makeGrid, nearAt, toShape, type Grid } from "../lib/call";
 import { Title } from "../components/Title";
-import { WatchButton } from "../components/Watch";
 import { City } from "../components/City";
 
 const STOPS = ["The tables", "The tower", "Your call", "The bell", "The house", "Your statement"] as const;
@@ -48,8 +47,7 @@ export function How() {
           <h1 className="how-h1">Where will it <em>close?</em></h1>
           <p className="how-hero-line">One question a day, at every table. Call a floor on the tower, the bell rings at <b>4 PM New York</b>, and the floor the close lands on gets paid, in the coin.</p>
           <div className="how-hero-ctas">
-            <WatchButton bare className="btn" label="Watch in 60s" />
-            <a className="btn btn-ghost" href="#how-walk" onClick={jump("how-walk")}>Walk the street</a>
+            <a className="btn" href="#how-walk" onClick={jump("how-walk")}>Walk the street</a>
           </div>
           <dl className="how-hero-facts">
             <div><dt>The bell</dt><dd>4 PM NY</dd></div>
@@ -144,7 +142,7 @@ export function How() {
         <section className="how-sec" aria-label="Where to go next">
           <div className="how-door">
             <div><span className="kicker taxi">READY</span><h2>Make your call</h2><p>Today's rounds are on the floor. Or back a house and earn its fees.</p></div>
-            <div className="how-door-ctas"><Link className="btn" to="/#floor">To the floor <span aria-hidden="true">→</span></Link><Link className="btn btn-ghost" to="/c/SSt.">Be the house</Link></div>
+            <div className="how-door-ctas"><Link className="btn" to="/#floor">To the floor <span aria-hidden="true">→</span></Link><Link className="btn btn-ghost" to={`${coinPath(COINS[0])}#house`}>Be the house</Link></div>
           </div>
         </section>
       </div>
@@ -259,7 +257,7 @@ function House() {
 function Statement() {
   const [open, setOpen] = useState<number | null>(0);
   const days = [
-    { name: "Polymarket in $SSt. · Thu", total: 42.1, lines: [["call: Near 140.25, ±3 floors · paid $10", 31.6], ["house deposit · put in $20", 10.5]] as [string, number][] },
+    { name: "Zcash in $ZCAT · Thu", total: 42.1, lines: [["call: Near 140.25, ±3 floors · paid $10", 31.6], ["house deposit · put in $20", 10.5]] as [string, number][] },
     { name: "Gold in $GP · Thu", total: 0, lines: [["call: Between 3,310.00 and 3,395.00 · paid $5", 0]] as [string, number][] },
   ];
   return (

@@ -1,19 +1,17 @@
 // The home page: the featured round's question over the night city, then
-// every street coin's table, the listed coins, the last bells, the street's
-// own coin and the house.
+// every street coin's table, the listed coins, the last bells and the house.
 import { Link, Navigate, useSearchParams } from "react-router-dom";
 import { useConnection } from "@solana/wallet-adapter-react";
-import { coinBySymbol, coinPath, COINS, keyOf } from "../lib/coins";
+import { coinBySymbol, coinPath, COINS } from "../lib/coins";
 import { useListed } from "../lib/listed";
 import { useNow } from "../hooks/useNow";
 import { Title } from "../components/Title";
 import { Hero } from "../components/home/Hero";
-import { HouseCard, LastBells, Listed, StreetCoin } from "../components/home/Sections";
+import { HouseCard, LastBells, Listed } from "../components/home/Sections";
 import { FloorStage } from "../components/home/FloorStage";
 import { featured, useStreetRounds, type StreetRound } from "../components/home/useStreet";
 import { anchorOf, seriesOf } from "../lib/coins";
 
-const STOOK = COINS.find((c) => keyOf(c) === "STOOK")!;
 // Until the chain answers, the tables show each coin with no round state.
 const BLANK: StreetRound[] = COINS.map((coin) => { const anchor = anchorOf(coin); return { coin, anchor, ownFeed: anchor.symbol !== coin.anchor.symbol, seriesKey: seriesOf(coin), series: null, index: null, closesAt: null, round: null, bells: [] }; });
 
@@ -44,8 +42,7 @@ export function Markets() {
 
         {top && <LastBells r={top} />}
 
-        <section className="home-pair">
-          <StreetCoin coin={STOOK} />
+        <section>
           <HouseCard />
         </section>
       </div>

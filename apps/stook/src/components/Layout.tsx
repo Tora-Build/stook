@@ -2,11 +2,10 @@ import { Link, NavLink, Outlet, useLocation } from "react-router-dom";
 import { useEffect } from "react";
 import { ConnectWallet } from "./ConnectWallet";
 import { Faucet } from "./Faucet";
-import { CopyCA } from "./CopyCA";
 import { ThemeToggle } from "./Theme";
 import { PageGuard } from "./PageGuard";
 import { City } from "./City";
-import { coinBySymbol, isDevnet } from "../lib/coins";
+import { coinPath, COINS, isDevnet } from "../lib/coins";
 
 // Pages that draw their own hero (a City under the header). The rest get a
 // short city band from the shell, so every page opens on the same picture.
@@ -28,15 +27,15 @@ export function Layout() {
         <nav className="ss-links" aria-label="Main">
           <NavLink to="/" {...on(path === "/" || path.startsWith("/m/"))}>Play</NavLink>
           <NavLink to="/yours" {...on(path === "/yours")}>Yours</NavLink>
-          <NavLink to="/c/STOOK" {...on(path.startsWith("/c/"))}>Earn</NavLink>
+          <NavLink to={coinPath(COINS[0])} {...on(path.startsWith("/c/"))}>Earn</NavLink>
           <NavLink to="/board" {...on(path === "/board")}>Board</NavLink>
           <NavLink to="/list" {...on(path === "/list")}>List a coin</NavLink>
           <NavLink to="/how" className={path === "/how" ? "on ss-how-link" : "ss-how-link"}>How it works</NavLink>
         </nav>
         <div className="ss-right">
           <Link to="/how" className={`ss-pill ss-how ${path === "/how" ? "on" : ""}`}>How it works</Link>
-          {/* the coin's contract address, or on devnet without a coin the faucet (also on Yours) */}
-          {coinBySymbol("SSt.")?.mint ? <CopyCA /> : <Faucet />}
+          {/* the devnet faucet (also on Yours) */}
+          <Faucet />
           <ThemeToggle />
           <ConnectWallet nav />
         </div>
