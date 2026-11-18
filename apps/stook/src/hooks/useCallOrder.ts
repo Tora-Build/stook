@@ -32,7 +32,7 @@ export function useCallOrder(p: { refs: stook.LadderRefs; ladder: stook.LadderAc
   const stale = (s === null) !== (p.shape === null) || (!!s && !!p.shape && !sameShape(s, p.shape));
   // The fee rises over the last six hours; quote at the rate this trade lands at.
   const feeBps = stook.feeBpsAt(l.feeBps, BigInt(p.now), l.settlesAt);
-  const quoteOf = (sh: stook.Shape, n: bigint) => { try { return stook.quoteTrade({ curve: l.curve, b: l.b, feeBps, decimals: dec }, sh, n); } catch { return null; } };
+  const quoteOf = (sh: stook.Shape, n: bigint) => { try { return stook.quoteTrade({ curve: l.curve, b: stook.depthAt(l, BigInt(p.now)), feeBps, decimals: dec }, sh, n); } catch { return null; } };
   const quote = (n: bigint) => quoteOf(s!, n);
   // A spend becomes the most shares it buys, the coin's transfer fee included.
   const budget = unit === "coin" ? parseAmount(text, dec) : p.usd ? fromUsd(Number(text.replace(/,/g, "")) || 0, dec, p.usd) : null;

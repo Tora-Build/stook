@@ -195,6 +195,7 @@ function Buy(p: Props & { held?: boolean }) {
             <div><dt>{existing && !p.held ? "Adds to your call" : "Your call"}</dt><dd>{p.symbol} · {p.name(s)}</dd></div>
             <div><dt>You pay</dt><dd>{say.coin(pays)}</dd></div>
             <div><dt>Fee {(feeBps / 100).toFixed(feeBps % 100 ? 1 : 0)}%{feeBps >= stook.FEE_PEAK_BPS ? ", its highest" : Number(l.settlesAt) - p.now < 6 * 3600 ? ", rising to 5% by the lock" : ""}</dt><dd>{say.coin(q.fee)}</dd></div>
+            {l.sharedVault && l.b > 0n && <div><dt>Round depth</dt><dd>{Math.round((Number(stook.depthAt(l, BigInt(p.now))) / Number(l.b)) * 100)}% of the open, a quarter by the lock</dd></div>}
             <div><dt>Most it can cost</dt><dd>{say.coin(limit)}</dd></div>
             {pays !== q.total && <div><dt>Coin's transfer fee</dt><dd>{say.coin(pays - q.total)}</dd></div>}
           </dl>
@@ -220,7 +221,7 @@ function Sell(p: Props & { pos: PositionRow }) {
   const l = p.ladder, dec = l.decimals, pos = p.pos.position, s = pos.shape;
   const say = useSay(dec, p.quoteSymbol, p.usd);
   const size = (pos.shares * BigInt(pct)) / 100n;
-  const q = useMemo(() => { if (size <= 0n) return null; try { return stook.quoteTrade({ curve: l.curve, b: l.b, feeBps: stook.feeBpsAt(l.feeBps, BigInt(p.now), l.settlesAt), decimals: dec }, s, -size); } catch { return null; } }, [size, l, dec, s, p.now]);
+  const q = useMemo(() => { if (size <= 0n) return null; try { return stook.quoteTrade({ curve: l.curve, b: stook.depthAt(l, BigInt(p.now)), feeBps: stook.feeBpsAt(l.feeBps, BigInt(p.now), l.settlesAt), decimals: dec }, s, -size); } catch { return null; } }, [size, l, dec, s, p.now]);
   const get = q ? stook.netOf(q.total, p.transferFee) : null;
   // The least that must land in the wallet, the coin's transfer fee in force
   // off: the program holds the sale to what arrives, so a higher fee the

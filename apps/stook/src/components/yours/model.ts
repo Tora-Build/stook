@@ -36,7 +36,7 @@ export function value(h: Holding, now: number, dp: number): Valued {
     let v: bigint | null = null;
     if (final) { v = stook.owedTo(l, p); ready += v > 0n ? v : 0n; }
     else if (l.status === "open" && now < Number(l.locksAt) && p.shares > 0n) {
-      try { v = stook.quoteTrade({ curve: l.curve, b: l.b, feeBps, decimals: l.decimals }, s, -p.shares).total; } catch { v = null; }
+      try { v = stook.quoteTrade({ curve: l.curve, b: stook.depthAt(l, BigInt(Math.floor(now))), feeBps, decimals: l.decimals }, s, -p.shares).total; } catch { v = null; }
     }
     if (!final) atWork += p.netPaid;
     lines.push({ key: r.pubkey.toBase58(), kind: "line", what, size: p.shares, cost: p.netPaid, value: v, shape: s, note: final ? undefined : v === null ? "held to the bell" : "if sold now" });

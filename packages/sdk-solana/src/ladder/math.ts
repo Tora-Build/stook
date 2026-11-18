@@ -121,6 +121,38 @@ export function roundTimes(now: bigint, settlesAt: bigint): { opensAt: bigint; l
   return { opensAt, locksAt: settlesAt - gap };
 }
 
+export function isqrt(n: bigint): bigint {
+  if (n < 2n) return n;
+  let x = 1n << BigInt(Math.floor((n.toString(2).length + 1) / 2));
+  for (;;) {
+    const y = (x + n / x) / 2n;
+    if (y >= x) return x;
+    x = y;
+  }
+}
+
+export const DEPTH_FLOOR_DEN = 4n;
+const DEPTH_ONE_BITS = 31n;
+
+/**
+ * The depth a trade at `now` is priced on (`depth_at`). A house round thins
+ * toward the lock, `b · max(¼, √(time to lock / trading window))`, as the
+ * dynamic pm-AMM does; any other round keeps its depth. Fixed point 2³¹, as
+ * the program computes it.
+ */
+export function depthAt(l: { b: bigint; sharedVault: boolean; opensAt: bigint; locksAt: bigint }, now: bigint): bigint {
+  const span = l.locksAt - l.opensAt;
+  if (!l.sharedVault || span <= 0n || span >= 1n << 32n || l.b <= 0n) return l.b;
+  const one = 1n << DEPTH_ONE_BITS;
+  let left = l.locksAt - now;
+  if (left < 0n) left = 0n;
+  if (left > span) left = span;
+  let f = isqrt(((left << DEPTH_ONE_BITS) / span) << DEPTH_ONE_BITS);
+  if (f < one / DEPTH_FLOOR_DEN) f = one / DEPTH_FLOOR_DEN;
+  if (f >= one) return l.b;
+  return (l.b >> DEPTH_ONE_BITS) * f + (((l.b & (one - 1n)) * f) >> DEPTH_ONE_BITS);
+}
+
 /** A void's two pots: depositors up to what they put in, open lines the rest. */
 export function voidPots(vault: bigint, depositTotal: bigint, basisTotal: bigint): { lp: bigint; traders: bigint } {
   const lp = basisTotal === 0n || vault < depositTotal ? vault : depositTotal;

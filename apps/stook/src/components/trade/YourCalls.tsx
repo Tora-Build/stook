@@ -20,10 +20,10 @@ export function YourCalls(p: {
   const rows = useMemo(() => p.positions.map((r) => {
     const pos = r.position;
     let worth: bigint | null = null;
-    if (p.tradeable && l.b > 0n && pos.shares > 0n) { try { worth = stook.netOf(stook.quoteTrade({ curve: l.curve, b: l.b, feeBps: fee, decimals: dec }, pos.shape, -pos.shares).total, p.transferFee); } catch { worth = null; } }
+    if (p.tradeable && l.b > 0n && pos.shares > 0n) { try { worth = stook.netOf(stook.quoteTrade({ curve: l.curve, b: stook.depthAt(l, BigInt(p.now)), feeBps: fee, decimals: dec }, pos.shape, -pos.shares).total, p.transferFee); } catch { worth = null; } }
     const best = stook.netOf(pos.shares * BigInt(pos.shape.h), p.transferFee);
     return { r, key: r.pubkey.toBase58(), worth, best };
-  }), [p.positions, p.tradeable, l.curve, l.b, fee, dec, p.transferFee]);
+  }), [p.positions, p.tradeable, l, p.now, fee, dec, p.transferFee]);
   if (!rows.length) return null;
   const paid = p.positions.reduce((a, r) => a + r.position.netPaid, 0n);
   return (

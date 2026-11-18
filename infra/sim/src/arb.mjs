@@ -115,9 +115,9 @@ export function cheapRange(seed, cheap, maxWidth) {
  * still at or under its fair odds, whose cost (wallet side) fits `budget` and
  * is no more than the line is worth at fair odds. 0n if none.
  */
-export function buySize(l, shape, { fair, feeBps, transferFee, budget }) {
+export function buySize(l, shape, { fair, feeBps, transferFee, budget, now }) {
   if (budget <= 0n) return { shares: 0n };
-  const m = { curve: l.curve, b: l.b, feeBps, decimals: l.decimals };
+  const m = { curve: l.curve, b: now === undefined ? l.b : stook.depthAt(l, now), feeBps, decimals: l.decimals };
   const bands = bandsOf(shape);
   const fairLevel = bands.reduce((a, i) => a + fair[i] * stook.level(shape, i), 0);
   const at = (n) => {
@@ -141,14 +141,14 @@ export function buySize(l, shape, { fair, feeBps, transferFee, budget }) {
  * neighbours) whose line `allow(shape)` permits, sized by `buySize`. Null
  * when no band is cheap or none can be bought.
  */
-export function planArbBuy(l, fair, { feeBps, transferFee, budget, margin, minFair = 0.005, maxWidth = 3, allow = () => true }) {
+export function planArbBuy(l, fair, { feeBps, transferFee, budget, margin, minFair = 0.005, maxWidth = 3, allow = () => true, now }) {
   const crowd = crowdOdds(l.curve);
   const fee = feeFrac(feeBps, transferFee);
   const cheap = cheapBands(fair, crowd, { fee, margin, minFair });
   for (const c of cheap) {
     for (const shape of [cheapRange(c.i, cheap, maxWidth), stook.band(c.i, c.i)]) {
       if (!allow(shape)) continue;
-      const s = buySize(l, shape, { fair, feeBps, transferFee, budget });
+      const s = buySize(l, shape, { fair, feeBps, transferFee, budget, now });
       if (s.shares > 0n) return { side: "buy", shape, band: c.i, ratio: c.ratio, crowd, ...s };
     }
   }
@@ -167,9 +167,9 @@ export function richness(shape, fair, crowd) {
  * band it touches is still at or over its fair odds, and what the sale pays
  * (after the coin's transfer fee) is at least what they are worth at fair.
  */
-export function sellSize(l, shape, { fair, feeBps, transferFee, held }) {
+export function sellSize(l, shape, { fair, feeBps, transferFee, held, now }) {
   if (held <= 0n) return { shares: 0n };
-  const m = { curve: l.curve, b: l.b, feeBps, decimals: l.decimals };
+  const m = { curve: l.curve, b: now === undefined ? l.b : stook.depthAt(l, now), feeBps, decimals: l.decimals };
   const bands = bandsOf(shape);
   const fairLevel = bands.reduce((a, i) => a + fair[i] * stook.level(shape, i), 0);
   const at = (n) => {
@@ -192,12 +192,12 @@ export function sellSize(l, shape, { fair, feeBps, transferFee, held }) {
  * (each band over fair by the fees and a margin), sized by `sellSize`.
  * `held` is `[{ shape, shares }]`. Null when none is rich.
  */
-export function planArbSell(l, fair, { feeBps, transferFee, held, margin }) {
+export function planArbSell(l, fair, { feeBps, transferFee, held, margin, now }) {
   const crowd = crowdOdds(l.curve);
   const thr = sellAbove(feeFrac(feeBps, transferFee), margin);
   const rich = held.map((h) => ({ ...h, ratio: richness(h.shape, fair, crowd) })).filter((h) => h.ratio > thr && h.shares > 0n).sort((a, b) => b.ratio - a.ratio);
   for (const h of rich) {
-    const s = sellSize(l, h.shape, { fair, feeBps, transferFee, held: h.shares });
+    const s = sellSize(l, h.shape, { fair, feeBps, transferFee, held: h.shares, now });
     if (s.shares > 0n) return { side: "sell", shape: h.shape, ratio: h.ratio, crowd, held: h.shares, ...s };
   }
   return null;

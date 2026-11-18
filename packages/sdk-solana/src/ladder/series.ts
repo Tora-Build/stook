@@ -7,7 +7,7 @@
 import { PublicKey, SystemProgram, TransactionInstruction } from "@solana/web3.js";
 import { SOOTH_CORE_PROGRAM_ID } from "../program.js";
 import { expWad, WAD } from "../math/lmsr.js";
-import { BINS, fresh, liquidityForDeposit, roundTimes, type Curve } from "./math.js";
+import { BINS, fresh, isqrt, liquidityForDeposit, roundTimes, type Curve } from "./math.js";
 import type { LadderAccount, LadderTrancheAccount } from "./accounts.js";
 
 const enc = new TextEncoder();
@@ -49,15 +49,6 @@ export const MAX_STEP_BPS = 2_000;
 /** How far ahead a day can be funded. Its bands are set when it opens. */
 export const MAX_LEAD_SECS = 31n * 86_400n;
 
-export function isqrt(n: bigint): bigint {
-  if (n < 2n) return n;
-  let x = 1n << BigInt(Math.floor((n.toString(2).length + 1) / 2));
-  for (;;) {
-    const y = (x + n / x) / 2n;
-    if (y >= x) return x;
-    x = y;
-  }
-}
 
 /** `band_width`: a round's band width (bps) and its bell's variance in bands² (WAD). */
 export function bandWidth(varDay: bigint, windowSecs: bigint): { stepBps: number; varBands: bigint } {

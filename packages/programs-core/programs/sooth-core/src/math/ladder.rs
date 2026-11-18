@@ -453,6 +453,54 @@ pub fn liquidity_for_deposit(
     wad_div(usable, worst)
 }
 
+/// A house round's depth falls toward the lock to `DEPTH_FLOOR` of what it
+/// opened with: `b · max(¼, √(time to lock / trading window))`.
+///
+/// This is the dynamic pm-AMM's schedule (Moallemi and Robinson, Paradigm
+/// 2024: liquidity ∝ √(T−t)). Late in the day a trade moves the price more,
+/// so an informed trader near the bell takes less from the house. The
+/// backtest (`scripts/backtest/house-bt.py`) cut the house's loss to sharp
+/// flow from 14.9% of its deposit per round to 6.1%.
+///
+/// The worst case does not grow: with `b` never rising, the pool's result at
+/// the bin that settles is `−Σ bₜ·Δln pₖ ≥ −b₀·ln(1/pₖ(open))`, the same
+/// bound as constant depth. The solvency check on every trade holds it anyway.
+pub const DEPTH_FLOOR_DEN: u64 = 4;
+
+/// The schedule's fixed point: 2³¹ is one. Native 64-bit arithmetic, since
+/// SBF divides 128-bit integers in software; 2⁻³¹ is far below a price tick.
+const DEPTH_ONE_BITS: u32 = 31;
+
+fn isqrt64(n: u64) -> u64 {
+    if n < 2 {
+        return n;
+    }
+    let mut x = 1u64 << ((64 - n.leading_zeros() + 1) / 2);
+    loop {
+        let y = (x + n / x) / 2;
+        if y >= x {
+            return x;
+        }
+        x = y;
+    }
+}
+
+pub fn depth_at(b: i128, opens_at: i64, locks_at: i64, now: i64) -> i128 {
+    let span = locks_at.saturating_sub(opens_at);
+    // A window over 2³² s (136 years) would overflow the shift below.
+    if span <= 0 || span >= 1 << 32 || b <= 0 {
+        return b;
+    }
+    let one = 1u64 << DEPTH_ONE_BITS;
+    let left = locks_at.saturating_sub(now).clamp(0, span) as u64;
+    let f = isqrt64(((left << DEPTH_ONE_BITS) / span as u64) << DEPTH_ONE_BITS).max(one / DEPTH_FLOOR_DEN);
+    if f >= one {
+        return b;
+    }
+    let b = b as u128;
+    (((b >> DEPTH_ONE_BITS) * f as u128) + (((b & (one as u128 - 1)) * f as u128) >> DEPTH_ONE_BITS)) as i128
+}
+
 /// A tranche's profit or loss, WAD, if bin `k` settles:
 /// `b · ( ln(S_f/w_f[k]) − ln(S_j/w_j[k]) )`. Negative when the settled bin
 /// became likelier after the tranche joined — the layer sold it too cheaply.
@@ -944,6 +992,56 @@ mod tests {
         // ln(6.4e10) = ln 6.4 + 10·ln 10 = 1.8562980 + 23.0258509 = 24.8821489…
         let l = neg_ln_price(WAD, sum).unwrap();
         assert!(close(l, 24_882_148_920_306_083_000, 1_000_000_000), "{l}");
+    }
+
+    #[test]
+    fn a_house_rounds_depth_falls_as_the_square_root_of_the_time_left() {
+        let b = 1_000 * WAD;
+        assert_eq!(depth_at(b, 0, 10_000, 0), b, "full at open");
+        assert_eq!(depth_at(b, 0, 10_000, -5), b, "full before open");
+        assert_eq!(depth_at(b, 0, 10_000, 7_500), 500 * WAD, "half with a quarter left");
+        assert_eq!(depth_at(b, 0, 10_000, 9_900), 250 * WAD, "floored at a quarter");
+        assert_eq!(depth_at(b, 0, 10_000, 20_000), 250 * WAD, "floored past the lock");
+        assert_eq!(depth_at(b, 5, 5, 5), b, "no window, no change");
+        let mut last = b;
+        for t in (0..=10_000).step_by(97) {
+            let d = depth_at(b, 0, 10_000, t);
+            assert!(d <= last, "never rises");
+            last = d;
+        }
+        // a large coin's depth does not overflow
+        let big = 10i128.pow(36);
+        assert_eq!(depth_at(big, 0, 4, 3), big / 2);
+        // the same vector the SDK checks, to the unit
+        let odd = 123_456_789_012_345_678_901_234_567i128;
+        assert_eq!(depth_at(odd, 1_000, 83_800, 50_000), 78_878_412_003_149_542_955_540_612);
+        assert_eq!(depth_at(odd, 1_000, 83_800, 83_000), 30_864_197_253_086_419_725_308_641);
+    }
+
+    #[test]
+    fn a_falling_depth_never_loses_more_than_the_opening_bound() {
+        let (w0, s0) = prior(16 * WAD).unwrap();
+        let deposit = 1_000 * WAD;
+        let b0 = liquidity_for_deposit(&w0, s0, deposit).unwrap();
+        // Drive every bin in turn to near certainty over the day, as the depth
+        // falls: the pool's result at that bin stays inside the deposit.
+        for k in [0usize, 5, 31, 40, 63] {
+            let (mut w, mut sum) = (w0, s0);
+            let (mut cash, mut owed) = (deposit, 0i128);
+            for step in 0..40i64 {
+                let b = depth_at(b0, 0, 40, step);
+                let px = price(&w, sum, k).unwrap();
+                if px > WAD * 999 / 1000 {
+                    break;
+                }
+                let size = b * 2;
+                if let Ok(c) = apply_trade(&mut w, &mut sum, b, Shape::band(k as u8, k as u8), size) {
+                    cash += c;
+                    owed += size;
+                }
+            }
+            assert!(cash >= owed, "bin {k}: owes {owed}, holds {cash}");
+        }
     }
 
     #[test]

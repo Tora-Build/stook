@@ -173,6 +173,18 @@ describe.each([["a classic SPL coin", false], ["a coin with a 1% transfer fee", 
     await ok(e, L.tradeLadderIx(A.refs(), { user: e.trader.kp.publicKey, userToken: e.trader.token, shape: win, shares: 300n * UNIT, limit: 10n ** 12n }), e.trader.kp);
     await ok(e, L.tradeLadderIx(A.refs(), { user: e.trader.kp.publicKey, userToken: e.trader.token, shape: miss, shares: 200n * UNIT, limit: 10n ** 12n }), e.trader.kp);
     solvent(A.state());
+    // Near the lock the house round is a quarter as deep: the same call costs
+    // more, priced exactly as `depthAt` quotes it.
+    const late = A.state().locksAt - 60n;
+    warpClockTo(e.ctx, late);
+    const pre = A.state(), near = { lo: W, hi: W, h: 1 };
+    expect(L.depthAt(pre, late)).toBe(pre.b / 4n);
+    const quote = L.quoteTrade({ curve: pre.curve, b: L.depthAt(pre, late), feeBps: L.feeBpsAt(pre.feeBps, late, pre.settlesAt), decimals: 6 }, near, 50n * UNIT);
+    const flat = L.quoteTrade({ curve: pre.curve, b: pre.b, feeBps: L.feeBpsAt(pre.feeBps, late, pre.settlesAt), decimals: 6 }, near, 50n * UNIT);
+    expect(quote.amount > flat.amount).toBe(true);
+    await ok(e, L.tradeLadderIx(A.refs(), { user: e.trader.kp.publicKey, userToken: e.trader.token, shape: near, shares: 50n * UNIT, limit: gross(quote.total) }), e.trader.kp);
+    expect(A.state().cash - pre.cash).toBe(quote.amount);
+    solvent(A.state());
     warpClockTo(e.ctx, settlesA + 5n);
     await ok(e, L.settleLadderIx(A.refs(), ser.series, e.trader.kp.publicKey, e.priceAccount(updateAt(22_460_000n, settlesA, settlesA - 1n)), e.trader.token), e.trader.kp);
     solvent(A.state());
@@ -180,6 +192,7 @@ describe.each([["a classic SPL coin", false], ["a coin with a 1% transfer fee", 
     await ok(e, L.redeemLadderIx(A.refs(), e.trader.kp.publicKey, e.trader.token, win), e.trader.kp);
     expect(balance(e, e.trader.token) > t0).toBe(true);                         // the winner is paid out of the shared vault
     await ok(e, L.redeemLadderIx(A.refs(), e.trader.kp.publicKey, e.trader.token, miss), e.trader.kp);
+    await ok(e, L.redeemLadderIx(A.refs(), e.trader.kp.publicKey, e.trader.token, near), e.trader.kp);
     await ok(e, L.collectLadderFeesIx(A.refs(), e.trader.kp.publicKey, e.keeper.token, e.treasuryToken), e.trader.kp);
     // Nobody can claim the house's deposit for it, not even after the grace period.
     warpClockTo(e.ctx, settlesA + 31n * 86_400n);
@@ -192,7 +205,9 @@ describe.each([["a classic SPL coin", false], ["a coin with a 1% transfer fee", 
     const fin = A.state(), t = L.decodeLadderTranche(raw(e, L.deriveLadderTranche(A.ladder, house, 0, PROGRAM))), k = fin.settledBin!;
     const terms = L.trancheTerms(fin, t);
     const fees = L.trancheFees(terms.b, 6, fin.accFee, t.feeSnap);
-    const owed = L.tranchePrincipal(t.deposit, L.tranchePnl(terms.b, terms.join.w[k]!, terms.join.sum, fin.curve.w[k]!, fin.curve.sum), 6) + fees;
+    // The house is the round's only tranche and its depth moved during the
+    // day: it takes the whole pool the winners left.
+    const owed = fin.lpPool + fees;
     // Something is queued, so the epoch's price must be recorded: leaving the record out is refused.
     await refused(e, L.houseCollectIx(H, e.keeper.kp.publicKey, { ...hs(), pendingDeposits: 0n, pendingWithdrawShares: 0n }), e.keeper.kp, "HouseEpochMissing");
     await ok(e, L.houseCollectIx(H, e.keeper.kp.publicKey, hs()), e.keeper.kp);

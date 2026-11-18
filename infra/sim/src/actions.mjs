@@ -280,9 +280,9 @@ function buyAction(ctx, c, kind, add = null) {
       if (budget <= 0n) throw new Skip("no coins or no depth", "InsufficientFunds");
       // Quoted at the rate it lands at: the fee rises over the last six hours.
       const feeBps = stook.feeBpsAt(l.feeBps, BigInt(t + 10), l.settlesAt);
-      const shares = sharesFor(l, shape, budget, feeBps, c.transferFee);
+      const shares = sharesFor(l, shape, budget, feeBps, c.transferFee, BigInt(t + 10));
       if (shares <= 0n) throw new Skip("the round can price no more of this line");
-      const q = stook.quoteTrade({ curve: l.curve, b: l.b, feeBps, decimals: l.decimals }, shape, shares);
+      const q = stook.quoteTrade({ curve: l.curve, b: stook.depthAt(l, BigInt(t + 10)), feeBps, decimals: l.decimals }, shape, shares);
       const pays = stook.grossFor(q.total, c.transferFee);
       const value = Number(stook.netOf(BigInt(Math.floor(expectedLevel(shape, pick.odds) * Number(shares))), c.transferFee));
       const edge = value / Number(pays);
@@ -322,7 +322,7 @@ function sellAction(ctx, c, p, pct) {
       const size = (pos.shares * BigInt(pct)) / 100n;
       if (size <= 0n) throw new Skip("nothing to sell");
       let q;
-      try { q = stook.quoteTrade({ curve: l.curve, b: l.b, feeBps: stook.feeBpsAt(l.feeBps, BigInt(t + 10), l.settlesAt), decimals: l.decimals }, shape, -size); } catch { throw new Skip("the sale pays nothing"); }
+      try { q = stook.quoteTrade({ curve: l.curve, b: stook.depthAt(l, BigInt(t + 10)), feeBps: stook.feeBpsAt(l.feeBps, BigInt(t + 10), l.settlesAt), decimals: l.decimals }, shape, -size); } catch { throw new Skip("the sale pays nothing"); }
       const limit = stook.minNetOf(q.total, [c.transferFee]);
       checked(ctx, key, l, "LadderInsufficientShares");
       Object.assign(ctx.detail, { curveSeq: l.curveSeq.toString(), size: size.toString(), gets: stook.netOf(q.total, c.transferFee).toString(), limit: limit.toString(), paid: ((pos.netPaid * size) / pos.shares).toString() });
@@ -402,8 +402,8 @@ function arbAction(ctx, open) {
       const plan = (c, l, live, held = null) => {
         const v = view(c, l, live);
         if (!v.fair) return null;
-        if (held) return planArbSell(l, v.fair, { feeBps: v.feeBps, transferFee: c.transferFee, held, margin });
-        return planArbBuy(l, v.fair, { feeBps: v.feeBps, transferFee: c.transferFee, budget: budgetOf(c, l), allow: allowFor(c, l), ...opts });
+        if (held) return planArbSell(l, v.fair, { feeBps: v.feeBps, transferFee: c.transferFee, held, margin, now: BigInt(t + 10) });
+        return planArbBuy(l, v.fair, { feeBps: v.feeBps, transferFee: c.transferFee, budget: budgetOf(c, l), allow: allowFor(c, l), now: BigInt(t + 10), ...opts });
       };
 
       // Screen every round trading now on the world's read (a minute old at most).
@@ -506,7 +506,7 @@ export async function arbSurvey({ world, reader, cfg, t }) {
       cheapest: cheapBands(fair, crowd, { fee, margin: cfg.arbMargin ?? 0.03, minFair: cfg.arbMinFair ?? 0.005 }).slice(0, 5).map((x) => ({ band: x.i, crowd: r4(x.crowd), fair: r4(x.fair), ratio: r4(x.ratio) })),
       richest: crowd.map((x, i) => ({ band: i, crowd: r4(x), fair: r4(fair[i]), ratio: fair[i] > 0 ? r4(x / fair[i]) : null })).filter((x) => x.crowd >= 0.01).sort((a, b) => (b.ratio ?? Infinity) - (a.ratio ?? Infinity)).slice(0, 3),
     });
-    const b = planArbBuy(l, fair, { feeBps, transferFee: c.transferFee, budget: depthShare(l, cfg.arbDepthFrac ?? 0.03), margin: cfg.arbMargin ?? 0.03, minFair: cfg.arbMinFair ?? 0.005, maxWidth: cfg.arbMaxWidth ?? 3 });
+    const b = planArbBuy(l, fair, { feeBps, transferFee: c.transferFee, budget: depthShare(l, cfg.arbDepthFrac ?? 0.03), margin: cfg.arbMargin ?? 0.03, minFair: cfg.arbMinFair ?? 0.005, maxWidth: cfg.arbMaxWidth ?? 3, now: BigInt(t + 10) });
     row.buy = b ? { shape: b.shape, shares: b.shares, pays: b.pays, worth: b.worth, paysFracOfDepth: r4(Number(b.pays) / Number(l.depositTotal)), odds: oddsDetail(b.shape, fair, b.crowd, b.after), roundAfter: spikiness(b.q.curve) } : null;
   }
   return rows;

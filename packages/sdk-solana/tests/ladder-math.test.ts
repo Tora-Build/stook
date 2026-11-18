@@ -89,6 +89,23 @@ describe("ladder sdk", () => {
     }
   });
 
+  it("thins a house round's depth toward the lock as depth_at does, and no other round", () => {
+    const b = 1_000n * WAD;
+    const h = { b, sharedVault: true, opensAt: 0n, locksAt: 10_000n };
+    expect(L.depthAt(h, 0n)).toBe(b);
+    expect(L.depthAt(h, -5n)).toBe(b);
+    expect(L.depthAt(h, 7_500n)).toBe(500n * WAD);
+    expect(L.depthAt(h, 9_900n)).toBe(250n * WAD);
+    expect(L.depthAt(h, 20_000n)).toBe(250n * WAD);
+    expect(L.depthAt({ ...h, sharedVault: false }, 9_900n)).toBe(b);
+    const big = 10n ** 36n;
+    expect(L.depthAt({ b: big, sharedVault: true, opensAt: 0n, locksAt: 4n }, 3n)).toBe(big / 2n);
+    // the same vector the program checks, to the unit
+    const odd = { b: 123_456_789_012_345_678_901_234_567n, sharedVault: true, opensAt: 1_000n, locksAt: 83_800n };
+    expect(L.depthAt(odd, 50_000n)).toBe(78_878_412_003_149_542_955_540_612n);
+    expect(L.depthAt(odd, 83_000n)).toBe(30_864_197_253_086_419_725_308_641n);
+  });
+
   it("tapers a tent from its centre, even when the taper runs off the ladder", () => {
     const t = L.tent(33, 4);
     expect([29, 30, 33, 35, 36, 37].map((i) => L.level(t, i))).toEqual([0, 1, 4, 2, 1, 0]);

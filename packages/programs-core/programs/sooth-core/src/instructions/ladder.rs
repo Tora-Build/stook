@@ -11,7 +11,7 @@ use anchor_spl::token_interface::{
 };
 
 use crate::error::SoothCoreError;
-use crate::math::ladder::{apply_trade, band_width, bin_for, liquidity_for_deposit, prior, tranche_pnl, Shape};
+use crate::math::ladder::{apply_trade, band_width, bin_for, depth_at, liquidity_for_deposit, prior, tranche_pnl, Shape};
 use crate::math::{scalar_for, wad_to_amount_ceil, wad_to_amount_floor};
 use crate::oracle::{check_live_price, check_settlement_instant, read_price_update};
 use crate::pool_oracle::{is_pool, pool_latest_price, price_for_instant, POOL_LIVE_MAX_AGE_SECS};
@@ -703,8 +703,12 @@ pub fn trade_handler(ctx: Context<LadderTrade>, args: LadderTradeArgs) -> Result
             .checked_mul(scalar_for(decimals) as i128)
             .ok_or(SoothCoreError::MathOverflow)?;
 
+        // A house round thins toward the lock (`depth_at`); a round with
+        // outside depositors keeps its depth, because their tranche books
+        // are kept at one `b`.
+        let b = if l.shared_vault() { depth_at(l.b_wad(), l.opens_at, l.locks_at, now) } else { l.b_wad() };
         let (mut w, mut sum) = l.load_curve();
-        let cost_wad = math(apply_trade(&mut w, &mut sum, l.b_wad(), shape, delta_wad))?;
+        let cost_wad = math(apply_trade(&mut w, &mut sum, b, shape, delta_wad))?;
         l.store_curve(&w, sum);
 
         // One base unit against the trader on top of ceil/floor. The scoring
@@ -1389,12 +1393,19 @@ pub fn take_tranche_owed(l: &mut Ladder, t: &LadderTranche) -> Result<(u64, u64)
         STATUS_SETTLED => {
             let k = l.settled_bin as usize;
             let (b, join_k, join_sum) = tranche_terms(l, t, k)?;
-            let pnl = math(tranche_pnl(b, join_k, join_sum, l.weight(k), l.sum_wad()))?;
-            // Both are drawn from pots that only shrink, so rounding that
-            // sums a unit high is absorbed here, never by the vault.
-            let principal = tranche_principal(t.deposit, pnl, l.quote_decimals)
-                .ok_or(SoothCoreError::MathOverflow)?
-                .min(l.lp_pool);
+            // A house round has one tranche, the house's, and its depth
+            // moved during the day, so the closed form below no longer adds
+            // up: the house takes the whole pool the winners left.
+            let principal = if l.shared_vault() && t.deposit == l.deposit_total {
+                l.lp_pool
+            } else {
+                let pnl = math(tranche_pnl(b, join_k, join_sum, l.weight(k), l.sum_wad()))?;
+                // Both are drawn from pots that only shrink, so rounding that
+                // sums a unit high is absorbed here, never by the vault.
+                tranche_principal(t.deposit, pnl, l.quote_decimals)
+                    .ok_or(SoothCoreError::MathOverflow)?
+                    .min(l.lp_pool)
+            };
             let fees = tranche_fees(
                 Ladder::b_units(b, l.quote_decimals),
                 l.acc_fee(),

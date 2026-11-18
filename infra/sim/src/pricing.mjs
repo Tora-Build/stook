@@ -82,9 +82,10 @@ export function pickLine(kind, { live, l, sigma, rng }) {
 }
 
 /** The most shares `budget` (base units, wallet side) buys of `shape` now, as the app searches it; 0n if none. */
-export function sharesFor(l, shape, budget, feeBps, transferFee) {
+export function sharesFor(l, shape, budget, feeBps, transferFee, now) {
   if (budget <= 0n) return 0n;
-  const cost = (n) => { try { return stook.grossFor(stook.quoteTrade({ curve: l.curve, b: l.b, feeBps, decimals: l.decimals }, shape, n).total, transferFee); } catch { return null; } };
+  const b = now === undefined ? l.b : stook.depthAt(l, now);
+  const cost = (n) => { try { return stook.grossFor(stook.quoteTrade({ curve: l.curve, b, feeBps, decimals: l.decimals }, shape, n).total, transferFee); } catch { return null; } };
   let lo = 0n, hi = budget;
   for (let k = 0; k < 64; k++) { const c = cost(hi); if (c === null || c > budget) break; lo = hi; hi *= 2n; }
   for (let k = 0; k < 64 && hi - lo > 1n; k++) { const mid = (lo + hi) / 2n, c = cost(mid); if (c !== null && c <= budget) lo = mid; else hi = mid; }
