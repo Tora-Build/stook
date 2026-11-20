@@ -348,3 +348,14 @@
   .board-sparks i { opacity: .6; }
   .board-house, .board-switch i, .board-switch i::after { transition: none; }
 }
+
+/* ── the all-coins race: its coin button, the week stepper, points ───── */
+.board-all-ico {
+  flex: none; font-style: normal; display: grid; place-items: center; width: 40px; height: 40px; border-radius: 50%;
+  background: #1b1505; color: var(--taxi); font-size: 20px; line-height: 1; box-shadow: inset 0 0 0 2px var(--taxi);
+}
+.board-weeks { display: flex; align-items: center; justify-content: center; gap: 16px; margin: -16px 0 24px; font-size: 15px; color: var(--ink2); }
+.board-weeks b { color: var(--text); }
+.board-weeks .btn { min-width: 40px; font-size: 18px; }
+.board-pts { color: var(--taxi); }
+:root[data-theme="day"] .board-row .board-pts { color: #8a6200; }

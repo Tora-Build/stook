@@ -5,7 +5,6 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { City } from "../City";
-import type { Coin } from "../../lib/coins";
 
 const PHONE = "(max-width: 640px)";
 
@@ -20,10 +19,11 @@ function usePhone() {
   return on;
 }
 
-/** "this week", "in the last 30 days", "so far": how the period reads after a count. */
-const when = (days: number) => (days === 7 ? "this week" : days ? `in the last ${days} days` : "so far");
-
-export function BoardHero({ coin, callTo, players, days }: { coin: Coin; callTo: string; players: number | null; days: number }) {
+/**
+ * `sym` is the coin's ticker, or null for the all-coins board; `when` is how
+ * the period reads after a count ("this week", "so far").
+ */
+export function BoardHero({ sym, callTo, players, when }: { sym: string | null; callTo: string; players: number | null; when: string }) {
   const phone = usePhone();
   return (
     <header className="board-hero">
@@ -32,10 +32,12 @@ export function BoardHero({ coin, callTo, players, days }: { coin: Coin; callTo:
       <div className="wrap board-hero-in">
         <div className="kicker board-gold board-kick">THE BOARD</div>
         <h1>The street's sharpest callers</h1>
-        <p className="board-hero-line">Every settled round counts. A <b className="up">win</b> when a call paid, a <b className="down">miss</b> when none did. Best net first.</p>
+        {sym
+          ? <p className="board-hero-line">Every settled round counts. A <b className="up">win</b> when a call paid, a <b className="down">miss</b> when none did. Best net first.</p>
+          : <p className="board-hero-line">Every coin, one race. Each settled round earns <b>10 points</b>, <b className="up">30 more</b> when a call paid, and up to <b className="up">60 more</b> for what it returned. The top three at each Friday bell win the week.</p>}
         <div className="board-hero-act">
-          <Link className="btn" to={callTo}>Make a call in ${coin.symbol} <span aria-hidden="true">→</span></Link>
-          {players !== null && <span className="board-hero-stat"><b className="num">{players}</b> {players === 1 ? "caller" : "callers"} {when(days)}</span>}
+          <Link className="btn" to={callTo}>{sym ? <>Make a call in ${sym}</> : "Make a call"} <span aria-hidden="true">→</span></Link>
+          {players !== null && <span className="board-hero-stat"><b className="num">{players}</b> {players === 1 ? "caller" : "callers"} {when}</span>}
         </div>
       </div>
     </header>

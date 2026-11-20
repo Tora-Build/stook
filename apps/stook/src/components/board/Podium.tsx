@@ -3,8 +3,7 @@
 // the home page's trading floor, in both themes.
 import type { ReactNode } from "react";
 import { Link } from "react-router-dom";
-import { fmtUsd, toUsd } from "../../lib/usd";
-import { abs, coinAmt, signOf, shortAddr, tone, type Player } from "./data";
+import { shortAddr, type Player, type Score } from "./data";
 import { GhostTrader, Trader } from "./Trader";
 
 /** Steps left to right: second, first, third. */
@@ -23,7 +22,7 @@ export function Stage({ left, mid, right, children }: { left: ReactNode; mid: Re
   );
 }
 
-export function Podium({ top, sym, dec, rate, me }: { top: Player[]; sym: string; dec: number; rate: number | null; me?: string }) {
+export function Podium({ top, score, me }: { top: Player[]; score: (p: Player) => Score; me?: string }) {
   return (
     <div className="board-podium">
       <div className="board-spot" aria-hidden="true" />
@@ -33,7 +32,7 @@ export function Podium({ top, sym, dec, rate, me }: { top: Player[]; sym: string
           const p = top[place - 1];
           return (
             <li key={place} className={`board-place board-place-${place}`} style={{ order: place === 1 ? 2 : place === 2 ? 1 : 3 }} aria-label={p ? `Place ${place}` : `Place ${place}, open`}>
-              {p ? <Winner p={p} place={place} sym={sym} dec={dec} rate={rate} me={me} /> : <Open />}
+              {p ? <Winner p={p} place={place} score={score(p)} me={me} /> : <Open />}
               <div className="board-block"><span className="pix">{place}</span></div>
             </li>
           );
@@ -43,13 +42,12 @@ export function Podium({ top, sym, dec, rate, me }: { top: Player[]; sym: string
   );
 }
 
-function Winner({ p, place, sym, dec, rate, me }: { p: Player; place: 1 | 2 | 3; sym: string; dec: number; rate: number | null; me?: string }) {
-  const net = BigInt(p.net);
+function Winner({ p, place, score, me }: { p: Player; place: 1 | 2 | 3; score: Score; me?: string }) {
   const mine = p.wallet === me;
   return (
     <Link to={`/yours?account=${p.wallet}&tab=history`} className={`board-winner ${mine ? "board-mine" : ""}`} title={`${p.wallet}\nSee their rounds`}>
-      <span className={`board-w-net num ${tone(net)}`}>{coinAmt(net, dec, true)}<small> ${sym}</small></span>
-      {rate !== null && <span className="board-w-usd">≈ {signOf(net)}{fmtUsd(toUsd(abs(net), dec, rate))}</span>}
+      <span className={`board-w-net num ${score.tone}`} title={score.title}>{score.main}<small> {score.unit}</small></span>
+      {score.sub && <span className="board-w-usd">{score.sub}</span>}
       <span className="board-w-who">
         {mine && <b className="board-you">YOU</b>}
         <span className="board-w-addr">{shortAddr(p.wallet)}</span>

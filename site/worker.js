@@ -347,8 +347,9 @@ export default {
       if (status === 200) ctx.waitUntil(cache.put(key, res.clone()));
       return res;
     }
-    // /leaderboard?coin=&days=: the street's callers in one coin, best net
-    // first, from the ledger (as /history). The ledger rescores every five
+    // /leaderboard?coin=&days=[&week=]: the street's callers in one coin,
+    // best net first, or in every coin (coin=ALL) by season points, over the
+    // last days or one prize week back, from the ledger (as /history). The ledger rescores every five
     // minutes, so a minute at the edge loses nothing.
     if (url.pathname === "/leaderboard") {
       const p = url.searchParams, q = new URLSearchParams();
@@ -356,6 +357,7 @@ export default {
       const coin = p.get("coin") ?? ""; if (!/^[A-Z]{1,10}$/.test(coin)) return bad("coin must be a symbol"); q.set("coin", coin);
       const days = p.get("days") ?? "0"; if (!["0", "7", "30"].includes(days)) return bad("days must be 0, 7 or 30"); q.set("days", days);
       const limit = p.get("limit"); if (limit !== null) { if (!/^\d{1,3}$/.test(limit)) return bad("bad limit"); q.set("limit", limit); }
+      const week = p.get("week"); if (week !== null) { if (!/^\d{1,2}$/.test(week)) return bad("bad week"); q.set("week", week); }
       const cache = caches.default, key = new Request(`${url.origin}/leaderboard?${q}`);
       const hit = await cache.match(key); if (hit) return hit;
       const base = await tapeUrl(env);

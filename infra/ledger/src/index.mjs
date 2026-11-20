@@ -22,7 +22,7 @@ import { PROGRAM_ID, parseTransaction } from "./decode.mjs";
 import { makeRpc } from "./rpc.mjs";
 import { openStore } from "./store.mjs";
 import { buildHistory, RESULTS } from "./history.mjs";
-import { loadBots, rankBoard, scoreAll } from "./board.mjs";
+import { ALL, SEASON, loadBots, rankBoard, scoreAll, weekOf } from "./board.mjs";
 import { coinBook, loadMints } from "./coins.mjs";
 import { isPubkey } from "./b58.mjs";
 import { hydrate } from "./hydrate.mjs";
@@ -168,7 +168,9 @@ export function handle(req, res) {
     const days = Number(u.searchParams.get("days") ?? 0);
     if (![0, 7, 30].includes(days)) return json(res, 400, { error: "days must be 0, 7 or 30" });
     const limit = Math.max(1, Math.min(100, Number(u.searchParams.get("limit")) || 50));
-    return json(res, 200, board(coin, days, limit));
+    const w = u.searchParams.get("week");
+    if (w !== null && !/^\d{1,2}$/.test(w)) return json(res, 400, { error: "week must be 0 to 99" });
+    return json(res, 200, board(coin, days, limit, w === null ? null : Number(w)));
   }
   json(res, 404, { error: "not found" });
 }
@@ -195,10 +197,13 @@ function rescore() {
   scoredAt = Math.floor(Date.now() / 1000);
   if (Date.now() - t > 5_000) log(`ledger: scoring the board took ${Date.now() - t} ms`);
 }
-function board(coin, days, limit) {
+/** A coin's board (or `ALL`'s) over the last `days` (0: all of it), or over prize week `week` back. */
+function board(coin, days, limit, week) {
   if (!scored) rescore();
   const head = store.getKv("head"), bf = store.getKv("backfill");
-  return { ...rankBoard(scored, { bots: loadBots(), coin, since: days ? scoredAt - days * 86_400 : 0, limit }), days, scoredAt, indexed: { through: head?.time ?? null, complete: !!bf?.done } };
+  const w = week === null ? null : weekOf(week, scoredAt);
+  const span = w ? { since: w.from, until: w.to } : { since: days ? scoredAt - days * 86_400 : SEASON.from };
+  return { ...rankBoard(scored, { bots: loadBots(), coin, limit, ...span }), days, week: w, season: coin === ALL ? SEASON.name : undefined, scoredAt, indexed: { through: head?.time ?? null, complete: !!bf?.done } };
 }
 
 const server = http.createServer((req, res) => {

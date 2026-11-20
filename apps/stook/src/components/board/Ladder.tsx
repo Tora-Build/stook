@@ -6,16 +6,16 @@
 import { useEffect, useRef, useState, type Ref } from "react";
 import { Link } from "react-router-dom";
 import { useWalletModal } from "@solana/wallet-adapter-react-ui";
-import { fmtUsd, toUsd } from "../../lib/usd";
-import { abs, ago, coinAmt, signOf, shortAddr, tone, type Player } from "./data";
+import { ago, shortAddr, type Player, type Score } from "./data";
 import { Trader } from "./Trader";
 
 /** Rows shown before "Show all": ranks 4 to 10. */
 const FOLD = 10;
 
-interface Props { rows: Player[]; all: Player[]; total: number; sym: string; dec: number; rate: number | null; me?: string; callTo: string }
+/** `col` heads the score column; `where` names the board in copy: "$ZCAT", "any coin". */
+interface Props { rows: Player[]; all: Player[]; total: number; score: (p: Player) => Score; col: string; where: string; me?: string; callTo: string }
 
-export function Ladder({ rows, all, total, sym, dec, rate, me, callTo }: Props) {
+export function Ladder({ rows, all, total, score, col, where, me, callTo }: Props) {
   const mine = me ? all.find((p) => p.wallet === me) : undefined;
   const [open, setOpen] = useState(false);
   const head = open ? rows : rows.filter((p) => p.rank <= FOLD);
@@ -38,13 +38,13 @@ export function Ladder({ rows, all, total, sym, dec, rate, me, callTo }: Props) 
     return () => io.disconnect();
   }, [mine?.wallet, mine?.rank, open]);
 
-  const row = (p: Player) => <Row key={p.wallet} p={p} sym={sym} dec={dec} rate={rate} mine={p.wallet === me} innerRef={p.wallet === me ? youRef : undefined} />;
+  const row = (p: Player) => <Row key={p.wallet} p={p} score={score(p)} mine={p.wallet === me} innerRef={p.wallet === me ? youRef : undefined} />;
 
   return (
-    <section className="board-ladder" aria-label={`Callers in $${sym}`}>
+    <section className="board-ladder" aria-label={`Callers in ${where}`}>
       {rows.length > 0 && <>
         <div className="board-row board-row-head" aria-hidden="true">
-          <span>#</span><span>Caller</span><span className="board-c-r">Rounds</span><span className="board-c-hit">Hit rate</span><span className="board-c-last">Last round</span><span className="board-c-net">Net, ${sym}</span>
+          <span>#</span><span>Caller</span><span className="board-c-r">Rounds</span><span className="board-c-hit">Hit rate</span><span className="board-c-last">Last round</span><span className="board-c-net">{col}</span>
         </div>
         <ol className="board-rows">
           {head.map(row)}
@@ -57,14 +57,13 @@ export function Ladder({ rows, all, total, sym, dec, rate, me, callTo }: Props) 
           </button>
         )}
       </>}
-      {mine && mine.rank > 3 && below && <div className="board-pin"><Row p={mine} sym={sym} dec={dec} rate={rate} mine pinned /></div>}
-      <Me me={me} on={!!mine} shown={all.length} total={total} sym={sym} callTo={callTo} />
+      {mine && mine.rank > 3 && below && <div className="board-pin"><Row p={mine} score={score(mine)} mine pinned /></div>}
+      <Me me={me} on={!!mine} shown={all.length} total={total} where={where} callTo={callTo} />
     </section>
   );
 }
 
-function Row({ p, sym, dec, rate, mine, pinned, innerRef }: { p: Player; sym: string; dec: number; rate: number | null; mine: boolean; pinned?: boolean; innerRef?: Ref<HTMLLIElement> }) {
-  const net = BigInt(p.net), best = BigInt(p.best);
+function Row({ p, score, mine, pinned, innerRef }: { p: Player; score: Score; mine: boolean; pinned?: boolean; innerRef?: Ref<HTMLLIElement> }) {
   const won = p.won + p.missed ? (p.won / (p.won + p.missed)) * 100 : 0;
   const cells = <>
     <span className="board-c-rank pix">{p.rank}</span>
@@ -82,9 +81,9 @@ function Row({ p, sym, dec, rate, mine, pinned, innerRef }: { p: Player; sym: st
       <span className="board-bar" aria-hidden="true"><i style={{ width: `${won}%` }} /></span>
     </span>
     <span className="board-c-last">{p.last ? ago(p.last) : ""}</span>
-    <span className={`board-c-net num ${tone(net)}`} title={`Best round ${coinAmt(best, dec, true)} $${sym}`}>
-      {coinAmt(net, dec, true)}
-      {rate !== null && <small>≈ {signOf(net)}{fmtUsd(toUsd(abs(net), dec, rate))}</small>}
+    <span className={`board-c-net num ${score.tone}`} title={score.title}>
+      {score.main}
+      {score.sub && <small>{score.sub}</small>}
     </span>
   </>;
   const cls = `board-row ${mine ? "board-row-you" : ""} ${pinned ? "board-row-pinned" : ""}`;
@@ -92,7 +91,7 @@ function Row({ p, sym, dec, rate, mine, pinned, innerRef }: { p: Player; sym: st
 }
 
 /** Where the viewer stands: on the board, below the top of it, not on it yet, or not connected. */
-function Me({ me, on, shown, total, sym, callTo }: { me?: string; on: boolean; shown: number; total: number; sym: string; callTo: string }) {
+function Me({ me, on, shown, total, where, callTo }: { me?: string; on: boolean; shown: number; total: number; where: string; callTo: string }) {
   const modal = useWalletModal();
   if (me && on) return null;
   const cut = total > shown;
@@ -102,8 +101,8 @@ function Me({ me, on, shown, total, sym, callTo }: { me?: string; on: boolean; s
       {!me
         ? <p><b>Looking for yourself?</b> Connect your wallet and your row lights up.</p>
         : cut
-          ? <p><b>You are not in the top {shown}.</b> The board shows the best {shown} of {total} callers in this period. If you have not called in ${sym} yet, make a call: when the round settles, your record counts.</p>
-          : <p><b>You are not on this board yet.</b> Make a call in ${sym}. When the round settles, your record lands here.</p>}
+          ? <p><b>You are not in the top {shown}.</b> The board shows the best {shown} of {total} callers in this period. If you have not called in {where} yet, make a call: when the round settles, your record counts.</p>
+          : <p><b>You are not on this board yet.</b> Make a call in {where}. When the round settles, your record lands here.</p>}
       {!me
         ? <button className="btn btn-sm btn-ghost" onClick={() => modal.setVisible(true)}>Connect</button>
         : <div className="board-me-act">
